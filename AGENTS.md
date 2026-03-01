@@ -56,6 +56,36 @@
 - [ ] API Documentation 链接是否有效
 - [ ] Related Projects 链接是否正确
 
+### 规则 6: Git 提交与记忆同步
+
+**关键原则**: 保持提交历史的干净和线性
+
+**执行流程**:
+1. **代码修改前**: 先更新记忆文件记录计划变更
+2. **代码修改后**: 将记忆文件更新与代码变更一起提交
+3. **禁止行为**: 提交代码后再单独提交记忆文件更新来记录这次提交
+
+**原因**: 
+- 避免循环提交（commit → 更新记忆 → commit 记忆更新 → 更新记忆记录...）
+- 保持每个 commit 是完整、自包含的变更单元
+- 提交历史清晰可读，无冗余的"更新记忆"提交
+
+**示例**:
+```bash
+# ✅ 正确流程:
+# 1. 更新记忆文件
+Edit: memory-bank/activeContext.md
+# 2. 修改代码
+Edit: src/.../Controller.java
+# 3. 一起提交
+git add -A && git commit -m "feat: add user authentication"
+
+# ❌ 错误流程:
+git commit -m "feat: add user authentication"  # 先提交代码
+Edit: memory-bank/activeContext.md              # 再更新记忆
+git commit -m "docs: update memory bank"        # 再提交记忆（禁止！）
+```
+
 ---
 
 ## 🧠 记忆库结构
