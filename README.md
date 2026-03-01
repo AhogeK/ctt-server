@@ -1,6 +1,7 @@
 # CTT Server
 
-Cloud-based synchronization backend for Coding Time Tracker (CTT) - a JetBrains IDE plugin that tracks coding activities and provides personal analytics dashboards.
+Cloud-based synchronization backend for Code Time Tracker (CTT) - a JetBrains IDE plugin that tracks coding activities
+and provides personal analytics dashboards.
 
 ## Overview
 
@@ -13,16 +14,16 @@ CTT Server provides:
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Language | Java 21 (Virtual Threads) |
-| Framework | Spring Boot 3.x (MVC) |
+| Layer          | Technology                        |
+|----------------|-----------------------------------|
+| Language       | Java 21 (Virtual Threads)         |
+| Framework      | Spring Boot 3.x (MVC)             |
 | Authentication | Spring Security 6 + JWT + API Key |
-| Database | PostgreSQL 16 |
-| Migration | Flyway |
-| Cache | Redis 7 |
-| API Docs | springdoc-openapi |
-| Testing | JUnit 5 + Testcontainers |
+| Database       | PostgreSQL 16                     |
+| Migration      | Flyway                            |
+| Cache          | Redis 7                           |
+| API Docs       | springdoc-openapi                 |
+| Testing        | JUnit 5 + Testcontainers          |
 
 ## Architecture
 
@@ -101,7 +102,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Related Projects
 
-- [CTT Plugin](https://github.com/AhogeK/coding-time-tracker) - JetBrains IDE plugin
+- [CTT JetBrains Plugin](https://github.com/AhogeK/ctt-jetbrains) - JetBrains IDE plugin
 - [CTT Web](https://github.com/AhogeK/ctt-web) - Vue.js dashboard frontend
 
 ---
