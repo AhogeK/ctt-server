@@ -131,4 +131,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-Built with ☕ by [AhogeK](https://github.com/AhogeK)
+Built with ☕ by [AhogeK](https://link.ahogek.com/)
