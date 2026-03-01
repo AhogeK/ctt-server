@@ -7,10 +7,11 @@ and provides personal analytics dashboards.
 
 CTT Server provides:
 
-- **Data Synchronization**: Secure API for JetBrains plugin to sync coding sessions
-- **API Key Management**: Product-grade authentication with scope-based permissions
-- **Statistics & Analytics**: Aggregation queries for coding metrics and trends
+- **Bidirectional Sync Engine**: Multi-device data synchronization with LWW conflict resolution
+- **API Key Management**: Product-grade authentication with device-binding and revocation
+- **Statistics & Analytics**: Time-series aggregation queries with device filtering
 - **Global Leaderboard**: Redis-powered real-time ranking system
+- **Soft Delete Architecture**: Safe data handling with `is_deleted` flags for sync integrity
 
 ## Tech Stack
 
@@ -27,30 +28,53 @@ CTT Server provides:
 
 ## Architecture
 
+### System Overview
+
 ```
-┌───────────────────────────────────────────┐
-│ JetBrains Plugin                           │
-│ - Time tracking & session management       │
-│ - Delta sync with retry logic              │
-└───────────────┬───────────────────────────┘
-                │ HTTPS (Bearer API Key)
-                ▼
-┌───────────────────────────────────────────┐
-│ CTT Cloud API (Spring Boot)               │
-│ - API Key Auth + Rate Limiting            │
-│ - Idempotent sync ingest                  │
-│ - Stats aggregation queries               │
-│ - Redis-backed leaderboard                │
-└───────────────┬───────────────────────────┘
-                │
-        ┌───────┴────────┐
-        ▼                ▼
-┌───────────────┐  ┌───────────────┐
-│ PostgreSQL     │  │ Redis          │
-│ - sessions     │  │ - key cache    │
-│ - users        │  │ - rate limit   │
-│ - api_keys     │  │ - leaderboard  │
-└───────────────┘  └───────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│ JetBrains Plugin                                                 │
+│ - Local SQLite storage                                           │
+│ - Time tracking & idle detection                                 │
+│ - Bidirectional sync (Pull → Push with conflict resolution)      │
+└───────────────────┬─────────────────────────────────────────────┘
+                    │ HTTPS (Authorization: Bearer <api_key>)
+                    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ CTT Cloud API (Spring Boot) - Package-by-Feature Architecture    │
+│ ├── auth/          - JWT authentication (Web users)              │
+│ ├── apikey/        - API Key management (Device auth)            │
+│ ├── sync/          - Bidirectional sync engine (LWW strategy)    │
+│ ├── stats/         - Time-series aggregation queries             │
+│ └── leaderboard/   - Redis ZSet ranking system                   │
+└───────────────────┬─────────────────────────────────────────────┘
+                    │
+        ┌───────────┴───────────┐
+        ▼                       ▼
+┌──────────────────┐  ┌──────────────────┐
+│ PostgreSQL 16    │  │ Redis 7          │
+│ - users          │  │ - key cache      │
+│ - api_keys       │  │ - rate limiting  │
+│ - sessions       │  │ - leaderboard    │
+│ - sync_cursors   │  │                  │
+└──────────────────┘  └──────────────────┘
+
+# Web Dashboard (Vue.js) - Planned in separate project
+# Frontend development will be handled in: github.com/AhogeK/ctt-web
+```
+
+### Package Structure (Package-by-Feature)
+
+```
+ctt-server/
+├── common/              # Global shared utilities
+│   ├── config/          # Security, Redis, WebMvc config
+│   ├── exception/       # Global exception handling
+│   └── response/        # Unified API response wrappers
+├── auth/                # JWT authentication module
+├── apikey/              # API Key management module
+├── sync/                # Bidirectional sync engine
+├── stats/               # Statistics aggregation
+└── leaderboard/         # Redis-powered ranking
 ```
 
 ## Getting Started
@@ -102,8 +126,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Related Projects
 
-- [CTT JetBrains Plugin](https://github.com/AhogeK/ctt-jetbrains) - JetBrains IDE plugin
-- [CTT Web](https://github.com/AhogeK/ctt-web) - Vue.js dashboard frontend
+- [CTT JetBrains Plugin](../code-time-tracker) - JetBrains IDE plugin (local)
+- [CTT Web](https://github.com/AhogeK/ctt-web) - Vue.js dashboard frontend (planned)
 
 ---
 
