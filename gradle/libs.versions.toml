@@ -4,7 +4,7 @@
 appVersion = "0.1.0"
 
 # Spring Boot ecosystem
-springBoot = "3.4.3"
+springBoot = "4.0.3"
 springDependencyManagement = "1.1.7"
 
 # Database
