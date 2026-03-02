@@ -33,6 +33,7 @@
 **关联本地项目**：`../code-time-tracker` (JetBrains 插件项目)
 
 当任务涉及以下场景时，**主动读取**关联项目文件：
+
 - API 接口变更需同步插件端
 - 数据结构修改需对齐两端
 - 协议版本更新
@@ -43,6 +44,7 @@
 ### 规则 5: README 实时同步
 
 **当以下情况发生时，必须同步更新 README.md**：
+
 - 新增或修改 API 端点
 - 变更技术栈或架构设计
 - 添加新功能模块
@@ -50,6 +52,7 @@
 - 更新部署方式
 
 **README 更新检查清单**：
+
 - [ ] Overview 功能列表是否完整
 - [ ] Tech Stack 是否与实际一致
 - [ ] Architecture 图是否反映当前设计
@@ -61,16 +64,19 @@
 **关键原则**: 保持提交历史的干净和线性
 
 **执行流程**:
+
 1. **代码修改前**: 先更新记忆文件记录计划变更
 2. **代码修改后**: 将记忆文件更新与代码变更一起提交
 3. **禁止行为**: 提交代码后再单独提交记忆文件更新来记录这次提交
 
-**原因**: 
+**原因**:
+
 - 避免循环提交（commit → 更新记忆 → commit 记忆更新 → 更新记忆记录...）
 - 保持每个 commit 是完整、自包含的变更单元
 - 提交历史清晰可读，无冗余的"更新记忆"提交
 
 **示例**:
+
 ```bash
 # ✅ 正确流程:
 # 1. 更新记忆文件
@@ -84,6 +90,100 @@ git add -A && git commit -m "feat: add user authentication"
 git commit -m "feat: add user authentication"  # 先提交代码
 Edit: memory-bank/activeContext.md              # 再更新记忆
 git commit -m "docs: update memory bank"        # 再提交记忆（禁止！）
+```
+
+### 规则 7: Git 操作需人工确认（强制）
+
+**⚠️ 严厉警告**: 所有 Git 操作必须获得用户明确批准
+
+**禁止擅自执行的操作**:
+
+- `git commit` - 创建提交
+- `git push` - 推送到远程
+- `git merge` / `git rebase` - 分支操作
+- `git reset` / `git revert` - 撤销操作
+- `git tag` - 标签操作
+- `git stash` - 储藏更改
+- `gh pr create` - 创建 Pull Request
+- 任何修改仓库状态的 Git 命令
+
+**允许自主执行的操作**（只读）:
+
+- `git status` - 查看状态
+- `git log` - 查看历史
+- `git diff` - 查看差异
+- `git show` - 查看提交详情
+
+**执行流程**:
+
+1. **说明**: 清楚说明想执行什么操作及原因
+2. **等待**: 等待用户明确确认（如"可以"、"继续"）
+3. **确认**: 只有收到明确批准后才执行
+
+**例外情况**:
+用户明确指令包含以下关键词时无需确认：
+
+- "提交"、"commit"
+- "推送"、"push"
+- "做吧"、"继续"
+
+**错误示例**（已发生）:
+
+```
+❌ AI擅自: git commit -m "fix: restore versions"
+❌ AI擅自: git push origin master
+
+后果: Java版本、Spring Boot版本被错误修改并推送，
+      严重违反用户技术决策
+```
+
+### 规则 8: 技术决策与重大变更需人工确认（强制）
+
+**⚠️ 绝对禁止 AI 擅自修改以下内容**：
+
+**技术栈与版本**:
+
+- 语言版本（Java、Python、Node.js 等）
+- 框架版本（Spring Boot、Django、React 等）
+- 依赖库版本（数据库驱动、安全库、工具库等）
+- 构建工具版本（Gradle、Maven、npm 等）
+
+**架构设计**:
+
+- 项目结构变更（Package-by-Feature ↔ Package-by-Layer）
+- 数据库选型（PostgreSQL ↔ MySQL ↔ MongoDB）
+- 缓存策略变更（Redis ↔ Memcached）
+- 认证机制变更（JWT ↔ Session ↔ OAuth）
+- 部署方式变更（Railway ↔ AWS ↔ 自托管）
+
+**数据模型**:
+
+- 实体字段增减或类型变更
+- 数据库表结构调整
+- API 接口版本升级（v1 → v2）
+- 协议格式变更（JSON ↔ Protobuf ↔ GraphQL）
+
+**执行原则**:
+
+1. **只读取，不猜测**: 看到版本号 X，绝不假设"应该升级到 Y"
+2. **只实现，不决策**: 用户说"用版本 X"，绝不说"我觉得 Y 更好"
+3. **有疑问必须问**: 不确定是否是重大变更时，**先询问再行动**
+
+**正确示例**:
+
+```
+用户: "配置 Gradle 版本管理"
+AI: "我看到当前使用 Java 25 和 Spring Boot 4.0.3，版本目录中需要填写这些版本号，确认使用这些版本吗？"
+用户: "是的"
+AI: [执行配置，保持原版本]
+```
+
+**错误示例**（已发生）:
+
+```
+用户: "配置 Gradle 版本管理"
+AI: [擅自将 Java 25→21，Spring Boot 4.0.3→3.4.3]
+后果: 严重违反用户技术决策，破坏项目兼容性
 ```
 
 ---
