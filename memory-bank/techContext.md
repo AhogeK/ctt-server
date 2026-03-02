@@ -2,8 +2,8 @@
 
 ## 技术栈
 
-- **语言**: Java 21 (Virtual Threads)
-- **框架**: Spring Boot 3.4.3
+- **语言**: Java 25 (Virtual Threads)
+- **框架**: Spring Boot 4.0.3
 - **构建工具**: Gradle 9.x with Kotlin DSL
 - **版本管理**: Gradle Version Catalog (`gradle/libs.versions.toml`)
 - **数据库**: PostgreSQL 16 + Flyway 11.4.0
@@ -36,6 +36,6 @@ Package-by-Feature Structure:
 
 采用 **Gradle Version Catalog** 集中管理所有依赖版本：
 - 版本定义: `gradle/libs.versions.toml`
-- 应用版本: `appVersion = "0.1.0"`
+- 应用版本: `appVersion = "0.0.1-SNAPSHOT"`
 - 依赖引用: `libs.spring.boot.starter.web`
 - Bundles: `libs.bundles.jjwt` (group related deps)

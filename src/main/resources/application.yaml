@@ -26,6 +26,25 @@ spring:
 
 server:
   port: 8080
+  servlet:
+    context-path: /ctt-server
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,loggers
+  endpoint:
+    health:
+      show-details: when-authorized
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: ctt-server
+    version: 1.0.0
 
 springdoc:
   api-docs:
