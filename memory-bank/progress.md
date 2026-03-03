@@ -7,13 +7,14 @@
 - [x] 项目架构设计与技术选型确定
 - [x] README 基础版本
 - [x] MIT LICENSE
+- [x] 创建 Flyway 数据库迁移脚本 (V20260303210000__init_base_schema.sql)
 
 ## 开发计划 (8周) 🗓️
 
 ### Week 1-2: 基础设施与认证 🔧
 **目标**: 搭建脚手架、数据库、认证系统
 - [ ] 搭建 Spring Boot 3.x + Gradle Kotlin 项目结构
-- [ ] 配置 PostgreSQL + Flyway 数据库迁移
+- [x] 配置 PostgreSQL + Flyway 数据库迁移 (脚本已创建)
 - [ ] 配置 Redis 缓存
 - [ ] 实现 JWT 用户认证 (注册/登录)
 - [ ] 实现 API Key 生成与管理 (设备绑定)
@@ -52,12 +53,16 @@
 
 ## 进行中 🔄
 
-- [ ] Week 1 基础设施搭建 - 进度: 0%
+- [ ] Week 1 基础设施搭建 - 进度: 20%
+  - [x] Flyway 数据库迁移脚本
+  - [ ] Spring Boot 项目结构
+  - [ ] Redis 缓存配置
+  - [ ] JWT 认证实现
+  - [ ] API Key 管理
 
 ## 待开始 ⏳
 
 - [ ] 项目脚手架初始化
-- [ ] 数据库迁移脚本编写
 
 ## 已知问题 🐛
 
