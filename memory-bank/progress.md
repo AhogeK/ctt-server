@@ -14,7 +14,7 @@
 
 ### Week 1-2: 基础设施与认证 🔧
 **目标**: 搭建脚手架、数据库、认证系统
-- [ ] 搭建 Spring Boot 3.x + Gradle Kotlin 项目结构
+- [ ] 搭建 Spring Boot 4.x + Gradle Kotlin 项目结构
 - [x] 配置 PostgreSQL + Flyway 数据库迁移 (脚本已创建)
 - [ ] 配置 Redis 缓存
 - [ ] 实现 JWT 用户认证 (注册/登录)
