@@ -9,6 +9,7 @@
 - [x] MIT LICENSE
 - [x] 创建 Flyway 数据库迁移脚本 (V20260303210000__init_base_schema.sql)
 
+
 ## 开发计划 (8周) 🗓️
 
 ### Week 1-2: 基础设施与认证 🔧
@@ -54,7 +55,7 @@
 ## 进行中 🔄
 
 - [ ] Week 1 基础设施搭建 - 进度: 20%
-  - [x] Flyway 数据库迁移脚本
+  - [x] Flyway 数据库迁移脚本（包含完整 Schema：users、devices、api_keys、coding_sessions、session_changes、sync_cursors、audit_logs）
   - [ ] Spring Boot 项目结构
   - [ ] Redis 缓存配置
   - [ ] JWT 认证实现

@@ -29,7 +29,8 @@
 - [2025-03-01] - 更新 AGENTS.md：添加规则 7 - Git 操作需人工确认（防止擅自 commit/push）
 - [2025-03-01] - 更新 AGENTS.md：添加规则 8 - 技术决策与重大变更需人工确认（版本、架构、数据模型等）
 - [2025-03-02] - 完善 boot.md 命令：强制读取 AGENTS.md 优先、Glob 扫描代码、不质疑版本
-- [2025-03-03] - 创建 Flyway 数据库迁移脚本：V20260303210000__init_base_schema.sql
+- [2025-03-03] - 创建 Flyway 数据库迁移脚本：V20260303210000__init_base_schema.sql（包含完整 Schema：users、devices、api_keys、coding_sessions、session_changes、sync_cursors、audit_logs）
+
 
 ## 错误/障碍
 

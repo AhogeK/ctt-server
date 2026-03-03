@@ -62,6 +62,26 @@ CTT Server provides:
 # Frontend development will be handled in: github.com/AhogeK/ctt-web
 ```
 
+### Database Schema
+
+**PostgreSQL Tables** (`src/main/resources/db/migration/V20260303210000__init_base_schema.sql`):
+
+| Table | Description | Key Columns |
+|-------|-------------|-------------|
+| `users` | User accounts (Web & OAuth) | `id`, `email`, `github_id`, `status`, `last_login_at` |
+| `devices` | Client device registration | `id`, `user_id`, `platform`, `ide_name`, `last_seen_at` |
+| `api_keys` | Authentication keys (device-bound) | `id`, `key_hash`, `revoked_at`, `last_used_at` |
+| `coding_sessions` | Core time-tracking data | `session_uuid`, `start_time`, `end_time`, `client_version` |
+| `session_changes` | Sync change log (watermark base) | `change_id`, `op`, `server_version`, `happened_at` |
+| `sync_cursors` | Per-device sync state | `last_pulled_change_id`, `last_push_at` |
+| `audit_logs` | Security audit trail | `action`, `resource_type`, `details (JSONB)`, `ip_address` |
+
+**Key Design Features**:
+- **Soft Delete**: `coding_sessions` uses `is_deleted` flag for sync integrity
+- **LWW Sync**: `client_version` + `server_version` for conflict resolution
+- **Audit Trail**: `audit_logs` with JSONB for flexible querying
+- **OAuth Ready**: `github_id`/`github_login` columns in `users` table
+
 ### Package Structure (Package-by-Feature)
 
 ```
