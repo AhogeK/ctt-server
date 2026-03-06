@@ -124,11 +124,11 @@ CREATE TABLE devices
     platform     VARCHAR(50),
     ide_name     VARCHAR(100),
     ide_version  VARCHAR(50),
-    app_version VARCHAR(50),
-    last_ip     INET,
+    app_version  VARCHAR(50),
+    last_ip      INET,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE devices IS 'Registered client devices';
@@ -266,18 +266,18 @@ CREATE INDEX idx_refresh_tokens_active
 
 CREATE TABLE api_keys
 (
-    id         UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
-    user_id    UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    device_id  UUID        REFERENCES devices (id) ON DELETE SET NULL,
-    key_prefix VARCHAR(32) NOT NULL,
-    key_hash   CHAR(64)    NOT NULL,
+    id           UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
+    user_id      UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    device_id    UUID        REFERENCES devices (id) ON DELETE SET NULL,
+    key_prefix   VARCHAR(32) NOT NULL,
+    key_hash     CHAR(64)    NOT NULL,
     name         VARCHAR(100),
-    scopes     JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    scopes       JSONB       NOT NULL DEFAULT '[]'::jsonb,
     last_used_at TIMESTAMPTZ,
-    expires_at TIMESTAMPTZ,
+    expires_at   TIMESTAMPTZ,
     revoked_at   TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 COMMENT ON TABLE api_keys IS 'Authentication API keys for devices or applications';
@@ -430,8 +430,8 @@ CREATE TABLE audit_logs
     action        VARCHAR(100) NOT NULL,
     resource_type VARCHAR(50)  NOT NULL,
     resource_id   VARCHAR(255),
-    details    JSONB NOT NULL DEFAULT '{}'::jsonb,
-    ip_address INET,
+    details       JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    ip_address    INET,
     user_agent    TEXT,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
