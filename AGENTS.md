@@ -128,16 +128,42 @@ git commit -m "docs: update memory bank"        # 再提交记忆（禁止！）
 |---------|---------|-------------|
 | "检查修改" | 查看状态/差异 | ❌ 只读 |
 | "查看变更" | 查看 diff | ❌ 只读 |
+| "创建分支" | 仅创建本地分支 | ❌ 不包含提交/推送 |
 | "提交" | commit | ✅ 需明确确认 |
 | "commit" | commit | ✅ 需明确确认 |
 | "推送" | push | ✅ 需明确确认 |
 | "push" | push | ✅ 需明确确认 |
+| "创建 PR" | gh pr create | ✅ 需明确确认 |
 | "做吧"/"继续" | 继续之前的操作 | ✅ 按上下文 |
+
+**🚨 红线清单 - 绝对禁止擅自执行**:
+
+1. **提交相关**（任何将代码存入 Git 历史的操作）:
+   - `git add` / `git stage`
+   - `git commit` / `git commit -m "..."`
+   - `git commit --amend`
+
+2. **推送相关**（任何将本地更改发送到远程的操作）:
+   - `git push` / `git push origin <branch>`
+   - `git push -u origin <branch>`
+   - `git push --force`
+
+3. **PR 相关**（任何 GitHub 协作操作）:
+   - `gh pr create`
+   - `gh pr merge`
+   - `gh pr edit`
+
+4. **历史修改**（任何改变 Git 历史的操作）:
+   - `git rebase`
+   - `git merge`
+   - `git cherry-pick`
+   - `git reset` / `git revert`
 
 **严格禁止的误解**:
 - ❌ "检查" ≠ "提交"
 - ❌ "查看" ≠ "推送"
 - ❌ "review" ≠ "commit"
+- ❌ "创建分支" ≠ "提交代码到该分支"
 - ❌ 用户说 "A"，AI 不能做 "B"
 
 **例外情况**:
@@ -168,6 +194,20 @@ git commit -m "docs: update memory bank"        # 再提交记忆（禁止！）
 - 仅执行只读操作（git diff/status）
 - 修改文件后询问:"文件已修改，是否提交推送？"
 - 等待明确确认后再执行 git add/commit/push
+```
+
+```
+❌ AI误解: 用户说"创建分支，用于开发规范"
+❌ AI擅自: git checkout -b scaffold/xxx && git add -A && git commit && git push
+
+后果: 用户授权"创建分支"，但AI擅自执行了提交和推送。
+      "创建分支" ≠ "提交推送"，红线清单第1、2条违规。
+      
+正确做法:
+- 执行 git checkout -b scaffold/xxx（创建本地分支）
+- 创建规范文件（Write tool）
+- 询问:"分支和规范文件已创建，是否提交并推送？"
+- 等待明确确认（如"可以提交"）后再执行 git add/commit/push
 ```
 
 ### 规则 8: 技术决策与重大变更需人工确认（强制）
