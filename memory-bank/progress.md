@@ -8,6 +8,9 @@
 - [x] README 基础版本
 - [x] MIT LICENSE
 - [x] 创建 Flyway 数据库迁移脚本 (V20260303210000__init_base_schema.sql)
+- [x] 添加代码规范：CONVENTIONS.md、.editorconfig、.gitmessage
+- [x] 添加构建工具：Spotless + JaCoCo
+- [x] 合并 scaffold 分支到 master
 
 
 ## 开发计划 (8周) 🗓️
@@ -54,8 +57,10 @@
 
 ## 进行中 🔄
 
-- [ ] Week 1 基础设施搭建 - 进度: 20%
-  - [x] Flyway 数据库迁移脚本（包含完整 Schema：users、devices、api_keys、coding_sessions、session_changes、sync_cursors、audit_logs）
+- [ ] Week 1 基础设施搭建 - 进度: 40%
+  - [x] Flyway 数据库迁移脚本
+  - [x] 代码规范文件 (CONVENTIONS.md, .editorconfig)
+  - [x] 构建工具配置 (Spotless, JaCoCo)
   - [ ] Spring Boot 项目结构
   - [ ] Redis 缓存配置
   - [ ] JWT 认证实现

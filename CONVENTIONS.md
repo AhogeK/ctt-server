@@ -217,7 +217,7 @@ public class AuthController {
 -- Description: Adds last_login tracking for security audit
 -- Ticket: CTT-42
 -- Author: developer@example.com
--- Date: 2024-03-15
+-- Date: 2026-03-15
 -- ==============================================================================
 
 ALTER TABLE users

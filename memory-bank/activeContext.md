@@ -15,21 +15,25 @@
 
 ## 最近变更
 
-- [2025-03-01] - 创建 AGENTS.md 和记忆库结构
-- [2025-03-01] - 修复 README.md 项目名称：Coding Time Tracker → Code Time Tracker
-- [2025-03-01] - 修复 GitHub 仓库 About：移除自引用链接，修正项目名称
-- [2025-03-01] - 添加 MIT LICENSE 文件到仓库
-- [2025-03-01] - 更新 AGENTS.md：添加关联项目访问规则（../code-time-tracker）
-- [2025-03-01] - 更新 AGENTS.md：添加 README 实时同步规则 (规则5)
-- [2025-03-01] - 更新 progress.md：制定 10 周详细开发计划
-- [2025-03-01] - 更新 systemPatterns.md：记录架构设计决策
-- [2025-03-01] - 更新 README.md：添加双向同步架构、Package-by-Feature 结构图
-- [2025-03-01] - 调整开发计划：从 10 周改为 8 周，移除前端部分
-- [2025-03-01] - 更新 README.md：标注前端将在独立项目开发
-- [2025-03-01] - 更新 AGENTS.md：添加规则 7 - Git 操作需人工确认（防止擅自 commit/push）
-- [2025-03-01] - 更新 AGENTS.md：添加规则 8 - 技术决策与重大变更需人工确认（版本、架构、数据模型等）
-- [2025-03-02] - 完善 boot.md 命令：强制读取 AGENTS.md 优先、Glob 扫描代码、不质疑版本
-- [2025-03-03] - 创建 Flyway 数据库迁移脚本：V20260303210000__init_base_schema.sql（包含完整 Schema：users、devices、api_keys、coding_sessions、session_changes、sync_cursors、audit_logs）
+- [2026-03-01] - 创建 AGENTS.md 和记忆库结构
+- [2026-03-01] - 修复 README.md 项目名称：Coding Time Tracker → Code Time Tracker
+- [2026-03-01] - 修复 GitHub 仓库 About：移除自引用链接，修正项目名称
+- [2026-03-01] - 添加 MIT LICENSE 文件到仓库
+- [2026-03-01] - 更新 AGENTS.md：添加关联项目访问规则（../code-time-tracker）
+- [2026-03-01] - 更新 AGENTS.md：添加 README 实时同步规则 (规则5)
+- [2026-03-01] - 更新 progress.md：制定 10 周详细开发计划
+- [2026-03-01] - 更新 systemPatterns.md：记录架构设计决策
+- [2026-03-01] - 更新 README.md：添加双向同步架构、Package-by-Feature 结构图
+- [2026-03-01] - 调整开发计划：从 10 周改为 8 周，移除前端部分
+- [2026-03-01] - 更新 README.md：标注前端将在独立项目开发
+- [2026-03-01] - 更新 AGENTS.md：添加规则 7 - Git 操作需人工确认（防止擅自 commit/push）
+- [2026-03-01] - 更新 AGENTS.md：添加规则 8 - 技术决策与重大变更需人工确认（版本、架构、数据模型等）
+- [2026-03-02] - 完善 boot.md 命令：强制读取 AGENTS.md 优先、Glob 扫描代码、不质疑版本
+- [2026-03-03] - 创建 Flyway 数据库迁移脚本：V20260303210000__init_base_schema.sql（包含完整 Schema：users、devices、api_keys、coding_sessions、session_changes、sync_cursors、audit_logs）
+- [2026-03-14] - 创建 .opencode/commands/save.md：主动记忆命令，防止 AI 幻觉遗忘
+- [2026-03-14] - 合并 scaffold/unified-conventions 分支到 master：添加 CONVENTIONS.md、.editorconfig、.gitmessage、BRANCH.md 等规范文件
+- [2026-03-14] - 添加 Spotless + JaCoCo 构建配置（代码格式化 + 测试覆盖率）
+- [2026-03-14] - 完善 AGENTS.md：添加红线清单（4类禁止 Git 操作）、边界区分表格
 
 
 ## 错误/障碍

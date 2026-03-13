@@ -11,6 +11,7 @@
 - **安全**: Spring Security 6 + JJWT 0.12.6
 - **API文档**: springdoc-openapi 2.8.5
 - **测试**: JUnit 5 + Testcontainers 1.20.6
+- **代码质量**: Spotless 1.35.0 (Google Java Format) + JaCoCo 0.8.14
 
 ## 架构图
 
