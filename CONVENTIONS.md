@@ -182,7 +182,180 @@ class UserServiceTest {
 
 ---
 
-## 4. Documentation Standards
+## 4. API Response Conventions
+
+### Response Envelope Structure
+
+All API responses must use one of the following wrapper types:
+
+| Response Type                 | Wrapper Class      | Use Case                           |
+|-------------------------------|--------------------|------------------------------------|
+| Success with data             | `ApiResponse<T>`   | Single resource or custom response |
+| Success with list (paginated) | `PagedResponse<T>` | List endpoints with pagination     |
+| Success without data          | `EmptyResponse`    | DELETE, UPDATE without return      |
+| Error                         | `ErrorResponse`    | All error responses                |
+
+### Success Response Structure
+
+**ApiResponse<T> - Single resource:**
+
+```json
+{
+    "success": true,
+    "message": "Operation successful",
+    "data": {
+        "id": "uuid",
+        "email": "user@example.com"
+    },
+    "timestamp": "2026-03-14T12:00:00Z"
+}
+```
+
+**PagedResponse<T> - Paginated list:**
+
+```json
+{
+    "items": [
+        ...
+    ],
+    "page": 1,
+    "size": 20,
+    "totalItems": 150,
+    "totalPages": 8,
+    "hasNext": true,
+    "hasPrevious": false
+}
+```
+
+**EmptyResponse - No content:**
+
+```json
+{
+    "success": true,
+    "message": "Resource deleted successfully",
+    "timestamp": "2026-03-14T12:00:00Z"
+}
+```
+
+### Error Response Structure
+
+All errors must return `ErrorResponse`:
+
+```json
+{
+    "code": "AUTH_001",
+    "message": "Invalid credentials",
+    "httpStatus": 401,
+    "details": [
+        {
+            "field": "email",
+            "message": "Invalid email format"
+        }
+    ],
+    "traceId": "abc-123-def",
+    "timestamp": "2026-03-14T12:00:00Z"
+}
+```
+
+### Field Naming Convention
+
+| Context     | Convention | Example                 |
+|-------------|------------|-------------------------|
+| JSON / API  | snake_case | `user_id`, `created_at` |
+| Java fields | camelCase  | `userId`, `createdAt`   |
+| Database    | snake_case | `user_id`, `created_at` |
+
+### Time Format
+
+All timestamps must use **ISO 8601** format with UTC timezone:
+
+- **Format**: `YYYY-MM-DDTHH:MM:SSZ`
+- **Timezone**: UTC (Z suffix)
+- **Java Type**: `java.time.Instant`
+- **Example**: `"2026-03-14T12:00:00Z"`
+
+### Trace Field Position
+
+The `traceId` field must be included in:
+
+- **Error responses**: Always present for debugging
+- **Success responses**: Optional (can be omitted)
+
+Trace ID position in JSON: root level, after `details`.
+
+### HTTP Status Code Mapping
+
+| Status Code | Use Case              | Exception Type             |
+|-------------|-----------------------|----------------------------|
+| 200         | Success               | -                          |
+| 201         | Created               | -                          |
+| 204         | No Content            | -                          |
+| 400         | Validation Error      | `ValidationException`      |
+| 401         | Unauthorized          | `UnauthorizedException`    |
+| 403         | Forbidden             | `ForbiddenException`       |
+| 404         | Not Found             | `NotFoundException`        |
+| 409         | Conflict              | `ConflictException`        |
+| 429         | Too Many Requests     | `TooManyRequestsException` |
+| 500         | Internal Server Error | Generic Exception          |
+
+### Error Code Format
+
+```
+{GROUP}_{CODE}
+
+Examples:
+- COMMON_001, COMMON_002, ...
+- AUTH_001, AUTH_002, ...
+- USER_001, USER_002, ...
+```
+
+### Validation Error Details
+
+For validation errors (400), include field-level details:
+
+```json
+{
+    "code": "COMMON_003",
+    "message": "Validation error",
+    "httpStatus": 400,
+    "details": [
+        {
+            "field": "email",
+            "message": "Invalid email format"
+        },
+        {
+            "field": "password",
+            "message": "Password must be at least 8 characters"
+        }
+    ],
+    "traceId": "abc-123",
+    "timestamp": "2026-03-14T12:00:00Z"
+}
+```
+
+### RESTful URL Conventions
+
+| Method | URL Pattern       | Description         |
+|--------|-------------------|---------------------|
+| GET    | `/resources`      | List resources      |
+| GET    | `/resources/{id}` | Get single resource |
+| POST   | `/resources`      | Create resource     |
+| PUT    | `/resources/{id}` | Full update         |
+| PATCH  | `/resources/{id}` | Partial update      |
+| DELETE | `/resources/{id}` | Delete resource     |
+
+### Versioning
+
+API versioning via URL path:
+
+```
+/api/v1/users
+/api/v2/users
+```
+
+---
+
+## 5. Documentation Standards
 
 ### API Documentation (OpenAPI)
 
@@ -230,7 +403,7 @@ COMMENT ON COLUMN users.last_login_ip IS 'IP address of last successful login';
 
 ---
 
-## 5. Database Conventions
+## 6. Database Conventions
 
 ### Naming
 
@@ -263,7 +436,7 @@ Soft-delete tables must have:
 
 ---
 
-## 6. Security Guidelines
+## 7. Security Guidelines
 
 ### Secrets Management
 
@@ -282,7 +455,7 @@ Soft-delete tables must have:
 
 ---
 
-## 7. Performance Guidelines
+## 8. Performance Guidelines
 
 ### Database
 
@@ -305,7 +478,7 @@ Soft-delete tables must have:
 
 ---
 
-## 8. Code Review Checklist
+## 9. Code Review Checklist
 
 Before creating PR:
 
@@ -318,7 +491,7 @@ Before creating PR:
 
 ---
 
-## 9. IDE Configuration
+## 10. IDE Configuration
 
 ### IntelliJ IDEA / Android Studio
 
