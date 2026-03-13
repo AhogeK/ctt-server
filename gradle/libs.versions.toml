@@ -3,6 +3,7 @@
 appVersion = "0.0.1-SNAPSHOT"
 springBoot = "4.0.3"
 springDependencyManagement = "1.1.7"
+spotless = "8.3.0"
 
 [libraries]
 
@@ -12,3 +13,4 @@ springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openap
 
 spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

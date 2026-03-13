@@ -1,0 +1,31 @@
+# ----------------------------------------------------------
+# <type>(<scope>): <subject> (max 50 chars)
+#
+# <body> (explain WHAT changed and WHY, wrap at 72 chars)
+#
+# <footer> (refs, closes, breaking changes)
+# ----------------------------------------------------------
+#
+# Types:
+#   feat:     New feature
+#   fix:      Bug fix
+#   docs:     Documentation
+#   style:    Code style (formatting)
+#   refactor: Code refactoring
+#   perf:     Performance
+#   test:     Tests
+#   chore:    Build/tools/deps
+#   ci:       CI/CD
+#
+# Examples:
+#   feat(auth): implement JWT token generation
+#   
+#   fix(sync): resolve concurrent modification
+#   
+#   docs(api): add OpenAPI annotations
+#
+# Footer tags:
+#   Closes: #123
+#   Fixes: #456
+#   BREAKING CHANGE: migration guide
+#
