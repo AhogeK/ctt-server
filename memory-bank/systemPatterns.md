@@ -56,6 +56,26 @@ com.ahogek.ctt/
 - DTO: `XxxRequest.java` / `XxxResponse.java`
 - Entity: `Xxx.java` (表名使用下划线命名)
 
+### Javadoc 注释规范
+所有类文件必须包含 Javadoc 注释，模板如下：
+
+```java
+/**
+ * [简短描述类的功能]
+ *
+ * <p>[详细描述，包含使用场景、注意事项等]</p>
+ *
+ * @author AhogeK [ahogek@gmail.com]
+ * @since 2026-03-14 03:17:01
+ */
+package com.ahogek.cttserver.xxx;
+```
+
+**注意**:
+- `@since` 日期使用实际创建日期（通过 `date` 命令获取）
+- 保持一行简短描述在 80 字符以内
+- 使用 HTML 标签 `<p>`、`<ul>` 等进行结构化描述
+
 ## 组件字典
 
 | ID   | 组件               | 描述                                          | 状态      |
