@@ -11,6 +11,8 @@
 - [x] 添加代码规范：CONVENTIONS.md、.editorconfig、.gitmessage
 - [x] 添加构建工具：Spotless + JaCoCo
 - [x] 合并 scaffold 分支到 master
+- [x] 拆分包结构 (common, auth, user, device, audit, mail)
+- [x] 统一响应模型 (ApiResponse, ErrorResponse, PagedResponse, EmptyResponse)
 
 
 ## 开发计划 (8周) 🗓️
@@ -57,11 +59,12 @@
 
 ## 进行中 🔄
 
-- [ ] Week 1 基础设施搭建 - 进度: 50%
+- [ ] Week 1 基础设施搭建 - 进度: 60%
   - [x] Flyway 数据库迁移脚本
   - [x] 代码规范文件 (CONVENTIONS.md, .editorconfig)
   - [x] 构建工具配置 (Spotless, JaCoCo)
   - [x] 包结构拆分 (common, auth, user, device, audit, mail)
+  - [x] 统一响应模型 (ApiResponse, ErrorResponse, PagedResponse, EmptyResponse)
   - [ ] Spring Boot 项目结构
   - [ ] Redis 缓存配置
   - [ ] JWT 认证实现

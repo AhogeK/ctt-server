@@ -34,6 +34,9 @@
 - [2026-03-14] - 合并 scaffold/unified-conventions 分支到 master：添加 CONVENTIONS.md、.editorconfig、.gitmessage、BRANCH.md 等规范文件
 - [2026-03-14] - 添加 Spotless + JaCoCo 构建配置（代码格式化 + 测试覆盖率）
 - [2026-03-14] - 完善 AGENTS.md：添加红线清单（4类禁止 Git 操作）、边界区分表格
+- [2026-03-14] - 拆分包结构：创建 common、auth、user、device、audit、mail 模块
+- [2026-03-14] - 添加统一响应模型：ApiResponse、ErrorResponse、PagedResponse、EmptyResponse
+- [2026-03-14] - 更新 AGENTS.md：添加"记忆与业务同Commit"原则
 
 
 ## 错误/障碍

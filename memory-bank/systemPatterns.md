@@ -56,10 +56,38 @@ com.ahogek.ctt/
 - DTO: `XxxRequest.java` / `XxxResponse.java`
 - Entity: `Xxx.java` (表名使用下划线命名)
 
+### Java 新特性规范 (JDK 25)
+由于项目使用 JDK 25，应优先使用现代 Java 特性：
+
+- **Record**: 替代冗余的 immutable 数据类（如 `FieldError`、`DTO`）
+- **Sealed Class**: 替代枚举用于有限状态集
+- **Pattern Matching**: 简化 instanceof + cast 模式
+- **Switch 表达式**: 优先使用 modern switch 语法
+- **Virtual Threads**: IO 密集型操作使用虚拟线程
+
+**示例**:
+```java
+// ❌ 冗余写法
+public static final class FieldError {
+    private final String field;
+    private final String message;
+    public FieldError(String field, String message) { ... }
+    public String field() { return field; }
+    public String message() { return message; }
+}
+
+// ✅ 使用 Record (JDK 25+)
+public record FieldError(String field, String message) {}
+```
+
 ### Javadoc 注释规范
 所有类文件必须包含 Javadoc 注释，模板如下：
 
 ```java
+package com.ahogek.cttserver.xxx;
+
+import xxx;
+
 /**
  * [简短描述类的功能]
  *
@@ -68,13 +96,38 @@ com.ahogek.ctt/
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14 03:17:01
  */
-package com.ahogek.cttserver.xxx;
+public class Xxx {
+}
 ```
 
 **注意**:
+- Javadoc 必须在 `package` + `import` 之后，类声明之前
 - `@since` 日期使用实际创建日期（通过 `date` 命令获取）
 - 保持一行简短描述在 80 字符以内
 - 使用 HTML 标签 `<p>`、`<ul>` 等进行结构化描述
+
+**错误示例**（已发生AI越界）:
+```java
+// ❌ 错误：Javadoc 在 import 上面
+package com.ahogek.cttserver.xxx;
+
+/**
+ * Class description
+ */
+import xxx;
+
+/public class Xxx {}
+
+// ✅ 正确：package → import → Javadoc → class
+package com.ahogek.cttserver.xxx;
+
+import xxx;
+
+/**
+ * Class description
+ */
+public class Xxx {}
+```
 
 ## 组件字典
 
