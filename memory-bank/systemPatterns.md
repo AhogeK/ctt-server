@@ -94,7 +94,7 @@ import xxx;
  * <p>[详细描述，包含使用场景、注意事项等]</p>
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 2026-03-14 03:17:01
+ * @since 2026-03-14
  */
 public class Xxx {
 }
@@ -102,7 +102,7 @@ public class Xxx {
 
 **注意**:
 - Javadoc 必须在 `package` + `import` 之后，类声明之前
-- `@since` 日期使用实际创建日期（通过 `date` 命令获取）
+- `@since` 使用简化格式：`YYYY-MM-DD`（无需具体时间）
 - 保持一行简短描述在 80 字符以内
 - 使用 HTML 标签 `<p>`、`<ul>` 等进行结构化描述
 

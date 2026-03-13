@@ -23,7 +23,7 @@ import java.util.List;
  * </pre>
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 2026-03-14 03:23:12
+ * @since 2026-03-14
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class PagedResponse<T> {

@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.common.response;
 
+import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -14,8 +15,9 @@ import java.util.List;
  * <p>Response format:</p>
  * <pre>
  * {
- *   "code": "VALIDATION_ERROR",
+ *   "code": "COMMON_001",
  *   "message": "Invalid request parameters",
+ *   "httpStatus": 400,
  *   "details": [
  *     {
  *       "field": "email",
@@ -28,7 +30,7 @@ import java.util.List;
  * </pre>
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 2026-03-14 03:23:12
+ * @since 2026-03-14
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public final class ErrorResponse {
@@ -37,6 +39,7 @@ public final class ErrorResponse {
     private final String message;
     private final List<FieldError> details;
     private final String traceId;
+    private final Integer httpStatus;
     private final Instant timestamp;
 
     private ErrorResponse(Builder builder) {
@@ -44,7 +47,24 @@ public final class ErrorResponse {
         this.message = builder.message;
         this.details = builder.details.isEmpty() ? null : new ArrayList<>(builder.details);
         this.traceId = builder.traceId;
+        this.httpStatus = builder.httpStatus;
         this.timestamp = builder.timestamp != null ? builder.timestamp : Instant.now();
+    }
+
+    public static ErrorResponse of(ErrorCode errorCode) {
+        return builder()
+                .code(errorCode.name())
+                .message(errorCode.message())
+                .httpStatus(errorCode.httpStatus().value())
+                .build();
+    }
+
+    public static ErrorResponse of(ErrorCode errorCode, String customMessage) {
+        return builder()
+                .code(errorCode.name())
+                .message(errorCode.message(customMessage))
+                .httpStatus(errorCode.httpStatus().value())
+                .build();
     }
 
     public static ErrorResponse of(String code, String message) {
@@ -82,6 +102,10 @@ public final class ErrorResponse {
         return traceId;
     }
 
+    public Integer httpStatus() {
+        return httpStatus;
+    }
+
     public Instant timestamp() {
         return timestamp;
     }
@@ -93,6 +117,7 @@ public final class ErrorResponse {
         private String message;
         private final List<FieldError> details = new ArrayList<>();
         private String traceId;
+        private Integer httpStatus;
         private Instant timestamp;
 
         private Builder() {}
@@ -114,6 +139,11 @@ public final class ErrorResponse {
 
         public Builder traceId(String traceId) {
             this.traceId = traceId;
+            return this;
+        }
+
+        public Builder httpStatus(Integer httpStatus) {
+            this.httpStatus = httpStatus;
             return this;
         }
 

@@ -10,6 +10,6 @@
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 2026-03-14 03:17:01
+ * @since 2026-03-14
  */
 package com.ahogek.cttserver.common;
