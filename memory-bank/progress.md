@@ -57,10 +57,11 @@
 
 ## 进行中 🔄
 
-- [ ] Week 1 基础设施搭建 - 进度: 40%
+- [ ] Week 1 基础设施搭建 - 进度: 50%
   - [x] Flyway 数据库迁移脚本
   - [x] 代码规范文件 (CONVENTIONS.md, .editorconfig)
   - [x] 构建工具配置 (Spotless, JaCoCo)
+  - [x] 包结构拆分 (common, auth, user, device, audit, mail)
   - [ ] Spring Boot 项目结构
   - [ ] Redis 缓存配置
   - [ ] JWT 认证实现
