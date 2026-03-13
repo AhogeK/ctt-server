@@ -110,6 +110,16 @@ public final class ErrorResponse {
         return timestamp;
     }
 
+    public Builder toBuilder() {
+        return builder()
+                .code(this.code)
+                .message(this.message)
+                .details(this.details)
+                .traceId(this.traceId)
+                .httpStatus(this.httpStatus)
+                .timestamp(this.timestamp);
+    }
+
     public record FieldError(String field, String message) {}
 
     public static final class Builder {
@@ -134,6 +144,14 @@ public final class ErrorResponse {
 
         public Builder addDetail(String field, String message) {
             this.details.add(new FieldError(field, message));
+            return this;
+        }
+
+        public Builder details(List<FieldError> details) {
+            if (details != null) {
+                this.details.clear();
+                this.details.addAll(new ArrayList<>(details));
+            }
             return this;
         }
 
