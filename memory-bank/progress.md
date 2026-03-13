@@ -59,12 +59,14 @@
 
 ## 进行中 🔄
 
-- [ ] Week 1 基础设施搭建 - 进度: 60%
+- [ ] Week 1 基础设施搭建 - 进度: 70%
   - [x] Flyway 数据库迁移脚本
   - [x] 代码规范文件 (CONVENTIONS.md, .editorconfig)
   - [x] 构建工具配置 (Spotless, JaCoCo)
   - [x] 包结构拆分 (common, auth, user, device, audit, mail)
   - [x] 统一响应模型 (ApiResponse, ErrorResponse, PagedResponse, EmptyResponse)
+  - [x] 统一错误码体系 (ErrorCode enum)
+  - [x] 统一异常体系 (BusinessException + 7个子类 + GlobalExceptionHandler)
   - [ ] Spring Boot 项目结构
   - [ ] Redis 缓存配置
   - [ ] JWT 认证实现
