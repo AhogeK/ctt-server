@@ -3,7 +3,7 @@ package com.ahogek.cttserver.common.exception;
 /**
  * Exception for rate limit errors (429 Too Many Requests).
  *
- * <p>Used when client exceeds allowed request quota.</p>
+ * <p>Used when client exceeds allowed request quota.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14

@@ -1,9 +1,9 @@
 package com.ahogek.cttserver.common.exception;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ErrorCodeTest {
 

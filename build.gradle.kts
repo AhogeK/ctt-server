@@ -54,7 +54,7 @@ spotless {
         googleJavaFormat("1.35.0").aosp()
         trimTrailingWhitespace()
         endWithNewline()
-        importOrder("java", "javax", "", "com.ahogek")
+        importOrder("java", "javax", "", "static ", "com.ahogek")
     }
     kotlinGradle {
         ktlint()

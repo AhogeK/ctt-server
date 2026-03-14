@@ -10,9 +10,10 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
  * Standardized error response for API errors.
  *
  * <p>This class provides detailed error information following RFC 7807 (Problem Details for HTTP
- * APIs) specification.</p>
+ * APIs) specification.
  *
- * <p>Response format:</p>
+ * <p>Response format:
+ *
  * <pre>
  * {
  *   "code": "VALIDATION_ERROR",

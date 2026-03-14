@@ -1,10 +1,10 @@
 package com.ahogek.cttserver.common.response;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.ahogek.cttserver.common.exception.ErrorCode;
 

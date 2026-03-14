@@ -5,10 +5,11 @@ import java.util.List;
 /**
  * Paginated response wrapper for list endpoints.
  *
- * <p>This class provides standard pagination metadata following common industry conventions (RFC 5988
- * or offset/limit based).</p>
+ * <p>This class provides standard pagination metadata following common industry conventions (RFC
+ * 5988 or offset/limit based).
  *
- * <p>Response format:</p>
+ * <p>Response format:
+ *
  * <pre>
  * {
  *   "items": [...],

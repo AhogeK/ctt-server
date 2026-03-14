@@ -1,9 +1,9 @@
 package com.ahogek.cttserver.common.exception;
 
+import org.junit.jupiter.api.Test;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import org.junit.jupiter.api.Test;
 
 import com.ahogek.cttserver.common.response.ErrorResponse;
 

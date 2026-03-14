@@ -3,7 +3,7 @@ package com.ahogek.cttserver.common.exception;
 /**
  * Exception for conflict errors (409 Conflict).
  *
- * <p>Used when attempting to create a resource that already exists.</p>
+ * <p>Used when attempting to create a resource that already exists.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14

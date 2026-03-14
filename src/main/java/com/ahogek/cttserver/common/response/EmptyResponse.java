@@ -6,9 +6,10 @@ import java.time.Instant;
  * Empty response for void API operations.
  *
  * <p>This class represents a successful operation that returns no content, following HTTP 204 No
- * Content semantics with a confirmation response.</p>
+ * Content semantics with a confirmation response.
  *
- * <p>Response format:</p>
+ * <p>Response format:
+ *
  * <pre>
  * {
  *   "success": true,

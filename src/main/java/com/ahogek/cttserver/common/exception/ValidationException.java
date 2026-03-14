@@ -3,7 +3,7 @@ package com.ahogek.cttserver.common.exception;
 /**
  * Exception for validation errors (400 Bad Request).
  *
- * <p>Used when request parameters or body fail validation.</p>
+ * <p>Used when request parameters or body fail validation.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14

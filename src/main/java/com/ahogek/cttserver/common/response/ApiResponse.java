@@ -6,9 +6,10 @@ import java.time.Instant;
  * Generic API response wrapper for consistent REST API responses.
  *
  * <p>This class provides a standardized envelope for all API responses, ensuring consistent
- * structure across all endpoints.</p>
+ * structure across all endpoints.
  *
- * <p>Response format:</p>
+ * <p>Response format:
+ *
  * <pre>
  * {
  *   "success": true,

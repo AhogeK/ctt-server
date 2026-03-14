@@ -3,7 +3,7 @@ package com.ahogek.cttserver.common.exception;
 /**
  * Exception for authorization errors (403 Forbidden).
  *
- * <p>Used when user lacks permission to access a resource.</p>
+ * <p>Used when user lacks permission to access a resource.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14
