@@ -5,15 +5,19 @@ import com.ahogek.cttserver.common.response.ErrorResponse;
 /**
  * Base exception for business-related errors.
  *
- * <p>All application exceptions should extend this class and provide
- * an ErrorCode for consistent error handling.</p>
+ * <p>All application exceptions should extend this class and provide an ErrorCode for consistent
+ * error handling.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14
  */
 public abstract sealed class BusinessException extends RuntimeException
-        permits ValidationException, UnauthorizedException, ForbiddenException,
-                ConflictException, TooManyRequestsException, NotFoundException {
+        permits ValidationException,
+                UnauthorizedException,
+                ForbiddenException,
+                ConflictException,
+                TooManyRequestsException,
+                NotFoundException {
 
     private final ErrorCode errorCode;
     private final String customMessage;

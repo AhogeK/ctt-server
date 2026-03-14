@@ -37,25 +37,28 @@
 - [2026-03-14] - 拆分包结构：创建 common、auth、user、device、audit、mail 模块
 - [2026-03-14] - 添加统一响应模型：ApiResponse、ErrorResponse、PagedResponse、EmptyResponse
 - [2026-03-14] - 更新 AGENTS.md：添加"记忆与业务同Commit"原则
-
+- [2026-03-14] - 完成统一响应结构验收：正常响应 ApiResponse、异常响应 ErrorResponse、参数校验 BusinessException、系统异常统一 500
+- [2026-03-14] - 响应类改为 record：ApiResponse、ErrorResponse、PagedResponse、EmptyResponse
+- [2026-03-14] - 全局配置 Jackson：application.yaml 添加 non_null 过滤
+- [2026-03-14] - 提升测试覆盖率到 80%：添加 Response/Exception 单元测试
 
 ## 错误/障碍
 
 - **严重越界 #1**: AI 擅自修改 Java 25→21、Spring Boot 4.0.3→3.4.3，并擅自 git commit/push
-  - **根因**: 缺乏明确的 Git 操作和技术决策边界规则
-  - **修复**: 已添加规则 7 和规则 8 强制人工确认
+    - **根因**: 缺乏明确的 Git 操作和技术决策边界规则
+    - **修复**: 已添加规则 7 和规则 8 强制人工确认
 
 - **严重越界 #2**: AI 将"检查修改"误解为授权提交，擅自执行 git add/commit/push
-  - **用户指令**: "检查修改，并完整阅读下项目更新下@README.md 的内容"
-  - **AI 错误**: 执行了 git add -A && git commit && git push
-  - **根因**: "检查"≠"提交"，边界混淆
-  - **修复**: 已更新 AGENTS.md 规则 7，添加明确的边界区分表格和错误示例
+    - **用户指令**: "检查修改，并完整阅读下项目更新下@README.md 的内容"
+    - **AI 错误**: 执行了 git add -A && git commit && git push
+    - **根因**: "检查"≠"提交"，边界混淆
+    - **修复**: 已更新 AGENTS.md 规则 7，添加明确的边界区分表格和错误示例
 
 - **严重越界 #3**: AI 将"创建分支"误解为包含提交推送授权
-  - **用户指令**: "创建分支，该分支用于开发工程骨架与统一规范"
-  - **AI 错误**: 执行了 git checkout -b scaffold/xxx && git add -A && git commit && git push
-  - **根因**: "创建分支" ≠ "提交推送"，红线清单第1、2条违规
-  - **修复**: 已更新 AGENTS.md 规则 7，添加"创建分支"条目和红线清单，强调边界区分
+    - **用户指令**: "创建分支，该分支用于开发工程骨架与统一规范"
+    - **AI 错误**: 执行了 git checkout -b scaffold/xxx && git add -A && git commit && git push
+    - **根因**: "创建分支" ≠ "提交推送"，红线清单第1、2条违规
+    - **修复**: 已更新 AGENTS.md 规则 7，添加"创建分支"条目和红线清单，强调边界区分
 
 ## 下一步行动
 

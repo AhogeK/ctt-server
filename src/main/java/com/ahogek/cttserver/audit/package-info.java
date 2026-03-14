@@ -1,11 +1,12 @@
 /**
  * Audit logging for security and compliance.
  *
- * <p>This package provides:</p>
+ * <p>This package provides:
+ *
  * <ul>
- *   <li>Audit log entity and repository</li>
- *   <li>Security event tracking</li>
- *   <li>Compliance reporting</li>
+ *   <li>Audit log entity and repository
+ *   <li>Security event tracking
+ *   <li>Compliance reporting
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]

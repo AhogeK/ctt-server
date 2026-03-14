@@ -1,11 +1,12 @@
 /**
  * User management and identity.
  *
- * <p>This package provides:</p>
+ * <p>This package provides:
+ *
  * <ul>
- *   <li>User entity and repository</li>
- *   <li>OAuth account bindings</li>
- *   <li>User registration and profile</li>
+ *   <li>User entity and repository
+ *   <li>OAuth account bindings
+ *   <li>User registration and profile
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]

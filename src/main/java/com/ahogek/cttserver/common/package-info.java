@@ -1,12 +1,13 @@
 /**
  * Common utilities, configuration, and shared components.
  *
- * <p>This package provides:</p>
+ * <p>This package provides:
+ *
  * <ul>
- *   <li>Global exception definitions</li>
- *   <li>Shared constants and enums</li>
- *   <li>Common utility classes</li>
- *   <li>Cross-cutting configuration</li>
+ *   <li>Global exception definitions
+ *   <li>Shared constants and enums
+ *   <li>Common utility classes
+ *   <li>Cross-cutting configuration
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]

@@ -1,11 +1,12 @@
 /**
  * Email delivery and templates.
  *
- * <p>This package provides:</p>
+ * <p>This package provides:
+ *
  * <ul>
- *   <li>Email verification tokens</li>
- *   <li>Password reset tokens</li>
- *   <li>Mail outbox for async delivery</li>
+ *   <li>Email verification tokens
+ *   <li>Password reset tokens
+ *   <li>Mail outbox for async delivery
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]

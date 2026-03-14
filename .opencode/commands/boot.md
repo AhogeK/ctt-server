@@ -13,11 +13,11 @@ description: 初始化会话 - 读取项目文件了解上下文（按 AGENTS.md
 
 1. **行为约束** - @AGENTS.md（**优先读取，作为后续所有操作的准则**）
 2. **项目记忆**（规则1）:
-   - @memory-bank/projectbrief.md
-   - @memory-bank/techContext.md
-   - @memory-bank/systemPatterns.md
-   - @memory-bank/activeContext.md
-   - @memory-bank/progress.md
+    - @memory-bank/projectbrief.md
+    - @memory-bank/techContext.md
+    - @memory-bank/systemPatterns.md
+    - @memory-bank/activeContext.md
+    - @memory-bank/progress.md
 3. **项目说明** - @README.md
 
 **注意**: 如记忆文件不存在，按 AGENTS.md 模板创建。
@@ -37,22 +37,34 @@ description: 初始化会话 - 读取项目文件了解上下文（按 AGENTS.md
 
 **必须读取** @.gitignore 了解哪些文件被排除在版本控制外。
 
-**关键原则**: 
+**关键原则**:
+
 - application-local.yml 等本地配置通常被 ignore，这是正常的
 - 不要对被 ignore 的文件大惊小怪或指出"问题"
 
 ### 阶段 4: 读取发现的代码文件
 
 根据阶段2的扫描结果，读取实际存在的代码文件以了解：
+
 - 项目结构
 - 技术栈版本（**只读取，不质疑，不升级** - 遵守 AGENTS.md 规则8）
 - 已实现的功能
 
 **版本处理规则**（AGENTS.md 规则8）:
+
 - ✅ "当前使用 Spring Boot 4.0.3"（仅陈述事实）
 - ❌ "Spring Boot 4.0.3 不存在，应该使用 3.4.3"（质疑用户决策，禁止！）
 
-### 阶段 5: 输出摘要
+### 阶段 5: 确认边界情况
+
+**必须读取** @memory-bank/activeContext.md 确认：
+
+1. **当前正在处理的任务** - 避免偏离当前工作焦点
+2. **已知错误/障碍** - 避免重复踩坑
+3. **最近变更** - 了解最新进展
+4. **下一步行动** - 明确接下来的任务
+
+### 阶段 6: 输出摘要
 
 读取完成后，输出：
 
@@ -97,14 +109,24 @@ description: 初始化会话 - 读取项目文件了解上下文（按 AGENTS.md
 - 仅陈述实际使用的版本号
 - 不质疑、不建议升级、不假设"应该"用什么版本
 - 示例：
-  - ✅ "当前使用 Spring Boot 4.0.3"
-  - ❌ "Spring Boot 4.0.3 不存在，建议升级到 3.4.3"
+    - ✅ "当前使用 Spring Boot 4.0.3"
+    - ❌ "Spring Boot 4.0.3 不存在，建议升级到 3.4.3"
 
 ### 原则 3: 结合上下文理解
 
 - 参考 progress.md 中的开发阶段判断代码完备性
 - 参考 activeContext.md 了解当前工作焦点
 - 不要孤立地评判代码"缺了什么"
+
+### 原则 4: 确认边界情况
+
+启动时必须确认当前边界：
+
+1. **当前任务边界**: 根据 activeContext.md 确认当前工作范围，不跨越到无关任务
+2. **技术决策边界**: 根据 AGENTS.md 规则8，涉及版本/架构/数据模型变更必须人工确认
+3. **Git 操作边界**: 根据 AGENTS.md 规则7，所有 commit/push 操作必须获得明确授权
+4. **AI 能力边界**: 根据 AGENTS.md 规则9，不懂就问，优先使用现代 Java 写法
+5. **已知障碍**: 根据 activeContext.md 中的错误记录，避免重复踩坑
 
 ## 禁止事项
 
@@ -119,5 +141,6 @@ description: 初始化会话 - 读取项目文件了解上下文（按 AGENTS.md
 ---
 
 **区分场景**:
+
 - `/boot` → 了解项目状态（客观陈述，不做评判）
 - `/review` 或用户要求 review → 审查代码质量（可做价值判断）

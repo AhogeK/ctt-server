@@ -5,10 +5,10 @@ import org.springframework.http.HttpStatus;
 /**
  * Unified error code system for the application.
  *
- * <p>Error codes are organized by domain groups:
- * COMMON, AUTH, USER, MAIL, RATE_LIMIT, SECURITY, SYSTEM</p>
+ * <p>Error codes are organized by domain groups: COMMON, AUTH, USER, MAIL, RATE_LIMIT, SECURITY,
+ * SYSTEM
  *
- * <p>Format: {@code GROUP_CODE} (e.g., COMMON_001, AUTH_001)</p>
+ * <p>Format: {@code GROUP_CODE} (e.g., COMMON_001, AUTH_001)
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14

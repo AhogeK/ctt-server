@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.common.exception;
 
-import com.ahogek.cttserver.common.response.ErrorResponse;
+import java.util.UUID;
+
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,16 +13,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.util.UUID;
+import com.ahogek.cttserver.common.response.ErrorResponse;
 
-/**
- * Global exception handler for REST API.
- *
- * <p>Converts all BusinessException and Spring exceptions to standardized ErrorResponse.</p>
- *
- * @author AhogeK [ahogek@gmail.com]
- * @since 2026-03-14
- */
 @RestControllerAdvice
 public final class GlobalExceptionHandler {
 
@@ -36,88 +29,102 @@ public final class GlobalExceptionHandler {
         String traceId = generateTraceId();
         log.warn("[{}] Business exception: {} - {}", traceId, ex.errorCode(), ex.getMessage());
 
-        ErrorResponse response = ex.toErrorResponse()
-                .toBuilder()
-                .traceId(traceId)
-                .build();
+        ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
 
         HttpStatus status = HttpStatus.valueOf(response.httpStatus());
         return ResponseEntity.status(status).body(response);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ErrorResponse> handleValidationException(
+            MethodArgumentNotValidException ex) {
         String traceId = generateTraceId();
         log.warn("[{}] Validation error", traceId);
 
-        ErrorResponse.Builder builder = ErrorResponse.builder()
-                .code(ErrorCode.COMMON_003.name())
-                .message(ErrorCode.COMMON_003.message())
-                .httpStatus(ErrorCode.COMMON_003.httpStatus().value())
-                .traceId(traceId);
+        var details =
+                ex.getBindingResult().getFieldErrors().stream()
+                        .map(
+                                error ->
+                                        new ErrorResponse.FieldError(
+                                                error.getField(), error.getDefaultMessage()))
+                        .toList();
 
-        ex.getBindingResult().getFieldErrors().forEach(error ->
-                builder.addDetail(error.getField(), error.getDefaultMessage()));
+        ErrorResponse response =
+                ErrorResponse.of(ErrorCode.COMMON_003.name(), ErrorCode.COMMON_003.message())
+                        .withTraceId(traceId)
+                        .withHttpStatus(ErrorCode.COMMON_003.httpStatus().value())
+                        .withDetails(details);
 
-        return ResponseEntity.badRequest().body(builder.build());
+        return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(
+            ConstraintViolationException ex) {
         String traceId = generateTraceId();
         log.warn("[{}] Constraint violation", traceId);
 
-        ErrorResponse.Builder builder = ErrorResponse.builder()
-                .code(ErrorCode.COMMON_003.name())
-                .message(ErrorCode.COMMON_003.message())
-                .httpStatus(ErrorCode.COMMON_003.httpStatus().value())
-                .traceId(traceId);
+        var details =
+                ex.getConstraintViolations().stream()
+                        .map(
+                                v ->
+                                        new ErrorResponse.FieldError(
+                                                v.getPropertyPath().toString(), v.getMessage()))
+                        .toList();
 
-        ex.getConstraintViolations().forEach(violation ->
-                builder.addDetail(
-                        violation.getPropertyPath().toString(),
-                        violation.getMessage()));
+        ErrorResponse response =
+                ErrorResponse.of(ErrorCode.COMMON_003.name(), ErrorCode.COMMON_003.message())
+                        .withTraceId(traceId)
+                        .withHttpStatus(ErrorCode.COMMON_003.httpStatus().value())
+                        .withDetails(details);
 
-        return ResponseEntity.badRequest().body(builder.build());
+        return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException ex) {
+    public ResponseEntity<ErrorResponse> handleMissingParam(
+            MissingServletRequestParameterException ex) {
         String traceId = generateTraceId();
         log.warn("[{}] Missing parameter: {}", traceId, ex.getParameterName());
 
-        ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_005)
-                .toBuilder()
-                .traceId(traceId)
-                .build();
+        ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_005).withTraceId(traceId);
 
         return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleUnreadableMessage(HttpMessageNotReadableException ex) {
+    public ResponseEntity<ErrorResponse> handleUnreadableMessage(
+            HttpMessageNotReadableException ex) {
         String traceId = generateTraceId();
         log.warn("[{}] Malformed request body", traceId);
 
-        ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_001)
-                .toBuilder()
-                .traceId(traceId)
-                .build();
+        ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_001).withTraceId(traceId);
 
         return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+            IllegalArgumentException ex) {
         String traceId = generateTraceId();
         log.warn("[{}] Illegal argument: {}", traceId, ex.getMessage());
 
-        ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_001, ex.getMessage())
-                .toBuilder()
-                .traceId(traceId)
-                .build();
+        ErrorResponse response =
+                ErrorResponse.of(ErrorCode.COMMON_001, ex.getMessage()).withTraceId(traceId);
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(InternalServerErrorException.class)
+    public ResponseEntity<ErrorResponse> handleInternalServerError(
+            InternalServerErrorException ex) {
+        String traceId = generateTraceId();
+        log.error("[{}] Internal server error: {}", traceId, ex.getMessage());
+
+        ErrorResponse response =
+                ErrorResponse.of(ErrorCode.SYSTEM_001, ex.getMessage()).withTraceId(traceId);
+
+        return ResponseEntity.internalServerError().body(response);
     }
 
     @ExceptionHandler(Exception.class)
@@ -125,10 +132,7 @@ public final class GlobalExceptionHandler {
         String traceId = generateTraceId();
         log.error("[{}] Unexpected error", traceId, ex);
 
-        ErrorResponse response = ErrorResponse.of(ErrorCode.SYSTEM_001)
-                .toBuilder()
-                .traceId(traceId)
-                .build();
+        ErrorResponse response = ErrorResponse.of(ErrorCode.SYSTEM_001).withTraceId(traceId);
 
         return ResponseEntity.internalServerError().body(response);
     }

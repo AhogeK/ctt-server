@@ -70,6 +70,7 @@
 3. **禁止行为**: 提交代码后再单独提交记忆文件更新来记录这次提交
 
 **记忆与业务同Commit原则**:
+
 - 记忆文件（memory-bank/）的更新必须与相关业务代码在**同一个commit**中提交
 - 不允许单独提交"更新记忆"的commit
 - 原因：避免循环提交，保持commit历史清晰
@@ -123,42 +124,43 @@ git commit -m "docs: update memory bank"        # 再提交记忆（禁止！）
 
 **⚠️ 重要边界区分**:
 
-| 用户指令 | AI 理解 | 是否执行 Git |
-|---------|---------|-------------|
-| "检查修改" | 查看状态/差异 | ❌ 只读 |
-| "查看变更" | 查看 diff | ❌ 只读 |
-| "创建分支" | 仅创建本地分支 | ❌ 不包含提交/推送 |
-| "提交" | commit | ✅ 需明确确认 |
-| "commit" | commit | ✅ 需明确确认 |
-| "推送" | push | ✅ 需明确确认 |
-| "push" | push | ✅ 需明确确认 |
-| "创建 PR" | gh pr create | ✅ 需明确确认 |
-| "做吧"/"继续" | 继续之前的操作 | ✅ 按上下文 |
+| 用户指令      | AI 理解        | 是否执行 Git   |
+|-----------|--------------|------------|
+| "检查修改"    | 查看状态/差异      | ❌ 只读       |
+| "查看变更"    | 查看 diff      | ❌ 只读       |
+| "创建分支"    | 仅创建本地分支      | ❌ 不包含提交/推送 |
+| "提交"      | commit       | ✅ 需明确确认    |
+| "commit"  | commit       | ✅ 需明确确认    |
+| "推送"      | push         | ✅ 需明确确认    |
+| "push"    | push         | ✅ 需明确确认    |
+| "创建 PR"   | gh pr create | ✅ 需明确确认    |
+| "做吧"/"继续" | 继续之前的操作      | ✅ 按上下文     |
 
 **🚨 红线清单 - 绝对禁止擅自执行**:
 
 1. **提交相关**（任何将代码存入 Git 历史的操作）:
-   - `git add` / `git stage`
-   - `git commit` / `git commit -m "..."`
-   - `git commit --amend`
+    - `git add` / `git stage`
+    - `git commit` / `git commit -m "..."`
+    - `git commit --amend`
 
 2. **推送相关**（任何将本地更改发送到远程的操作）:
-   - `git push` / `git push origin <branch>`
-   - `git push -u origin <branch>`
-   - `git push --force`
+    - `git push` / `git push origin <branch>`
+    - `git push -u origin <branch>`
+    - `git push --force`
 
 3. **PR 相关**（任何 GitHub 协作操作）:
-   - `gh pr create`
-   - `gh pr merge`
-   - `gh pr edit`
+    - `gh pr create`
+    - `gh pr merge`
+    - `gh pr edit`
 
 4. **历史修改**（任何改变 Git 历史的操作）:
-   - `git rebase`
-   - `git merge`
-   - `git cherry-pick`
-   - `git reset` / `git revert`
+    - `git rebase`
+    - `git merge`
+    - `git cherry-pick`
+    - `git reset` / `git revert`
 
 **严格禁止的误解**:
+
 - ❌ "检查" ≠ "提交"
 - ❌ "查看" ≠ "推送"
 - ❌ "review" ≠ "commit"
@@ -188,8 +190,8 @@ git commit -m "docs: update memory bank"        # 再提交记忆（禁止！）
 
 后果: 用户仅要求查看和修改文件，并未授权提交推送。
       AI将"检查"误解为"执行"，严重违反规则7边界。
-      
-正确做法: 
+
+正确做法:
 - 仅执行只读操作（git diff/status）
 - 修改文件后询问:"文件已修改，是否提交推送？"
 - 等待明确确认后再执行 git add/commit/push
@@ -201,7 +203,7 @@ git commit -m "docs: update memory bank"        # 再提交记忆（禁止！）
 
 后果: 用户授权"创建分支"，但AI擅自执行了提交和推送。
       "创建分支" ≠ "提交推送"，红线清单第1、2条违规。
-      
+
 正确做法:
 - 执行 git checkout -b scaffold/xxx（创建本地分支）
 - 创建规范文件（Write tool）
@@ -260,6 +262,43 @@ AI: [擅自将 Java 25→21，Spring Boot 4.0.3→3.4.3]
 
 ---
 
+### 规则 9: AI 边界（不懂就问 + 优先现代 Java）
+
+**⚠️ AI 知识库不一定是最新的，必须遵循以下原则**：
+
+**1. 不懂就问原则**:
+
+- 遇到不确定的技术问题，**停下来问用户**，不要死磕
+- 遇到报错无法解决时，描述问题并询问用户
+- 遇到知识库可能过时的内容（如 Spring Boot 4.x 新特性），先尝试验证再使用
+- **禁止**: 盲目猜测、擅自修改配置、重复尝试已失败的方案
+
+**2. 优先现代 Java 原则**:
+
+- 本项目使用 **Java 25**，应优先使用现代 Java 特性
+- ✅ 推荐: `record`（替代冗余 class + Builder）、`sealed class`、`pattern matching`、`switch 表达式`
+- ❌ 避免: `Lombok`（`@Data`、`@Builder`）、老旧 Builder 模式、冗余 POJO
+- 示例:
+  ```java
+  // ❌ 老旧 Java 8 思维
+  public class ApiResponse<T> {
+      private final T data;
+      private final String message;
+      // 手写 getter、Builder...
+  }
+
+  // ✅ 现代 Java (Java 25)
+  public record ApiResponse<T>(T data, String message) {}
+  ```
+
+**3. 技术验证原则**:
+
+- 对不确定的内容，先通过搜索引擎或官方文档验证
+- 遇到版本相关问题时，先确认项目实际版本再行动
+- 引用用户提供的文档/链接时，直接使用而非假设
+
+---
+
 ## 🧠 记忆库结构
 
 ### memory-bank/projectbrief.md
@@ -301,7 +340,7 @@ AI: [擅自将 Java 25→21，Spring Boot 4.0.3→3.4.3]
 
 - 启动命令:
 - 测试命令:
-- 构建命令: 
+- 构建命令:
 ```
 
 ### memory-bank/systemPatterns.md

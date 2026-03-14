@@ -9,5 +9,4 @@ public class CttServerApplication {
     public static void main(String[] args) {
         SpringApplication.run(CttServerApplication.class, args);
     }
-
 }
