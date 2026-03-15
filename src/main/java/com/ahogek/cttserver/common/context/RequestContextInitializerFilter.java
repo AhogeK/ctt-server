@@ -32,7 +32,6 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
 
     public static final String TRACE_HEADER = "X-Trace-Id";
     public static final String DEVICE_ID_HEADER = "X-Device-Id";
-    public static final String MDC_TRACE_KEY = "traceId";
     private static final int MAX_HEADER_LENGTH = 128;
 
     @Override
@@ -62,7 +61,14 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
 
         response.setHeader(TRACE_HEADER, traceId);
 
-        MDC.put(MDC_TRACE_KEY, traceId);
+        MDC.put(MdcKey.TRACE_ID, traceId);
+        MDC.put(MdcKey.CLIENT_IP, requestInfo.clientIp());
+        MDC.put(MdcKey.HTTP_METHOD, requestInfo.method());
+        MDC.put(MdcKey.REQUEST_URI, requestInfo.requestUri());
+        if (requestInfo.isFromDevice()) {
+            MDC.put(MdcKey.DEVICE_ID, requestInfo.deviceId());
+        }
+
         try {
             ScopedValue.where(RequestContext.CONTEXT, requestInfo)
                     .run(
@@ -74,7 +80,11 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
                                 }
                             });
         } finally {
-            MDC.clear();
+            MDC.remove(MdcKey.TRACE_ID);
+            MDC.remove(MdcKey.CLIENT_IP);
+            MDC.remove(MdcKey.HTTP_METHOD);
+            MDC.remove(MdcKey.REQUEST_URI);
+            MDC.remove(MdcKey.DEVICE_ID);
         }
     }
 
