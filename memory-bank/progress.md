@@ -68,7 +68,7 @@
 
 ## 进行中 🔄
 
-- [ ] Week 1 基础设施搭建 - 进度: 70%
+- [ ] Week 1 基础设施搭建 - 进度: 80%
     - [x] Flyway 数据库迁移脚本
     - [x] 代码规范文件 (CONVENTIONS.md, .editorconfig)
     - [x] 构建工具配置 (Spotless, JaCoCo)
@@ -83,6 +83,10 @@
     - [x] logback-spring.xml 配置
     - [x] RequestContext 体系 (RequestInfo + RequestContext + ScopedValue)
     - [x] IpUtils 工具类
+  - [x] **三层日志规范 (请求/业务/错误)**
+      - [x] RequestLoggingFilter - 请求层日志 (ACCESS_LOG, SLOW_REQUEST_LOG)
+      - [x] LogRecord - 业务层结构化日志工具
+      - [x] GlobalExceptionHandler - 错误日志统一出口 (Fluent API)
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

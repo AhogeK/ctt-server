@@ -88,8 +88,11 @@ CTT Server provides:
 ctt-server/
 ├── common/              # Global shared utilities
 │   ├── config/          # Security, Redis, WebMvc config
+│   ├── context/         # Request context (RequestInfo, ScopedValue, RequestLoggingFilter)
 │   ├── exception/       # Global exception handling
-│   └── response/        # Unified API response wrappers
+│   ├── logging/         # Structured business logging (LogRecord)
+│   ├── response/        # Unified API response wrappers
+│   └── utils/           # Utility classes (IpUtils)
 ├── auth/                # JWT authentication module
 ├── apikey/              # API Key management module
 ├── sync/                # Bidirectional sync engine

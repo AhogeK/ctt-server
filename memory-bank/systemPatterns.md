@@ -131,16 +131,18 @@ public class Xxx {}
 
 ## 组件字典
 
-| ID   | 组件               | 描述                                          | 状态      |
-|------|-------------------|----------------------------------------------|-----------|
-| C001 | JWT Auth          | JWT 用户认证 (登录/注册/Token刷新)            | planned   |
-| C002 | API Key Manager   | API Key 生成/校验/设备绑定/撤销               | planned   |
-| C003 | Sync Engine       | 双向同步核心 (Pull/Push/冲突解决)             | planned   |
-| C004 | Sync Cursor       | 设备同步状态追踪                              | planned   |
-| C005 | Stats Aggregator  | 时序数据聚合查询                              | planned   |
-| C006 | Leaderboard       | Redis ZSet 实时排行榜                         | planned   |
-| C007 | Rate Limiter      | API 限流保护                                  | planned   |
-| C008 | Global Exception  | 全局异常处理器                                 | stable   |
-| C009 | Code Conventions  | 代码规范：Spotless + JaCoCo + Conventional Commits | stable   |
-| C010 | TraceId Filter   | TraceId 透传机制 (已废弃，由 C011 替代)        | deprecated |
-| C011 | Request Context   | 请求上下文 (RequestInfo + ScopedValue + IpUtils) | stable   |
+| ID   | 组件                 | 描述                                            | 状态         |
+|------|--------------------|-----------------------------------------------|------------|
+| C001 | JWT Auth           | JWT 用户认证 (登录/注册/Token刷新)                      | planned    |
+| C002 | API Key Manager    | API Key 生成/校验/设备绑定/撤销                         | planned    |
+| C003 | Sync Engine        | 双向同步核心 (Pull/Push/冲突解决)                       | planned    |
+| C004 | Sync Cursor        | 设备同步状态追踪                                      | planned    |
+| C005 | Stats Aggregator   | 时序数据聚合查询                                      | planned    |
+| C006 | Leaderboard        | Redis ZSet 实时排行榜                              | planned    |
+| C007 | Rate Limiter       | API 限流保护                                      | planned    |
+| C008 | Global Exception   | 全局异常处理器                                       | stable     |
+| C009 | Code Conventions   | 代码规范：Spotless + JaCoCo + Conventional Commits | stable     |
+| C010 | TraceId Filter     | TraceId 透传机制 (已废弃，由 C011 替代)                  | deprecated |
+| C011 | Request Context    | 请求上下文 (RequestInfo + ScopedValue + IpUtils)   | stable     |
+| C012 | Request Logging    | 请求层日志 (ACCESS_LOG + 慢请求检测)                    | stable     |
+| C013 | Structured Logging | 结构化日志工具 (LogRecord + Fluent API)              | stable     |

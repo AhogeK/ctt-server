@@ -43,6 +43,29 @@
 - [2026-03-14] - 提升测试覆盖率到 80%：添加 Response/Exception 单元测试
 - [2026-03-15] - 实现 TraceId 透传机制：TraceIdFilter、TraceContext、logback 配置
 - [2026-03-15] - 实现 RequestContext 体系：RequestInfo、RequestContext (ScopedValue)、IpUtils
+- [2026-03-16] - 实现三层日志规范：
+    - 请求层日志 RequestLoggingFilter (ACCESS_LOG, 慢请求检测 ≥500ms)
+    - 业务层日志 LogRecord 工具类 (Fluent API + 结构化 Key-Value)
+    - 错误层日志重构 GlobalExceptionHandler (统一出口, 区分业务/系统异常)
+    - 添加单元测试覆盖，所有测试通过
+- [2026-03-16] - 代码审查修复：
+    - 更新 logback-spring.xml：添加 ACCESS_LOG/SLOW_REQUEST_LOG/BUSINESS_LOG 独立 Logger 配置
+    - 更新 README.md：包结构添加 context/ 和 logging/ 目录说明
+    - 修复 LogRecord.java：变量名 record → logRecord 避免关键字冲突
+    - 修复 GlobalExceptionHandler.java：提取所有日志字段为常量
+    - 修复 RequestLoggingFilter.java：提取所有日志字段为常量
+    - 所有 Spotless 检查和测试通过
+- [2026-03-16] - 日志架构优化（企业级最佳实践）：
+    - 更新 logback-spring.xml：
+        - 添加 ANSI 颜色高亮（日期灰色、PID洋红、MDC黄色、Logger青色）
+        - 添加完整日期格式（yyyy-MM-dd HH:mm:ss.SSS）和 PID
+        - 移除 BUSINESS_LOG 和 SLOW_REQUEST_LOG 独立配置
+        - 业务日志使用类名（LoggerFactory.getLogger(Xxx.class)）
+    - 更新 LogRecord.java：API 改为接受 Class<?> 参数，使用实际类名
+    - 更新 RequestLoggingFilter.java：慢请求使用 ACCESS_LOG.atWarn()，移除 SLOW_LOG
+    - 更新测试：LogRecordTest 使用类参数替代字符串
+    - 更新文档：package-info.java 反映新的架构设计
+    - 构建验证成功，日志输出格式正确
 
 ## 错误/障碍
 
