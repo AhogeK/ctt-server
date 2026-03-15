@@ -19,7 +19,7 @@ CTT Server provides:
 |----------------|-----------------------------------|
 | Language       | Java 25 (Virtual Threads)         |
 | Framework      | Spring Boot 4.0.3 (MVC)           |
-| Authentication | Spring Security 6 + JWT + API Key |
+| Authentication | Spring Security 7 + JWT + API Key |
 | Database       | PostgreSQL 16                     |
 | Migration      | Flyway                            |
 | Cache          | Redis 7                           |
