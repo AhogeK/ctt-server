@@ -47,7 +47,7 @@ import java.util.regex.Pattern;
  * <ol>
  *   <li>Filter: {@code DesensitizeUtils.maskHeader()} for HTTP headers
  *   <li>DTO: {@code MaskSerializer} for object serialization
- *   <li>Global: This converter for regex-based兜底 protection
+ *   <li>Global: This converter for regex-based fallback protection
  * </ol>
  *
  * @author AhogeK [ahogek@gmail.com]

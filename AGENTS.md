@@ -299,6 +299,72 @@ AI: [擅自将 Java 25→21，Spring Boot 4.0.3→3.4.3]
 
 ---
 
+### 规则 10: 代码规范边界（国际开源标准）
+
+**⚠️ 代码产出必须遵循国际开源项目规范**：
+
+**1. 语言规范（强制）**:
+
+- **绝对禁止**在代码中使用中文（包括注释、变量名、字符串常量）
+- **绝对禁止**使用 emoji（🚀、✅、🔴 等）
+- 所有注释、文档、日志消息必须使用**英文**
+- 例外：仅允许在 `.md` 文档文件中使用中文与AI交流
+
+**违规示例**:
+
+```java
+// ❌ 严重违规：中文注释
+/** 🛡️ 审计日志实体 */
+
+// ❌ 严重违规：emoji 和中文
+log.info("✅ 所有测试通过");
+
+// ✅ 正确：纯英文，无 emoji
+/** Audit log entity for security events. */
+log.info("All tests passed");
+```
+
+**2. 注释规范（Clean Code）**:
+
+- **不要过度注释**：代码应当自解释，优先通过命名表达意图
+- **类/接口必须**有 Javadoc，说明职责和使用场景
+- **公共 API 必须**有 Javadoc，说明参数、返回值、异常
+- **复杂算法必须**有注释，说明 "Why" 而非 "What"
+- **禁止无关注释**：不注释显而易见的代码（如 getter/setter）
+
+**注释原则**:
+
+```java
+// ❌ 过度注释：显而易见
+/** Gets the user name. */
+public String getUserName() { return userName; }
+
+// ❌ 中文注释
+// 检查用户是否存在
+if (user != null) { ... }
+
+// ✅ 必要注释：解释 "Why"
+// Use ReentrantLock instead of synchronized for better throughput
+// under high contention scenarios.
+private final ReentrantLock lock = new ReentrantLock();
+```
+
+**3. 文档规范**:
+
+- Javadoc 必须专业、严谨
+- 使用标准 HTML 标签：`<p>`、`<ul>`、`<li>`、`<code>`
+- 保持简洁，一行简短描述控制在 80 字符以内
+- 示例代码使用 `<pre>{@code ...}</pre>`
+
+**4. 命名规范**:
+
+- 类名：PascalCase，名词（`AuditLog`、`UserService`）
+- 方法名：camelCase，动词或动宾短语（`findById`、`validateToken`）
+- 常量：UPPER_SNAKE_CASE（`MAX_RETRY_COUNT`）
+- 包名：全小写，不使用下划线（`com.ahogek.audit`）
+
+---
+
 ## 🧠 记忆库结构
 
 ### memory-bank/projectbrief.md

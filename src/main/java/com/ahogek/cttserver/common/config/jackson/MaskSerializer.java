@@ -32,7 +32,7 @@ import java.io.IOException;
  * <ol>
  *   <li>Filter layer: {@code DesensitizeUtils.maskHeader()}
  *   <li>DTO layer: This serializer (via {@code @JsonSerialize})
- *   <li>Global layer: {@code MaskingMessageConverter} regex兜底
+ *   <li>Global layer: {@code MaskingMessageConverter} regex fallback
  * </ol>
  *
  * @author AhogeK [ahogek@gmail.com]

@@ -105,6 +105,8 @@ public class Xxx {
 - `@since` 使用简化格式：`YYYY-MM-DD`（无需具体时间）
 - 保持一行简短描述在 80 字符以内
 - 使用 HTML 标签 `<p>`、`<ul>` 等进行结构化描述
+- **绝对禁止**在 Javadoc 中使用 emoji（🛡️、✅、🔴 等）
+- **绝对禁止**在代码中使用中文注释或中文变量名
 
 **错误示例**（已发生AI越界）:
 ```java
@@ -118,16 +120,44 @@ import xxx;
 
 /public class Xxx {}
 
+// ❌ 错误：中文注释
+// 检查用户是否存在
+if (user != null) { ... }
+
+// ❌ 错误：emoji
+/** 🛡️ Audit log entity */
+
 // ✅ 正确：package → import → Javadoc → class
 package com.ahogek.cttserver.xxx;
 
 import xxx;
 
 /**
- * Class description
+ * Audit log entity for security events.
  */
 public class Xxx {}
 ```
+
+### Clean Code 注释原则
+
+**不要过度注释** - 代码应当自解释：
+
+```java
+// ❌ 过度注释：显而易见
+/** Gets the user name. */
+public String getUserName() { return userName; }
+
+// ✅ 必要注释：解释 "Why"
+// Use ReentrantLock instead of synchronized for better throughput
+// under high contention scenarios.
+private final ReentrantLock lock = new ReentrantLock();
+```
+
+**注释准则**:
+
+- **必须注释**: 类/接口职责、公共 API 参数和返回值、复杂算法原理
+- **禁止注释**: 显而易见的代码（getter/setter）、实现细节（What）、中文注释
+- **日志消息**: 必须使用英文，禁止 emoji（❌ `log.info("✅ 成功")`，✅ `log.info("Success")`）
 
 ## 组件字典
 

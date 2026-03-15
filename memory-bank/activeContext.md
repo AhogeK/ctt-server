@@ -91,6 +91,40 @@
     - ✅ 新增单元测试：SecurityAuditEventTest.java（6个测试方法，100%覆盖）
     - ✅ 更新 README.md：Package Structure 添加 audit/ 目录
     - 所有 134 个测试通过（+6个新测试）
+- [2026-03-16] - 实现审计事件持久化（JPA + Testcontainers 集成测试）：
+    - ✅ 创建 AuditLog 实体：Hibernate 6 @JdbcTypeCode(SqlTypes.JSON) 原生 JSONB 支持
+    - ✅ 创建 AuditLogRepository：JPA Repository 接口
+    - ✅ 创建 AuditEventListener：@Async + @EventListener + REQUIRES_NEW 事务隔离
+    - ✅ 更新 CttServerApplication：添加 @EnableAsync 启用异步处理
+    - ✅ 创建 AuditEventListenerIntegrationTest：3个集成测试方法
+        - Testcontainers PostgreSQL 真实数据库验证
+        - JSONB 映射验证
+        - 异步事件处理验证
+    - ✅ 添加 awaitility 依赖：测试异步代码
+    - 所有 137 个测试通过（+3个新集成测试）
+- [2026-03-16] - 强化代码规范边界（AGENTS.md Rule 10）：
+    - ✅ 新增规则 10: 代码规范边界（国际开源标准）
+        - 绝对禁止：中文注释、中文变量名、字符串常量
+        - 绝对禁止：emoji（🛡️、✅、🌟、🚨 等）
+        - 所有代码注释、日志必须使用英文
+        - Clean Code 原则：不过度注释，代码自解释
+    - ✅ 更新 systemPatterns.md：补充代码规范章节
+    - ✅ 代码清理：移除以下文件中的违规内容
+        - AuditLog.java：移除 🛡️ 和 🌟 emoji
+        - AuditEventListener.java：移除 🎧 和 🚨 emoji
+        - AuditEventListenerIntegrationTest.java：移除 🔬 emoji 和中文注释/DisplayName
+    - ✅ 所有 137 个测试通过
+- [2026-03-16] - 全局代码规范扫描与修复：
+    - ✅ 扫描发现违规内容：
+        - GlobalExceptionHandler.java：17处 emoji（🔴、🟡、🔵、✅、❌）和中文"风控"
+        - MaskingMessageConverter.java：中文"兜底"
+        - MaskSerializer.java：中文"兜底"
+        - DesensitizeUtils.java：中文"兜底"
+    - ✅ 修复所有违规：
+        - GlobalExceptionHandler.java：移除所有 emoji，"风控"改为"risk control"
+        - 其他文件："兜底"改为"fallback"
+    - ✅ 全局验证：确认无剩余中文和 emoji
+    - ✅ 所有 137 个测试通过
 
 ## 错误/障碍
 

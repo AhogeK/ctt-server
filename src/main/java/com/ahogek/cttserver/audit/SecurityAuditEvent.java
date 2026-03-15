@@ -29,8 +29,8 @@ public record SecurityAuditEvent(
     /**
      * Creates a security audit event with current timestamp.
      *
-     * @param errorCode   the security error code
-     * @param message     the violation message
+     * @param errorCode the security error code
+     * @param message the violation message
      * @param requestInfo the HTTP request context
      */
     public SecurityAuditEvent(ErrorCode errorCode, String message, RequestInfo requestInfo) {

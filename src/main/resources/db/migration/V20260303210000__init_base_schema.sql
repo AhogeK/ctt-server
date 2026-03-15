@@ -8,13 +8,11 @@
 -- ------------------------------------------------------------------------------
 -- Extensions
 -- ------------------------------------------------------------------------------
-
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ------------------------------------------------------------------------------
 -- Utility Function: updated_at trigger
 -- ------------------------------------------------------------------------------
-
 CREATE OR REPLACE FUNCTION set_updated_at()
     RETURNS TRIGGER AS
 $$
@@ -27,7 +25,6 @@ $$ LANGUAGE plpgsql;
 -- ------------------------------------------------------------------------------
 -- 1. Users table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE users
 (
     id                    UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
@@ -39,12 +36,11 @@ CREATE TABLE users
     email_verified        BOOLEAN      NOT NULL DEFAULT FALSE,
     email_verified_at     TIMESTAMPTZ,
     last_login_at         TIMESTAMPTZ,
-    last_login_ip         INET,
+    last_login_ip VARCHAR(45),
     failed_login_attempts INTEGER      NOT NULL DEFAULT 0,
     locked_until          TIMESTAMPTZ,
     created_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT chk_users_status
         CHECK (status IN ('PENDING_VERIFICATION', 'ACTIVE', 'LOCKED', 'SUSPENDED', 'DELETED'))
 );
@@ -59,7 +55,7 @@ COMMENT ON COLUMN users.password_hash IS 'Strong password hash using BCrypt or A
 COMMENT ON COLUMN users.email_verified IS 'Whether the email address has been verified';
 COMMENT ON COLUMN users.email_verified_at IS 'Timestamp when email verification was completed';
 COMMENT ON COLUMN users.last_login_at IS 'Last successful login timestamp';
-COMMENT ON COLUMN users.last_login_ip IS 'Last successful login IP address';
+COMMENT ON COLUMN users.last_login_ip IS 'Last successful login IP address (IPv4/IPv6)';
 COMMENT ON COLUMN users.failed_login_attempts IS 'Consecutive failed login attempts';
 COMMENT ON COLUMN users.locked_until IS 'Temporary account lock expiration time';
 COMMENT ON COLUMN users.created_at IS 'Record creation timestamp';
@@ -67,14 +63,12 @@ COMMENT ON COLUMN users.updated_at IS 'Record last update timestamp';
 
 CREATE UNIQUE INDEX uk_users_email_lower
     ON users ((LOWER(email)));
-
 CREATE INDEX idx_users_status
     ON users (status);
 
 -- ------------------------------------------------------------------------------
 -- 2. User OAuth accounts table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE user_oauth_accounts
 (
     id                      UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
@@ -88,7 +82,6 @@ CREATE TABLE user_oauth_accounts
     token_expires_at        TIMESTAMPTZ,
     created_at              TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT chk_oauth_provider
         CHECK (provider IN ('GITHUB', 'GOOGLE', 'GITLAB', 'APPLE'))
 );
@@ -105,17 +98,14 @@ COMMENT ON COLUMN user_oauth_accounts.token_expires_at IS 'Expiration time of th
 
 CREATE UNIQUE INDEX uk_user_oauth_provider_uid
     ON user_oauth_accounts (provider, provider_user_id);
-
 CREATE UNIQUE INDEX uk_user_oauth_user_provider
     ON user_oauth_accounts (user_id, provider);
-
 CREATE INDEX idx_user_oauth_user_id
     ON user_oauth_accounts (user_id);
 
 -- ------------------------------------------------------------------------------
 -- 3. Devices table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE devices
 (
     id           UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
@@ -125,7 +115,7 @@ CREATE TABLE devices
     ide_name     VARCHAR(100),
     ide_version  VARCHAR(50),
     app_version  VARCHAR(50),
-    last_ip      INET,
+    last_ip VARCHAR(45),
     created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -138,21 +128,19 @@ COMMENT ON COLUMN devices.platform IS 'Operating system platform';
 COMMENT ON COLUMN devices.ide_name IS 'IDE name';
 COMMENT ON COLUMN devices.ide_version IS 'IDE version';
 COMMENT ON COLUMN devices.app_version IS 'Plugin or application version';
-COMMENT ON COLUMN devices.last_ip IS 'Last known device IP address';
+COMMENT ON COLUMN devices.last_ip IS 'Last known device IP address (IPv4/IPv6)';
 COMMENT ON COLUMN devices.created_at IS 'Device registration timestamp';
 COMMENT ON COLUMN devices.last_seen_at IS 'Last activity timestamp from this device';
 COMMENT ON COLUMN devices.updated_at IS 'Record last update timestamp';
 
 CREATE INDEX idx_devices_user_id
     ON devices (user_id);
-
 CREATE INDEX idx_devices_last_seen_at
     ON devices (last_seen_at);
 
 -- ------------------------------------------------------------------------------
 -- 4. Email verification tokens table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE email_verification_tokens
 (
     id          UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
@@ -163,10 +151,9 @@ CREATE TABLE email_verification_tokens
     expires_at  TIMESTAMPTZ  NOT NULL,
     consumed_at TIMESTAMPTZ,
     sent_at     TIMESTAMPTZ,
-    request_ip  INET,
+    request_ip VARCHAR(45),
     user_agent  TEXT,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT chk_email_verification_purpose
         CHECK (purpose IN ('REGISTER_VERIFY', 'CHANGE_EMAIL'))
 );
@@ -178,22 +165,19 @@ COMMENT ON COLUMN email_verification_tokens.purpose IS 'Token purpose: REGISTER_
 COMMENT ON COLUMN email_verification_tokens.expires_at IS 'Token expiration timestamp';
 COMMENT ON COLUMN email_verification_tokens.consumed_at IS 'Timestamp when the token was consumed';
 COMMENT ON COLUMN email_verification_tokens.sent_at IS 'Timestamp when the verification email was sent';
-COMMENT ON COLUMN email_verification_tokens.request_ip IS 'IP address from which the request originated';
+COMMENT ON COLUMN email_verification_tokens.request_ip IS 'IP address from which the request originated (IPv4/IPv6)';
 COMMENT ON COLUMN email_verification_tokens.user_agent IS 'User agent from which the request originated';
 
 CREATE UNIQUE INDEX uk_email_verification_token_hash
     ON email_verification_tokens (token_hash);
-
 CREATE INDEX idx_email_verification_lookup
     ON email_verification_tokens (user_id, purpose, expires_at, consumed_at);
-
 CREATE INDEX idx_email_verification_email
     ON email_verification_tokens ((LOWER(email)));
 
 -- ------------------------------------------------------------------------------
 -- 5. Password reset tokens table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE password_reset_tokens
 (
     id          UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
@@ -202,7 +186,7 @@ CREATE TABLE password_reset_tokens
     token_hash  CHAR(64)     NOT NULL,
     expires_at  TIMESTAMPTZ  NOT NULL,
     consumed_at TIMESTAMPTZ,
-    request_ip  INET,
+    request_ip VARCHAR(45),
     user_agent  TEXT,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -212,20 +196,18 @@ COMMENT ON COLUMN password_reset_tokens.email IS 'Target email address for passw
 COMMENT ON COLUMN password_reset_tokens.token_hash IS 'SHA-256 hex digest of the raw reset token';
 COMMENT ON COLUMN password_reset_tokens.expires_at IS 'Token expiration timestamp';
 COMMENT ON COLUMN password_reset_tokens.consumed_at IS 'Timestamp when the token was consumed';
+COMMENT ON COLUMN password_reset_tokens.request_ip IS 'IP address from which the request originated (IPv4/IPv6)';
 
 CREATE UNIQUE INDEX uk_password_reset_token_hash
     ON password_reset_tokens (token_hash);
-
 CREATE INDEX idx_password_reset_lookup
     ON password_reset_tokens (user_id, expires_at, consumed_at);
-
 CREATE INDEX idx_password_reset_email
     ON password_reset_tokens ((LOWER(email)));
 
 -- ------------------------------------------------------------------------------
 -- 6. Refresh tokens table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE refresh_tokens
 (
     id           UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
@@ -237,7 +219,6 @@ CREATE TABLE refresh_tokens
     revoked_at   TIMESTAMPTZ,
     last_used_at TIMESTAMPTZ,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT chk_refresh_issued_for
         CHECK (issued_for IN ('WEB', 'PLUGIN'))
 );
@@ -252,10 +233,8 @@ COMMENT ON COLUMN refresh_tokens.last_used_at IS 'Last time the refresh token wa
 
 CREATE UNIQUE INDEX uk_refresh_tokens_token_hash
     ON refresh_tokens (token_hash);
-
 CREATE INDEX idx_refresh_tokens_user_id
     ON refresh_tokens (user_id);
-
 CREATE INDEX idx_refresh_tokens_active
     ON refresh_tokens (user_id, expires_at)
     WHERE revoked_at IS NULL;
@@ -263,7 +242,6 @@ CREATE INDEX idx_refresh_tokens_active
 -- ------------------------------------------------------------------------------
 -- 7. API keys table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE api_keys
 (
     id           UUID PRIMARY KEY     DEFAULT gen_random_uuid(),
@@ -293,13 +271,10 @@ COMMENT ON COLUMN api_keys.updated_at IS 'Record last update timestamp';
 
 CREATE UNIQUE INDEX uk_api_keys_key_prefix
     ON api_keys (key_prefix);
-
 CREATE UNIQUE INDEX uk_api_keys_key_hash
     ON api_keys (key_hash);
-
 CREATE INDEX idx_api_keys_user_id
     ON api_keys (user_id);
-
 CREATE INDEX idx_api_keys_active
     ON api_keys (user_id, created_at)
     WHERE revoked_at IS NULL;
@@ -307,7 +282,6 @@ CREATE INDEX idx_api_keys_active
 -- ------------------------------------------------------------------------------
 -- 8. Coding sessions table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE coding_sessions
 (
     id                   UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
@@ -325,10 +299,8 @@ CREATE TABLE coding_sessions
     deleted_at           TIMESTAMPTZ,
     created_at           TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT chk_time_range
         CHECK (end_time >= start_time),
-
     CONSTRAINT uk_coding_sessions_user_session_uuid
         UNIQUE (user_id, session_uuid)
 );
@@ -352,22 +324,18 @@ COMMENT ON COLUMN coding_sessions.updated_at IS 'Record last update timestamp';
 CREATE INDEX idx_sessions_user_time
     ON coding_sessions (user_id, start_time, end_time)
     WHERE is_deleted = FALSE;
-
 CREATE INDEX idx_sessions_user_project_time
     ON coding_sessions (user_id, project_name, start_time)
     WHERE is_deleted = FALSE;
-
 CREATE INDEX idx_sessions_user_language_time
     ON coding_sessions (user_id, language, start_time)
     WHERE is_deleted = FALSE;
-
 CREATE INDEX idx_sessions_sync_lookup
     ON coding_sessions (user_id, server_version);
 
 -- ------------------------------------------------------------------------------
 -- 9. Session changes table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE session_changes
 (
     change_id      BIGSERIAL PRIMARY KEY,
@@ -377,7 +345,6 @@ CREATE TABLE session_changes
     op             VARCHAR(10) NOT NULL,
     server_version BIGINT      NOT NULL,
     happened_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT chk_session_change_op
         CHECK (op IN ('UPSERT', 'DELETE'))
 );
@@ -393,14 +360,12 @@ COMMENT ON COLUMN session_changes.happened_at IS 'Timestamp when the change occu
 
 CREATE INDEX idx_session_changes_user_change
     ON session_changes (user_id, change_id);
-
 CREATE INDEX idx_session_changes_session_id
     ON session_changes (session_id);
 
 -- ------------------------------------------------------------------------------
 -- 10. Sync cursors table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE sync_cursors
 (
     user_id               UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -408,7 +373,6 @@ CREATE TABLE sync_cursors
     last_pulled_change_id BIGINT      NOT NULL DEFAULT 0,
     last_push_at          TIMESTAMPTZ,
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     PRIMARY KEY (user_id, device_id)
 );
 
@@ -422,7 +386,6 @@ COMMENT ON COLUMN sync_cursors.updated_at IS 'Record last update timestamp';
 -- ------------------------------------------------------------------------------
 -- 11. Audit logs table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE audit_logs
 (
     id            BIGSERIAL PRIMARY KEY,
@@ -431,7 +394,7 @@ CREATE TABLE audit_logs
     resource_type VARCHAR(50)  NOT NULL,
     resource_id   VARCHAR(255),
     details       JSONB        NOT NULL DEFAULT '{}'::jsonb,
-    ip_address    INET,
+    ip_address VARCHAR(45),
     user_agent    TEXT,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -442,26 +405,22 @@ COMMENT ON COLUMN audit_logs.action IS 'Operation type, for example LOGIN, REGIS
 COMMENT ON COLUMN audit_logs.resource_type IS 'Type of affected resource';
 COMMENT ON COLUMN audit_logs.resource_id IS 'Identifier of the affected resource';
 COMMENT ON COLUMN audit_logs.details IS 'Additional structured audit payload stored as JSONB';
-COMMENT ON COLUMN audit_logs.ip_address IS 'Client IP address';
+COMMENT ON COLUMN audit_logs.ip_address IS 'Client IP address (IPv4/IPv6)';
 COMMENT ON COLUMN audit_logs.user_agent IS 'Client user agent';
 COMMENT ON COLUMN audit_logs.created_at IS 'Timestamp when the action occurred';
 
 CREATE INDEX idx_audit_logs_user_id
     ON audit_logs (user_id);
-
 CREATE INDEX idx_audit_logs_action
     ON audit_logs (action);
-
 CREATE INDEX idx_audit_logs_created_at
     ON audit_logs (created_at);
-
 CREATE INDEX idx_audit_logs_details
     ON audit_logs USING GIN (details);
 
 -- ------------------------------------------------------------------------------
 -- 12. Mail outbox table
 -- ------------------------------------------------------------------------------
-
 CREATE TABLE mail_outbox
 (
     id            UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
@@ -478,7 +437,6 @@ CREATE TABLE mail_outbox
     last_error    TEXT,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT chk_mail_outbox_status
         CHECK (status IN ('PENDING', 'SENDING', 'SENT', 'FAILED'))
 );
@@ -502,7 +460,6 @@ CREATE INDEX idx_mail_outbox_dispatch
 -- ------------------------------------------------------------------------------
 -- updated_at triggers
 -- ------------------------------------------------------------------------------
-
 CREATE TRIGGER trg_users_set_updated_at
     BEFORE UPDATE
     ON users

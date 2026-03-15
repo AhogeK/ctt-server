@@ -25,15 +25,15 @@ import java.util.UUID;
  * <p><strong>Three-Level Exception Logging Strategy:</strong>
  *
  * <ul>
- *   <li><strong>ERROR (🔴 System):</strong> Unhandled exceptions (NPE, SQLException, etc.) - Full
+ *   <li><strong>ERROR (System):</strong> Unhandled exceptions (NPE, SQLException, etc.) - Full
  *       stack trace with {@code setCause(ex)} - Triggers critical alerts (PagerDuty/DingTalk) -
  *       Contributes to Error Rate SLA
- *   <li><strong>WARN (🟡 Business):</strong> Expected business exceptions (validation, state
+ *   <li><strong>WARN (Business):</strong> Expected business exceptions (validation, state
  *       conflicts) - Structured logging WITHOUT stack trace (O(1) performance) - Tracks business
  *       funnel metrics
- *   <li><strong>AUDIT (🔵 Security):</strong> Security violations (unauthorized, forbidden) - INFO
- *       level with audit context (client_ip, target_uri) - Structured for SIEM/风控 systems - No
- *       stack trace to reduce noise
+ *   <li><strong>AUDIT (Security):</strong> Security violations (unauthorized, forbidden) - INFO
+ *       level with audit context (client_ip, target_uri) - Structured for SIEM/risk control systems
+ *       - No stack trace to reduce noise
  * </ul>
  *
  * <p><strong>Performance Optimization:</strong>
@@ -75,6 +75,7 @@ public final class GlobalExceptionHandler {
     private static final String CLIENT_IP_KEY = "client_ip";
     private static final String TARGET_URI_KEY = "target_uri";
     private final ApplicationEventPublisher eventPublisher;
+
     public GlobalExceptionHandler(ApplicationEventPublisher eventPublisher) {
         this.eventPublisher = eventPublisher;
     }
@@ -92,7 +93,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🔴 [LEVEL 1] System Exceptions - CRITICAL with full stack trace.
+     * [LEVEL 1] System Exceptions - CRITICAL with full stack trace.
      *
      * <p>Catches all unhandled runtime exceptions (NPE, SQLException, OOM, etc.). These indicate
      * bugs or infrastructure failures requiring immediate attention.
@@ -101,7 +102,7 @@ public final class GlobalExceptionHandler {
      *
      * <ul>
      *   <li>Level: ERROR
-     *   <li>Stack Trace: ✅ Full (via {@code setCause(ex)})
+     *   <li>Stack Trace: Full (via {@code setCause(ex)})
      *   <li>Alerting: Triggers PagerDuty/DingTalk critical alerts
      *   <li>Metric: Contributes to Error Rate SLA
      * </ul>
@@ -124,7 +125,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🔴 [LEVEL 1] Internal Server Error - Explicit system failure.
+     * [LEVEL 1] Internal Server Error - Explicit system failure.
      *
      * <p>Handles InternalServerErrorException (wrapper for internal failures).
      *
@@ -132,7 +133,7 @@ public final class GlobalExceptionHandler {
      *
      * <ul>
      *   <li>Level: ERROR
-     *   <li>Stack Trace: ✅ Full (via {@code setCause(ex)})
+     *   <li>Stack Trace: Full (via {@code setCause(ex)})
      * </ul>
      */
     @ExceptionHandler(InternalServerErrorException.class)
@@ -153,7 +154,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🔵 [LEVEL 3] Security Audit Exceptions - INFO level for SIEM integration.
+     * [LEVEL 3] Security Audit Exceptions - INFO level for SIEM integration.
      *
      * <p>Handles authentication/authorization failures that require security audit logging. These
      * are expected security events, not system errors.
@@ -162,8 +163,8 @@ public final class GlobalExceptionHandler {
      *
      * <ul>
      *   <li>Level: INFO
-     *   <li>Stack Trace: ❌ None (performance optimized)
-     *   <li>Context: Includes client_ip, target_uri for风控 analysis
+     *   <li>Stack Trace: None (performance optimized)
+     *   <li>Context: Includes client_ip, target_uri for risk control analysis
      *   <li>Integration: Structured for SIEM/audit systems
      * </ul>
      *
@@ -206,7 +207,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🟡 [LEVEL 2] Business Exceptions - WARN level without stack trace.
+     * [LEVEL 2] Business Exceptions - WARN level without stack trace.
      *
      * <p>Handles expected business rule violations (validation, state conflicts, etc.). These are
      * not system failures but normal business flow control.
@@ -215,7 +216,7 @@ public final class GlobalExceptionHandler {
      *
      * <ul>
      *   <li>Level: WARN
-     *   <li>Stack Trace: ❌ None (O(1) performance)
+     *   <li>Stack Trace: None (O(1) performance)
      *   <li>Metric: Tracks business funnel (e.g., validation failure rate)
      *   <li>Alerting: Should NOT trigger on-call alerts
      * </ul>
@@ -238,7 +239,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🟡 [LEVEL 2] Validation Errors - WARN level without stack trace.
+     * [LEVEL 2] Validation Errors - WARN level without stack trace.
      *
      * <p>Handles request body validation failures from {@code @Valid} annotations.
      *
@@ -246,7 +247,7 @@ public final class GlobalExceptionHandler {
      *
      * <ul>
      *   <li>Level: WARN
-     *   <li>Stack Trace: ❌ None
+     *   <li>Stack Trace: None
      *   <li>Context: Includes field-level error details
      * </ul>
      */
@@ -280,7 +281,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🟡 [LEVEL 2] Constraint Violations - WARN level without stack trace.
+     * [LEVEL 2] Constraint Violations - WARN level without stack trace.
      *
      * <p>Handles parameter validation failures from {@code @Validated}.
      */
@@ -314,7 +315,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🟡 [LEVEL 2] Missing Parameters - WARN level without stack trace.
+     * [LEVEL 2] Missing Parameters - WARN level without stack trace.
      *
      * <p>Handles missing required request parameters.
      */
@@ -339,7 +340,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🟡 [LEVEL 2] Malformed Request - WARN level without stack trace.
+     * [LEVEL 2] Malformed Request - WARN level without stack trace.
      *
      * <p>Handles JSON parse errors and unreadable request bodies.
      */
@@ -359,7 +360,7 @@ public final class GlobalExceptionHandler {
     }
 
     /**
-     * 🟡 [LEVEL 2] Illegal Arguments - WARN level without stack trace.
+     * [LEVEL 2] Illegal Arguments - WARN level without stack trace.
      *
      * <p>Handles illegal argument exceptions from business logic.
      */

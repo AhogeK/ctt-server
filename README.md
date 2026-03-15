@@ -66,17 +66,18 @@ CTT Server provides:
 
 **PostgreSQL Tables** (`src/main/resources/db/migration/V20260303210000__init_base_schema.sql`):
 
-| Table | Description | Key Columns |
-|-------|-------------|-------------|
-| `users` | User accounts (Web & OAuth) | `id`, `email`, `github_id`, `status`, `last_login_at` |
-| `devices` | Client device registration | `id`, `user_id`, `platform`, `ide_name`, `last_seen_at` |
-| `api_keys` | Authentication keys (device-bound) | `id`, `key_hash`, `revoked_at`, `last_used_at` |
-| `coding_sessions` | Core time-tracking data | `session_uuid`, `start_time`, `end_time`, `client_version` |
-| `session_changes` | Sync change log (watermark base) | `change_id`, `op`, `server_version`, `happened_at` |
-| `sync_cursors` | Per-device sync state | `last_pulled_change_id`, `last_push_at` |
-| `audit_logs` | Security audit trail | `action`, `resource_type`, `details (JSONB)`, `ip_address` |
+| Table             | Description                        | Key Columns                                                |
+|-------------------|------------------------------------|------------------------------------------------------------|
+| `users`           | User accounts (Web & OAuth)        | `id`, `email`, `github_id`, `status`, `last_login_at`      |
+| `devices`         | Client device registration         | `id`, `user_id`, `platform`, `ide_name`, `last_seen_at`    |
+| `api_keys`        | Authentication keys (device-bound) | `id`, `key_hash`, `revoked_at`, `last_used_at`             |
+| `coding_sessions` | Core time-tracking data            | `session_uuid`, `start_time`, `end_time`, `client_version` |
+| `session_changes` | Sync change log (watermark base)   | `change_id`, `op`, `server_version`, `happened_at`         |
+| `sync_cursors`    | Per-device sync state              | `last_pulled_change_id`, `last_push_at`                    |
+| `audit_logs`      | Security audit trail               | `action`, `resource_type`, `details (JSONB)`, `ip_address` |
 
 **Key Design Features**:
+
 - **Soft Delete**: `coding_sessions` uses `is_deleted` flag for sync integrity
 - **LWW Sync**: `client_version` + `server_version` for conflict resolution
 - **Audit Trail**: `audit_logs` with JSONB for flexible querying
@@ -86,21 +87,11 @@ CTT Server provides:
 
 ```
 ctt-server/
-├── common/              # Global shared utilities
-│   ├── config/          # Infrastructure configuration
-│   │   ├── jackson/     # JSON serialization (MaskSerializer for data masking)
-│   │   └── logging/     # Logback converters (MaskingMessageConverter)
-│   ├── context/         # Request context (RequestInfo, ScopedValue, RequestLoggingFilter)
-│   ├── exception/       # Global exception handling
-│   ├── logging/         # Structured business logging (LogRecord)
-│   ├── response/        # Unified API response wrappers
-│   └── utils/           # Utility classes (IpUtils, DesensitizeUtils)
-├── audit/               # Security audit events (SecurityAuditEvent)
+├── audit/               # Security audit events & persistence
+│   ├── entity/          # AuditLog JPA entity (JSONB support)
+│   ├── repository/      # AuditLogRepository
+│   └── listener/        # Async AuditEventListener
 ├── auth/                # JWT authentication module
-├── apikey/              # API Key management module
-├── sync/                # Bidirectional sync engine
-├── stats/               # Statistics aggregation
-└── leaderboard/         # Redis-powered ranking
 ```
 
 ## Getting Started
@@ -117,13 +108,13 @@ Create `application-local.yaml`:
 
 ```yaml
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/ctt
-    username: your_username
-    password: your_password
-  redis:
-    host: localhost
-    port: 6379
+    datasource:
+        url: jdbc:postgresql://localhost:5432/ctt
+        username: your_username
+        password: your_password
+    redis:
+        host: localhost
+        port: 6379
 ```
 
 ### Run

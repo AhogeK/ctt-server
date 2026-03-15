@@ -21,7 +21,7 @@ import java.util.Set;
  * <ul>
  *   <li>Layer 1 (Filter): Use this utility to mask headers before logging
  *   <li>Layer 2 (DTO): Use {@code @JsonSerialize(using = MaskSerializer.class)} on fields
- *   <li>Layer 3 (Global): Logback {@code MaskingMessageConverter} provides regex-based兜底
+ *   <li>Layer 3 (Global): Logback {@code MaskingMessageConverter} provides regex-based fallback
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]
