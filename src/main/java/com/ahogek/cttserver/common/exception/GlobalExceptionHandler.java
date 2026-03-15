@@ -5,6 +5,7 @@ import java.util.UUID;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -20,13 +21,14 @@ public final class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    private static String generateTraceId() {
-        return UUID.randomUUID().toString();
+    private static String currentTraceId() {
+        String id = MDC.get("traceId");
+        return (id != null && !id.isBlank()) ? id : UUID.randomUUID().toString().replace("-", "");
     }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException ex) {
-        String traceId = generateTraceId();
+        String traceId = currentTraceId();
         log.warn("[{}] Business exception: {} - {}", traceId, ex.errorCode(), ex.getMessage());
 
         ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
@@ -38,7 +40,7 @@ public final class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(
             MethodArgumentNotValidException ex) {
-        String traceId = generateTraceId();
+        String traceId = currentTraceId();
         log.warn("[{}] Validation error", traceId);
 
         var details =
@@ -61,7 +63,7 @@ public final class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(
             ConstraintViolationException ex) {
-        String traceId = generateTraceId();
+        String traceId = currentTraceId();
         log.warn("[{}] Constraint violation", traceId);
 
         var details =
@@ -84,7 +86,7 @@ public final class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParam(
             MissingServletRequestParameterException ex) {
-        String traceId = generateTraceId();
+        String traceId = currentTraceId();
         log.warn("[{}] Missing parameter: {}", traceId, ex.getParameterName());
 
         ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_005).withTraceId(traceId);
@@ -95,7 +97,7 @@ public final class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadableMessage(
             HttpMessageNotReadableException ex) {
-        String traceId = generateTraceId();
+        String traceId = currentTraceId();
         log.warn("[{}] Malformed request body", traceId);
 
         ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_001).withTraceId(traceId);
@@ -106,7 +108,7 @@ public final class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
             IllegalArgumentException ex) {
-        String traceId = generateTraceId();
+        String traceId = currentTraceId();
         log.warn("[{}] Illegal argument: {}", traceId, ex.getMessage());
 
         ErrorResponse response =
@@ -118,7 +120,7 @@ public final class GlobalExceptionHandler {
     @ExceptionHandler(InternalServerErrorException.class)
     public ResponseEntity<ErrorResponse> handleInternalServerError(
             InternalServerErrorException ex) {
-        String traceId = generateTraceId();
+        String traceId = currentTraceId();
         log.error("[{}] Internal server error: {}", traceId, ex.getMessage());
 
         ErrorResponse response =
@@ -129,7 +131,7 @@ public final class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        String traceId = generateTraceId();
+        String traceId = currentTraceId();
         log.error("[{}] Unexpected error", traceId, ex);
 
         ErrorResponse response = ErrorResponse.of(ErrorCode.SYSTEM_001).withTraceId(traceId);

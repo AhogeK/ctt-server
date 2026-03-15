@@ -79,6 +79,8 @@
     - [x] 全局 Jackson 配置 (application.yaml non_null)
     - [x] 响应类改为 record (Java 25)
     - [x] 测试覆盖率 80% 达标
+    - [x] TraceId 透传机制 (TraceIdFilter + TraceContext + MDC)
+    - [x] logback-spring.xml 配置
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

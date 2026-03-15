@@ -41,6 +41,7 @@
 - [2026-03-14] - 响应类改为 record：ApiResponse、ErrorResponse、PagedResponse、EmptyResponse
 - [2026-03-14] - 全局配置 Jackson：application.yaml 添加 non_null 过滤
 - [2026-03-14] - 提升测试覆盖率到 80%：添加 Response/Exception 单元测试
+- [2026-03-15] - 实现 TraceId 透传机制：TraceIdFilter、TraceContext、logback 配置
 
 ## 错误/障碍
 

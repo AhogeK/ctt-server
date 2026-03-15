@@ -140,5 +140,6 @@ public class Xxx {}
 | C005 | Stats Aggregator  | 时序数据聚合查询                              | planned   |
 | C006 | Leaderboard       | Redis ZSet 实时排行榜                         | planned   |
 | C007 | Rate Limiter      | API 限流保护                                  | planned   |
-| C008 | Global Exception  | 全局异常处理器                                 | planned   |
+| C008 | Global Exception  | 全局异常处理器                                 | stable   |
+| C010 | TraceId Filter   | TraceId 透传机制 (Filter + Context + MDC)    | stable   |
 | C009 | Code Conventions  | 代码规范：Spotless + JaCoCo + Conventional Commits | stable   |
