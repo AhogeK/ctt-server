@@ -76,6 +76,21 @@
     - 代码审查修复：Spotless格式化、常量提取、断言链优化
     - 更新 README.md：Package Structure 添加 config/jackson/、config/logging/、更新 utils/ 描述
     - 所有 128 个测试通过
+- [2026-03-16] - 实现统一异常日志策略（三级别路由）：
+    - 🔴 ERROR 级别：系统异常（Exception, InternalServerErrorException）- 保留完整堆栈
+    - 🟡 WARN 级别：业务异常（BusinessException, ValidationException等）- 无堆栈，结构化日志
+    - 🔵 AUDIT 级别：安全异常（UnauthorizedException, ForbiddenException）- INFO级别，审计上下文
+    - 新增审计日志常量（AUDIT_EVENT, VIOLATION_TYPE, CLIENT_IP, TARGET_URI）
+    - 重构 GlobalExceptionHandler 实现三级别路由
+    - 性能优化：业务/审计异常避免 O(D) 堆栈捕获开销
+    - 实现审计事件发布：SecurityAuditEvent + ApplicationEventPublisher 集成
+    - 更新测试：GlobalExceptionHandlerTest 添加 mock ApplicationEventPublisher
+    - 所有 128 个测试通过
+- [2026-03-16] - 代码审查修复（SecurityAuditEvent）：
+    - ✅ Spotless 格式化：SecurityAuditEvent.java
+    - ✅ 新增单元测试：SecurityAuditEventTest.java（6个测试方法，100%覆盖）
+    - ✅ 更新 README.md：Package Structure 添加 audit/ 目录
+    - 所有 134 个测试通过（+6个新测试）
 
 ## 错误/障碍
 

@@ -95,6 +95,7 @@ ctt-server/
 │   ├── logging/         # Structured business logging (LogRecord)
 │   ├── response/        # Unified API response wrappers
 │   └── utils/           # Utility classes (IpUtils, DesensitizeUtils)
+├── audit/               # Security audit events (SecurityAuditEvent)
 ├── auth/                # JWT authentication module
 ├── apikey/              # API Key management module
 ├── sync/                # Bidirectional sync engine

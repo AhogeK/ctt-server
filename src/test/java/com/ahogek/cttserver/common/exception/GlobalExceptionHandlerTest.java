@@ -1,16 +1,17 @@
 package com.ahogek.cttserver.common.exception;
 
 import com.ahogek.cttserver.probe.ProbeController;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 @WebMvcTest(controllers = ProbeController.class)
@@ -125,7 +126,8 @@ class GlobalExceptionHandlerTest {
         jakarta.validation.ConstraintViolationException ex =
                 new jakarta.validation.ConstraintViolationException(
                         java.util.Collections.emptySet());
-        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
         var result = handler.handleConstraintViolation(ex);
         assertThat(result.getStatusCode().value()).isEqualTo(400);
     }

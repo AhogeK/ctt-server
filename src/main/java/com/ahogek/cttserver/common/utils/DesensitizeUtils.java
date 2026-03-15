@@ -33,20 +33,18 @@ public final class DesensitizeUtils {
      * Standard mask pattern for sensitive values.
      */
     private static final String MASK_PATTERN = "******";
-    /**
-     * Headers that must be masked (case-insensitive).
-     */
+
+    /** Headers that must be masked (case-insensitive). */
     private static final Set<String> SENSITIVE_HEADERS =
         Set.of("authorization", "cookie", "set-cookie", "x-api-key", "token", "x-auth-token");
 
-    private DesensitizeUtils() {
-    }
+    private DesensitizeUtils() {}
 
     /**
      * Masks sensitive HTTP header values.
      *
      * @param headerName the header name
-     * @param value      the header value
+     * @param value the header value
      * @return masked value if sensitive, original value otherwise
      */
     public static String maskHeader(String headerName, String value) {
@@ -101,7 +99,7 @@ public final class DesensitizeUtils {
      *
      * <p>Example: {@code eyJhbGciOiJIUzI1NiJ9...xyz} → {@code eyJh...xyz}
      *
-     * @param token      the token value
+     * @param token the token value
      * @param maskLength minimum length to apply partial masking
      * @return masked token
      */
@@ -115,7 +113,7 @@ public final class DesensitizeUtils {
     /**
      * Masks a generic string with partial visibility.
      *
-     * @param value         the value to mask
+     * @param value the value to mask
      * @param visiblePrefix number of chars to show at start
      * @param visibleSuffix number of chars to show at end
      * @return masked string
