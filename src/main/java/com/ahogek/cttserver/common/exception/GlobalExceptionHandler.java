@@ -155,9 +155,7 @@ public final class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(response);
     }
 
-    /**
-     * Handles missing required request parameters.
-     */
+    /** Handles missing required request parameters. */
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParam(
             MissingServletRequestParameterException ex) {

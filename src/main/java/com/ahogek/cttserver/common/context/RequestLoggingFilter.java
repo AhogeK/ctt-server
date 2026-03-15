@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.common.context;
 
+import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,9 +14,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * HTTP request access logging filter.
+ * HTTP request access logging filter with defensive header masking.
  *
  * <p>Records the complete lifecycle of all HTTP requests (entry, exit, duration, status code). This
  * is the foundation for calculating SLA metrics (e.g., P99 latency) and troubleshooting external
@@ -29,10 +33,16 @@ import java.io.IOException;
  *   <li>Security-first: Never logs full Request/Response Body (prevents memory overflow and
  *       sensitive data leakage), only metadata
  *   <li>Structured output: Uses SLF4J 2.x Fluent API with key-value pairs for machine parsing
+ *   <li>Defensive masking: All request headers are automatically desensitized using {@link
+ *       DesensitizeUtils} when recorded (DEBUG level only)
  * </ul>
  *
  * <p><strong>Order Constraint:</strong> Must be ordered after {@link
  * RequestContextInitializerFilter} to ensure MDC context (traceId, clientIp) is available.
+ *
+ * <p><strong>Header Logging:</strong> Request headers are only logged at DEBUG level or higher
+ * verbosity. All sensitive headers (Authorization, Cookie, X-API-Key, etc.) are automatically
+ * masked using {@link DesensitizeUtils#maskHeader(String, String)} to prevent PII/token leakage.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-16
@@ -58,6 +68,7 @@ public final class RequestLoggingFilter extends OncePerRequestFilter {
     private static final String CONTENT_LENGTH_KEY = "content_length";
     private static final String THRESHOLD_MS_KEY = "threshold_ms";
     private static final String ACTUAL_MS_KEY = "actual_ms";
+    private static final String HEADERS_KEY = "headers";
 
     @Override
     protected void doFilterInternal(
@@ -86,6 +97,12 @@ public final class RequestLoggingFilter extends OncePerRequestFilter {
                     .addKeyValue(URI_KEY, request.getRequestURI())
                     .addKeyValue(QUERY_STRING_KEY, request.getQueryString())
                     .addKeyValue(CONTENT_LENGTH_KEY, request.getContentLengthLong());
+
+            // Defensive integration: Only record headers at DEBUG level to avoid I/O overhead
+            // All headers are automatically masked using DesensitizeUtils for security
+            if (ACCESS_LOG.isDebugEnabled()) {
+                logBuilder = logBuilder.addKeyValue(HEADERS_KEY, extractAndMaskHeaders(request));
+            }
 
             // Human-readable message for console output
             logBuilder.log(
@@ -126,5 +143,31 @@ public final class RequestLoggingFilter extends OncePerRequestFilter {
                         status);
             }
         }
+    }
+
+    /**
+     * Safely extracts and masks all request headers.
+     *
+     * <p>Time complexity: O(H) where H is the number of headers.
+     *
+     * <p>All header values are passed through {@link DesensitizeUtils#maskHeader(String, String)}
+     * to prevent sensitive data leakage (Authorization tokens, Cookies, API keys, etc.).
+     *
+     * @param request the HTTP request
+     * @return map of header names to masked values
+     */
+    private Map<String, String> extractAndMaskHeaders(HttpServletRequest request) {
+        Map<String, String> safeHeaders = new HashMap<>();
+        Enumeration<String> headerNames = request.getHeaderNames();
+
+        if (headerNames != null) {
+            while (headerNames.hasMoreElements()) {
+                String name = headerNames.nextElement();
+                String value = request.getHeader(name);
+                // Force all headers through DesensitizeUtils to prevent accidental leakage
+                safeHeaders.put(name, DesensitizeUtils.maskHeader(name, value));
+            }
+        }
+        return safeHeaders;
     }
 }

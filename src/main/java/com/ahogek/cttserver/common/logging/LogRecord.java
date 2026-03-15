@@ -105,7 +105,7 @@ public final class LogRecord {
     /**
      * Adds a structured key-value field to this log record.
      *
-     * @param key   the field name
+     * @param key the field name
      * @param value the field value
      * @return this LogRecord for method chaining
      */
@@ -161,7 +161,7 @@ public final class LogRecord {
      * Outputs the log record at the appropriate level.
      *
      * @param message the log message (should be static, not concatenated)
-     * @param args    optional message format arguments
+     * @param args optional message format arguments
      */
     public void log(String message, Object... args) {
         String level = (String) fields.getOrDefault(LEVEL_KEY, INFO_LEVEL);

@@ -18,7 +18,8 @@
  * <h3>2. Business Log (via LogRecord)</h3>
  *
  * <ul>
- *   <li>Location: Use {@link com.ahogek.cttserver.common.logging.LogRecord} utility with class identity
+ *   <li>Location: Use {@link com.ahogek.cttserver.common.logging.LogRecord} utility with class
+ *       identity
  *   <li>Records: Domain events, state transitions, third-party RPC calls
  *   <li>Format: Structured key-value pairs via SLF4J Fluent API
  *   <li>Design: Uses actual class name for traceability (e.g., UserService.class)

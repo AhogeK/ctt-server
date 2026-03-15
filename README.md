@@ -87,12 +87,14 @@ CTT Server provides:
 ```
 ctt-server/
 ├── common/              # Global shared utilities
-│   ├── config/          # Security, Redis, WebMvc config
+│   ├── config/          # Infrastructure configuration
+│   │   ├── jackson/     # JSON serialization (MaskSerializer for data masking)
+│   │   └── logging/     # Logback converters (MaskingMessageConverter)
 │   ├── context/         # Request context (RequestInfo, ScopedValue, RequestLoggingFilter)
 │   ├── exception/       # Global exception handling
 │   ├── logging/         # Structured business logging (LogRecord)
 │   ├── response/        # Unified API response wrappers
-│   └── utils/           # Utility classes (IpUtils)
+│   └── utils/           # Utility classes (IpUtils, DesensitizeUtils)
 ├── auth/                # JWT authentication module
 ├── apikey/              # API Key management module
 ├── sync/                # Bidirectional sync engine

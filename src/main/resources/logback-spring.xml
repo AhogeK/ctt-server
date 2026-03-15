@@ -2,23 +2,28 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <springProfile name="!prod">
+  <!-- Global log message desensitization converter (3rd line of defense) -->
+  <conversionRule conversionWord="maskedMsg"
+                  class="com.ahogek.cttserver.common.config.logging.MaskingMessageConverter"/>
+
+  <springProfile name="!prod">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
+              <!-- Use %maskedMsg instead of %msg for automatic sensitive data masking -->
                 <pattern>
                   %clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${PID:- }){magenta} %clr(---){faint}
                   %clr([%15thread]){faint} %clr(%-5level) %clr([T:%X{traceId:-NO_TRACE}]
-                  [IP:%X{clientIp:-UNKNOWN}]){yellow} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %msg%n
+                  [IP:%X{clientIp:-UNKNOWN}]){yellow} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %maskedMsg%n
                 </pattern>
             </encoder>
         </appender>
 
-      <!-- Request access logging - single entry point for HTTP lifecycle -->
-      <logger name="ACCESS_LOG" level="INFO" additivity="false">
-        <appender-ref ref="CONSOLE"/>
-      </logger>
+    <!-- Request access logging - single entry point for HTTP lifecycle -->
+    <logger name="ACCESS_LOG" level="INFO" additivity="false">
+      <appender-ref ref="CONSOLE"/>
+    </logger>
 
-      <!-- Business logs use class name (LoggerFactory.getLogger(Xxx.class)) -->
+    <!-- Business logs use class name (LoggerFactory.getLogger(Xxx.class)) -->
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>

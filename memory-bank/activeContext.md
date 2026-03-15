@@ -66,6 +66,16 @@
     - 更新测试：LogRecordTest 使用类参数替代字符串
     - 更新文档：package-info.java 反映新的架构设计
     - 构建验证成功，日志输出格式正确
+- [2026-03-16] - 实现三层敏感数据脱敏架构（GDPR合规）：
+    - Layer 1 (Filter): DesensitizeUtils - Header、邮箱、密码脱敏工具类
+    - Layer 2 (DTO): MaskSerializer - Jackson JSON序列化脱敏
+    - Layer 3 (Global): MaskingMessageConverter - Logback正则兜底脱敏
+    - 更新 logback-spring.xml：添加 conversionRule 和 %maskedMsg
+    - 防御性集成：RequestLoggingFilter 集成 DesensitizeUtils（DEBUG级别脱敏Header）
+    - 添加 common/utils/package-info.java 文档
+    - 代码审查修复：Spotless格式化、常量提取、断言链优化
+    - 更新 README.md：Package Structure 添加 config/jackson/、config/logging/、更新 utils/ 描述
+    - 所有 128 个测试通过
 
 ## 错误/障碍
 
