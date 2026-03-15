@@ -1,5 +1,7 @@
 package com.ahogek.cttserver.common.exception;
 
+import com.ahogek.cttserver.probe.ProbeController;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -10,8 +12,6 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-
-import com.ahogek.cttserver.probe.ProbeController;
 
 @WebMvcTest(controllers = ProbeController.class)
 @ActiveProfiles("test")
@@ -45,6 +45,24 @@ class GlobalExceptionHandlerTest {
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("COMMON_003");
+    }
+
+    @Test
+    @WithMockUser
+    void validation_success_returns_ok() {
+        assertThat(
+                        mvc.post()
+                                .uri("/probe/validate")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                        { "name": "test", "age": 25 }
+                        """))
+                .hasStatusOk()
+                .bodyJson()
+                .extractingPath("$.success")
+                .isEqualTo(true);
     }
 
     @Test
@@ -100,5 +118,15 @@ class GlobalExceptionHandlerTest {
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("COMMON_001");
+    }
+
+    @Test
+    void handleConstraintViolation_returns_400() {
+        jakarta.validation.ConstraintViolationException ex =
+                new jakarta.validation.ConstraintViolationException(
+                        java.util.Collections.emptySet());
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        var result = handler.handleConstraintViolation(ex);
+        assertThat(result.getStatusCode().value()).isEqualTo(400);
     }
 }

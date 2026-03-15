@@ -1,11 +1,11 @@
 package com.ahogek.cttserver.common.exception;
 
+import com.ahogek.cttserver.common.response.ErrorResponse;
+
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import com.ahogek.cttserver.common.response.ErrorResponse;
 
 class BusinessExceptionTest {
 

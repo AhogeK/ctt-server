@@ -1,5 +1,9 @@
 package com.ahogek.cttserver.common.exception;
 
+import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.RequestInfo;
+import com.ahogek.cttserver.common.response.ErrorResponse;
+
 import java.util.UUID;
 
 import jakarta.validation.ConstraintViolationException;
@@ -14,16 +18,21 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.ahogek.cttserver.common.response.ErrorResponse;
-
 @RestControllerAdvice
 public final class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private static String currentTraceId() {
-        String id = MDC.get("traceId");
-        return (id != null && !id.isBlank()) ? id : UUID.randomUUID().toString().replace("-", "");
+        return RequestContext.current()
+                .map(RequestInfo::traceId)
+                .orElseGet(
+                        () -> {
+                            String id = MDC.get("traceId");
+                            return (id != null && !id.isBlank())
+                                    ? id
+                                    : UUID.randomUUID().toString().replace("-", "");
+                        });
     }
 
     @ExceptionHandler(BusinessException.class)

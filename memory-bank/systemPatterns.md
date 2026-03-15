@@ -141,5 +141,6 @@ public class Xxx {}
 | C006 | Leaderboard       | Redis ZSet 实时排行榜                         | planned   |
 | C007 | Rate Limiter      | API 限流保护                                  | planned   |
 | C008 | Global Exception  | 全局异常处理器                                 | stable   |
-| C010 | TraceId Filter   | TraceId 透传机制 (Filter + Context + MDC)    | stable   |
 | C009 | Code Conventions  | 代码规范：Spotless + JaCoCo + Conventional Commits | stable   |
+| C010 | TraceId Filter   | TraceId 透传机制 (已废弃，由 C011 替代)        | deprecated |
+| C011 | Request Context   | 请求上下文 (RequestInfo + ScopedValue + IpUtils) | stable   |

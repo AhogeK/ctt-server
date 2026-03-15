@@ -1,13 +1,20 @@
 package com.ahogek.cttserver.probe;
 
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.InternalServerErrorException;
+import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.response.ApiResponse;
+
 import java.util.Map;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,14 +22,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ahogek.cttserver.common.exception.ErrorCode;
-import com.ahogek.cttserver.common.exception.InternalServerErrorException;
-import com.ahogek.cttserver.common.exception.NotFoundException;
-import com.ahogek.cttserver.common.response.ApiResponse;
-
 @RestController
 @RequestMapping("/probe")
 @Profile({"local", "test"})
+@Validated
 public class ProbeController {
 
     public record EchoRequest(@NotBlank String name, @Min(1) int age) {}
@@ -60,6 +63,12 @@ public class ProbeController {
         if (value == null) {
             throw new IllegalArgumentException("value cannot be null");
         }
+        return ResponseEntity.ok(ApiResponse.ok());
+    }
+
+    @GetMapping("/constraint-violation")
+    public ResponseEntity<ApiResponse<Void>> constraintViolation(
+            @RequestParam @Pattern(regexp = "^[a-z]+$") String value) {
         return ResponseEntity.ok(ApiResponse.ok());
     }
 }

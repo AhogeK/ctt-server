@@ -1,10 +1,10 @@
 package com.ahogek.cttserver.common.response;
 
+import com.ahogek.cttserver.common.exception.ErrorCode;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.ahogek.cttserver.common.exception.ErrorCode;
 
 /**
  * Standardized error response for API errors.

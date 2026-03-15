@@ -81,6 +81,8 @@
     - [x] 测试覆盖率 80% 达标
     - [x] TraceId 透传机制 (TraceIdFilter + TraceContext + MDC)
     - [x] logback-spring.xml 配置
+    - [x] RequestContext 体系 (RequestInfo + RequestContext + ScopedValue)
+    - [x] IpUtils 工具类
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现
