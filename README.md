@@ -92,7 +92,8 @@ ctt-server/
 │   ├── enums/           # AuditAction, ResourceType, SecuritySeverity
 │   ├── listener/        # Async AuditEventListener
 │   ├── model/           # AuditDetails (strongly-typed JSONB carrier)
-│   └── repository/      # AuditLogRepository
+│   ├── repository/      # AuditLogRepository
+│   └── service/         # AuditLogService (facade for business layer)
 ├── auth/                # JWT authentication module
 ```
 

@@ -170,3 +170,12 @@
     - 更新 README.md：Package Structure 添加 audit/model/ 目录
     - 更新 GlobalExceptionHandler：添加 AuditDetails import，移除 FQN
     - 验证：145个测试全部通过
+
+- [2026-03-16] - 实现 AuditLogService 防腐层：
+    - 创建 AuditLogService：封装事件发布和 RequestContext 提取
+    - 自动上下文提取：从 RequestContext 获取 IP/UA，非 Web 场景降级为 SYSTEM/INTERNAL
+    - 语义化 API：logSuccess(), logFailure(), logCritical(), logTransition()
+    - 零侵入设计：业务层无需关心底层 JSON 组装和事件总线
+    - 新增单元测试：AuditLogServiceTest (6个测试方法，Mockito 验证事件发布)
+    - 更新 README.md：Package Structure 添加 audit/service/ 目录
+    - 验证：151个测试全部通过
