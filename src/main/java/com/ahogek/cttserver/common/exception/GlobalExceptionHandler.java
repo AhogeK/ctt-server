@@ -188,7 +188,7 @@ public final class GlobalExceptionHandler {
         // Audit logging without stack trace - structured for SIEM systems
         var logBuilder =
                 log.atInfo()
-                        .addKeyValue(AUDIT_EVENT_KEY, "SECURITY_VIOLATION")
+                        .addKeyValue(AUDIT_EVENT_KEY, "SECURITY_EVENT")
                         .addKeyValue(VIOLATION_TYPE_KEY, ex.errorCode().name())
                         .addKeyValue(ERROR_CODE_KEY, ex.errorCode().name())
                         .addKeyValue(TRACE_ID_KEY, traceId);

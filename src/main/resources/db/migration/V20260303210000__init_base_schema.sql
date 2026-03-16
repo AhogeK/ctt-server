@@ -406,7 +406,7 @@ CREATE TABLE audit_logs
 
 COMMENT ON TABLE audit_logs IS 'System security and operational audit logs';
 COMMENT ON COLUMN audit_logs.user_id IS 'Reference to user who performed the action';
-COMMENT ON COLUMN audit_logs.action IS 'Operation type (e.g., LOGIN_FAILED, SECURITY_VIOLATION)';
+COMMENT ON COLUMN audit_logs.action IS 'Operation type (e.g., LOGIN_FAILED, UNAUTHORIZED_ACCESS)';
 COMMENT ON COLUMN audit_logs.resource_type IS 'Type of affected resource (Must match enum ResourceType)';
 COMMENT ON COLUMN audit_logs.resource_id IS 'Identifier of the affected resource';
 COMMENT ON COLUMN audit_logs.severity IS 'Security severity level: INFO, WARNING, CRITICAL';
