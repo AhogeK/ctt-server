@@ -179,3 +179,10 @@
     - 新增单元测试：AuditLogServiceTest (6个测试方法，Mockito 验证事件发布)
     - 更新 README.md：Package Structure 添加 audit/service/ 目录
     - 验证：151个测试全部通过
+
+- [2026-03-16] - 明确审计日志与业务日志边界规范：
+    - 创建 docs/audit-boundary-spec.md：定义二元决策矩阵和黄金边界法则
+    - 审计日志（入库）：身份凭证生命周期、访问控制转移、安全违规、高价值资源破坏
+    - 业务日志（ELK）：高频数据同步、后台任务、RPC调用、缓存行为
+    - 架构师启发式："如果日志丢失会导致法律纠纷吗？"作为决策标准
+    - 提供 DeviceSyncService 双日志协同示例代码
