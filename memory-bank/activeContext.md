@@ -186,3 +186,12 @@
     - 业务日志（ELK）：高频数据同步、后台任务、RPC调用、缓存行为
     - 架构师启发式："如果日志丢失会导致法律纠纷吗？"作为决策标准
     - 提供 DeviceSyncService 双日志协同示例代码
+
+- [2026-03-16] - 建立 DTO 校验基线：
+    - 创建 ValidationConstants：统一正则与错误消息常量池
+    - 创建组合注解 @StrongPassword：@NotBlank + @Pattern 组合
+    - 创建组合注解 @UuidV4：UUID v4 格式校验
+    - 创建 PageQuery：分页查询基类，@Max(100) 防止 OOM
+    - 创建 UserRegisterRequest：用户注册 DTO (email, displayName, password)
+    - 新增测试：ValidationConstantsTest, PageQueryTest, UserRegisterRequestTest
+    - 验证：186个测试全部通过，代码覆盖率达标
