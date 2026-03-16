@@ -1,9 +1,10 @@
 package com.ahogek.cttserver.common.config.jackson;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -26,10 +27,10 @@ class MaskSerializerTest {
         String json = objectMapper.writeValueAsString(user);
 
         assertThat(json)
-            .contains("\"id\":\"user-123\"")
-            .contains("\"email\":\"john@example.com\"")
-            .contains("\"token\":\"******\"")
-            .doesNotContain("secret-token-abc123");
+                .contains("\"id\":\"user-123\"")
+                .contains("\"email\":\"john@example.com\"")
+                .contains("\"token\":\"******\"")
+                .doesNotContain("secret-token-abc123");
     }
 
     @Test
@@ -40,9 +41,9 @@ class MaskSerializerTest {
         String json = objectMapper.writeValueAsString(request);
 
         assertThat(json)
-            .contains("\"email\":\"john@example.com\"")
-            .contains("\"password\":\"******\"")
-            .doesNotContain("my-secret-password");
+                .contains("\"email\":\"john@example.com\"")
+                .contains("\"password\":\"******\"")
+                .doesNotContain("my-secret-password");
     }
 
     @Test
@@ -69,10 +70,8 @@ class MaskSerializerTest {
 
     // Test DTOs
     private record UserResponse(
-        String id, String email, @JsonSerialize(using = MaskSerializer.class) String token) {
-    }
+            String id, String email, @JsonSerialize(using = MaskSerializer.class) String token) {}
 
     private record LoginRequest(
-        String email, @JsonSerialize(using = MaskSerializer.class) String password) {
-    }
+            String email, @JsonSerialize(using = MaskSerializer.class) String password) {}
 }

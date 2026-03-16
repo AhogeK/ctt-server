@@ -1,10 +1,15 @@
 package com.ahogek.cttserver.common.exception;
 
 import com.ahogek.cttserver.audit.SecurityAuditEvent;
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.response.ErrorResponse;
+
 import jakarta.validation.ConstraintViolationException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -113,12 +118,12 @@ public final class GlobalExceptionHandler {
 
         // Full stack trace for debugging critical issues
         log.atError()
-            .setCause(ex)
-            .addKeyValue(ERROR_CODE_KEY, ErrorCode.SYSTEM_001.name())
-            .addKeyValue(ERROR_TYPE_KEY, "UNHANDLED_EXCEPTION")
-            .addKeyValue(EXCEPTION_CLASS_KEY, ex.getClass().getName())
-            .addKeyValue(TRACE_ID_KEY, traceId)
-            .log("Critical system error occurred: {}", ex.getMessage());
+                .setCause(ex)
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.SYSTEM_001.name())
+                .addKeyValue(ERROR_TYPE_KEY, "UNHANDLED_EXCEPTION")
+                .addKeyValue(EXCEPTION_CLASS_KEY, ex.getClass().getName())
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Critical system error occurred: {}", ex.getMessage());
 
         ErrorResponse response = ErrorResponse.of(ErrorCode.SYSTEM_001).withTraceId(traceId);
         return ResponseEntity.internalServerError().body(response);
@@ -138,18 +143,18 @@ public final class GlobalExceptionHandler {
      */
     @ExceptionHandler(InternalServerErrorException.class)
     public ResponseEntity<ErrorResponse> handleInternalServerError(
-        InternalServerErrorException ex) {
+            InternalServerErrorException ex) {
         String traceId = currentTraceId();
 
         log.atError()
-            .setCause(ex)
-            .addKeyValue(ERROR_CODE_KEY, ErrorCode.SYSTEM_001.name())
-            .addKeyValue(ERROR_TYPE_KEY, "INTERNAL_SERVER_ERROR")
-            .addKeyValue(TRACE_ID_KEY, traceId)
-            .log("Internal server error occurred: {}", ex.getMessage());
+                .setCause(ex)
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.SYSTEM_001.name())
+                .addKeyValue(ERROR_TYPE_KEY, "INTERNAL_SERVER_ERROR")
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Internal server error occurred: {}", ex.getMessage());
 
         ErrorResponse response =
-            ErrorResponse.of(ErrorCode.SYSTEM_001, ex.getMessage()).withTraceId(traceId);
+                ErrorResponse.of(ErrorCode.SYSTEM_001, ex.getMessage()).withTraceId(traceId);
         return ResponseEntity.internalServerError().body(response);
     }
 
@@ -182,25 +187,38 @@ public final class GlobalExceptionHandler {
 
         // Audit logging without stack trace - structured for SIEM systems
         var logBuilder =
-            log.atInfo()
-                .addKeyValue(AUDIT_EVENT_KEY, "SECURITY_VIOLATION")
-                .addKeyValue(VIOLATION_TYPE_KEY, ex.errorCode().name())
-                .addKeyValue(ERROR_CODE_KEY, ex.errorCode().name())
-                .addKeyValue(TRACE_ID_KEY, traceId);
+                log.atInfo()
+                        .addKeyValue(AUDIT_EVENT_KEY, "SECURITY_VIOLATION")
+                        .addKeyValue(VIOLATION_TYPE_KEY, ex.errorCode().name())
+                        .addKeyValue(ERROR_CODE_KEY, ex.errorCode().name())
+                        .addKeyValue(TRACE_ID_KEY, traceId);
 
         // Add request context if available
         if (requestInfo != null) {
             logBuilder =
-                logBuilder
-                    .addKeyValue(CLIENT_IP_KEY, requestInfo.clientIp())
-                    .addKeyValue(TARGET_URI_KEY, requestInfo.requestUri());
+                    logBuilder
+                            .addKeyValue(CLIENT_IP_KEY, requestInfo.clientIp())
+                            .addKeyValue(TARGET_URI_KEY, requestInfo.requestUri());
         }
 
         logBuilder.log("Security audit event: {}", ex.getMessage());
 
         // Publish async audit event for SIEM integration and persistent audit logging
+        AuditAction action =
+                ex instanceof UnauthorizedException
+                        ? AuditAction.UNAUTHORIZED_ACCESS
+                        : AuditAction.FORBIDDEN_ACCESS;
+        SecuritySeverity severity = SecuritySeverity.WARNING;
+
         eventPublisher.publishEvent(
-            new SecurityAuditEvent(ex.errorCode(), ex.getMessage(), requestInfo));
+                new SecurityAuditEvent(
+                        action,
+                        ResourceType.UNKNOWN,
+                        severity,
+                        requestInfo,
+                        java.util.Map.of(
+                                "errorCode", ex.errorCode().name(),
+                                "message", ex.getMessage())));
 
         ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
         return ResponseEntity.status(ex.errorCode().httpStatus()).body(response);
@@ -227,11 +245,11 @@ public final class GlobalExceptionHandler {
 
         // No stack trace for expected business exceptions - performance critical
         log.atWarn()
-            .addKeyValue(ERROR_CODE_KEY, ex.errorCode().name())
-            .addKeyValue(ERROR_TYPE_KEY, "BUSINESS_EXCEPTION")
-            .addKeyValue(HTTP_STATUS_KEY, ex.errorCode().httpStatus().value())
-            .addKeyValue(TRACE_ID_KEY, traceId)
-            .log("Business rule violation: {}", ex.getMessage());
+                .addKeyValue(ERROR_CODE_KEY, ex.errorCode().name())
+                .addKeyValue(ERROR_TYPE_KEY, "BUSINESS_EXCEPTION")
+                .addKeyValue(HTTP_STATUS_KEY, ex.errorCode().httpStatus().value())
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Business rule violation: {}", ex.getMessage());
 
         ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
         HttpStatus status = HttpStatus.valueOf(response.httpStatus());
@@ -265,17 +283,17 @@ public final class GlobalExceptionHandler {
                         .toList();
 
         log.atWarn()
-            .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_003.name())
-            .addKeyValue(ERROR_TYPE_KEY, "VALIDATION_ERROR")
-            .addKeyValue(FIELD_COUNT_KEY, fieldErrors.size())
-            .addKeyValue(TRACE_ID_KEY, traceId)
-            .log("Request validation failed: {} field(s) invalid", fieldErrors.size());
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_003.name())
+                .addKeyValue(ERROR_TYPE_KEY, "VALIDATION_ERROR")
+                .addKeyValue(FIELD_COUNT_KEY, fieldErrors.size())
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Request validation failed: {} field(s) invalid", fieldErrors.size());
 
         ErrorResponse response =
                 ErrorResponse.of(ErrorCode.COMMON_003.name(), ErrorCode.COMMON_003.message())
                         .withTraceId(traceId)
                         .withHttpStatus(ErrorCode.COMMON_003.httpStatus().value())
-                    .withDetails(fieldErrors);
+                        .withDetails(fieldErrors);
 
         return ResponseEntity.badRequest().body(response);
     }
@@ -296,20 +314,20 @@ public final class GlobalExceptionHandler {
                                 v ->
                                         new ErrorResponse.FieldError(
                                                 v.getPropertyPath().toString(), v.getMessage()))
-                    .toList();
+                        .toList();
 
         log.atWarn()
-            .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_003.name())
-            .addKeyValue(ERROR_TYPE_KEY, "CONSTRAINT_VIOLATION")
-            .addKeyValue(VIOLATION_COUNT_KEY, violations.size())
-            .addKeyValue(TRACE_ID_KEY, traceId)
-            .log("Constraint violation: {} violation(s)", violations.size());
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_003.name())
+                .addKeyValue(ERROR_TYPE_KEY, "CONSTRAINT_VIOLATION")
+                .addKeyValue(VIOLATION_COUNT_KEY, violations.size())
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Constraint violation: {} violation(s)", violations.size());
 
         ErrorResponse response =
                 ErrorResponse.of(ErrorCode.COMMON_003.name(), ErrorCode.COMMON_003.message())
                         .withTraceId(traceId)
                         .withHttpStatus(ErrorCode.COMMON_003.httpStatus().value())
-                    .withDetails(violations);
+                        .withDetails(violations);
 
         return ResponseEntity.badRequest().body(response);
     }
@@ -325,15 +343,15 @@ public final class GlobalExceptionHandler {
         String traceId = currentTraceId();
 
         log.atWarn()
-            .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_005.name())
-            .addKeyValue(ERROR_TYPE_KEY, "MISSING_PARAMETER")
-            .addKeyValue(PARAMETER_NAME_KEY, ex.getParameterName())
-            .addKeyValue(PARAMETER_TYPE_KEY, ex.getParameterType())
-            .addKeyValue(TRACE_ID_KEY, traceId)
-            .log(
-                "Missing required parameter: {} (type: {})",
-                ex.getParameterName(),
-                ex.getParameterType());
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_005.name())
+                .addKeyValue(ERROR_TYPE_KEY, "MISSING_PARAMETER")
+                .addKeyValue(PARAMETER_NAME_KEY, ex.getParameterName())
+                .addKeyValue(PARAMETER_TYPE_KEY, ex.getParameterType())
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log(
+                        "Missing required parameter: {} (type: {})",
+                        ex.getParameterName(),
+                        ex.getParameterType());
 
         ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_005).withTraceId(traceId);
         return ResponseEntity.badRequest().body(response);
@@ -350,10 +368,10 @@ public final class GlobalExceptionHandler {
         String traceId = currentTraceId();
 
         log.atWarn()
-            .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_001.name())
-            .addKeyValue(ERROR_TYPE_KEY, "MALFORMED_REQUEST")
-            .addKeyValue(TRACE_ID_KEY, traceId)
-            .log("Malformed request body: {}", ex.getMessage());
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_001.name())
+                .addKeyValue(ERROR_TYPE_KEY, "MALFORMED_REQUEST")
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Malformed request body: {}", ex.getMessage());
 
         ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_001).withTraceId(traceId);
         return ResponseEntity.badRequest().body(response);
@@ -370,10 +388,10 @@ public final class GlobalExceptionHandler {
         String traceId = currentTraceId();
 
         log.atWarn()
-            .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_001.name())
-            .addKeyValue(ERROR_TYPE_KEY, "ILLEGAL_ARGUMENT")
-            .addKeyValue(TRACE_ID_KEY, traceId)
-            .log("Illegal argument: {}", ex.getMessage());
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_001.name())
+                .addKeyValue(ERROR_TYPE_KEY, "ILLEGAL_ARGUMENT")
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Illegal argument: {}", ex.getMessage());
 
         ErrorResponse response =
                 ErrorResponse.of(ErrorCode.COMMON_001, ex.getMessage()).withTraceId(traceId);

@@ -10,10 +10,7 @@
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
               <!-- Use %maskedMsg instead of %msg for automatic sensitive data masking -->
-              <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${PID:- }){magenta} %clr(---){faint}
-                %clr([%thread]){faint} %clr(%-5level) %clr([T:%X{traceId:-NO_TRACE}] [IP:%X{clientIp:-UNKNOWN}]){yellow}
-                %clr(%-40.40logger{39}){cyan} %clr(:){faint} %maskedMsg%n
-              </pattern>
+              <pattern>%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${PID:- }){magenta} %clr(---){faint} %clr([%thread]){faint} %clr(%-5level) %clr([T:%X{traceId:-NO_TRACE}] [IP:%X{clientIp:-UNKNOWN}]){yellow} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %maskedMsg%n</pattern>
             </encoder>
         </appender>
 

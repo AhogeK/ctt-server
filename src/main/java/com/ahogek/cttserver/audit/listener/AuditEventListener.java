@@ -3,7 +3,7 @@ package com.ahogek.cttserver.audit.listener;
 import com.ahogek.cttserver.audit.SecurityAuditEvent;
 import com.ahogek.cttserver.audit.entity.AuditLog;
 import com.ahogek.cttserver.audit.repository.AuditLogRepository;
-import com.ahogek.cttserver.common.context.RequestInfo;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
@@ -12,8 +12,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -32,7 +30,8 @@ import java.util.Optional;
  * <p>Event Mapping:
  *
  * <pre>
- * SecurityAuditEvent (errorCode, message, requestInfo) → AuditLog (action, resourceType, details, ipAddress, userAgent)
+ * SecurityAuditEvent (userId, action, resourceType, resourceId, severity, ip, ua, details)
+ *   → AuditLog
  * </pre>
  *
  * @author AhogeK [ahogek@gmail.com]
@@ -74,20 +73,17 @@ public class AuditEventListener {
             auditLogRepository.save(auditLog);
 
             log.atDebug()
-                .addKeyValue("action", event.errorCode())
-                .addKeyValue(
-                    "ip",
-                    Optional.ofNullable(event.requestInfo())
-                        .map(RequestInfo::clientIp)
-                        .orElse(UNKNOWN))
-                .log("Audit log persisted asynchronously");
+                    .addKeyValue("action", event.action())
+                    .addKeyValue("severity", event.severity())
+                    .addKeyValue("ip", Optional.ofNullable(event.ipAddress()).orElse(UNKNOWN))
+                    .log("Audit log persisted asynchronously");
 
         } catch (Exception ex) {
             // Critical: Never let audit failures break business logic
             log.atError()
-                .setCause(ex)
-                .addKeyValue("errorCode", event.errorCode())
-                .log("Failed to persist audit log - continuing without error propagation");
+                    .setCause(ex)
+                    .addKeyValue("action", event.action())
+                    .log("Failed to persist audit log - continuing without error propagation");
         }
     }
 
@@ -98,45 +94,14 @@ public class AuditEventListener {
      * @return the mapped audit log entity
      */
     private AuditLog mapToAuditLog(SecurityAuditEvent event) {
-        // Build details map with all relevant context
-        Map<String, Object> details = new HashMap<>();
-        details.put("errorCode", event.errorCode().name());
-        details.put("errorMessage", event.errorCode().message());
-
-        if (event.message() != null) {
-            details.put("customMessage", event.message());
-        }
-
-        if (event.timestamp() != null) {
-            details.put("eventTimestamp", event.timestamp().toString());
-        }
-
-        // Extract request context if available
-        String ipAddress = UNKNOWN;
-        String userAgent = UNKNOWN;
-        String resourceId = null;
-
-        if (event.requestInfo() != null) {
-            ipAddress = event.requestInfo().clientIp();
-            userAgent = event.requestInfo().userAgent();
-            resourceId = event.requestInfo().traceId();
-
-            // Add request details to JSONB
-            details.put("traceId", event.requestInfo().traceId());
-            details.put("requestUri", event.requestInfo().requestUri());
-            details.put("httpMethod", event.requestInfo().method());
-
-            if (event.requestInfo().deviceId() != null) {
-                details.put("deviceId", event.requestInfo().deviceId());
-            }
-        }
-
         return new AuditLog()
-            .setAction("SECURITY_VIOLATION")
-            .setResourceType(event.errorCode().name())
-            .setResourceId(resourceId)
-            .setDetails(details)
-            .setIpAddress(ipAddress)
-            .setUserAgent(userAgent);
+                .setUserId(event.userId())
+                .setAction(event.action())
+                .setResourceType(event.resourceType())
+                .setResourceId(event.resourceId())
+                .setSeverity(event.severity())
+                .setDetails(event.details())
+                .setIpAddress(Optional.ofNullable(event.ipAddress()).orElse(UNKNOWN))
+                .setUserAgent(Optional.ofNullable(event.userAgent()).orElse(UNKNOWN));
     }
 }

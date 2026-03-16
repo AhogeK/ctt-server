@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.audit.repository;
 
 import com.ahogek.cttserver.audit.entity.AuditLog;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -13,5 +14,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * @see com.ahogek.cttserver.audit.entity.AuditLog
  * @since 2026-03-16
  */
-public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
-}
+public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {}

@@ -29,14 +29,12 @@ import java.util.Set;
  */
 public final class DesensitizeUtils {
 
-    /**
-     * Standard mask pattern for sensitive values.
-     */
+    /** Standard mask pattern for sensitive values. */
     private static final String MASK_PATTERN = "******";
 
     /** Headers that must be masked (case-insensitive). */
     private static final Set<String> SENSITIVE_HEADERS =
-        Set.of("authorization", "cookie", "set-cookie", "x-api-key", "token", "x-auth-token");
+            Set.of("authorization", "cookie", "set-cookie", "x-api-key", "token", "x-auth-token");
 
     private DesensitizeUtils() {}
 
@@ -126,7 +124,7 @@ public final class DesensitizeUtils {
             return MASK_PATTERN;
         }
         return value.substring(0, visiblePrefix)
-            + "***"
-            + value.substring(value.length() - visibleSuffix);
+                + "***"
+                + value.substring(value.length() - visibleSuffix);
     }
 }

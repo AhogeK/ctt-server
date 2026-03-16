@@ -36,7 +36,7 @@ CREATE TABLE users
     email_verified        BOOLEAN      NOT NULL DEFAULT FALSE,
     email_verified_at     TIMESTAMPTZ,
     last_login_at         TIMESTAMPTZ,
-    last_login_ip VARCHAR(45),
+    last_login_ip         VARCHAR(45),
     failed_login_attempts INTEGER      NOT NULL DEFAULT 0,
     locked_until          TIMESTAMPTZ,
     created_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -115,7 +115,7 @@ CREATE TABLE devices
     ide_name     VARCHAR(100),
     ide_version  VARCHAR(50),
     app_version  VARCHAR(50),
-    last_ip VARCHAR(45),
+    last_ip      VARCHAR(45),
     created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -151,7 +151,7 @@ CREATE TABLE email_verification_tokens
     expires_at  TIMESTAMPTZ  NOT NULL,
     consumed_at TIMESTAMPTZ,
     sent_at     TIMESTAMPTZ,
-    request_ip VARCHAR(45),
+    request_ip  VARCHAR(45),
     user_agent  TEXT,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_email_verification_purpose
@@ -186,7 +186,7 @@ CREATE TABLE password_reset_tokens
     token_hash  CHAR(64)     NOT NULL,
     expires_at  TIMESTAMPTZ  NOT NULL,
     consumed_at TIMESTAMPTZ,
-    request_ip VARCHAR(45),
+    request_ip  VARCHAR(45),
     user_agent  TEXT,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -393,17 +393,25 @@ CREATE TABLE audit_logs
     action        VARCHAR(100) NOT NULL,
     resource_type VARCHAR(50)  NOT NULL,
     resource_id   VARCHAR(255),
+    severity      VARCHAR(20)  NOT NULL DEFAULT 'INFO',
     details       JSONB        NOT NULL DEFAULT '{}'::jsonb,
-    ip_address VARCHAR(45),
+    ip_address    VARCHAR(45),
     user_agent    TEXT,
-    created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_audit_severity
+        CHECK (severity IN ('INFO', 'WARNING', 'CRITICAL')),
+    CONSTRAINT chk_audit_resource_type
+        CHECK (resource_type IN
+               ('USER_ACCOUNT', 'OAUTH_ACCOUNT', 'DEVICE', 'API_KEY', 'CODING_SESSION', 'EMAIL_TOKEN', 'SYSTEM_CONFIG',
+                'UNKNOWN'))
 );
 
 COMMENT ON TABLE audit_logs IS 'System security and operational audit logs';
 COMMENT ON COLUMN audit_logs.user_id IS 'Reference to user who performed the action';
-COMMENT ON COLUMN audit_logs.action IS 'Operation type, for example LOGIN, REGISTER, GENERATE_API_KEY';
-COMMENT ON COLUMN audit_logs.resource_type IS 'Type of affected resource';
+COMMENT ON COLUMN audit_logs.action IS 'Operation type (e.g., LOGIN_FAILED, SECURITY_VIOLATION)';
+COMMENT ON COLUMN audit_logs.resource_type IS 'Type of affected resource (Must match enum ResourceType)';
 COMMENT ON COLUMN audit_logs.resource_id IS 'Identifier of the affected resource';
+COMMENT ON COLUMN audit_logs.severity IS 'Security severity level: INFO, WARNING, CRITICAL';
 COMMENT ON COLUMN audit_logs.details IS 'Additional structured audit payload stored as JSONB';
 COMMENT ON COLUMN audit_logs.ip_address IS 'Client IP address (IPv4/IPv6)';
 COMMENT ON COLUMN audit_logs.user_agent IS 'Client user agent';
@@ -413,6 +421,8 @@ CREATE INDEX idx_audit_logs_user_id
     ON audit_logs (user_id);
 CREATE INDEX idx_audit_logs_action
     ON audit_logs (action);
+CREATE INDEX idx_audit_logs_severity
+    ON audit_logs (severity);
 CREATE INDEX idx_audit_logs_created_at
     ON audit_logs (created_at);
 CREATE INDEX idx_audit_logs_details

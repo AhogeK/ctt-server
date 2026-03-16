@@ -1,8 +1,8 @@
 package com.ahogek.cttserver.common.response;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,7 +42,7 @@ class PagedResponseTest {
     void of_zeroSize_returnsZeroPages() {
         PagedResponse<String> response = PagedResponse.of(List.of(), 1, 0, 0L);
 
-        assertThat(response.totalPages()).isEqualTo(0);
+        assertThat(response.totalPages()).isZero();
         assertThat(response.hasNext()).isFalse();
         assertThat(response.hasPrevious()).isFalse();
     }

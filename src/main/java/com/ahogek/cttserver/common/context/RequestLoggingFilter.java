@@ -1,10 +1,12 @@
 package com.ahogek.cttserver.common.context;
 
 import com.ahogek.cttserver.common.utils.DesensitizeUtils;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,9 +55,7 @@ public final class RequestLoggingFilter extends OncePerRequestFilter {
 
     private static final Logger ACCESS_LOG = LoggerFactory.getLogger("ACCESS_LOG");
 
-    /**
-     * Threshold for slow request warning: ΔT_warn ≥ 500ms
-     */
+    /** Threshold for slow request warning: ΔT_warn ≥ 500ms */
     private static final long SLOW_REQUEST_THRESHOLD_MS = 500L;
 
     // Structured logging field keys
@@ -72,10 +72,10 @@ public final class RequestLoggingFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
-        @NonNull HttpServletRequest request,
-        @NonNull HttpServletResponse response,
-        FilterChain chain)
-        throws ServletException, IOException {
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            FilterChain chain)
+            throws ServletException, IOException {
 
         long startTime = System.nanoTime();
 
@@ -88,15 +88,15 @@ public final class RequestLoggingFilter extends OncePerRequestFilter {
 
             // Build structured log entry using Fluent API
             var logBuilder =
-                ACCESS_LOG
-                    .atInfo()
-                    .addKeyValue(DURATION_MS_KEY, durationMillis)
-                    .addKeyValue(DURATION_NS_KEY, durationNanos)
-                    .addKeyValue(STATUS_KEY, status)
-                    .addKeyValue(METHOD_KEY, request.getMethod())
-                    .addKeyValue(URI_KEY, request.getRequestURI())
-                    .addKeyValue(QUERY_STRING_KEY, request.getQueryString())
-                    .addKeyValue(CONTENT_LENGTH_KEY, request.getContentLengthLong());
+                    ACCESS_LOG
+                            .atInfo()
+                            .addKeyValue(DURATION_MS_KEY, durationMillis)
+                            .addKeyValue(DURATION_NS_KEY, durationNanos)
+                            .addKeyValue(STATUS_KEY, status)
+                            .addKeyValue(METHOD_KEY, request.getMethod())
+                            .addKeyValue(URI_KEY, request.getRequestURI())
+                            .addKeyValue(QUERY_STRING_KEY, request.getQueryString())
+                            .addKeyValue(CONTENT_LENGTH_KEY, request.getContentLengthLong());
 
             // Defensive integration: Only record headers at DEBUG level to avoid I/O overhead
             // All headers are automatically masked using DesensitizeUtils for security
@@ -106,41 +106,41 @@ public final class RequestLoggingFilter extends OncePerRequestFilter {
 
             // Human-readable message for console output
             logBuilder.log(
-                "{} {} {} {}ms",
-                request.getMethod(),
-                request.getRequestURI(),
-                status,
-                durationMillis);
+                    "{} {} {} {}ms",
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    status,
+                    durationMillis);
 
             // Slow request warning logic - use ACCESS_LOG with WARN level
             if (durationMillis >= SLOW_REQUEST_THRESHOLD_MS) {
                 ACCESS_LOG
-                    .atWarn()
-                    .addKeyValue(THRESHOLD_MS_KEY, SLOW_REQUEST_THRESHOLD_MS)
-                    .addKeyValue(ACTUAL_MS_KEY, durationMillis)
-                    .addKeyValue(METHOD_KEY, request.getMethod())
-                    .addKeyValue(URI_KEY, request.getRequestURI())
-                    .log(
-                        "Slow request detected: {} {} took {}ms (threshold: {}ms)",
-                        request.getMethod(),
-                        request.getRequestURI(),
-                        durationMillis,
-                        SLOW_REQUEST_THRESHOLD_MS);
+                        .atWarn()
+                        .addKeyValue(THRESHOLD_MS_KEY, SLOW_REQUEST_THRESHOLD_MS)
+                        .addKeyValue(ACTUAL_MS_KEY, durationMillis)
+                        .addKeyValue(METHOD_KEY, request.getMethod())
+                        .addKeyValue(URI_KEY, request.getRequestURI())
+                        .log(
+                                "Slow request detected: {} {} took {}ms (threshold: {}ms)",
+                                request.getMethod(),
+                                request.getRequestURI(),
+                                durationMillis,
+                                SLOW_REQUEST_THRESHOLD_MS);
             }
 
             // Error response logging (4xx/5xx)
             if (status >= 400) {
                 ACCESS_LOG
-                    .atWarn()
-                    .addKeyValue(STATUS_KEY, status)
-                    .addKeyValue(METHOD_KEY, request.getMethod())
-                    .addKeyValue(URI_KEY, request.getRequestURI())
-                    .addKeyValue(DURATION_MS_KEY, durationMillis)
-                    .log(
-                        "HTTP error response: {} {} returned {}",
-                        request.getMethod(),
-                        request.getRequestURI(),
-                        status);
+                        .atWarn()
+                        .addKeyValue(STATUS_KEY, status)
+                        .addKeyValue(METHOD_KEY, request.getMethod())
+                        .addKeyValue(URI_KEY, request.getRequestURI())
+                        .addKeyValue(DURATION_MS_KEY, durationMillis)
+                        .log(
+                                "HTTP error response: {} {} returned {}",
+                                request.getMethod(),
+                                request.getRequestURI(),
+                                status);
             }
         }
     }

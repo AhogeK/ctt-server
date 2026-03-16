@@ -2,9 +2,9 @@ package com.ahogek.cttserver.common.response;
 
 import com.ahogek.cttserver.common.exception.ErrorCode;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

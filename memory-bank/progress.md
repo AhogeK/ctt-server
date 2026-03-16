@@ -13,6 +13,12 @@
 - [x] 合并 scaffold 分支到 master
 - [x] 拆分包结构 (common, auth, user, device, audit, mail)
 - [x] 统一响应模型 (ApiResponse, ErrorResponse, PagedResponse, EmptyResponse)
+- [x] 审计事件模型与安全事件模型
+    - [x] 审计枚举：ResourceType, AuditAction, SecuritySeverity
+    - [x] SecurityAuditEvent 五元组模型重构
+    - [x] AuditLog 实体升级为强类型枚举
+    - [x] 数据库迁移：audit_logs 表添加 severity 列
+    - [x] AuditEventListener 适配新事件结构
 
 ## 开发计划 (8周) 🗓️
 

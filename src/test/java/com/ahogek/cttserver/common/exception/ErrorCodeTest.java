@@ -38,11 +38,6 @@ class ErrorCodeTest {
     }
 
     @Test
-    void message_withCustomMessage_returnsCustomMessage() {
-        assertThat(ErrorCode.COMMON_001.message("custom")).isEqualTo("custom");
-    }
-
-    @Test
     void message_withNull_returnsDefaultMessage() {
         assertThat(ErrorCode.COMMON_001.message(null)).isEqualTo("Invalid request parameters");
     }

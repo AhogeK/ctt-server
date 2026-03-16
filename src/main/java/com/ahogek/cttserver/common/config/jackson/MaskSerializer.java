@@ -1,10 +1,10 @@
 package com.ahogek.cttserver.common.config.jackson;
 
+import java.io.IOException;
+
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
-
-import java.io.IOException;
 
 /**
  * Jackson serializer that masks sensitive string values.
@@ -44,7 +44,7 @@ public class MaskSerializer extends JsonSerializer<String> {
 
     @Override
     public void serialize(String value, JsonGenerator gen, SerializerProvider serializers)
-        throws IOException {
+            throws IOException {
         gen.writeString(MASK);
     }
 }

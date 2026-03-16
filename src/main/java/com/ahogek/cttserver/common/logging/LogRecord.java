@@ -168,11 +168,11 @@ public final class LogRecord {
         fields.remove(LEVEL_KEY);
 
         var builder =
-            switch (level) {
-                case WARN_LEVEL -> logger.atWarn();
-                case ERROR_LEVEL -> logger.atError();
-                default -> logger.atInfo();
-            };
+                switch (level) {
+                    case WARN_LEVEL -> logger.atWarn();
+                    case ERROR_LEVEL -> logger.atError();
+                    default -> logger.atInfo();
+                };
 
         if (cause != null) {
             builder = builder.setCause(cause);

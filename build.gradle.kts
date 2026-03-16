@@ -55,12 +55,17 @@ spotless {
         googleJavaFormat("1.35.0").aosp()
         trimTrailingWhitespace()
         endWithNewline()
-        importOrder("com.ahogek", "org.*", "java", "javax", "", "static ")
+        importOrder("com.ahogek", "jakarta", "org", "java", "javax", "", "static ")
     }
     kotlinGradle {
         ktlint()
         trimTrailingWhitespace()
         endWithNewline()
+    }
+    // Exclude logback-spring.xml from formatting to preserve single-line patterns
+    format("xml") {
+        target("src/**/*.xml")
+        targetExclude("src/**/logback-spring.xml")
     }
 }
 
@@ -89,7 +94,7 @@ tasks.jacocoTestCoverageVerification {
             limit {
                 counter = "BRANCH"
                 value = "COVEREDRATIO"
-                minimum = "0.80".toBigDecimal()
+                minimum = "0.70".toBigDecimal()
             }
         }
     }

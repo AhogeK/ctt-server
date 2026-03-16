@@ -1,10 +1,14 @@
 package com.ahogek.cttserver.audit;
 
-import com.ahogek.cttserver.common.context.RequestInfo;
-import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,94 +17,100 @@ class SecurityAuditEventTest {
     @Test
     void full_constructor_creates_event_with_all_fields() {
         Instant now = Instant.now();
-        RequestInfo requestInfo =
-            new RequestInfo(
-                "trace-123", "127.0.0.1", "Mozilla/5.0", "/api/login", "POST", null);
+        UUID userId = UUID.randomUUID();
+        Map<String, Object> details = Map.of("key", "value");
 
         SecurityAuditEvent event =
-            new SecurityAuditEvent(ErrorCode.AUTH_001, "Invalid token", requestInfo, now);
+                new SecurityAuditEvent(
+                        userId,
+                        AuditAction.LOGIN_SUCCESS,
+                        ResourceType.USER_ACCOUNT,
+                        "resource-123",
+                        SecuritySeverity.INFO,
+                        "192.168.1.1",
+                        "Mozilla/5.0",
+                        details,
+                        now);
 
-        assertThat(event.errorCode()).isEqualTo(ErrorCode.AUTH_001);
-        assertThat(event.message()).isEqualTo("Invalid token");
-        assertThat(event.requestInfo()).isEqualTo(requestInfo);
+        assertThat(event.userId()).isEqualTo(userId);
+        assertThat(event.action()).isEqualTo(AuditAction.LOGIN_SUCCESS);
+        assertThat(event.resourceType()).isEqualTo(ResourceType.USER_ACCOUNT);
+        assertThat(event.resourceId()).isEqualTo("resource-123");
+        assertThat(event.severity()).isEqualTo(SecuritySeverity.INFO);
+        assertThat(event.ipAddress()).isEqualTo("192.168.1.1");
+        assertThat(event.userAgent()).isEqualTo("Mozilla/5.0");
+        assertThat(event.details()).isEqualTo(details);
         assertThat(event.timestamp()).isEqualTo(now);
     }
 
     @Test
-    void partial_constructor_sets_timestamp_to_now() {
+    void partial_constructor_without_timestamp_sets_current_time() {
         Instant before = Instant.now();
-        RequestInfo requestInfo =
-            new RequestInfo(
-                "trace-456",
-                "192.168.1.1",
-                "Chrome/1.0",
-                "/api/admin",
-                "DELETE",
-                "device-123");
+        Map<String, Object> details = Map.of("reason", "test");
 
         SecurityAuditEvent event =
-            new SecurityAuditEvent(ErrorCode.AUTH_009, "Forbidden", requestInfo);
+                new SecurityAuditEvent(
+                        null,
+                        AuditAction.LOGIN_FAILED,
+                        ResourceType.API_KEY,
+                        "api-key-456",
+                        SecuritySeverity.WARNING,
+                        "10.0.0.1",
+                        "TestAgent",
+                        details);
 
         Instant after = Instant.now();
 
-        assertThat(event.errorCode()).isEqualTo(ErrorCode.AUTH_009);
-        assertThat(event.message()).isEqualTo("Forbidden");
-        assertThat(event.requestInfo()).isEqualTo(requestInfo);
+        assertThat(event.userId()).isNull();
+        assertThat(event.action()).isEqualTo(AuditAction.LOGIN_FAILED);
+        assertThat(event.resourceType()).isEqualTo(ResourceType.API_KEY);
         assertThat(event.timestamp()).isBetween(before, after);
     }
 
     @Test
-    void record_components_are_accessible() {
-        RequestInfo requestInfo =
-            new RequestInfo(
-                "trace-789",
-                "10.0.0.1",
-                "PostmanRuntime/7.0",
-                "/api/data",
-                "GET",
-                "device-456");
+    void convenience_constructor_for_security_violations() {
+        com.ahogek.cttserver.common.context.RequestInfo requestInfo =
+                new com.ahogek.cttserver.common.context.RequestInfo(
+                        "trace-789",
+                        "10.0.0.1",
+                        "PostmanRuntime/7.0",
+                        "/api/data",
+                        "GET",
+                        "device-456");
+        Map<String, Object> details = Map.of("attempt", 3);
 
         SecurityAuditEvent event =
-            new SecurityAuditEvent(ErrorCode.RATE_LIMIT_001, "Rate limited", requestInfo);
+                new SecurityAuditEvent(
+                        AuditAction.UNAUTHORIZED_ACCESS,
+                        ResourceType.CODING_SESSION,
+                        SecuritySeverity.CRITICAL,
+                        requestInfo,
+                        details);
 
-        assertThat(event.errorCode()).isEqualTo(ErrorCode.RATE_LIMIT_001);
-        assertThat(event.message()).isEqualTo("Rate limited");
-        assertThat(event.requestInfo().clientIp()).isEqualTo("10.0.0.1");
-        assertThat(event.requestInfo().requestUri()).isEqualTo("/api/data");
+        assertThat(event.action()).isEqualTo(AuditAction.UNAUTHORIZED_ACCESS);
+        assertThat(event.resourceType()).isEqualTo(ResourceType.CODING_SESSION);
+        assertThat(event.severity()).isEqualTo(SecuritySeverity.CRITICAL);
+        assertThat(event.ipAddress()).isEqualTo("10.0.0.1");
+        assertThat(event.userAgent()).isEqualTo("PostmanRuntime/7.0");
+        assertThat(event.resourceId()).isEqualTo("trace-789");
+        assertThat(event.details()).isEqualTo(details);
     }
 
     @Test
-    void null_fields_are_accepted_for_message_and_request_info() {
-        Instant now = Instant.now();
+    void convenience_constructor_handles_null_request_info() {
+        Map<String, Object> details = Map.of("error", "test");
 
-        SecurityAuditEvent event = new SecurityAuditEvent(ErrorCode.AUTH_001, null, null, now);
+        SecurityAuditEvent event =
+                new SecurityAuditEvent(
+                        AuditAction.RATE_LIMIT_EXCEEDED,
+                        ResourceType.SYSTEM_CONFIG,
+                        SecuritySeverity.WARNING,
+                        null,
+                        details);
 
-        assertThat(event.errorCode()).isEqualTo(ErrorCode.AUTH_001);
-        assertThat(event.message()).isNull();
-        assertThat(event.requestInfo()).isNull();
-        assertThat(event.timestamp()).isEqualTo(now);
-    }
-
-    @Test
-    void records_are_equal_when_values_equal() {
-        Instant now = Instant.now();
-        RequestInfo info1 = new RequestInfo("t1", "127.0.0.1", "UA", "/api", "GET", null);
-        RequestInfo info2 = new RequestInfo("t1", "127.0.0.1", "UA", "/api", "GET", null);
-
-        SecurityAuditEvent event1 = new SecurityAuditEvent(ErrorCode.AUTH_001, "msg", info1, now);
-        SecurityAuditEvent event2 = new SecurityAuditEvent(ErrorCode.AUTH_001, "msg", info2, now);
-
-        assertThat(event1).isEqualTo(event2).hasSameHashCodeAs(event2);
-    }
-
-    @Test
-    void records_are_not_equal_when_values_differ() {
-        Instant now = Instant.now();
-        RequestInfo info = new RequestInfo("t1", "127.0.0.1", "UA", "/api", "GET", null);
-
-        SecurityAuditEvent event1 = new SecurityAuditEvent(ErrorCode.AUTH_001, "msg1", info, now);
-        SecurityAuditEvent event2 = new SecurityAuditEvent(ErrorCode.AUTH_009, "msg2", info, now);
-
-        assertThat(event1).isNotEqualTo(event2);
+        assertThat(event.action()).isEqualTo(AuditAction.RATE_LIMIT_EXCEEDED);
+        assertThat(event.ipAddress()).isNull();
+        assertThat(event.userAgent()).isNull();
+        assertThat(event.resourceId()).isNull();
     }
 }

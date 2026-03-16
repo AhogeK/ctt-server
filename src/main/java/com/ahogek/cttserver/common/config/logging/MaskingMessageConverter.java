@@ -1,10 +1,10 @@
 package com.ahogek.cttserver.common.config.logging;
 
-import ch.qos.logback.classic.pattern.ClassicConverter;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import ch.qos.logback.classic.pattern.ClassicConverter;
+import ch.qos.logback.classic.spi.ILoggingEvent;
 
 /**
  * Global log message desensitization converter for Logback.
@@ -71,9 +71,9 @@ public class MaskingMessageConverter extends ClassicConverter {
      * </ul>
      */
     private static final Pattern SENSITIVE_PATTERN =
-        Pattern.compile(
-            "(?i)(password|passwd|token|cookie|secret)(['\"\\s:=]+)([^\\s,'\"\\]}]+)|"
-                + "(?i)(authorization)(['\"\\s:=]+)((?:Bearer\\s+|Basic\\s+)?[^\\s,'\"\\]}]+)");
+            Pattern.compile(
+                    "(?i)(password|passwd|token|cookie|secret)(['\"\\s:=]+)([^\\s,'\"\\]}]+)|"
+                            + "(?i)(authorization)(['\"\\s:=]+)((?:Bearer\\s+|Basic\\s+)?[^\\s,'\"\\]}]+)");
 
     @Override
     public String convert(ILoggingEvent event) {

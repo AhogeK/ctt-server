@@ -1,6 +1,11 @@
 package com.ahogek.cttserver.audit.entity;
 
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+
 import jakarta.persistence.*;
+
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -18,6 +23,7 @@ import java.util.UUID;
  *
  * <ul>
  *   <li>JSONB storage via {@code @JdbcTypeCode(SqlTypes.JSON)}
+ *   <li>Strongly typed enums for action, resource type, and severity
  *   <li>Fluent API for object construction (chainable setters)
  *   <li>Automatic timestamp creation via {@code @CreationTimestamp}
  * </ul>
@@ -38,14 +44,20 @@ public class AuditLog {
     @Column(name = "user_id")
     private UUID userId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 100)
-    private String action;
+    private AuditAction action;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "resource_type", nullable = false, length = 50)
-    private String resourceType;
+    private ResourceType resourceType;
 
     @Column(name = "resource_id")
     private String resourceId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SecuritySeverity severity;
 
     /**
      * Hibernate 6 native PostgreSQL JSONB support.
@@ -67,11 +79,8 @@ public class AuditLog {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    /**
-     * Default constructor required by JPA.
-     */
-    public AuditLog() {
-    }
+    /** Default constructor required by JPA. */
+    public AuditLog() {}
 
     // Getters
     public Long getId() {
@@ -88,20 +97,20 @@ public class AuditLog {
         return this;
     }
 
-    public String getAction() {
+    public AuditAction getAction() {
         return action;
     }
 
-    public AuditLog setAction(String action) {
+    public AuditLog setAction(AuditAction action) {
         this.action = action;
         return this;
     }
 
-    public String getResourceType() {
+    public ResourceType getResourceType() {
         return resourceType;
     }
 
-    public AuditLog setResourceType(String resourceType) {
+    public AuditLog setResourceType(ResourceType resourceType) {
         this.resourceType = resourceType;
         return this;
     }
@@ -112,6 +121,15 @@ public class AuditLog {
 
     public AuditLog setResourceId(String resourceId) {
         this.resourceId = resourceId;
+        return this;
+    }
+
+    public SecuritySeverity getSeverity() {
+        return severity;
+    }
+
+    public AuditLog setSeverity(SecuritySeverity severity) {
+        this.severity = severity;
         return this;
     }
 

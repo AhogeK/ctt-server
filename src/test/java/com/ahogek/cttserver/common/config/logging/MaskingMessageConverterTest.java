@@ -1,12 +1,13 @@
 package com.ahogek.cttserver.common.config.logging;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.LoggingEvent;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,18 +33,18 @@ class MaskingMessageConverterTest {
     @DisplayName("Should mask password in log messages")
     void shouldMaskPassword() {
         assertThat(converter.convert(createEvent("User login with password=secret123")))
-            .isEqualTo("User login with password=******");
+                .isEqualTo("User login with password=******");
         assertThat(converter.convert(createEvent("password: mypass")))
-            .isEqualTo("password: ******");
+                .isEqualTo("password: ******");
     }
 
     @Test
     @DisplayName("Should mask token in log messages")
     void shouldMaskToken() {
         assertThat(converter.convert(createEvent("API call with token=abc123xyz")))
-            .isEqualTo("API call with token=******");
+                .isEqualTo("API call with token=******");
         assertThat(converter.convert(createEvent("Using token xyz789 for auth")))
-            .isEqualTo("Using token ****** for auth");
+                .isEqualTo("Using token ****** for auth");
     }
 
     @Test
@@ -51,24 +52,24 @@ class MaskingMessageConverterTest {
     void shouldMaskAuthorization() {
         // Standard key-value format
         assertThat(converter.convert(createEvent("authorization: Bearer eyJhbGciOiJIUzI1NiIs")))
-            .isEqualTo("authorization: ******");
+                .isEqualTo("authorization: ******");
         // Bearer format (special handling for authorization header)
         assertThat(converter.convert(createEvent("Authorization bearer token123")))
-            .isEqualTo("Authorization ******");
+                .isEqualTo("Authorization ******");
     }
 
     @Test
     @DisplayName("Should mask cookie in log messages")
     void shouldMaskCookie() {
         assertThat(converter.convert(createEvent("Request cookie: sessionId=abc123")))
-            .isEqualTo("Request cookie: ******");
+                .isEqualTo("Request cookie: ******");
     }
 
     @Test
     @DisplayName("Should mask secret in log messages")
     void shouldMaskSecret() {
         assertThat(converter.convert(createEvent("API secret=mysecretkey")))
-            .isEqualTo("API secret=******");
+                .isEqualTo("API secret=******");
     }
 
     @Test
