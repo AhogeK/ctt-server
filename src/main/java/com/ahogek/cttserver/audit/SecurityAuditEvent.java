@@ -3,10 +3,10 @@ package com.ahogek.cttserver.audit;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.common.context.RequestInfo;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -38,7 +38,7 @@ public record SecurityAuditEvent(
         SecuritySeverity severity,
         String ipAddress,
         String userAgent,
-        Map<String, Object> details,
+        AuditDetails details,
         Instant timestamp) {
 
     /**
@@ -61,7 +61,7 @@ public record SecurityAuditEvent(
             SecuritySeverity severity,
             String ipAddress,
             String userAgent,
-            Map<String, Object> details) {
+            AuditDetails details) {
         this(
                 userId,
                 action,
@@ -88,7 +88,7 @@ public record SecurityAuditEvent(
             ResourceType resourceType,
             SecuritySeverity severity,
             RequestInfo requestInfo,
-            Map<String, Object> details) {
+            AuditDetails details) {
         this(
                 null,
                 action,

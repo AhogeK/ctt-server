@@ -5,11 +5,11 @@ import com.ahogek.cttserver.audit.entity.AuditLog;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.repository.AuditLogRepository;
 
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,7 +33,7 @@ import static org.awaitility.Awaitility.await;
  *   <li>Flyway migration execution
  *   <li>JPA JSONB mapping with Hibernate 6
  *   <li>Async event listener execution
- *   <li>Full end-to-end: Event publish → Async handle → Database persist
+ *   <li>Full end-to-end: Event publish to Async handle to Database persist
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]
@@ -50,7 +49,7 @@ class AuditEventListenerIntegrationTest {
     @Autowired private AuditLogRepository repository;
 
     private static @NonNull SecurityAuditEvent getSecurityAuditEvent() {
-        Map<String, Object> details = Map.of("attemptCount", 3, "reason", "Invalid credentials");
+        AuditDetails details = AuditDetails.attempt(3, "Invalid credentials");
 
         return new SecurityAuditEvent(
                 null,
@@ -69,7 +68,6 @@ class AuditEventListenerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should persist audit log asynchronously with full context")
     void shouldPersistAuditLogAsyncWhenEventPublished() {
         // Given: Construct a security audit event with full context
         // Note: userId is null to avoid FK constraint violation (users table)
@@ -98,11 +96,10 @@ class AuditEventListenerIntegrationTest {
                             assertThat(savedLog.getIpAddress()).isEqualTo("192.168.1.100");
                             assertThat(savedLog.getUserAgent()).isEqualTo("Mozilla/5.0 (Test)");
 
-                            // Verify JSONB deserialization (critical test point)
-                            Map<String, Object> savedDetails = savedLog.getDetails();
-                            assertThat(savedDetails)
-                                    .containsEntry("attemptCount", 3)
-                                    .containsEntry("reason", "Invalid credentials");
+                            // Verify JSONB deserialization via AuditDetails record
+                            AuditDetails savedDetails = savedLog.getDetails();
+                            assertThat(savedDetails.attemptCount()).isEqualTo(3);
+                            assertThat(savedDetails.reason()).isEqualTo("Invalid credentials");
 
                             // Verify automatic timestamp generation
                             assertThat(savedLog.getCreatedAt()).isNotNull();
@@ -110,9 +107,9 @@ class AuditEventListenerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should persist minimal event with null values using defaults")
     void shouldPersistMinimalEventWithNullValues() {
         // Given: Minimal event with nulls
+        AuditDetails details = AuditDetails.error("RATE_LIMIT", "Quota exceeded");
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
                         null,
@@ -122,7 +119,7 @@ class AuditEventListenerIntegrationTest {
                         SecuritySeverity.CRITICAL,
                         null,
                         null,
-                        Map.of("limit", 100));
+                        details);
 
         // When: Publish event
         eventPublisher.publishEvent(event);
@@ -147,17 +144,18 @@ class AuditEventListenerIntegrationTest {
                             assertThat(savedLog.getUserAgent()).isEqualTo("UNKNOWN");
                             assertThat(savedLog.getResourceId()).isNull();
 
-                            // Verify JSONB
-                            Map<String, Object> savedDetails = savedLog.getDetails();
-                            assertThat(savedDetails).containsEntry("limit", 100);
+                            // Verify AuditDetails persisted correctly
+                            AuditDetails savedDetails = savedLog.getDetails();
+                            assertThat(savedDetails.errorCode()).isEqualTo("RATE_LIMIT");
+                            assertThat(savedDetails.reason()).isEqualTo("Quota exceeded");
                         });
     }
 
     @Test
-    @DisplayName("Should persist multiple events asynchronously in order")
     void shouldPersistMultipleEventsInOrder() {
         // Given: Publish multiple events
         for (int i = 0; i < 5; i++) {
+            AuditDetails details = AuditDetails.reason("Created API key " + i);
             SecurityAuditEvent event =
                     new SecurityAuditEvent(
                             null,
@@ -167,7 +165,7 @@ class AuditEventListenerIntegrationTest {
                             SecuritySeverity.INFO,
                             "10.0.0." + i,
                             "Agent" + i,
-                            Map.of("index", i));
+                            details);
             eventPublisher.publishEvent(event);
         }
 

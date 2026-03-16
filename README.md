@@ -89,8 +89,10 @@ CTT Server provides:
 ctt-server/
 ├── audit/               # Security audit events & persistence
 │   ├── entity/          # AuditLog JPA entity (JSONB support)
-│   ├── repository/      # AuditLogRepository
-│   └── listener/        # Async AuditEventListener
+│   ├── enums/           # AuditAction, ResourceType, SecuritySeverity
+│   ├── listener/        # Async AuditEventListener
+│   ├── model/           # AuditDetails (strongly-typed JSONB carrier)
+│   └── repository/      # AuditLogRepository
 ├── auth/                # JWT authentication module
 ```
 

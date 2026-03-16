@@ -160,3 +160,13 @@
 2. 配置 Spring Boot 4.x 基础依赖
 3. 配置 PostgreSQL 和 Redis 连接
 4. 创建 Flyway 初始迁移脚本
+
+- [2026-03-16] - 定义 AuditDetails 强类型 JSON 结构规范：
+    - 创建 AuditDetails Record：标准化 reason/errorCode/attemptCount/stateBefore/stateAfter/ext 字段
+    - 替换 Map<String, Object>：SecurityAuditEvent, AuditLog, GlobalExceptionHandler 全面替换
+    - 工厂方法：empty(), reason(), error(), attempt(), transition(), extension()
+    - @JsonInclude(NON_NULL)：确保 JSONB 落库紧凑
+    - 新增测试：AuditDetailsTest (6个测试方法)
+    - 更新 README.md：Package Structure 添加 audit/model/ 目录
+    - 更新 GlobalExceptionHandler：添加 AuditDetails import，移除 FQN
+    - 验证：145个测试全部通过

@@ -3,11 +3,11 @@ package com.ahogek.cttserver.audit;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
 
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,7 +18,7 @@ class SecurityAuditEventTest {
     void full_constructor_creates_event_with_all_fields() {
         Instant now = Instant.now();
         UUID userId = UUID.randomUUID();
-        Map<String, Object> details = Map.of("key", "value");
+        AuditDetails details = AuditDetails.reason("test reason");
 
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
@@ -46,7 +46,7 @@ class SecurityAuditEventTest {
     @Test
     void partial_constructor_without_timestamp_sets_current_time() {
         Instant before = Instant.now();
-        Map<String, Object> details = Map.of("reason", "test");
+        AuditDetails details = AuditDetails.reason("test");
 
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
@@ -77,7 +77,7 @@ class SecurityAuditEventTest {
                         "/api/data",
                         "GET",
                         "device-456");
-        Map<String, Object> details = Map.of("attempt", 3);
+        AuditDetails details = AuditDetails.attempt(3, "Invalid token");
 
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
@@ -98,7 +98,7 @@ class SecurityAuditEventTest {
 
     @Test
     void convenience_constructor_handles_null_request_info() {
-        Map<String, Object> details = Map.of("error", "test");
+        AuditDetails details = AuditDetails.error("RATE_LIMIT_EXCEEDED", "Too many requests");
 
         SecurityAuditEvent event =
                 new SecurityAuditEvent(

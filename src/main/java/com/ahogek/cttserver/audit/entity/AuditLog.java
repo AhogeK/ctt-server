@@ -3,6 +3,7 @@ package com.ahogek.cttserver.audit.entity;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
 
 import jakarta.persistence.*;
 
@@ -11,7 +12,6 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -62,12 +62,11 @@ public class AuditLog {
     /**
      * Hibernate 6 native PostgreSQL JSONB support.
      *
-     * <p>No external dependencies needed - {@code @JdbcTypeCode(SqlTypes.JSON)} handles
-     * serialization/deserialization automatically.
+     * <p>Directly maps to strong type Record via Jackson serialization.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb", nullable = false)
-    private Map<String, Object> details;
+    private AuditDetails details = AuditDetails.empty();
 
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
@@ -133,12 +132,12 @@ public class AuditLog {
         return this;
     }
 
-    public Map<String, Object> getDetails() {
+    public AuditDetails getDetails() {
         return details;
     }
 
-    public AuditLog setDetails(Map<String, Object> details) {
-        this.details = details;
+    public AuditLog setDetails(AuditDetails details) {
+        this.details = details != null ? details : AuditDetails.empty();
         return this;
     }
 

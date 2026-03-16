@@ -4,6 +4,7 @@ import com.ahogek.cttserver.audit.SecurityAuditEvent;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.response.ErrorResponse;
@@ -216,9 +217,7 @@ public final class GlobalExceptionHandler {
                         ResourceType.UNKNOWN,
                         severity,
                         requestInfo,
-                        java.util.Map.of(
-                                "errorCode", ex.errorCode().name(),
-                                "message", ex.getMessage())));
+                        AuditDetails.error(ex.errorCode().name(), ex.getMessage())));
 
         ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
         return ResponseEntity.status(ex.errorCode().httpStatus()).body(response);
