@@ -401,9 +401,7 @@ CREATE TABLE audit_logs
     CONSTRAINT chk_audit_severity
         CHECK (severity IN ('INFO', 'WARNING', 'CRITICAL')),
     CONSTRAINT chk_audit_resource_type
-        CHECK (resource_type IN
-               ('USER_ACCOUNT', 'OAUTH_ACCOUNT', 'DEVICE', 'API_KEY', 'CODING_SESSION', 'EMAIL_TOKEN', 'SYSTEM_CONFIG',
-                'UNKNOWN'))
+        CHECK (resource_type IN ('USER', 'EMAIL_VERIFICATION', 'PASSWORD_RESET', 'REFRESH_TOKEN', 'API_KEY', 'UNKNOWN'))
 );
 
 COMMENT ON TABLE audit_logs IS 'System security and operational audit logs';

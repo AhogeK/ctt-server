@@ -9,12 +9,22 @@ package com.ahogek.cttserver.audit.enums;
  * @since 2026-03-16
  */
 public enum ResourceType {
-    USER_ACCOUNT,
-    OAUTH_ACCOUNT,
-    DEVICE,
+
+    /** User account entity. */
+    USER,
+
+    /** Email verification token entity. */
+    EMAIL_VERIFICATION,
+
+    /** Password reset token entity. */
+    PASSWORD_RESET,
+
+    /** Refresh token / long-term session entity. */
+    REFRESH_TOKEN,
+
+    /** Client / plugin API key entity. */
     API_KEY,
-    CODING_SESSION,
-    EMAIL_TOKEN,
-    SYSTEM_CONFIG,
+
+    /** Fallback type for system-level or uncategorized resources. */
     UNKNOWN
 }

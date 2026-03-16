@@ -125,6 +125,16 @@
         - 其他文件："兜底"改为"fallback"
     - ✅ 全局验证：确认无剩余中文和 emoji
     - ✅ 所有 137 个测试通过
+- [2026-03-16] - 审计事件模型与安全事件模型设计完成：
+    - ✅ 创建审计枚举：AuditAction, ResourceType, SecuritySeverity
+    - ✅ 重构 SecurityAuditEvent：五元组模型 (User/Action/Resource/Severity/Environment)
+    - ✅ 更新 AuditLog 实体：强类型枚举映射，Fluent API
+    - ✅ 更新 AuditEventListener：适配新事件结构
+    - ✅ 更新 GlobalExceptionHandler：发布结构化审计事件
+    - ✅ 创建 Flyway 迁移：audit_logs 表添加 severity 列
+    - ✅ 添加枚举单元测试：AuditActionTest, ResourceTypeTest, SecuritySeverityTest
+    - ✅ 更新 Spotless 配置：importOrder 包含 jakarta
+    - ✅ 覆盖率验证：88% Instructions, 80% Branches (132个测试通过)
 
 ## 错误/障碍
 

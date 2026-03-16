@@ -24,7 +24,7 @@ class SecurityAuditEventTest {
                 new SecurityAuditEvent(
                         userId,
                         AuditAction.LOGIN_SUCCESS,
-                        ResourceType.USER_ACCOUNT,
+                        ResourceType.USER,
                         "resource-123",
                         SecuritySeverity.INFO,
                         "192.168.1.1",
@@ -34,7 +34,7 @@ class SecurityAuditEventTest {
 
         assertThat(event.userId()).isEqualTo(userId);
         assertThat(event.action()).isEqualTo(AuditAction.LOGIN_SUCCESS);
-        assertThat(event.resourceType()).isEqualTo(ResourceType.USER_ACCOUNT);
+        assertThat(event.resourceType()).isEqualTo(ResourceType.USER);
         assertThat(event.resourceId()).isEqualTo("resource-123");
         assertThat(event.severity()).isEqualTo(SecuritySeverity.INFO);
         assertThat(event.ipAddress()).isEqualTo("192.168.1.1");
@@ -82,13 +82,13 @@ class SecurityAuditEventTest {
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
                         AuditAction.UNAUTHORIZED_ACCESS,
-                        ResourceType.CODING_SESSION,
+                        ResourceType.REFRESH_TOKEN,
                         SecuritySeverity.CRITICAL,
                         requestInfo,
                         details);
 
         assertThat(event.action()).isEqualTo(AuditAction.UNAUTHORIZED_ACCESS);
-        assertThat(event.resourceType()).isEqualTo(ResourceType.CODING_SESSION);
+        assertThat(event.resourceType()).isEqualTo(ResourceType.REFRESH_TOKEN);
         assertThat(event.severity()).isEqualTo(SecuritySeverity.CRITICAL);
         assertThat(event.ipAddress()).isEqualTo("10.0.0.1");
         assertThat(event.userAgent()).isEqualTo("PostmanRuntime/7.0");
@@ -103,7 +103,7 @@ class SecurityAuditEventTest {
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
                         AuditAction.RATE_LIMIT_EXCEEDED,
-                        ResourceType.SYSTEM_CONFIG,
+                        ResourceType.PASSWORD_RESET,
                         SecuritySeverity.WARNING,
                         null,
                         details);

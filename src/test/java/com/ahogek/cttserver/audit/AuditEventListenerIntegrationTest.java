@@ -55,7 +55,7 @@ class AuditEventListenerIntegrationTest {
         return new SecurityAuditEvent(
                 null,
                 AuditAction.LOGIN_FAILED,
-                ResourceType.USER_ACCOUNT,
+                ResourceType.USER,
                 "user-123",
                 SecuritySeverity.WARNING,
                 "192.168.1.100",
@@ -90,8 +90,7 @@ class AuditEventListenerIntegrationTest {
                             // Verify basic field mapping
                             assertThat(savedLog.getUserId()).isNull();
                             assertThat(savedLog.getAction()).isEqualTo(AuditAction.LOGIN_FAILED);
-                            assertThat(savedLog.getResourceType())
-                                    .isEqualTo(ResourceType.USER_ACCOUNT);
+                            assertThat(savedLog.getResourceType()).isEqualTo(ResourceType.USER);
                             assertThat(savedLog.getResourceId()).isEqualTo("user-123");
                             assertThat(savedLog.getSeverity()).isEqualTo(SecuritySeverity.WARNING);
 
