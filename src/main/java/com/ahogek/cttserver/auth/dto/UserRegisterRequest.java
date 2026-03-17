@@ -24,4 +24,18 @@ public record UserRegisterRequest(
                         regexp = ValidationConstants.REGEX_DISPLAY_NAME,
                         message = ValidationConstants.MSG_NAME_INVALID)
                 String displayName,
-        @StrongPassword String password) {}
+        @StrongPassword String password) {
+
+    /**
+     * Compact constructor for normalization.
+     *
+     * <p>Normalizes email to lowercase and trims whitespace during deserialization.
+     *
+     * @param email the email address
+     * @param displayName the display name
+     * @param password the password
+     */
+    public UserRegisterRequest {
+        email = (email == null) ? null : email.trim().toLowerCase();
+    }
+}

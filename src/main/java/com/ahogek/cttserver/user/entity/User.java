@@ -59,6 +59,24 @@ public class User {
     public User() {}
 
     // ==========================================
+    // Lifecycle Hooks
+    // ==========================================
+
+    /**
+     * Normalizes email before persistence operations.
+     *
+     * <p>Final defense for data integrity, handling cases where entities are
+     * created bypassing DTO validation (admin scripts, data imports, etc.).
+     */
+    @PrePersist
+    @PreUpdate
+    protected void normalizeEmail() {
+        if (this.email != null) {
+            this.email = this.email.trim().toLowerCase();
+        }
+    }
+
+    // ==========================================
     // State Machine Transition Behaviors
     // ==========================================
 

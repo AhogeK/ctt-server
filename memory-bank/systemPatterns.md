@@ -49,6 +49,23 @@
 
 **参考**: [docs/time-strategy.md](../docs/time-strategy.md)
 
+### 大小写规范: 邮箱防御性归一化 (Defensive Case Normalization)
+
+**决策**: 邮箱在入库前强制转小写，查询使用 IgnoreCase 方法
+**理由**:
+
+- 防止账号幽灵冲突：`Admin@domain.com` 与 `admin@domain.com` 视为同一账号
+- 消除越权接管风险：攻击者无法通过大小写变体创建重复账号
+- 三层防御架构：DTO 归一化 → 实体钩子兜底 → Repository 索引优化查询
+
+**实施层级**:
+
+1. **DTO 边界**: Record Compact Constructor 进行 `trim().toLowerCase()`
+2. **领域实体**: `@PrePersist/@PreUpdate` 钩子最终兜底
+3. **Repository**: `findByEmailIgnoreCase()` 利用 `uk_users_email_lower` 函数索引
+
+**参考**: [docs/case-normalization.md](../docs/case-normalization.md)
+
 ## 代码规范
 
 ### 项目结构规范

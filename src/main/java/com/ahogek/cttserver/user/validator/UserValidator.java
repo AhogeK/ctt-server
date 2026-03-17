@@ -47,7 +47,7 @@ public class UserValidator {
      * @throws ConflictException if email already exists
      */
     public void assertEmailUnique(String email) {
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new ConflictException(ErrorCode.AUTH_002, "Email is already registered");
         }
     }
@@ -86,7 +86,7 @@ public class UserValidator {
      * @throws NotFoundException if user not found
      */
     public void assertUserExists(String email) {
-        if (userRepository.findByEmail(email).isEmpty()) {
+        if (userRepository.findByEmailIgnoreCase(email).isEmpty()) {
             throw new NotFoundException(ErrorCode.AUTH_001, "User not found");
         }
     }

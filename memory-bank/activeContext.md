@@ -270,3 +270,13 @@
         - TimeZone.setDefault 移至 main() 方法（早于 Spring 初始化）
         - 更新 systemPatterns.md 记录 UTC-First Strategy 架构决策
         - 更新 README.md 添加时间策略文档链接
+
+- [2026-03-17] - 设计统一大小写规范 (Defensive Case Normalization)：
+    - 三层防御架构：DTO 归一化 → 实体钩子兜底 → Repository 索引优化
+    - DTO 层：UserRegisterRequest 添加 Compact Constructor 进行 trim().toLowerCase()
+    - 实体层：User 添加 @PrePersist/@PreUpdate normalizeEmail() 钩子
+    - Repository 层：添加 findByEmailIgnoreCase() / existsByEmailIgnoreCase() 方法
+    - 数据库：利用现有 uk_users_email_lower 函数索引 (O(log N) 查询)
+    - 创建 docs/case-normalization.md：详细规范文档与最佳实践
+    - 更新 systemPatterns.md 记录架构决策
+    - 更新 README.md 添加文档链接
