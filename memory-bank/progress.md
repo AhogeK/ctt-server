@@ -103,6 +103,10 @@
         - [x] @RateLimit 声明式限流注解 + RateLimitInterceptor 骨架
         - [x] @Idempotent 声明式幂等注解 + IdempotentAspect 骨架
         - [x] docs/api-governance.md 接口安全分类清单
+    - [x] **接口安全分类模型 (Secure by Default)**
+        - [x] @PublicApi 注解：声明式标记公开接口
+        - [x] PublicApiEndpointRegistry：动态扫描公开端点
+        - [x] SecurityConfig：集成动态白名单 + 默认拒绝策略
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

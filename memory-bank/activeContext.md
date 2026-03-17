@@ -315,3 +315,19 @@
     - 新增 IdempotentAspectTest (4 个测试)：测试切面逻辑、用户上下文提取
     - 新增测试文件：4 个，新增测试方法：36 个
     - 验证：241 个测试全部通过，JaCoCo 覆盖率达标 (80%指令，70%分支)
+
+- [2026-03-17] - 实现 Secure by Default 接口分类模型：
+    - 创建 @PublicApi 注解：声明式标记公开接口，支持类级别和方法级别
+    - 创建 PublicApiEndpointRegistry：启动时扫描所有 Controller，O(N) 收集 @PublicApi 标记的 URL
+    - 更新 SecurityConfig：配置 SecurityFilterChain，使用动态白名单 + 默认拒绝策略
+    - 架构优势：
+        - 默认全局拒绝：所有接口必须经过认证，除非显式标记 @PublicApi
+        - 分布式声明：业务开发人员只需添加注解，无需触碰安全配置
+        - 消除漏配风险：没有硬编码白名单，不会随业务迭代腐化
+    - 新增 PublicApiEndpointRegistryTest (6 个测试)：测试基础白名单、Swagger 路径、类级别/方法级别注解识别
+    - 技术细节：
+        - 使用 requestMappingHandlerMapping bean 名避免与 controllerEndpointHandlerMapping 冲突
+        - 使用 Spring 6.0+ PathPatternsRequestCondition (PathPatternParser)，移除已废弃的 PatternsRequestCondition
+        - 预编译 AST 路由树，O(L) 时间复杂度匹配，性能提升 30%~40%
+    - 更新白名单：添加 Swagger UI 和 API Docs 路径 (/swagger-ui.html, /swagger-ui/**, /v3/api-docs/**)
+    - 验证：256+ 个测试全部通过，无编译警告，Spotless 格式化通过

@@ -109,6 +109,35 @@ public class SomeService {
 
 **参考**: [docs/api-governance.md](../docs/api-governance.md)
 
+### 接口安全: Secure by Default (Default Deny)
+
+**决策**: 采用"默认拒绝"安全模型，所有接口必须显式标记才能公开访问
+**理由**:
+
+- 消除漏配风险：传统"集中式白名单"随业务迭代易腐化，导致安全漏洞
+- 分布式声明优于集中配置：业务开发人员通过 `@PublicApi` 注解声明，无需触碰安全配置类
+- 强制安全审计：每个公开接口必须提供 `reason` 说明，便于代码审查
+- 云原生最佳实践：符合 Zero Trust 架构原则，默认不信任任何请求
+
+**实施层级**:
+
+1. **声明层**: `@PublicApi(reason = "...")` 注解（类/方法级别）
+2. **扫描层**: `PublicApiEndpointRegistry` 启动时 O(N) 遍历收集公开 URL
+3. **配置层**: `SecurityConfig` 动态白名单 + `.anyRequest().authenticated()` 兜底
+
+**使用示例**:
+
+```java
+// 默认受保护，无需额外声明
+@GetMapping("/api/v1/sessions/sync")
+public void syncData() { ... }  // 401 if unauthenticated
+
+// 显式标记公开接口
+@PublicApi(reason = "Registration endpoint")
+@PostMapping("/api/v1/auth/register")
+public void register() { ... }  // 允许匿名访问
+```
+
 ## 代码规范
 
 ### 项目结构规范
@@ -291,3 +320,4 @@ private final ReentrantLock lock = new ReentrantLock();
 | C016 | CurrentUserProvider| 安全底座防腐层 (CurrentUser + Provider Interface + Spring Security Adapter) | stable     |
 | C017 | RateLimiter        | 声明式限流框架骨架 (@RateLimit, RateLimitInterceptor)            | stable     |
 | C018 | Idempotent         | 声明式幂等框架骨架 (@Idempotent, IdempotentAspect)               | stable     |
+| C019 | PublicApi          | 接口安全分类模型 (@PublicApi + PublicApiEndpointRegistry + Secure by Default) | stable     |
