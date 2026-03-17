@@ -111,6 +111,7 @@ ctt-server/
 
 - [Time Strategy](docs/time-strategy.md) - UTC-first time handling specification for distributed systems
 - [Case Normalization](docs/case-normalization.md) - Email case normalization strategy for identity systems
+- [API Governance](docs/api-governance.md) - API security tiers, rate limiting, and idempotency guidelines
 
 ## Getting Started
 

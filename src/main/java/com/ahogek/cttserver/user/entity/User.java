@@ -65,8 +65,8 @@ public class User {
     /**
      * Normalizes email before persistence operations.
      *
-     * <p>Final defense for data integrity, handling cases where entities are
-     * created bypassing DTO validation (admin scripts, data imports, etc.).
+     * <p>Final defense for data integrity, handling cases where entities are created bypassing DTO
+     * validation (admin scripts, data imports, etc.).
      */
     @PrePersist
     @PreUpdate

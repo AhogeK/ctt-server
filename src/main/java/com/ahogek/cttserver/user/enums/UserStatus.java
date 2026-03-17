@@ -1,7 +1,5 @@
 package com.ahogek.cttserver.user.enums;
 
-import java.util.Set;
-
 /**
  * User state machine enum with transition contracts.
  *
@@ -52,14 +50,13 @@ public enum UserStatus {
      * @return true if transition is valid
      */
     public boolean canTransitionTo(UserStatus nextState) {
-        if (nextState == null) {
+        if (nextState == null || this == nextState) {
             return false;
         }
         return switch (this) {
-            case PENDING_VERIFICATION ->
+            case PENDING_VERIFICATION, LOCKED ->
                     nextState == ACTIVE || nextState == SUSPENDED || nextState == DELETED;
-            case ACTIVE -> Set.of(LOCKED, SUSPENDED, DELETED).contains(nextState);
-            case LOCKED -> Set.of(ACTIVE, SUSPENDED, DELETED).contains(nextState);
+            case ACTIVE -> nextState == LOCKED || nextState == SUSPENDED || nextState == DELETED;
             case SUSPENDED -> nextState == ACTIVE || nextState == DELETED;
             case DELETED -> false;
         };

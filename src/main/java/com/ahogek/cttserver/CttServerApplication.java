@@ -1,9 +1,10 @@
 package com.ahogek.cttserver;
 
-import java.util.TimeZone;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
+
+import java.util.TimeZone;
 
 /**
  * Main application entry point for CTT Server.
@@ -25,10 +26,9 @@ public class CttServerApplication {
     /**
      * Forces JVM default timezone to UTC before Spring Boot initialization.
      *
-     * <p>This must be executed before {@link SpringApplication#run} to ensure all
-     * timestamp calculations (Instant, OffsetDateTime) are consistent throughout
-     * the application lifecycle, including early Spring components like logging
-     * and environment configuration.
+     * <p>This must be executed before {@link SpringApplication#run} to ensure all timestamp
+     * calculations (Instant, OffsetDateTime) are consistent throughout the application lifecycle,
+     * including early Spring components like logging and environment configuration.
      *
      * @param args command line arguments
      */

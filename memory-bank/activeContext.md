@@ -280,3 +280,29 @@
     - 创建 docs/case-normalization.md：详细规范文档与最佳实践
     - 更新 systemPatterns.md 记录架构决策
     - 更新 README.md 添加文档链接
+
+- [2026-03-17] - 实现 CurrentUserProvider 安全底座（防腐层）：
+    - 创建 CurrentUser 统一身份模型 (record)：id, email, status, authorities, authType
+    - 创建 CurrentUserProvider 接口契约：getCurrentUser(), getCurrentUserRequired(), getActiveUserRequired()
+    - 实现 SpringSecurityCurrentUserProvider：唯一接触 SecurityContextHolder 的组件
+    - 架构收益：
+        - 业务层与 Spring Security 解耦
+        - 单元测试可 O(1) 模拟，无需启动 Spring
+        - 为限流 (@RateLimit) 和幂等 (@Idempotent) 提供干净身份上下文
+    - 包结构：auth/model/CurrentUser, auth/CurrentUserProvider, auth/SpringSecurityCurrentUserProvider
+    - 代码审查修复：
+        - SpringSecurityCurrentUserProvider.getActiveUserRequired()：根据用户状态动态选择错误码
+            - PENDING_VERIFICATION → AUTH_006 (Email not verified)
+            - LOCKED → AUTH_004 (Account locked)
+            - SUSPENDED → AUTH_005 (Account suspended)
+            - DELETED → AUTH_009 (Insufficient permissions)
+        - UserStatus.canTransitionTo()：Set.of() 改为直接布尔运算，消除对象分配开销
+    - 验证：所有测试通过
+
+- [2026-03-17] - 设计接口治理、限流与幂等框架：
+    - 接口安全分类清单：创建 docs/api-governance.md 定义 Tier 1-4 的认证、限流与幂等要求
+    - 声明式限流框架 (@RateLimit)：支持 USER, IP, DEVICE, GLOBAL 四种维度
+    - 限流拦截器骨架 (RateLimitInterceptor)：利用 CurrentUserProvider 和 RequestContext 提取身份上下文
+    - 声明式幂等框架 (@Idempotent)：基于 SpEL 表达式动态构建锁 Key
+    - 幂等切面骨架 (IdempotentAspect)：预留分布式锁集成点 (Redisson)
+    - 验证：所有测试通过

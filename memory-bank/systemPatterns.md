@@ -66,6 +66,49 @@
 
 **参考**: [docs/case-normalization.md](../docs/case-normalization.md)
 
+### 安全底座: CurrentUserProvider 防腐层 (Anti-Corruption Layer)
+
+**决策**: 通过 CurrentUserProvider 接口解耦业务逻辑与安全框架实现
+**理由**:
+
+- 业务层不直接访问 SecurityContextHolder，消除 Spring Security 升级爆炸半径
+- 统一身份模型 CurrentUser 屏蔽 JWT/API Key/OAuth2 差异
+- 单元测试可 O(1) 模拟，无需启动 Spring 容器
+- 为限流 (@RateLimit) 和幂等 (@Idempotent) 提供干净身份上下文
+
+**架构分层**:
+
+1. **Domain Model**: `CurrentUser` record (id, email, status, authorities, authType)
+2. **Application Contract**: `CurrentUserProvider` 接口
+3. **Infrastructure Adapter**: `SpringSecurityCurrentUserProvider` (唯一接触 SecurityContextHolder)
+
+**使用方式**:
+
+```java
+@Service
+public class SomeService {
+    private final CurrentUserProvider currentUserProvider;
+
+    public void doSomething() {
+        // 隐式完成：未登录拦截 + 未激活拦截 + 身份提取
+        CurrentUser user = currentUserProvider.getActiveUserRequired();
+        // 执行业务...
+    }
+}
+```
+
+### 接口治理: 限流与幂等框架 (Rate Limiting & Idempotency)
+
+**决策**: 引入声明式的 `@RateLimit` 和 `@Idempotent` 框架
+**理由**:
+
+- 声明式优于编程式：业务代码只需添加注解，无需关心 Redis 锁和限流算法细节
+- 细粒度控制：支持四种维度的限流 (`USER`, `IP`, `DEVICE`, `GLOBAL`)
+- 安全集成：直接依赖 `CurrentUserProvider` 和 `RequestContext` 提取干净的身份上下文
+- 防止资损与脏数据：通过 `@Idempotent` + 分布式锁拦截重复提交流程
+
+**参考**: [docs/api-governance.md](../docs/api-governance.md)
+
 ## 代码规范
 
 ### 项目结构规范
@@ -245,3 +288,6 @@ private final ReentrantLock lock = new ReentrantLock();
 | C013 | Structured Logging | 结构化日志工具 (LogRecord + Fluent API)                        | stable     |
 | C014 | Audit Event Model  | 审计事件模型 (五元组: User/Action/Resource/Severity/Environment) | stable     |
 | C015 | Audit Enums        | 审计枚举体系 (AuditAction, ResourceType, SecuritySeverity)    | stable     |
+| C016 | CurrentUserProvider| 安全底座防腐层 (CurrentUser + Provider Interface + Spring Security Adapter) | stable     |
+| C017 | RateLimiter        | 声明式限流框架骨架 (@RateLimit, RateLimitInterceptor)            | stable     |
+| C018 | Idempotent         | 声明式幂等框架骨架 (@Idempotent, IdempotentAspect)               | stable     |
