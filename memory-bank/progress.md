@@ -140,6 +140,13 @@
         - [x] 限流策略：global-max-requests-per-second (200)
         - [x] 审计策略：masked-fields (password, token, secret, key)
         - [x] @ConfigurationPropertiesScan 启用配置扫描
+    - [x] **测试基线脚手架 (完整)**
+        - [x] BaseControllerSliceTest：@AliasFor 桥接 + @ActiveProfiles("test") + excludeFilters
+        - [x] BaseRepositoryTest：FlywayAutoConfiguration 导入 + @ActiveProfiles("test")
+        - [x] BaseIntegrationTest：完整 ApplicationContext + Context 复用规则
+        - [x] TestcontainersConfiguration：固定版本 (postgres:16.3, redis:7.2) + CI 环境禁用复用
+        - [x] application-test.yaml：ddl-auto: create-drop, bcrypt-rounds: 4, rate-limit: disabled
+        - [x] TestBaselineSmokeTest：冒烟测试验证 Testcontainers + Hibernate + JPA 链路
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

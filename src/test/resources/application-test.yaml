@@ -1,0 +1,33 @@
+# Test Profile Configuration
+# This file is activated by @ActiveProfiles("test") in test base classes.
+
+spring:
+  # Flyway configuration for tests (used by @BaseIntegrationTest)
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: false  # Allow Flyway clean in test environment only
+    baseline-on-migrate: true
+
+  jpa:
+    hibernate:
+      # Repository tests (@BaseRepositoryTest): Hibernate auto-creates schema for fast iteration
+      # Integration tests (@BaseIntegrationTest): Overridden to "validate" to check Flyway schema
+      ddl-auto: create-drop
+    show-sql: false
+
+  # Testcontainers @ServiceConnection will override datasource config
+  # No need to specify url/username/password here
+
+# Security configuration for tests
+ctt:
+  security:
+    jwt:
+      # Test-only secret key (256+ bits for HMAC-SHA256)
+      secret-key: "TEST_ONLY_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG_FOR_HMAC_SHA"
+    password:
+      # Lower BCrypt rounds for faster tests (4 rounds ≈ 2ms vs 12 rounds ≈ 250ms)
+      bcrypt-rounds: 4
+    rate-limit:
+      # Disable rate limiting in tests to avoid interference
+      enabled: false

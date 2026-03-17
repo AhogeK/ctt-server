@@ -26,12 +26,16 @@ import java.lang.annotation.Target;
  *   <li>@DataJpaTest: Loads only JPA slice components
  *   <li>AutoConfigureTestDatabase.Replace.NONE: Use real PostgreSQL from Testcontainers
  *   <li>Import TestcontainersConfiguration: Provides @ServiceConnection for Docker containers
- *   <li>ActiveProfiles("test"): Activates test-specific configuration
+ *   <li>ActiveProfiles("test"): Activates test-specific configuration (ddl-auto: create-drop)
  * </ul>
  *
- * <p><b>Important note about Flyway:</b> @DataJpaTest does not execute Flyway migrations by
- * default. If schema is needed, ensure FlywayAutoConfiguration is imported or set
- * spring.flyway.enabled=true in test configuration.
+ * <p><b>Schema strategy:</b> Uses Hibernate's ddl-auto: create-drop (defined in
+ * application-test.yaml) for rapid test iteration. Schema is auto-generated from JPA entities, not
+ * from Flyway migrations.
+ *
+ * <p><b>Container reuse:</b> Testcontainers can reuse containers across JVM processes for faster
+ * local development. Enable by setting ~/.testcontainers.properties:
+ * testcontainers.reuse.enable=true
  *
  * <p><b>Example usage:</b>
  *

@@ -383,17 +383,44 @@ class UserIntegrationTest {
 - 禁止修改静态状态影响 Context
 - 所有测试类共享同一个 Context 以保证 CI 性能
 
-#### Testcontainers 镜像策略
+#### Testcontainers 配置
 
-固定 Docker 镜像版本，防止 CI 环境不可复现：
+测试容器配置固定版本，防止 CI 环境不可复现：
 
 ```java
-// 固定版本（推荐）
-return new PostgreSQLContainer<>(DockerImageName.parse("postgres:16.3"));
-return new GenericContainer<>(DockerImageName.parse("redis:7.2"));
+// TestcontainersConfiguration.java
+@Bean
+@ServiceConnection
+PostgreSQLContainer postgresContainer() {
+    // CI 环境自动禁用复用，本地开发启用复用
+    return new PostgreSQLContainer<>(DockerImageName.parse("postgres:16.3"))
+        .withReuse(!"true".equalsIgnoreCase(System.getenv("CI")));
+}
+```
 
-// 禁止使用 latest
-// return new PostgreSQLContainer<>(DockerImageName.parse("postgres:latest")); // ❌
+本地开发需启用复用（加速测试周期）：
+
+```properties
+# ~/.testcontainers.properties
+testcontainers.reuse.enable=true
+```
+
+#### 测试 Profile 配置
+
+`application-test.yaml` 关键配置：
+
+```yaml
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop  # Repository tests use Hibernate auto-ddl
+  flyway:
+    enabled: true  # Integration tests use Flyway migrations
+
+ctt:
+  security:
+    password:
+      bcrypt-rounds: 4  # Test speedup: 2ms vs 250ms (production 12)
 ```
 
 ### Java 新特性规范 (JDK 25)
@@ -545,4 +572,20 @@ private final ReentrantLock lock = new ReentrantLock();
 | C020 | SpelExpressionResolver | SpEL 表达式解析器共享组件 (供限流和幂等框架复用) | stable     |
 | C021 | ClientIdentity       | 客户端身份上下文模型 (支持 Web/IDE插件/OpenAPI 多端) | stable     |
 | C022 | SecurityProperties   | 强类型安全配置类 (JWT/密码/限流/审计策略 @ConfigurationProperties) | stable     |
-| C023 | Test Baseline        | 测试基线脚手架 (BaseControllerSliceTest, BaseRepositoryTest, BaseIntegrationTest) | stable     |
+| C023 | Test Baseline        | 测试基线脚手架 (BaseControllerSliceTest, BaseRepositoryTest, BaseIntegrationTest, TestBaselineSmokeTest) | stable     |
+
+## 测试分层策略
+
+### Repository Slice vs Integration Schema 策略
+
+**Repository Slice Test (@BaseRepositoryTest)**:
+- 使用 `ddl-auto: create-drop`（来自 application-test.yaml）
+- Hibernate 根据实体类自动创建 schema
+- 快速迭代，适合 Repository 层单元测试
+- 不执行 Flyway 迁移
+
+**Integration Test (@BaseIntegrationTest)**:
+- 覆盖为 `ddl-auto: validate`
+- Flyway 迁移构建真实 schema
+- Hibernate 仅验证实体与表结构一致性
+- 及早发现迁移脚本与实体定义不匹配

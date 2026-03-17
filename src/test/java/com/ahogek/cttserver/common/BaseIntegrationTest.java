@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -35,7 +36,12 @@ import java.lang.annotation.Target;
  *   <li>@AutoConfigureMockMvc: Provide MockMvc and MockMvcTester beans
  *   <li>Import TestcontainersConfiguration: PostgreSQL + Redis containers
  *   <li>ActiveProfiles("test"): Test-specific configuration
+ *   <li>TestPropertySource: Validate schema against Flyway migrations
  * </ul>
+ *
+ * <p><b>Schema strategy:</b> Uses Flyway migrations for schema creation. Hibernate's ddl-auto is
+ * set to "validate" to ensure schema matches entity definitions, catching migration mismatches
+ * early.
  *
  * <p><b>Example usage:</b>
  *
@@ -68,4 +74,5 @@ import java.lang.annotation.Target;
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
+@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
 public @interface BaseIntegrationTest {}

@@ -1,3 +1,32 @@
+- [2026-03-18] - 修复测试基线 Schema 策略问题（代码审查反馈）：
+    - 移除 BaseRepositoryTest 中冗余的 FlywayAutoConfiguration 导入
+        - Repository Slice 测试使用 Hibernate create-drop 快速迭代
+        - 无需 Flyway 迁移，避免重复建表拖慢速度
+    - BaseIntegrationTest 添加 @TestPropertySource 覆盖 ddl-auto 为 validate
+        - 集成测试严格验证 Flyway 迁移脚本与实体定义一致性
+        - 及早发现字段、索引不匹配问题
+    - 清理 application-test.yaml 中的过时注释（删除不存在的 FlywayTestExecutionListener）
+    - 更新 README.md 添加测试基线文档（新人验收步骤、容器复用配置）
+    - 验证：全部测试通过（335 tests），Spotless 格式化通过
+
+- [2026-03-18] - 完善 Testcontainers 测试基础设施：
+    - 创建 application-test.yaml 测试配置文件
+        - Hibernate ddl-auto: create-drop（slice 测试用）
+        - BCrypt rounds: 4（测试加速 100x）
+        - Rate-limit disabled（避免断言干扰）
+        - JWT secret key 测试专用
+    - 更新 BaseRepositoryTest 添加 FlywayAutoConfiguration 导入
+    - 更新 TestcontainersConfiguration 添加容器复用支持
+        - CI 环境自动禁用复用（防止状态污染）
+        - 本地开发启用复用（加速测试周期）
+    - 创建 TestBaselineSmokeTest 冒烟测试
+        - 验证 Testcontainers + PostgreSQL + Hibernate 链路
+        - 新人入职验收步骤：./gradlew test --tests "*TestBaselineSmokeTest"
+    - 修复 Spring Boot 4 包路径：
+        - TestEntityManager: org.springframework.boot.jpa.test.autoconfigure.TestEntityManager
+        - FlywayAutoConfiguration: org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+    - 验证：全部测试通过（335 tests），Spotless 格式化通过
+
 - [2026-03-18] - 修复 BaseControllerSliceTest 代码审查问题：
     - 添加 @AliasFor 桥接到 @WebMvcTest 的 controllers 和 excludeFilters 属性
     - 添加 @ActiveProfiles("test") 统一测试环境配置

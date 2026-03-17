@@ -156,16 +156,16 @@ src/main/resources/
 
 **Environment Variables (Dev/Prod):**
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DB_HOST` | Database host | `localhost` |
-| `DB_PORT` | Database port | `5432` |
-| `DB_NAME` | Database name | `ctt_server` |
-| `DB_USERNAME` | Database username | (required) |
-| `DB_PASSWORD` | Database password | (required) |
-| `REDIS_HOST` | Redis host | `localhost` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `REDIS_PASSWORD` | Redis password | (required) |
+| Variable         | Description       | Default      |
+|------------------|-------------------|--------------|
+| `DB_HOST`        | Database host     | `localhost`  |
+| `DB_PORT`        | Database port     | `5432`       |
+| `DB_NAME`        | Database name     | `ctt_server` |
+| `DB_USERNAME`    | Database username | (required)   |
+| `DB_PASSWORD`    | Database password | (required)   |
+| `REDIS_HOST`     | Redis host        | `localhost`  |
+| `REDIS_PORT`     | Redis port        | `6379`       |
+| `REDIS_PASSWORD` | Redis password    | (required)   |
 
 ### Run
 
@@ -189,7 +189,43 @@ Once running, access OpenAPI docs at: `http://localhost:8080/swagger-ui.html`
 
 # Build
 ./gradlew build
+
+# Code formatting
+./gradlew spotlessApply
+
+# Coverage verification
+./gradlew test jacocoTestCoverageVerification
 ```
+
+### Test Baseline
+
+This project uses a layered testing strategy with Testcontainers for integration tests.
+
+**Test Base Classes:**
+
+| Annotation                 | Layer      | Schema Strategy              | Context                    |
+|----------------------------|------------|------------------------------|----------------------------|
+| `@BaseControllerSliceTest` | Controller | Mock MVC, no DB              | Web slice only             |
+| `@BaseRepositoryTest`      | Repository | Hibernate create-drop        | JPA slice + Testcontainers |
+| `@BaseIntegrationTest`     | E2E        | Flyway migrations + validate | Full ApplicationContext    |
+
+**Smoke Test (New Developer Setup):**
+
+```bash
+# Verify test infrastructure is working
+./gradlew test --tests "*TestBaselineSmokeTest"
+```
+
+**Testcontainers Reuse (Optional but Recommended):**
+
+Enable container reuse for faster local test cycles:
+
+```properties
+# ~/.testcontainers.properties
+testcontainers.reuse.enable=true
+```
+
+This keeps PostgreSQL and Redis containers running between test runs, significantly reducing startup time. Containers are automatically reused in local development (disabled in CI environments).
 
 ## License
 
