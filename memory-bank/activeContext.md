@@ -1,3 +1,30 @@
+- [2026-03-18] - 修复 Fixture 工具包代码审查问题：
+    - TokenFixtures：generateFakeJwt 增加 exp 声明，删除冗余 Javadoc（isRefreshExpired/isAccessExpired）
+    - UserFixtures：使用 ReflectionTestUtils 替代原生反射
+    - PersistedFixtures：createUsers 返回 List<User> 替代数组，删除无价值封装 clearAuditLogs
+    - 验证：全部测试通过（335 tests），Spotless 格式化通过
+
+- [2026-03-18] - 创建测试数据 Fixture 工具包：
+    - UserFixtures：Object Mother + Builder 模式
+        - 预设角色：regularUser()、admin()、lockedUser()、pendingUser()、suspendedUser()、deletedUser()
+        - 链式 Builder 支持自定义字段
+        - 反射设置 status 字段绕过状态机验证
+        - 预计算 BCrypt(4) 哈希加速测试
+    - TokenFixtures：JWT / RefreshToken 测试数据
+        - TokenPair record：封装 access + refresh token 对
+        - 预计算边界场景：MALFORMED_TOKEN、INVALID_SIGNATURE_TOKEN、EXPIRED_ACCESS_TOKEN
+        - validPairFor()、expiredAccessPairFor()、fullyExpiredPairFor()
+        - RefreshTokenBuilder：构建 RefreshToken 实体
+    - AuditFixtures：审计日志测试数据
+        - 预设事件：loginSuccess()、loginFailed()、accountLocked()、registerRequested() 等
+        - Builder 支持自定义 action、severity、details
+    - PersistedFixtures：统一持久化入口
+        - user()、regularUser()、admin()、lockedUser() 等
+        - auditLog()、loginSuccess()、loginFailed() 等
+        - 与 TestEntityManager 集成
+    - 新增：fixtures/package-info.java（包文档）
+    - 验证：全部测试通过（335 tests），Spotless 格式化通过
+
 - [2026-03-18] - 修复测试基线 Schema 策略问题（代码审查反馈）：
     - 移除 BaseRepositoryTest 中冗余的 FlywayAutoConfiguration 导入
         - Repository Slice 测试使用 Hibernate create-drop 快速迭代

@@ -573,6 +573,7 @@ private final ReentrantLock lock = new ReentrantLock();
 | C021 | ClientIdentity       | 客户端身份上下文模型 (支持 Web/IDE插件/OpenAPI 多端) | stable     |
 | C022 | SecurityProperties   | 强类型安全配置类 (JWT/密码/限流/审计策略 @ConfigurationProperties) | stable     |
 | C023 | Test Baseline        | 测试基线脚手架 (BaseControllerSliceTest, BaseRepositoryTest, BaseIntegrationTest, TestBaselineSmokeTest) | stable     |
+| C024 | Test Fixtures         | 测试数据工厂 (UserFixtures, TokenFixtures, AuditFixtures, PersistedFixtures) | stable     |
 
 ## 测试分层策略
 

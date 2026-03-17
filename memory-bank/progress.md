@@ -147,6 +147,11 @@
         - [x] TestcontainersConfiguration：固定版本 (postgres:16.3, redis:7.2) + CI 环境禁用复用
         - [x] application-test.yaml：ddl-auto: create-drop, bcrypt-rounds: 4, rate-limit: disabled
         - [x] TestBaselineSmokeTest：冒烟测试验证 Testcontainers + Hibernate + JPA 链路
+    - [x] **测试数据 Fixture 工具包**
+        - [x] UserFixtures：Object Mother + Builder 模式（预设角色、反射绕过状态机）
+        - [x] TokenFixtures：JWT/RefreshToken 测试数据（TokenPair record、边界场景）
+        - [x] AuditFixtures：审计日志测试数据（预设事件、Builder 模式）
+        - [x] PersistedFixtures：统一持久化入口（与 TestEntityManager 集成）
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现
