@@ -306,3 +306,12 @@
     - 声明式幂等框架 (@Idempotent)：基于 SpEL 表达式动态构建锁 Key
     - 幂等切面骨架 (IdempotentAspect)：预留分布式锁集成点 (Redisson)
     - 验证：所有测试通过
+
+- [2026-03-17] - 修复 JaCoCo 覆盖率问题并完善测试：
+    - 修复 GlobalExceptionHandlerTest：排除 RateLimitInterceptor/IdempotentAspect 避免依赖注入冲突
+    - 新增 CurrentUserTest (11 个测试)：测试 isActive() 方法和 AuthenticationType 枚举
+    - 新增 SpringSecurityCurrentUserProviderTest (12 个测试)：测试 SecurityContext 集成、用户状态路由
+    - 新增 RateLimitInterceptorTest (9 个测试)：测试拦截器逻辑、身份提取、维度类型
+    - 新增 IdempotentAspectTest (4 个测试)：测试切面逻辑、用户上下文提取
+    - 新增测试文件：4 个，新增测试方法：36 个
+    - 验证：241 个测试全部通过，JaCoCo 覆盖率达标 (80%指令，70%分支)

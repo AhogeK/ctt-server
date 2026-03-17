@@ -10,10 +10,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * Declares idempotent constraint for an API endpoint to prevent duplicate submissions.
  *
- * <p>Uses distributed locks (e.g., Redis) combined with a unique key to ensure
- * a specific operation is only executed once within a given time window.
+ * <p>Uses distributed locks (e.g., Redis) combined with a unique key to ensure a specific operation
+ * is only executed once within a given time window.
  *
  * <p>Example usage:
+ *
  * <pre>{@code
  * @PostMapping("/sync")
  * @Idempotent(key = "#request.sessionId", expire = 5, unit = TimeUnit.MINUTES)

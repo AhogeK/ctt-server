@@ -15,11 +15,11 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /**
  * Interceptor that enforces rate limits declared via {@link RateLimit} annotations.
  *
- * <p>Extracts the appropriate identity context based on the requested {@link RateLimitType}
- * (e.g., User ID from {@link CurrentUserProvider}, IP from {@link RequestContext}).
+ * <p>Extracts the appropriate identity context based on the requested {@link RateLimitType} (e.g.,
+ * User ID from {@link CurrentUserProvider}, IP from {@link RequestContext}).
  *
- * <p>Note: This is a skeletal implementation. The actual token bucket / sliding window
- * logic with Redis (e.g., Redisson or custom Lua scripts) will be integrated later.
+ * <p>Note: This is a skeletal implementation. The actual token bucket / sliding window logic with
+ * Redis (e.g., Redisson or custom Lua scripts) will be integrated later.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-17
@@ -53,7 +53,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         String limiterKey = buildLimiterKey(rateLimit, handlerMethod);
 
         // TODO: Integrate actual Redis-based rate limiting logic here
-        // boolean allowed = redisRateLimiter.tryAcquire(limiterKey, rateLimit.capacity(), rateLimit.period(), rateLimit.unit());
+        // boolean allowed = redisRateLimiter.tryAcquire(limiterKey, rateLimit.capacity(),
+        // rateLimit.period(), rateLimit.unit());
         boolean allowed = true; // Placeholder for skeleton
 
         if (!allowed) {

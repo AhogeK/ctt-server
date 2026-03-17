@@ -89,10 +89,20 @@
     - [x] logback-spring.xml 配置
     - [x] RequestContext 体系 (RequestInfo + RequestContext + ScopedValue)
     - [x] IpUtils 工具类
-  - [x] **三层日志规范 (请求/业务/错误)**
-      - [x] RequestLoggingFilter - 请求层日志 (ACCESS_LOG, SLOW_REQUEST_LOG)
-      - [x] LogRecord - 业务层结构化日志工具
-      - [x] GlobalExceptionHandler - 错误日志统一出口 (Fluent API)
+- [x] **三层日志规范 (请求/业务/错误)**
+        - [x] RequestLoggingFilter - 请求层日志 (ACCESS_LOG, SLOW_REQUEST_LOG)
+        - [x] LogRecord - 业务层结构化日志工具
+        - [x] GlobalExceptionHandler - 错误日志统一出口 (Fluent API)
+    - [x] **安全基础架构**
+        - [x] UTC 时间策略 (JVM + Jackson + Database)
+        - [x] 大小写规范化策略 (DTO + Entity + Repository 三层防御)
+        - [x] CurrentUserProvider 安全底座 (防腐层 + Spring Security 适配)
+        - [x] Token 状态机设计 (动态状态推导 + GDPR 数据脱敏)
+        - [x] User 状态机 (充血模型 + 状态流转守卫)
+    - [x] **接口治理框架骨架**
+        - [x] @RateLimit 声明式限流注解 + RateLimitInterceptor 骨架
+        - [x] @Idempotent 声明式幂等注解 + IdempotentAspect 骨架
+        - [x] docs/api-governance.md 接口安全分类清单
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

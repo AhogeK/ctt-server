@@ -12,9 +12,8 @@ import org.springframework.stereotype.Component;
 /**
  * Aspect for enforcing method-level idempotency via distributed locks.
  *
- * <p>Intercepts methods annotated with {@link Idempotent}.
- * Note: This is a skeletal implementation. Actual Redis distributed lock (e.g., Redisson)
- * integration is required for production.
+ * <p>Intercepts methods annotated with {@link Idempotent}. Note: This is a skeletal implementation.
+ * Actual Redis distributed lock (e.g., Redisson) integration is required for production.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-17

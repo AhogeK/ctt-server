@@ -15,7 +15,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
-@WebMvcTest(controllers = ProbeController.class)
+@WebMvcTest(
+        controllers = ProbeController.class,
+        excludeFilters = {
+            @org.springframework.context.annotation.ComponentScan.Filter(
+                    type = org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE,
+                    classes = {
+                        com.ahogek.cttserver.common.ratelimit.RateLimitInterceptor.class,
+                        com.ahogek.cttserver.common.idempotent.IdempotentAspect.class
+                    })
+        })
 @ActiveProfiles("test")
 class GlobalExceptionHandlerTest {
 

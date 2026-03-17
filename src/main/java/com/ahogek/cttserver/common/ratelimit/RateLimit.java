@@ -10,10 +10,11 @@ import java.util.concurrent.TimeUnit;
 /**
  * Declares rate limiting constraints for an API endpoint.
  *
- * <p>Applied at the controller method or class level. Uses AOP/Interceptor to enforce
- * limits before the business logic executes.
+ * <p>Applied at the controller method or class level. Uses AOP/Interceptor to enforce limits before
+ * the business logic executes.
  *
  * <p>Example usage:
+ *
  * <pre>{@code
  * @PostMapping("/login")
  * @RateLimit(key = "login", capacity = 5, period = 1, unit = TimeUnit.MINUTES, type = RateLimitType.IP)
@@ -31,8 +32,7 @@ public @interface RateLimit {
     /**
      * Unique key prefix for the rate limit bucket.
      *
-     * <p>If not specified, the system will auto-generate one based on
-     * ClassName.methodName.
+     * <p>If not specified, the system will auto-generate one based on ClassName.methodName.
      *
      * @return the cache key prefix
      */
