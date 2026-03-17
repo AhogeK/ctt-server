@@ -169,8 +169,7 @@ class UserRegisterRequestTest {
         "Password1234, missing special character"
     })
     void invalid_passwords_are_rejected(String password, String description) {
-        UserRegisterRequest request =
-                new UserRegisterRequest("user@test.com", "john", password);
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 

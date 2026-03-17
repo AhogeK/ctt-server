@@ -95,6 +95,13 @@ ctt-server/
 │   ├── repository/      # AuditLogRepository
 │   └── service/         # AuditLogService (facade for business layer)
 ├── auth/                # JWT authentication module
+│   ├── dto/             # Auth request/response DTOs
+│   └── AuthController.java  # Authentication REST endpoints
+├── user/                # User management module
+│   ├── entity/          # User JPA entity
+│   ├── repository/      # UserRepository
+│   ├── service/         # UserService (application service)
+│   └── validator/       # UserValidator (domain rules)
 ```
 
 ## Getting Started

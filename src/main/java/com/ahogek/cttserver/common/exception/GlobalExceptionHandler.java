@@ -12,6 +12,7 @@ import com.ahogek.cttserver.common.response.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 
 import org.slf4j.Logger;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
@@ -329,6 +330,32 @@ public final class GlobalExceptionHandler {
                         .withDetails(violations);
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    /**
+     * [LEVEL 2] Data Integrity Violation - CONFLICT level without stack trace.
+     *
+     * <p>Handles database constraint violations (e.g., duplicate unique keys in concurrent
+     * registration scenarios).
+     *
+     * <p>This is a safety net for race conditions where multiple requests pass application-level
+     * validation but violate database constraints.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex) {
+        String traceId = currentTraceId();
+
+        log.atWarn()
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.USER_001.name())
+                .addKeyValue(ERROR_TYPE_KEY, "DATA_INTEGRITY_VIOLATION")
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Data integrity violation (possible race condition): {}", ex.getMessage());
+
+        ErrorResponse response =
+                ErrorResponse.of(ErrorCode.USER_001, "Resource already exists or conflicts")
+                        .withTraceId(traceId);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     /**

@@ -195,3 +195,15 @@
     - 创建 UserRegisterRequest：用户注册 DTO (email, displayName, password)
     - 新增测试：ValidationConstantsTest, PageQueryTest, UserRegisterRequestTest
     - 验证：186个测试全部通过，代码覆盖率达标
+
+- [2026-03-17] - 重构领域规则校验器包结构（符合 Package-by-Feature 规范）：
+    - 扁平化包结构：移除 domain/, infrastructure/, application/ 嵌套
+    - auth/AuthController.java: 从 auth/api/ 移至 auth/
+    - user/entity/User.java: 从 user/domain/entity/ 移至 user/entity/
+    - user/repository/UserRepository.java: 从 user/infrastructure/repository/ 移至 user/repository/
+    - user/validator/UserValidator.java: 从 user/domain/validator/ 移至 user/validator/，并重命名
+    - user/service/UserService.java: 从 user/application/ 移至 user/service/，并重命名
+    - 更新所有 import 语句和类引用
+    - 添加 GlobalExceptionHandler 对 DataIntegrityViolationException 的处理（409 Conflict）
+    - 更新 README.md Package Structure
+    - 验证：203个测试全部通过

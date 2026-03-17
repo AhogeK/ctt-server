@@ -81,10 +81,7 @@ class ValidationConstantsTest {
     }
 
     @ParameterizedTest
-    @CsvSource({
-        "john@doe, contains at sign",
-        "john.doe, contains dot"
-    })
+    @CsvSource({"john@doe, contains at sign", "john.doe, contains dot"})
     void regex_display_name_rejects_invalid_names(String displayName, String reason) {
         assertThat(displayName)
                 .withFailMessage("Display name should NOT match regex: " + reason)
@@ -102,7 +99,9 @@ class ValidationConstantsTest {
 
     @Test
     void regex_display_name_rejects_empty_string() {
-        assertThat("")
+        String emptyName = "";
+
+        assertThat(emptyName)
                 .withFailMessage("Empty display name should be rejected")
                 .doesNotMatch(ValidationConstants.REGEX_DISPLAY_NAME);
     }
