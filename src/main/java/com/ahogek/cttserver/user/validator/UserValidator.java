@@ -5,6 +5,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.entity.User;
+import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
 import org.springframework.stereotype.Component;
@@ -72,7 +73,7 @@ public class UserValidator {
      * @throws ConflictException if user is not in pending verification state
      */
     public void assertCanVerifyEmail(User user) {
-        if (!"PENDING_VERIFICATION".equals(user.getStatus())) {
+        if (user.getStatus() != UserStatus.PENDING_VERIFICATION) {
             throw new ConflictException(
                     ErrorCode.COMMON_003, "User is not in pending verification state");
         }

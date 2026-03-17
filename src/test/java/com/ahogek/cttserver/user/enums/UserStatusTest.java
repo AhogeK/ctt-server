@@ -16,8 +16,7 @@ class UserStatusTest {
         "PENDING_VERIFICATION, LOCKED, false",
         "PENDING_VERIFICATION, PENDING_VERIFICATION, false"
     })
-    void pendingVerificationTransitions(
-            UserStatus from, UserStatus to, boolean expected) {
+    void pendingVerificationTransitions(UserStatus from, UserStatus to, boolean expected) {
         assertThat(from.canTransitionTo(to)).isEqualTo(expected);
     }
 
@@ -71,9 +70,16 @@ class UserStatusTest {
         for (UserStatus status : UserStatus.values()) {
             assertThat(status).isNotNull();
             // Verify no null pointer exceptions when checking transitions
+            // Just call the method - any NPE would cause test failure
             for (UserStatus target : UserStatus.values()) {
-                assertThat(status.canTransitionTo(target)).isNotNull();
+                status.canTransitionTo(target);
             }
         }
+    }
+
+    @Test
+    void nullTargetStateReturnsFalse() {
+        assertThat(UserStatus.ACTIVE.canTransitionTo(null)).isFalse();
+        assertThat(UserStatus.LOCKED.canTransitionTo(null)).isFalse();
     }
 }

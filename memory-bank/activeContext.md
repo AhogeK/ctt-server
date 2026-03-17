@@ -228,3 +228,28 @@
     - 修复 NPE: User.recordFailedLogin() 增加 failedLoginAttempts 为 null 的防御性检查
     - 现代化 UserStatus: 使用 Java 25 switch 表达式替代静态代码块和 Set
     - 验证: 243 个测试全部通过
+
+- [2026-03-17] - 设计 Token 状态判定模型：
+    - 创建 TokenStatus 枚举：VALID, EXPIRED, CONSUMED, REVOKED, UNAVAILABLE
+    - 采用"悲观断言"原则：只要不完全满足所有存活条件，就必须拒绝
+    - 动态状态推导 (Derived State)：通过时间戳实时计算，无需数据库状态字段
+    - 创建 EmailVerificationToken 实体：一次性令牌，支持 determineStatus() 和 consume()
+    - 创建 RefreshToken 实体：长效令牌，支持 determineStatus() 和 revoke()
+    - 优势：
+        - 绝对一致性：基于当前时钟实时推导，消灭状态延迟的安全窗口期
+        - 逻辑内聚：状态判定逻辑集中在实体内部
+        - 零并发问题：时间过期是客观事实，不受并发事务干扰
+    - 更新 README.md：Package Structure 添加 auth/entity/ 和 auth/enums/
+
+- [2026-03-17] - 重构 Token 模型（代码审查修复）：
+    - 创建 AbstractToken 基类（@MappedSuperclass）：抽取 5 个共享字段（id, userId, tokenHash, expiresAt, createdAt）
+    - EmailVerificationToken 和 RefreshToken 继承 AbstractToken：消除代码冗余
+    - 修复 NPE：determineStatus() 增加 expiresAt 为 null 的防御性检查，返回 UNAVAILABLE
+    - 统一 API：isValid() 方法上移到 AbstractToken，使用 TokenStatus.isValid() 复用
+    - 新增单元测试：TokenStatusTest (5个), EmailVerificationTokenTest (11个), RefreshTokenTest (13个)
+    - 验证：Token 相关 29 个测试全部通过（其他测试失败为数据库连接问题）
+
+- [2026-03-17] - 修复代码审查发现的问题：
+    - UserValidator: 将字符串比较 "PENDING_VERIFICATION".equals() 改为枚举比较 UserStatus.PENDING_VERIFICATION
+    - UserStatus: Duplicate branch 警告为 IDE 误报，保持原有逻辑（ACTIVE 和 LOCKED 虽然代码相似但逻辑不同，不应合并）
+    - 验证：相关测试全部通过

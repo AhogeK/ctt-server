@@ -96,6 +96,8 @@ ctt-server/
 │   └── service/         # AuditLogService (facade for business layer)
 ├── auth/                # JWT authentication module
 │   ├── dto/             # Auth request/response DTOs
+│   ├── entity/          # Token entities (EmailVerificationToken, RefreshToken)
+│   ├── enums/           # TokenStatus enum
 │   └── AuthController.java  # Authentication REST endpoints
 ├── user/                # User management module
 │   ├── entity/          # User JPA entity with state machine
