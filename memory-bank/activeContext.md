@@ -1,3 +1,10 @@
+- [2026-03-18] - 创建开发者手册 (docs/developer-handbook.md)：
+    - 新增错误码操作指南（ErrorCode.java 标准步骤）
+    - 新增审计事件操作指南（AuditAction.java + SecurityAuditEvent 发布）
+    - 新增公共异常操作指南（BusinessException 扩展体系）
+    - 新增受保护接口操作指南（@PublicApi 注解使用）
+    - 包含标准步骤、代码示例、快速参考和检查清单
+
 - [2026-03-18] - 修复 Fixture 工具包代码审查问题：
     - TokenFixtures：generateFakeJwt 增加 exp 声明，删除冗余 Javadoc（isRefreshExpired/isAccessExpired）
     - UserFixtures：使用 ReflectionTestUtils 替代原生反射
