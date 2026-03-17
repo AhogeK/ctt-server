@@ -2,6 +2,7 @@ package com.ahogek.cttserver;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.util.TimeZone;
@@ -13,6 +14,7 @@ import java.util.TimeZone;
  *
  * <ul>
  *   <li>Async processing via {@code @EnableAsync}
+ *   <li>Configuration properties scanning via {@code @ConfigurationPropertiesScan}
  *   <li>Global UTC timezone enforcement for consistent timestamp handling
  * </ul>
  *
@@ -20,6 +22,7 @@ import java.util.TimeZone;
  * @since 2026-03-14
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 @EnableAsync
 public class CttServerApplication {
 

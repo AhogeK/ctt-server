@@ -77,3 +77,43 @@ DB_PASSWORD=secret \
 REDIS_PASSWORD=secret \
 ./gradlew bootRun
 ```
+
+## 安全配置 (@ConfigurationProperties)
+
+使用强类型配置类管理安全策略，消除魔法值：
+
+### 配置前缀: `ctt.security`
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| **jwt.secret-key** | String | `${JWT_SECRET_KEY}` | JWT 签名密钥 |
+| **jwt.issuer** | String | `ctt-identity-provider` | Token 签发者 |
+| **jwt.access-token-ttl** | Duration | `15m` | 访问令牌有效期 |
+| **jwt.refresh-token-ttl-plugin** | Duration | `14d` | 插件端 Refresh Token 有效期 |
+| **jwt.refresh-token-ttl-web** | Duration | `30d` | Web 端 Refresh Token 有效期 |
+| **password.bcrypt-rounds** | int | `12` | BCrypt 计算强度 |
+| **password.max-failed-attempts** | int | `5` | 触发锁定的最大失败次数 |
+| **password.lock-duration** | Duration | `30m` | 账号锁定时长 |
+| **rate-limit.enabled** | boolean | `true` | 是否启用限流 |
+| **rate-limit.global-max-requests-per-second** | int | `200` | 全局限流 QPS |
+| **audit.log-payloads** | boolean | `true` | 是否记录请求 Payload |
+| **audit.masked-fields** | String[] | `[password, token...]` | 自动脱敏字段列表 |
+
+### 使用方式
+
+```java
+@Service
+public class AuthService {
+    private final SecurityProperties securityProps;
+    
+    public AuthService(SecurityProperties securityProps) {
+        this.securityProps = securityProps;
+    }
+    
+    public void login() {
+        Duration ttl = securityProps.jwt().accessTokenTtl();
+        int maxAttempts = securityProps.password().maxFailedAttempts();
+        // ...
+    }
+}
+```

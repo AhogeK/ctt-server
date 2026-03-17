@@ -128,6 +128,13 @@
         - [x] application-dev.yaml: 云端部署配置（环境变量驱动）
         - [x] .gitignore: 本地敏感配置保护
         - [x] application-local.yaml.template: 新人配置模板
+    - [x] **安全配置规范 (@ConfigurationProperties)**
+        - [x] SecurityProperties: 强类型安全配置类 (Record + @Validated)
+        - [x] JWT 配置：secret-key, issuer, token TTL (access/plugin/web)
+        - [x] 密码策略：bcrypt-rounds (12), max-failed-attempts (5), lock-duration (30m)
+        - [x] 限流策略：global-max-requests-per-second (200)
+        - [x] 审计策略：masked-fields (password, token, secret, key)
+        - [x] @ConfigurationPropertiesScan 启用配置扫描
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

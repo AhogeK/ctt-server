@@ -445,3 +445,4 @@ private final ReentrantLock lock = new ReentrantLock();
 | C019 | PublicApi          | 接口安全分类模型 (@PublicApi + PublicApiEndpointRegistry + Secure by Default) | stable     |
 | C020 | SpelExpressionResolver | SpEL 表达式解析器共享组件 (供限流和幂等框架复用) | stable     |
 | C021 | ClientIdentity       | 客户端身份上下文模型 (支持 Web/IDE插件/OpenAPI 多端) | stable     |
+| C022 | SecurityProperties   | 强类型安全配置类 (JWT/密码/限流/审计策略 @ConfigurationProperties) | stable     |

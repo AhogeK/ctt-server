@@ -56,3 +56,33 @@ springdoc:
   swagger-ui:
     enabled: true
     path: /swagger-ui.html
+
+ctt:
+  security:
+    jwt:
+      secret-key: ${JWT_SECRET_KEY:LOCAL_DUMMY_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG}
+      issuer: "ctt-identity-provider"
+      access-token-ttl: 15m
+      refresh-token-ttl-plugin: 14d
+      refresh-token-ttl-web: 30d
+
+    password:
+      bcrypt-rounds: 12
+      max-failed-attempts: 5
+      lock-duration: 30m
+
+    rate-limit:
+      enabled: true
+      global-max-requests-per-second: 200
+
+    audit:
+      log-payloads: true
+      masked-fields:
+        - password
+        - passwordConfirm
+        - oldPassword
+        - token
+        - access_token
+        - refresh_token
+        - secret
+        - key

@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.common.config;
 
 import com.ahogek.cttserver.auth.infrastructure.security.PublicApiEndpointRegistry;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,9 +34,12 @@ import org.springframework.security.web.header.writers.XXssProtectionHeaderWrite
 public class SecurityConfig {
 
     private final PublicApiEndpointRegistry publicApiRegistry;
+    private final SecurityProperties securityProperties;
 
-    public SecurityConfig(PublicApiEndpointRegistry publicApiRegistry) {
+    public SecurityConfig(
+            PublicApiEndpointRegistry publicApiRegistry, SecurityProperties securityProperties) {
         this.publicApiRegistry = publicApiRegistry;
+        this.securityProperties = securityProperties;
     }
 
     /**
@@ -96,12 +100,16 @@ public class SecurityConfig {
     }
 
     /**
-     * Provides BCrypt password encoder.
+     * Provides BCrypt password encoder with configured strength.
      *
-     * @return the password encoder
+     * <p>BCrypt strength (log rounds) is configured via {@code
+     * ctt.security.password.bcrypt-rounds}, defaulting to 12. Higher values increase computation
+     * time for password hashing, making rainbow table attacks more expensive.
+     *
+     * @return the password encoder configured with bcrypt rounds
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(securityProperties.password().bcryptRounds());
     }
 }

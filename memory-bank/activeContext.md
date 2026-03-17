@@ -128,3 +128,38 @@
         - 云原生：镜像不可变，环境差异通过变量注入
         - 高聚合：修改公共配置只需改一处
     - 验证：配置加载正常，测试通过
+
+- [2026-03-18] - 规范安全配置项命名（@ConfigurationProperties）：
+    - 创建 SecurityProperties 强类型配置类 (common/config/properties/)
+        - 使用 Java Record + @ConfigurationProperties 实现深度不可变
+        - JWT 配置：secret-key, issuer, access/refresh token TTL
+        - 密码策略：bcrypt-rounds, max-failed-attempts, lock-duration
+        - 限流策略：enabled, global-max-requests-per-second
+        - 审计策略：log-payloads, masked-fields
+    - 更新 application.yaml：添加 ctt.security.* 配置契约
+        - JWT_SECRET_KEY 环境变量注入（本地开发兜底值已设置）
+        - 密码锁定策略：12轮BCrypt，5次失败锁定30分钟
+    - 更新 CttServerApplication：启用 @ConfigurationPropertiesScan
+    - 架构收益：
+        - 消灭魔法值：安全阈值集中管理
+        - IDE 自动补全：强类型配置
+        - 云原生支持：支持 ConfigMap O(1) 热更新
+    - 新增组件：C022 SecurityProperties（组件字典）
+
+- [2026-03-18] - 代码审查修复（SecurityProperties 集成问题）：
+    - 修复 SecurityConfig：注入 SecurityProperties，passwordEncoder() 使用 bcryptRounds 配置
+        - 添加 SecurityProperties 构造器注入
+        - 更新 passwordEncoder() 使用 configured rounds 替代默认值
+        - 更新 Javadoc 说明配置来源
+    - 更新 SecurityProperties：添加文档注释
+        - PasswordProperties：说明 @Min(10) 是安全基线（防止弱配置）
+        - RateLimitProperties：标注为未来功能（@RateLimit 已存在，全局回退待实现）
+    - 更新 README.md：Tech Stack 添加 Configuration 一行
+    - 验证：全部测试通过，Spotless 格式化通过
+
+- [2026-03-18] - 修复 IDE 警告（SecurityProperties 数组类型）：
+    - 问题：AuditProperties.maskedFields 使用 String[] 导致 Record 自动生成的方法存在数组引用问题
+    - 解决方案：将 String[] 改为 List<String>
+        - 消除 IDE 警告：Override equals, hashCode and toString to consider array's content
+        - List 的 equals/hashCode 已实现内容比较，无需手动覆盖
+    - 验证：全部测试通过，配置加载正常

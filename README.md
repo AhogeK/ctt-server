@@ -16,16 +16,17 @@ CTT Server provides:
 
 ## Tech Stack
 
-| Layer          | Technology                        |
-|----------------|-----------------------------------|
-| Language       | Java 25 (Virtual Threads)         |
-| Framework      | Spring Boot 4.0.3 (MVC)           |
-| Authentication | Spring Security 7 + JWT + API Key |
-| Database       | PostgreSQL 16                     |
-| Migration      | Flyway                            |
-| Cache          | Redis 7                           |
-| API Docs       | springdoc-openapi                 |
-| Testing        | JUnit 5 + Testcontainers          |
+| Layer          | Technology                           |
+|----------------|--------------------------------------|
+| Language       | Java 25 (Virtual Threads)            |
+| Framework      | Spring Boot 4.0.3 (MVC)              |
+| Authentication | Spring Security 7 + JWT + API Key    |
+| Database       | PostgreSQL 16                        |
+| Migration      | Flyway                               |
+| Cache          | Redis 7                              |
+| API Docs       | springdoc-openapi                    |
+| Testing        | JUnit 5 + Testcontainers             |
+| Configuration  | @ConfigurationProperties (Type-safe) |
 
 ## Architecture
 
