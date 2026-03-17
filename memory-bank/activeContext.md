@@ -1,3 +1,8 @@
+- [2026-03-18] - 项目版本升级：0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT
+    - 基建工程阶段性完成（测试基线、Fixture工具包、配置分层、接口治理等）
+    - 更新 gradle/libs.versions.toml
+    - 在 AGENTS.md 规则5添加版本更新检查点
+
 - [2026-03-18] - 创建开发者手册 (docs/developer-handbook.md)：
     - 新增错误码操作指南（ErrorCode.java 标准步骤）
     - 新增审计事件操作指南（AuditAction.java + SecurityAuditEvent 发布）

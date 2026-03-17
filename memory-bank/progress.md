@@ -4,6 +4,7 @@
 
 - [x] 创建 AGENTS.md 项目记忆配置文件
 - [x] 创建开发者手册 (docs/developer-handbook.md) - 新增错误码、审计事件、公共异常、受保护接口操作指南
+- [x] **版本升级**: 0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT (基建工程阶段性完成)
 - [x] 初始化 memory-bank/ 目录结构
 - [x] 项目架构设计与技术选型确定
 - [x] README 基础版本
