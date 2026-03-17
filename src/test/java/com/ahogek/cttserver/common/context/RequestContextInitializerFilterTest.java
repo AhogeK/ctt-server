@@ -43,7 +43,6 @@ class RequestContextInitializerFilterTest {
     @Test
     void doFilter_withoutHeaders_generatesNewTraceId() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
-        when(request.getHeader(RequestContextInitializerFilter.DEVICE_ID_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("GET");
@@ -62,8 +61,6 @@ class RequestContextInitializerFilterTest {
         String existingTraceId = "existing-trace-id-123";
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER))
                 .thenReturn(existingTraceId);
-        when(request.getHeader(RequestContextInitializerFilter.DEVICE_ID_HEADER))
-                .thenReturn("device-456");
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("POST");
@@ -79,7 +76,6 @@ class RequestContextInitializerFilterTest {
     @Test
     void doFilter_withBlankHeader_generatesNewTraceId() {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn("   ");
-        when(request.getHeader(RequestContextInitializerFilter.DEVICE_ID_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("GET");
@@ -98,7 +94,6 @@ class RequestContextInitializerFilterTest {
     @Test
     void doFilter_clearsMdcAfterChain() {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
-        when(request.getHeader(RequestContextInitializerFilter.DEVICE_ID_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("GET");
@@ -114,7 +109,6 @@ class RequestContextInitializerFilterTest {
     @Test
     void doFilter_whenChainThrowsServletException_propagates() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
-        when(request.getHeader(RequestContextInitializerFilter.DEVICE_ID_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("GET");
@@ -133,7 +127,6 @@ class RequestContextInitializerFilterTest {
     @Test
     void doFilter_whenChainThrowsIOException_propagates() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
-        when(request.getHeader(RequestContextInitializerFilter.DEVICE_ID_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("GET");
@@ -151,8 +144,6 @@ class RequestContextInitializerFilterTest {
     void doFilter_setsMdcKeys() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER))
                 .thenReturn("test-trace-id");
-        when(request.getHeader(RequestContextInitializerFilter.DEVICE_ID_HEADER))
-                .thenReturn("device-456");
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("POST");
@@ -164,7 +155,6 @@ class RequestContextInitializerFilterTest {
         final String[] capturedClientIp = new String[1];
         final String[] capturedMethod = new String[1];
         final String[] capturedUri = new String[1];
-        final String[] capturedDeviceId = new String[1];
 
         doAnswer(
                         _ -> {
@@ -172,7 +162,6 @@ class RequestContextInitializerFilterTest {
                             capturedClientIp[0] = MDC.get(MdcKey.CLIENT_IP);
                             capturedMethod[0] = MDC.get(MdcKey.HTTP_METHOD);
                             capturedUri[0] = MDC.get(MdcKey.REQUEST_URI);
-                            capturedDeviceId[0] = MDC.get(MdcKey.DEVICE_ID);
                             return null;
                         })
                 .when(filterChain)
@@ -184,13 +173,11 @@ class RequestContextInitializerFilterTest {
         assertEquals("192.168.1.100", capturedClientIp[0]);
         assertEquals("POST", capturedMethod[0]);
         assertEquals("/api/test", capturedUri[0]);
-        assertEquals("device-456", capturedDeviceId[0]);
     }
 
     @Test
     void doFilter_removesMdcKeysAfterChain() {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
-        when(request.getHeader(RequestContextInitializerFilter.DEVICE_ID_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("GET");
@@ -204,6 +191,5 @@ class RequestContextInitializerFilterTest {
         assertNull(MDC.get(MdcKey.CLIENT_IP));
         assertNull(MDC.get(MdcKey.HTTP_METHOD));
         assertNull(MDC.get(MdcKey.REQUEST_URI));
-        assertNull(MDC.get(MdcKey.DEVICE_ID));
     }
 }

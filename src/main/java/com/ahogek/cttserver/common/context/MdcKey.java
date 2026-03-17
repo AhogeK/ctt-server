@@ -19,4 +19,5 @@ public final class MdcKey {
     public static final String REQUEST_URI = "requestUri";
 
     public static final String USER_ID = "userId";
+    public static final String PLATFORM = "platform";
 }

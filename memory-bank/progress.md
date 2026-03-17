@@ -112,6 +112,11 @@
         - [x] @PublicApi 注解：声明式标记公开接口
         - [x] PublicApiEndpointRegistry：动态扫描公开端点
         - [x] SecurityConfig：集成动态白名单 + 默认拒绝策略
+    - [x] **客户端身份提取上下文**（为 devices/refresh_tokens/api_keys 预留）
+        - [x] ClientHeaderConstants：HTTP Header 契约常量（X-Device-ID, X-Platform 等）
+        - [x] ClientIdentity：强类型不可变客户端身份载体
+        - [x] RequestInfo 扩展：集成 ClientIdentity
+        - [x] RequestContextInitializerFilter：O(1) 提取并灌入上下文
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

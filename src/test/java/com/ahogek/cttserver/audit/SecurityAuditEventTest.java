@@ -76,7 +76,7 @@ class SecurityAuditEventTest {
                         "PostmanRuntime/7.0",
                         "/api/data",
                         "GET",
-                        "device-456");
+                        com.ahogek.cttserver.common.context.ClientIdentity.empty());
         AuditDetails details = AuditDetails.attempt(3, "Invalid token");
 
         SecurityAuditEvent event =

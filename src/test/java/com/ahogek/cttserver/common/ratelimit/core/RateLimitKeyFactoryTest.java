@@ -2,6 +2,7 @@ package com.ahogek.cttserver.common.ratelimit.core;
 
 import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.common.context.ClientIdentity;
 import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
@@ -39,7 +40,12 @@ class RateLimitKeyFactoryTest {
     void generateKey_ipType_returnsIpKey() {
         RequestInfo requestInfo =
                 new RequestInfo(
-                        "trace-123", "192.168.1.100", "TestAgent", "/api/test", "GET", null);
+                        "trace-123",
+                        "192.168.1.100",
+                        "TestAgent",
+                        "/api/test",
+                        "GET",
+                        ClientIdentity.empty());
 
         String key =
                 ScopedValue.where(RequestContext.CONTEXT, requestInfo)

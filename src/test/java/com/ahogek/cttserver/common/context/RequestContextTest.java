@@ -20,7 +20,13 @@ class RequestContextTest {
     @Test
     void current_whenBound_returnsValue() {
         RequestInfo info =
-                new RequestInfo("trace-123", "127.0.0.1", "TestAgent", "/api/test", "GET", null);
+                new RequestInfo(
+                        "trace-123",
+                        "127.0.0.1",
+                        "TestAgent",
+                        "/api/test",
+                        "GET",
+                        ClientIdentity.empty());
 
         ScopedValue.where(RequestContext.CONTEXT, info)
                 .run(
@@ -39,7 +45,12 @@ class RequestContextTest {
     void currentRequired_whenBound_returnsValue() {
         RequestInfo info =
                 new RequestInfo(
-                        "trace-456", "192.168.1.1", "TestAgent", "/api/test", "POST", "device-789");
+                        "trace-456",
+                        "192.168.1.1",
+                        "TestAgent",
+                        "/api/test",
+                        "POST",
+                        ClientIdentity.empty());
 
         ScopedValue.where(RequestContext.CONTEXT, info)
                 .run(
@@ -52,7 +63,9 @@ class RequestContextTest {
 
     @Test
     void currentRequired_whenTraceIdBlank_throwsException() {
-        RequestInfo info = new RequestInfo("", "127.0.0.1", "TestAgent", "/api/test", "GET", null);
+        RequestInfo info =
+                new RequestInfo(
+                        "", "127.0.0.1", "TestAgent", "/api/test", "GET", ClientIdentity.empty());
 
         ScopedValue.where(RequestContext.CONTEXT, info)
                 .run(

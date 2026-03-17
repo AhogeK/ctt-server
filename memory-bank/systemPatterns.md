@@ -97,6 +97,32 @@ public class SomeService {
 }
 ```
 
+### 代码复用: SpEL 表达式解析器共享组件 (DRY Principle)
+
+**决策**: 提取 `SpelExpressionResolver` 作为共享工具类，供限流和幂等框架复用
+**理由**:
+
+- **消除重复代码**: `RateLimitAspect` 和 `IdempotentAspect` 都有相同的 SpEL 解析逻辑（12 行重复代码）
+- **单一职责**: 将 SpEL 解析逻辑集中到一处，便于维护和测试
+- **可复用性**: 未来其他需要 SpEL 解析的切面可以直接使用此组件
+
+**实现方式**:
+
+```java
+@Component
+public class SpelExpressionResolver {
+    public String resolve(ProceedingJoinPoint joinPoint, 
+                         MethodSignature signature, 
+                         String expression) { ... }
+}
+```
+
+**收益**:
+
+- 代码行数减少 ~24 行（2 个 Aspect 各 12 行）
+- 修改 SpEL 解析逻辑只需改一处
+- 可以单独为 SpEL 解析逻辑编写单元测试
+
 ### 接口治理: 限流与幂等框架 (Rate Limiting & Idempotency)
 
 **决策**: 引入声明式的 `@RateLimit` 和 `@Idempotent` 框架
@@ -113,12 +139,14 @@ public class SomeService {
 2. **策略层**: `RateLimitKeyFactory` 根据维度类型生成 Redis Key
 3. **执行层**: `RedisRateLimiter` 使用 Lua 脚本实现原子性固定窗口算法
 4. **切面层**: `RateLimitAspect` AOP 拦截 + SpEL 表达式解析
+5. **共享组件层**: `SpelExpressionResolver` SpEL 表达式解析器（供限流和幂等复用）
 
 **技术亮点**:
 
 - **Redis Lua 原子脚本**: 避免竞态条件，保证 `get -> +1 -> set` 的原子性
 - **SpEL 动态提取**: 支持从请求参数动态提取 Key（如邮箱防轰炸）
 - **审计集成**: 限流触发时自动记录 `RATE_LIMIT_EXCEEDED` 安全审计事件
+- **代码复用**: 通过 `SpelExpressionResolver` 消除重复代码，遵循 DRY 原则
 
 **参考**: [docs/api-governance.md](../docs/api-governance.md)
 
@@ -149,6 +177,55 @@ public void syncData() { ... }  // 401 if unauthenticated
 @PublicApi(reason = "Registration endpoint")
 @PostMapping("/api/v1/auth/register")
 public void register() { ... }  // 允许匿名访问
+```
+
+### 客户端上下文: ClientIdentity 多端身份标准化
+
+**决策**: 在流量接入层完成客户端身份标准化，提供统一领域模型
+**理由**:
+
+- **关注点分离**: 禁止业务层解析 `HttpServletRequest` Header，避免 HTTP 协议污染
+- **O(1) 扩展性**: 新增终端类型（Web/IDE插件/OpenAPI）无需修改业务代码
+- **强类型安全**: `ClientIdentity` Record 替代散落字符串，消除运行时错误
+- **架构就绪**: 为 Device 注册、Refresh Token 绑定、API Key 设备风控提供标准上下文
+
+**实施层级**:
+
+1. **契约层**: `ClientHeaderConstants` 定义 X-Device-ID, X-Platform, X-IDE-Name 等标准 Header
+2. **提取层**: `RequestContextInitializerFilter` 在 MVC 路由前 O(1) 提取并灌入线程上下文
+3. **领域层**: `ClientIdentity` Record 封装 deviceId, platform, ideName 等结构化数据
+4. **访问层**: `RequestInfo.client()` 提供不可空访问，业务层拿到的是干净领域对象
+
+**HTTP Header 契约**:
+
+| Header | 说明 | 示例 |
+|--------|------|------|
+| X-Device-ID | 设备唯一标识 (UUID) | `550e8400-e29b-41d4-a716-446655440000` |
+| X-Device-Name | 设备友好名称 | `Alice's MacBook Pro` |
+| X-Platform | 操作系统平台 | `macOS`, `Windows`, `Linux`, `Web` |
+| X-IDE-Name | 宿主 IDE 名称 | `IntelliJ IDEA`, `VSCode` |
+| X-IDE-Version | IDE 版本 | `2024.1` |
+| X-App-Version | 插件/应用版本 | `1.2.3` |
+
+**使用方式**:
+
+```java
+// 业务层无需接触 HttpServletRequest
+@Transactional
+public LoginResponse login(LoginRequest request) {
+    ClientIdentity client = RequestContext.currentRequired().client();
+
+    // 注册或更新设备
+    if (client.getValidDeviceId().isPresent()) {
+        deviceService.registerOrUpdateDevice(user.getId(), client, ...);
+    }
+
+    // 签发 Token，动态决定生命周期
+    String issuedFor = client.isPluginClient() ? "PLUGIN" : "WEB";
+    RefreshToken rt = tokenService.createRefreshToken(user.getId(), client.deviceId(), issuedFor);
+
+    return new LoginResponse(jwt, rt.getTokenHash());
+}
 ```
 
 ## 代码规范
@@ -334,3 +411,5 @@ private final ReentrantLock lock = new ReentrantLock();
 | C017 | RateLimiter        | 声明式限流框架 (@RateLimit, RateLimitAspect, RedisRateLimiter, Lua脚本) | stable     |
 | C018 | Idempotent         | 声明式幂等框架骨架 (@Idempotent, IdempotentAspect)               | stable     |
 | C019 | PublicApi          | 接口安全分类模型 (@PublicApi + PublicApiEndpointRegistry + Secure by Default) | stable     |
+| C020 | SpelExpressionResolver | SpEL 表达式解析器共享组件 (供限流和幂等框架复用) | stable     |
+| C021 | ClientIdentity       | 客户端身份上下文模型 (支持 Web/IDE插件/OpenAPI 多端) | stable     |

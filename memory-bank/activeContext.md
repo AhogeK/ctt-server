@@ -34,4 +34,38 @@
     - 总测试数：254 个
     - 验证：全部测试通过，JaCoCo 覆盖率达标，Spotless 格式化通过
 
-(End of file - total 360 lines)
+- [2026-03-17] - 代码审查修复：提取 SpEL 表达式解析器共享组件（DRY 原则）：
+    - 问题识别：RateLimitAspect 和 IdempotentAspect 存在 12 行重复代码（SpEL 解析逻辑）
+    - 解决方案：创建 SpelExpressionResolver 共享组件 (common/util/)
+    - 重构 RateLimitAspect：使用 SpelExpressionResolver 替代本地 resolveSpEl() 方法
+    - 重构 IdempotentAspect：使用 SpelExpressionResolver 替代本地 resolveSpEl() 方法
+    - 更新测试：
+        - RateLimitAspectTest 添加 SpelExpressionResolver mock
+        - IdempotentAspectTest 添加 SpelExpressionResolver mock
+    - 架构收益：
+        - 消除重复代码 ~24 行
+        - 单一职责：SpEL 解析逻辑集中到一处
+        - 可维护性：修改 SpEL 逻辑只需改一处
+        - 可测试性：可以单独测试 SpEL 解析逻辑
+    - 新增组件：C020 SpelExpressionResolver（组件字典）
+    - 更新 systemPatterns.md：添加"代码复用: SpEL 表达式解析器共享组件"设计决策章节
+    - 验证：254 个测试全部通过，无代码重复警告，Spotless 格式化通过
+
+- [2026-03-17] - 设计客户端身份提取规则，为 devices/refresh_tokens/api_keys 预留统一上下文：
+    - 创建 ClientHeaderConstants：定义 HTTP Header 契约常量（X-Device-ID, X-Platform, X-IDE-Name 等）
+    - 创建 ClientIdentity：强类型不可变 Record，封装多端差异（Web/IDE插件/OpenAPI）
+    - 扩展 RequestInfo：添加 clientIdentity 字段，提供 client() 和 getDeviceUuid() 便捷方法
+    - 增强 RequestContextInitializerFilter：提取完整客户端信息并灌入 MDC（platform）
+    - 扩展 MdcKey：添加 PLATFORM 常量用于日志追踪
+    - 向后兼容：保留原有 deviceId 字段和构造函数
+    - 新增测试：
+        - ClientIdentityTest (10 个测试)：isPluginClient, getValidDeviceId, hasIdentity, equals/hashCode
+        - ClientHeaderConstantsTest (3 个测试)：header 值验证、私有构造函数、命名规范
+        - RequestInfoTest (11 个测试)：client() 访问、getDeviceUuid、向后兼容构造
+    - 总测试数：338 个（新增 24 个）
+    - 验证：全部测试通过，Spotless 格式化通过
+
+- [2026-03-17] - 代码审查修复：
+    - 删除 ClientIdentity 冗余的 equals()/hashCode()（Record 自动生成）
+    - 删除 activeContext.md 文档残留行
+    - 更新 README.md 添加 context 包组件说明

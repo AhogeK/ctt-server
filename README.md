@@ -105,6 +105,15 @@ ctt-server/
 │   ├── repository/      # UserRepository
 │   ├── service/         # UserService (application service)
 │   └── validator/       # UserValidator (domain rules)
+├── common/              # Shared utilities and cross-cutting concerns
+│   ├── context/         # Request context (ClientIdentity, RequestInfo, ScopedValue)
+│   ├── config/          # Global configuration (Jackson, Security, etc.)
+│   ├── exception/       # Global exception handling
+│   ├── ratelimit/       # Declarative rate limiting framework (@RateLimit)
+│   ├── idempotent/      # Declarative idempotency framework (@Idempotent)
+│   ├── response/        # Unified response models (ApiResponse, ErrorResponse)
+│   ├── logging/         # Structured logging (LogRecord)
+│   └── utils/           # Utility classes (IpUtils, SpelExpressionResolver)
 ```
 
 ## Documentation
