@@ -107,6 +107,10 @@ ctt-server/
 │   └── validator/       # UserValidator (domain rules)
 ```
 
+## Documentation
+
+- [Time Strategy](docs/time-strategy.md) - UTC-first time handling specification for distributed systems
+
 ## Getting Started
 
 ### Prerequisites

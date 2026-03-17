@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Refresh token entity (long-lived).
@@ -22,7 +23,7 @@ import java.time.Instant;
 public class RefreshToken extends AbstractToken {
 
     @Column(name = "device_id")
-    private String deviceId;
+    private UUID deviceId;
 
     @Column(name = "revoked_at")
     private Instant revokedAt;
@@ -67,11 +68,11 @@ public class RefreshToken extends AbstractToken {
         }
     }
 
-    public String getDeviceId() {
+    public UUID getDeviceId() {
         return deviceId;
     }
 
-    public void setDeviceId(String deviceId) {
+    public void setDeviceId(UUID deviceId) {
         this.deviceId = deviceId;
     }
 

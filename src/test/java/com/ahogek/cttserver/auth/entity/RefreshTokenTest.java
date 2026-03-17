@@ -16,7 +16,7 @@ class RefreshTokenTest {
         RefreshToken token = new RefreshToken();
         token.setUserId(UUID.randomUUID());
         token.setTokenHash("hashedToken123");
-        token.setDeviceId("device-456");
+        token.setDeviceId(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"));
         token.setExpiresAt(Instant.now().plus(30, ChronoUnit.DAYS));
         return token;
     }

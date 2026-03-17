@@ -31,6 +31,7 @@ spring:
       password: ${REDIS_PASSWORD:}
   jackson:
     default-property-inclusion: non_null
+    time-zone: UTC
 
 server:
   port: 8080

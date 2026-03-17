@@ -253,3 +253,20 @@
     - UserValidator: 将字符串比较 "PENDING_VERIFICATION".equals() 改为枚举比较 UserStatus.PENDING_VERIFICATION
     - UserStatus: Duplicate branch 警告为 IDE 误报，保持原有逻辑（ACTIVE 和 LOCKED 虽然代码相似但逻辑不同，不应合并）
     - 验证：相关测试全部通过
+
+- [2026-03-17] - 设计统一时间策略 (UTC-First Strategy)：
+    - 强制 JVM 全局 UTC 时区：CttServerApplication.main() 设置 TimeZone.setDefault(UTC)
+    - Jackson 序列化规范：application.yaml 配置 time-zone: UTC (Spring Boot 4.x / Jackson 3.x 默认已使用 ISO-8601)
+    - 创建 docs/time-strategy.md：定义 Instant/OffsetDateTime 使用规范、客户端契约、迁移指南
+    - 五层防护架构：JVM Foundation → Jackson → Domain Model → Database → API Validation
+    - 黄金法则：Instant 为绝对时间首选，OffsetDateTime 仅用于需要本地感知的场景
+    - 修复相关 Token 实体列映射问题：
+        - AbstractToken.tokenHash: 添加 length=64 映射
+        - RefreshToken.deviceId: String → UUID 类型修正
+        - Flyway 迁移：token_hash CHAR(64) → VARCHAR(64)
+    - 验证：所有测试通过
+    - 代码审查修复：
+        - 回退 V20260303210000__init_base_schema.sql 修改（避免 Checksum 校验失败）
+        - TimeZone.setDefault 移至 main() 方法（早于 Spring 初始化）
+        - 更新 systemPatterns.md 记录 UTC-First Strategy 架构决策
+        - 更新 README.md 添加时间策略文档链接

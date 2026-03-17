@@ -29,6 +29,26 @@
 - 设备管理：API Key 与设备强绑定，支持单独撤销
 - 安全隔离：不同客户端使用不同认证机制
 
+### 时间策略: UTC 一把梭 (UTC-First Strategy)
+
+**决策**: 全链路使用 UTC 绝对时间，彻底消除时区上下文依赖
+**理由**:
+
+- 绝对一致性：所有时间戳表示时间轴上的唯一刻度，与服务器、客户端时区无关
+- 分布式安全：跨时区、多端协同场景下消除时区转换错误
+- 类型安全：强制使用 Instant（机器时间），禁止 LocalDateTime（无时区上下文）
+- 防御性设计：JVM 启动时强制设置 UTC，Jackson 序列化 ISO-8601 格式
+
+**实施层级**:
+
+1. JVM Foundation: `main()` 中 `TimeZone.setDefault(UTC)`
+2. Jackson: `time-zone: UTC` + ISO-8601 序列化
+3. Domain Model: `Instant` 为黄金标准，`OffsetDateTime` 按需使用
+4. Database: PostgreSQL `TIMESTAMPTZ` → Hibernate 6 `Instant`
+5. API Validation: `@Future` / `@Past` 配合 `Instant`
+
+**参考**: [docs/time-strategy.md](../docs/time-strategy.md)
+
 ## 代码规范
 
 ### 项目结构规范
