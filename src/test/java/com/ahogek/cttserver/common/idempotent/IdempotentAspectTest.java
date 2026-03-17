@@ -2,240 +2,207 @@ package com.ahogek.cttserver.common.idempotent;
 
 import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.idempotent.core.IdempotentLocker;
+import com.ahogek.cttserver.common.util.SpelExpressionResolver;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.reflect.MethodSignature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class IdempotentAspectTest {
 
+    private IdempotentLocker mockLocker;
     private CurrentUserProvider mockUserProvider;
+    private SpelExpressionResolver mockSpelResolver;
     private IdempotentAspect aspect;
     private ProceedingJoinPoint mockJoinPoint;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws NoSuchMethodException {
+        mockLocker = mock(IdempotentLocker.class);
         mockUserProvider = mock(CurrentUserProvider.class);
-        aspect = new IdempotentAspect(mockUserProvider);
+        mockSpelResolver = mock(SpelExpressionResolver.class);
+        aspect = new IdempotentAspect(mockLocker, mockUserProvider, mockSpelResolver);
         mockJoinPoint = mock(ProceedingJoinPoint.class);
+        MethodSignature mockSignature = mock(MethodSignature.class);
+
+        when(mockJoinPoint.getSignature()).thenReturn(mockSignature);
+        when(mockSignature.getDeclaringType()).thenReturn(TestController.class);
+        when(mockSignature.getMethod()).thenReturn(getTestMethod());
     }
 
     @Test
-    void around_withAuthenticatedUser_includesUserId() throws Throwable {
+    void intercept_whenLockAcquired_proceedsNormally() throws Throwable {
+        Idempotent idempotent = createIdempotent("", "", true, 5, "Request in progress");
         UUID userId = UUID.randomUUID();
-        CurrentUser user = createTestUser(userId);
+        CurrentUser user =
+                new CurrentUser(
+                        userId,
+                        "test@example.com",
+                        UserStatus.ACTIVE,
+                        Set.of("USER"),
+                        CurrentUser.AuthenticationType.WEB_SESSION);
+
         when(mockUserProvider.getCurrentUser()).thenReturn(Optional.of(user));
+        when(mockLocker.tryLock(anyString(), anyLong())).thenReturn(true);
         when(mockJoinPoint.proceed()).thenReturn("success");
-        when(mockJoinPoint.getSignature())
-                .thenReturn(
-                        new org.aspectj.lang.Signature() {
-                            @Override
-                            public String toShortString() {
-                                return "TestController.testMethod()";
-                            }
 
-                            @Override
-                            public String toLongString() {
-                                return "TestController.testMethod()";
-                            }
+        Object result = aspect.intercept(mockJoinPoint, idempotent);
 
-                            @Override
-                            public String getName() {
-                                return "testMethod";
-                            }
-
-                            @Override
-                            public int getModifiers() {
-                                return 0;
-                            }
-
-                            @Override
-                            public Class<?> getDeclaringType() {
-                                return TestController.class;
-                            }
-
-                            @Override
-                            public String getDeclaringTypeName() {
-                                return "TestController";
-                            }
-                        });
-
-        Idempotent idempotent = createIdempotent("", 5, TimeUnit.SECONDS);
-
-        Object result = aspect.around(mockJoinPoint, idempotent);
-
-        assertEquals("success", result);
+        assertThat(result).isEqualTo("success");
         verify(mockJoinPoint).proceed();
     }
 
     @Test
-    void around_withAnonymousUser_usesAnonymousKey() throws Throwable {
+    void intercept_whenLockNotAcquired_throwsConflictException() throws Throwable {
+        Idempotent idempotent =
+                createIdempotent("REGISTER", "", false, 5, "Registration in progress");
+
         when(mockUserProvider.getCurrentUser()).thenReturn(Optional.empty());
+        when(mockLocker.tryLock(anyString(), anyLong())).thenReturn(false);
+
+        assertThatThrownBy(() -> aspect.intercept(mockJoinPoint, idempotent))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Registration in progress");
+
+        verify(mockJoinPoint, never()).proceed();
+    }
+
+    @Test
+    void intercept_whenExceptionThrown_releasesLockAndPropagates() throws Throwable {
+        Idempotent idempotent = createIdempotent("", "", true, 5, "Processing");
+        UUID userId = UUID.randomUUID();
+        CurrentUser user =
+                new CurrentUser(
+                        userId,
+                        "test@example.com",
+                        UserStatus.ACTIVE,
+                        Set.of("USER"),
+                        CurrentUser.AuthenticationType.WEB_SESSION);
+
+        when(mockUserProvider.getCurrentUser()).thenReturn(Optional.of(user));
+        when(mockLocker.tryLock(anyString(), anyLong())).thenReturn(true);
+        when(mockJoinPoint.proceed()).thenThrow(new RuntimeException("Business error"));
+
+        assertThatThrownBy(() -> aspect.intercept(mockJoinPoint, idempotent))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Business error");
+
+        verify(mockLocker).unlock(anyString());
+    }
+
+    @Test
+    void intercept_withoutUserId_usesAnonymous() throws Throwable {
+        Idempotent idempotent = createIdempotent("PUBLIC_API", "", false, 3, "Processing");
+
+        when(mockUserProvider.getCurrentUser()).thenReturn(Optional.empty());
+        when(mockLocker.tryLock(anyString(), anyLong())).thenReturn(true);
         when(mockJoinPoint.proceed()).thenReturn("success");
-        when(mockJoinPoint.getSignature())
-                .thenReturn(
-                        new org.aspectj.lang.Signature() {
-                            @Override
-                            public String toShortString() {
-                                return "TestController.publicMethod()";
-                            }
 
-                            @Override
-                            public String toLongString() {
-                                return "TestController.publicMethod()";
-                            }
+        Object result = aspect.intercept(mockJoinPoint, idempotent);
 
-                            @Override
-                            public String getName() {
-                                return "publicMethod";
-                            }
-
-                            @Override
-                            public int getModifiers() {
-                                return 0;
-                            }
-
-                            @Override
-                            public Class<?> getDeclaringType() {
-                                return TestController.class;
-                            }
-
-                            @Override
-                            public String getDeclaringTypeName() {
-                                return "TestController";
-                            }
-                        });
-
-        Idempotent idempotent = createIdempotent("", 5, TimeUnit.SECONDS);
-
-        Object result = aspect.around(mockJoinPoint, idempotent);
-
-        assertEquals("success", result);
+        assertThat(result).isEqualTo("success");
         verify(mockJoinPoint).proceed();
     }
 
     @Test
-    void around_withCustomKey_usesCustomKey() throws Throwable {
-        when(mockUserProvider.getCurrentUser()).thenReturn(Optional.empty());
+    void intercept_withSpelExpression_extractsValueFromArgument() throws Throwable {
+        Idempotent idempotent = createIdempotent("", "#email", true, 5, "Processing");
+        UUID userId = UUID.randomUUID();
+        CurrentUser user =
+                new CurrentUser(
+                        userId,
+                        "test@example.com",
+                        UserStatus.ACTIVE,
+                        Set.of("USER"),
+                        CurrentUser.AuthenticationType.WEB_SESSION);
+
+        when(mockUserProvider.getCurrentUser()).thenReturn(Optional.of(user));
+        when(mockSpelResolver.resolve(any(), any(), any())).thenReturn("user@example.com");
+        when(mockLocker.tryLock(anyString(), anyLong())).thenReturn(true);
         when(mockJoinPoint.proceed()).thenReturn("success");
-        when(mockJoinPoint.getSignature())
-                .thenReturn(
-                        new org.aspectj.lang.Signature() {
-                            @Override
-                            public String toShortString() {
-                                return "TestController.customKeyMethod()";
-                            }
 
-                            @Override
-                            public String toLongString() {
-                                return "TestController.customKeyMethod()";
-                            }
+        Object result = aspect.intercept(mockJoinPoint, idempotent);
 
-                            @Override
-                            public String getName() {
-                                return "customKeyMethod";
-                            }
-
-                            @Override
-                            public int getModifiers() {
-                                return 0;
-                            }
-
-                            @Override
-                            public Class<?> getDeclaringType() {
-                                return TestController.class;
-                            }
-
-                            @Override
-                            public String getDeclaringTypeName() {
-                                return "TestController";
-                            }
-                        });
-
-        Idempotent idempotent = createIdempotent("custom-key", 10, TimeUnit.MINUTES);
-
-        Object result = aspect.around(mockJoinPoint, idempotent);
-
-        assertEquals("success", result);
+        assertThat(result).isEqualTo("success");
         verify(mockJoinPoint).proceed();
     }
 
     @Test
-    void around_whenProceedThrowsException_propagatesException() throws Throwable {
-        when(mockUserProvider.getCurrentUser()).thenReturn(Optional.empty());
-        when(mockJoinPoint.proceed()).thenThrow(new RuntimeException("Test exception"));
-        when(mockJoinPoint.getSignature())
-                .thenReturn(
-                        new org.aspectj.lang.Signature() {
-                            @Override
-                            public String toShortString() {
-                                return "TestController.failingMethod()";
-                            }
+    void intercept_withNullSpelExpression_returnsNullAndProceeds() throws Throwable {
+        Idempotent idempotent = createIdempotent("", null, true, 5, "Processing");
+        UUID userId = UUID.randomUUID();
+        CurrentUser user =
+                new CurrentUser(
+                        userId,
+                        "test@example.com",
+                        UserStatus.ACTIVE,
+                        Set.of("USER"),
+                        CurrentUser.AuthenticationType.WEB_SESSION);
 
-                            @Override
-                            public String toLongString() {
-                                return "TestController.failingMethod()";
-                            }
+        when(mockUserProvider.getCurrentUser()).thenReturn(Optional.of(user));
+        when(mockSpelResolver.resolve(any(), any(), any())).thenReturn(null);
+        when(mockLocker.tryLock(anyString(), anyLong())).thenReturn(true);
+        when(mockJoinPoint.proceed()).thenReturn("success");
 
-                            @Override
-                            public String getName() {
-                                return "failingMethod";
-                            }
+        Object result = aspect.intercept(mockJoinPoint, idempotent);
 
-                            @Override
-                            public int getModifiers() {
-                                return 0;
-                            }
-
-                            @Override
-                            public Class<?> getDeclaringType() {
-                                return TestController.class;
-                            }
-
-                            @Override
-                            public String getDeclaringTypeName() {
-                                return "TestController";
-                            }
-                        });
-
-        Idempotent idempotent = createIdempotent("", 5, TimeUnit.SECONDS);
-
-        assertThrows(RuntimeException.class, () -> aspect.around(mockJoinPoint, idempotent));
+        assertThat(result).isEqualTo("success");
+        verify(mockJoinPoint).proceed();
     }
 
-    private CurrentUser createTestUser(UUID userId) {
-        return new CurrentUser(
-                userId,
-                "test@example.com",
-                UserStatus.ACTIVE,
-                Set.of("USER"),
-                CurrentUser.AuthenticationType.WEB_SESSION);
+    private Method getTestMethod() throws NoSuchMethodException {
+        return TestController.class.getMethod("testMethod", String.class);
     }
 
-    private Idempotent createIdempotent(String key, long expire, TimeUnit unit) {
+    private Idempotent createIdempotent(
+            String prefix,
+            String keyExpression,
+            boolean includeUserId,
+            long expireSeconds,
+            String message) {
         return new Idempotent() {
             @Override
-            public String key() {
-                return key;
+            public String prefix() {
+                return prefix;
             }
 
             @Override
-            public long expire() {
-                return expire;
+            public String keyExpression() {
+                return keyExpression;
             }
 
             @Override
-            public TimeUnit unit() {
-                return unit;
+            public boolean includeUserId() {
+                return includeUserId;
+            }
+
+            @Override
+            public long expireSeconds() {
+                return expireSeconds;
+            }
+
+            @Override
+            public String message() {
+                return message;
             }
 
             @Override
@@ -246,6 +213,8 @@ class IdempotentAspectTest {
     }
 
     static class TestController {
-        public void testMethod() {}
+        public void testMethod(String requestId) {
+            // Test method
+        }
     }
 }

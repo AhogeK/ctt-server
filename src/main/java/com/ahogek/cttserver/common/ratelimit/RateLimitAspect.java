@@ -9,16 +9,12 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
+import com.ahogek.cttserver.common.util.SpelExpressionResolver;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.core.DefaultParameterNameDiscoverer;
-import org.springframework.expression.EvaluationContext;
-import org.springframework.expression.ExpressionParser;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Component;
 
 /**
@@ -42,20 +38,19 @@ public class RateLimitAspect {
     private final RedisRateLimiter redisRateLimiter;
     private final AuditLogService auditLog;
     private final CurrentUserProvider currentUserProvider;
-
-    private final ExpressionParser parser = new SpelExpressionParser();
-    private final DefaultParameterNameDiscoverer nameDiscoverer =
-            new DefaultParameterNameDiscoverer();
+    private final SpelExpressionResolver spelResolver;
 
     public RateLimitAspect(
             RateLimitKeyFactory keyFactory,
             RedisRateLimiter redisRateLimiter,
             AuditLogService auditLog,
-            CurrentUserProvider currentUserProvider) {
+            CurrentUserProvider currentUserProvider,
+            SpelExpressionResolver spelResolver) {
         this.keyFactory = keyFactory;
         this.redisRateLimiter = redisRateLimiter;
         this.auditLog = auditLog;
         this.currentUserProvider = currentUserProvider;
+        this.spelResolver = spelResolver;
     }
 
     /**
@@ -75,7 +70,7 @@ public class RateLimitAspect {
                         + signature.getMethod().getName();
 
         // Parse SpEL expression for dynamic key extraction
-        String spElValue = resolveSpEl(joinPoint, signature, rateLimit.keyExpression());
+        String spElValue = spelResolver.resolve(joinPoint, signature, rateLimit.keyExpression());
 
         // Generate Redis key
         String cacheKey = keyFactory.generateKey(rateLimit.type(), apiPath, spElValue);
@@ -96,34 +91,6 @@ public class RateLimitAspect {
         }
 
         return joinPoint.proceed();
-    }
-
-    /**
-     * Resolves SpEL expression to extract dynamic value from method arguments.
-     *
-     * @param joinPoint the proceeding join point
-     * @param signature the method signature
-     * @param expression the SpEL expression
-     * @return the resolved value as string, or null if expression is empty
-     */
-    private String resolveSpEl(
-            ProceedingJoinPoint joinPoint, MethodSignature signature, String expression) {
-        if (expression == null || expression.isBlank()) {
-            return null;
-        }
-
-        String[] paramNames = nameDiscoverer.getParameterNames(signature.getMethod());
-        Object[] args = joinPoint.getArgs();
-
-        EvaluationContext context = new StandardEvaluationContext();
-        if (paramNames != null) {
-            for (int i = 0; i < paramNames.length; i++) {
-                context.setVariable(paramNames[i], args[i]);
-            }
-        }
-
-        Object value = parser.parseExpression(expression).getValue(context);
-        return value != null ? value.toString() : null;
     }
 
     /**

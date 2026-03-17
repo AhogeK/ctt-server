@@ -19,4 +19,19 @@
     - 总测试数：248 个
     - 验证：全部测试通过，JaCoCo 覆盖率达标 (80%指令，70%分支)，Spotless 格式化通过
 
+- [2026-03-17] - 代码审查修复：完善幂等框架实现并补充测试：
+    - 更新 docs/api-governance.md：
+        - 修复示例代码 @Idempotent 注解：使用新 API (prefix, keyExpression, includeUserId, expireSeconds, message)
+    - 新增 IdempotentLockerTest (4 个测试)：
+        - 测试 tryLock() 成功获取锁场景
+        - 测试 tryLock() 锁已存在返回 false
+        - 测试 tryLock() Redis 返回 null 的防御性处理
+        - 测试 unlock() 释放锁
+    - 补充 IdempotentAspectTest (2 个测试)：
+        - 测试 SpEL 表达式解析（从方法参数中提取值）
+        - 测试 SpEL 返回 null 的边界情况
+    - 新增测试文件：1 个，新增测试方法：6 个
+    - 总测试数：254 个
+    - 验证：全部测试通过，JaCoCo 覆盖率达标，Spotless 格式化通过
+
 (End of file - total 360 lines)

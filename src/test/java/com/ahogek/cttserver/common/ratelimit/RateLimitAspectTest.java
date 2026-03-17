@@ -6,6 +6,7 @@ import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
+import com.ahogek.cttserver.common.util.SpelExpressionResolver;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -43,9 +44,14 @@ class RateLimitAspectTest {
         mockRateLimiter = mock(RedisRateLimiter.class);
         mockAuditLog = mock(AuditLogService.class);
         mockUserProvider = mock(CurrentUserProvider.class);
+        SpelExpressionResolver mockSpelResolver = mock(SpelExpressionResolver.class);
         aspect =
                 new RateLimitAspect(
-                        mockKeyFactory, mockRateLimiter, mockAuditLog, mockUserProvider);
+                        mockKeyFactory,
+                        mockRateLimiter,
+                        mockAuditLog,
+                        mockUserProvider,
+                        mockSpelResolver);
         mockJoinPoint = mock(ProceedingJoinPoint.class);
         MethodSignature mockSignature = mock(MethodSignature.class);
 

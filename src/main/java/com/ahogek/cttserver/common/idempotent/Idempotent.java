@@ -5,52 +5,75 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Declares idempotent constraint for an API endpoint to prevent duplicate submissions.
  *
- * <p>Uses distributed locks (e.g., Redis) combined with a unique key to ensure a specific operation
+ * <p>Uses Redis distributed locks (SETNX) combined with a unique key to ensure a specific operation
  * is only executed once within a given time window.
  *
  * <p>Example usage:
  *
  * <pre>{@code
- * @PostMapping("/sync")
- * @Idempotent(key = "#request.sessionId", expire = 5, unit = TimeUnit.MINUTES)
- * public ApiResponse<Void> syncData(@RequestBody SyncRequest request) { ... }
+ * @PostMapping("/register")
+ * @Idempotent(
+ *     prefix = "USER_REGISTER",
+ *     keyExpression = "#request.email",
+ *     includeUserId = false,
+ *     expireSeconds = 5,
+ *     message = "Registration is processing, please wait"
+ * )
+ * public ApiResponse<Void> register(@RequestBody UserRegisterRequest request) { ... }
  * }</pre>
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-17
  */
-@Target({ElementType.METHOD})
+@Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface Idempotent {
 
     /**
-     * SpEL expression to dynamically resolve the idempotency key from method arguments.
+     * Business prefix to distinguish different business scenarios.
      *
-     * <p>If empty, falls back to a combination of: UserId + Method Name + Request URI.
-     *
-     * @return the SpEL expression
+     * @return the business prefix
      */
-    String key() default "";
+    String prefix() default "";
 
     /**
-     * The expiration time for the idempotency lock.
+     * SpEL expression to dynamically extract unique identifier from request parameters.
      *
-     * <p>Defines how long a duplicate request will be blocked after the first one.
+     * <p>Example: "#request.email" or "#orderId"
      *
-     * @return lock expiration duration
+     * @return the SpEL expression for key extraction
      */
-    long expire() default 10;
+    String keyExpression() default "";
 
     /**
-     * The time unit for the expiration time.
+     * Whether to include current user ID in the idempotency key.
      *
-     * @return the time unit
+     * <p>Default true to isolate concurrent requests from different users. Set to false for public
+     * endpoints where user is not yet authenticated.
+     *
+     * @return true to include user ID in key
      */
-    TimeUnit unit() default TimeUnit.SECONDS;
+    boolean includeUserId() default true;
+
+    /**
+     * Lock expiration time in seconds (prevents deadlock).
+     *
+     * <p>Defines how long the lock will be held. Default 5 seconds is suitable for most business
+     * operations.
+     *
+     * @return lock expiration time in seconds
+     */
+    long expireSeconds() default 5;
+
+    /**
+     * Error message when duplicate request is detected.
+     *
+     * @return the conflict message
+     */
+    String message() default "Request is being processed, please do not resubmit";
 }

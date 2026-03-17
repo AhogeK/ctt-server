@@ -82,7 +82,12 @@ public class SyncController {
     // Tier 4: Device API
     @PostMapping("/push")
     @RateLimit(type = RateLimitType.USER, limit = 100, windowSeconds = 60)
-    @Idempotent(key = "#request.syncCursor", expire = 30, unit = TimeUnit.SECONDS) // Prevent duplicate sync payloads
+    @Idempotent(
+        prefix = "SYNC_PUSH",
+        keyExpression = "#request.syncCursor",
+        includeUserId = true,
+        expireSeconds = 30,
+        message = "Sync request is being processed")
     public ApiResponse<Void> pushData(@RequestBody SyncPayload request) {
         CurrentUser user = currentUserProvider.getActiveUserRequired();
         // business logic...

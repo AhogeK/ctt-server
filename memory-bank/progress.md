@@ -104,7 +104,9 @@
         - [x] RateLimitAspect AOP 切面 (SpEL 解析 + 审计集成)
         - [x] RateLimitKeyFactory 策略工厂 (O(1) Key 生成)
         - [x] RedisRateLimiter Lua 脚本 (原子性固定窗口算法)
-        - [x] @Idempotent 声明式幂等注解 + IdempotentAspect 切面
+        - [x] @Idempotent 声明式幂等注解 (prefix, keyExpression, includeUserId, expireSeconds)
+        - [x] IdempotentAspect AOP 切面 (SpEL 解析 + Redis 分布式锁)
+        - [x] IdempotentLocker Redis SETNX 实现 (O(1) 轻量级锁)
         - [x] docs/api-governance.md 接口安全分类清单
     - [x] **接口安全分类模型 (Secure by Default)**
         - [x] @PublicApi 注解：声明式标记公开接口
