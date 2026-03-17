@@ -21,7 +21,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
             @org.springframework.context.annotation.ComponentScan.Filter(
                     type = org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE,
                     classes = {
-                        com.ahogek.cttserver.common.ratelimit.RateLimitInterceptor.class,
+                        com.ahogek.cttserver.common.ratelimit.RateLimitAspect.class,
                         com.ahogek.cttserver.common.idempotent.IdempotentAspect.class
                     })
         })

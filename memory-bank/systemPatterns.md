@@ -103,9 +103,22 @@ public class SomeService {
 **理由**:
 
 - 声明式优于编程式：业务代码只需添加注解，无需关心 Redis 锁和限流算法细节
-- 细粒度控制：支持四种维度的限流 (`USER`, `IP`, `DEVICE`, `GLOBAL`)
+- 细粒度控制：支持四种维度的限流 (`IP`, `USER`, `EMAIL`, `API`)
 - 安全集成：直接依赖 `CurrentUserProvider` 和 `RequestContext` 提取干净的身份上下文
 - 防止资损与脏数据：通过 `@Idempotent` + 分布式锁拦截重复提交流程
+
+**架构分层**:
+
+1. **声明层**: `@RateLimit(type, keyExpression, limit, windowSeconds)` 注解
+2. **策略层**: `RateLimitKeyFactory` 根据维度类型生成 Redis Key
+3. **执行层**: `RedisRateLimiter` 使用 Lua 脚本实现原子性固定窗口算法
+4. **切面层**: `RateLimitAspect` AOP 拦截 + SpEL 表达式解析
+
+**技术亮点**:
+
+- **Redis Lua 原子脚本**: 避免竞态条件，保证 `get -> +1 -> set` 的原子性
+- **SpEL 动态提取**: 支持从请求参数动态提取 Key（如邮箱防轰炸）
+- **审计集成**: 限流触发时自动记录 `RATE_LIMIT_EXCEEDED` 安全审计事件
 
 **参考**: [docs/api-governance.md](../docs/api-governance.md)
 
@@ -318,6 +331,6 @@ private final ReentrantLock lock = new ReentrantLock();
 | C014 | Audit Event Model  | 审计事件模型 (五元组: User/Action/Resource/Severity/Environment) | stable     |
 | C015 | Audit Enums        | 审计枚举体系 (AuditAction, ResourceType, SecuritySeverity)    | stable     |
 | C016 | CurrentUserProvider| 安全底座防腐层 (CurrentUser + Provider Interface + Spring Security Adapter) | stable     |
-| C017 | RateLimiter        | 声明式限流框架骨架 (@RateLimit, RateLimitInterceptor)            | stable     |
+| C017 | RateLimiter        | 声明式限流框架 (@RateLimit, RateLimitAspect, RedisRateLimiter, Lua脚本) | stable     |
 | C018 | Idempotent         | 声明式幂等框架骨架 (@Idempotent, IdempotentAspect)               | stable     |
 | C019 | PublicApi          | 接口安全分类模型 (@PublicApi + PublicApiEndpointRegistry + Secure by Default) | stable     |

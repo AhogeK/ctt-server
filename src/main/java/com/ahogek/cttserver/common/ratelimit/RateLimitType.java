@@ -11,14 +11,6 @@ package com.ahogek.cttserver.common.ratelimit;
 public enum RateLimitType {
 
     /**
-     * Rate limit by authenticated user ID.
-     *
-     * <p>Requires user to be authenticated. Provides the most precise and fair limiting. Best for
-     * business APIs (e.g., sync, profile update).
-     */
-    USER,
-
-    /**
      * Rate limit by client IP address.
      *
      * <p>Does not require authentication. Vulnerable to NAT/Proxy aggregation (multiple users
@@ -28,16 +20,25 @@ public enum RateLimitType {
     IP,
 
     /**
-     * Rate limit by specific client device.
+     * Rate limit by authenticated user ID.
      *
-     * <p>Requires device context. Useful for throttling background syncs per device.
+     * <p>Requires user to be authenticated. Provides the most precise and fair limiting. Best for
+     * business APIs (e.g., sync, profile update).
      */
-    DEVICE,
+    USER,
+
+    /**
+     * Rate limit by email extracted from request parameters via SpEL expression.
+     *
+     * <p>Best for preventing email verification bombing attacks. Requires keyExpression to extract
+     * email from request.
+     */
+    EMAIL,
 
     /**
      * Global rate limit for the endpoint regardless of who calls it.
      *
      * <p>Best for extremely expensive operations or 3rd party API proxies.
      */
-    GLOBAL
+    API
 }

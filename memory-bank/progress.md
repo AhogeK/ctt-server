@@ -99,9 +99,12 @@
         - [x] CurrentUserProvider 安全底座 (防腐层 + Spring Security 适配)
         - [x] Token 状态机设计 (动态状态推导 + GDPR 数据脱敏)
         - [x] User 状态机 (充血模型 + 状态流转守卫)
-    - [x] **接口治理框架骨架**
-        - [x] @RateLimit 声明式限流注解 + RateLimitInterceptor 骨架
-        - [x] @Idempotent 声明式幂等注解 + IdempotentAspect 骨架
+    - [x] **接口治理框架 (完整实现)**
+        - [x] @RateLimit 声明式限流注解 (支持 IP/USER/EMAIL/API 四维度 + SpEL)
+        - [x] RateLimitAspect AOP 切面 (SpEL 解析 + 审计集成)
+        - [x] RateLimitKeyFactory 策略工厂 (O(1) Key 生成)
+        - [x] RedisRateLimiter Lua 脚本 (原子性固定窗口算法)
+        - [x] @Idempotent 声明式幂等注解 + IdempotentAspect 切面
         - [x] docs/api-governance.md 接口安全分类清单
     - [x] **接口安全分类模型 (Secure by Default)**
         - [x] @PublicApi 注解：声明式标记公开接口

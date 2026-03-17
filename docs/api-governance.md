@@ -56,8 +56,8 @@ Endpoints accessed by JetBrains IDE plugins or automated scripts.
     *   `POST /api/v1/sync/push`
     *   `GET  /api/v1/sync/pull`
 *   **Authentication**: Required. Token must be `API_KEY`.
-*   **Rate Limiting**: Enforced by **Device ID** or **User ID**.
-    *   High capacity, but optimized for burst traffic (e.g., Token Bucket with
+*   **Rate Limiting**: Enforced by **User ID** or **API** (global endpoint limit).
+    *   High capacity per user, but optimized for burst traffic (e.g., Token Bucket with
         large bucket size but slow refill rate).
 *   **Idempotency**: Mandatory for Push syncs (`server_version` or `change_id` as SpEL key).
 
@@ -70,7 +70,7 @@ When adding a new controller method, consult this matrix to apply the correct an
 | Tier 1 (Public)    | No                         | `RateLimitType.IP`     | Yes (if POST/PUT)       |
 | Tier 2 (Web Auth)  | `getCurrentUserRequired()` | `RateLimitType.USER`   | Optional                |
 | Tier 3 (High Priv) | `getActiveUserRequired()`  | `RateLimitType.USER`   | Yes                     |
-| Tier 4 (Device)    | `getCurrentUserRequired()` | `RateLimitType.DEVICE` | Yes (for data sync)     |
+| Tier 4 (Device)    | `getCurrentUserRequired()` | `RateLimitType.USER`   | Yes (for data sync)     |
 
 ## Example: Applying Governance
 
@@ -81,8 +81,8 @@ public class SyncController {
 
     // Tier 4: Device API
     @PostMapping("/push")
-    @RateLimit(capacity = 100, period = 1, unit = TimeUnit.MINUTES, type = RateLimitType.DEVICE)
-    @Idempotent(key = "#request.syncCursor", expire = 30) // Prevent duplicate sync payloads
+    @RateLimit(type = RateLimitType.USER, limit = 100, windowSeconds = 60)
+    @Idempotent(key = "#request.syncCursor", expire = 30, unit = TimeUnit.SECONDS) // Prevent duplicate sync payloads
     public ApiResponse<Void> pushData(@RequestBody SyncPayload request) {
         CurrentUser user = currentUserProvider.getActiveUserRequired();
         // business logic...
