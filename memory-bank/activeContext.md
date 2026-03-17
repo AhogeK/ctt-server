@@ -1,3 +1,27 @@
+- [2026-03-18] - 修复 BaseControllerSliceTest 代码审查问题：
+    - 添加 @AliasFor 桥接到 @WebMvcTest 的 controllers 和 excludeFilters 属性
+    - 添加 @ActiveProfiles("test") 统一测试环境配置
+    - 完善 Javadoc 说明 excludeFilters 用法（排除全局 AOP 切面）
+    - 验证：全部测试通过，Spotless 格式化通过
+
+- [2026-03-18] - 建立测试基线脚手架：
+    - 创建 BaseControllerSliceTest 注解（Controller 层测试基类）
+        - 使用 @WebMvcTest 只加载 Web 层 Bean
+        - Spring Boot 4 新包路径：org.springframework.boot.webmvc.test.autoconfigure
+    - 创建 BaseRepositoryTest 注解（Repository 层测试基类）
+        - 使用 @DataJpaTest 只加载 JPA 相关 Bean
+        - 配合 Testcontainers 真实 PostgreSQL
+        - Spring Boot 4 新包路径：org.springframework.boot.data.jpa.test.autoconfigure
+    - 创建 BaseIntegrationTest 注解（集成测试基类）
+        - 启动完整 ApplicationContext
+        - Context 复用机制（禁止 @DirtiesContext）
+    - 修复 TestcontainersConfiguration
+        - 固定 Docker 镜像版本：postgres:16.3, redis:7.2
+        - 防止 CI 环境不可复现
+    - 重构 SecurityConfigHeadersTest 使用 BaseIntegrationTest
+    - 新增组件：C023 Test Baseline（组件字典）
+    - 验证：全部测试通过，Spotless 格式化通过
+
 - [2026-03-17] - 代码审查修复：补充限流框架单元测试并更新文档：
     - 更新 docs/api-governance.md：
         - 修复 Tier 4 限流类型：RateLimitType.DEVICE → RateLimitType.USER

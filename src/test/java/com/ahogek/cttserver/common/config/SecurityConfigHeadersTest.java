@@ -1,13 +1,10 @@
 package com.ahogek.cttserver.common.config;
 
-import com.ahogek.cttserver.TestcontainersConfiguration;
+import com.ahogek.cttserver.common.BaseIntegrationTest;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,9 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author AhogeK
  * @since 2026-03-17
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@BaseIntegrationTest
 @DisplayName("Security Headers Integration Tests")
 class SecurityConfigHeadersTest {
 

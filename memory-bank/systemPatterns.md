@@ -296,6 +296,105 @@ com.ahogek.ctt/
 - Repository: `XxxRepository.java`
 - DTO: `XxxRequest.java` / `XxxResponse.java`
 - Entity: `Xxx.java` (表名使用下划线命名)
+- Test: `XxxTest.java` (方法命名: `methodName_whenCondition_expectedBehavior`)
+
+### 测试规范 (Spring Boot 4)
+
+#### 四层测试边界
+
+| Layer | 加载范围 | 依赖策略 | 基类注解 |
+|-------|---------|---------|---------|
+| Controller Slice | 仅 Web 层 Bean | Mock Service | @BaseControllerSliceTest |
+| Service Test | 纯 POJO / Spring DI | Mock Repository | @ExtendWith(MockitoExtension) |
+| Repository Test | JPA + 真实 DB Slice | Testcontainers | @BaseRepositoryTest |
+| Integration Test | 完整 ApplicationContext | 真实全栈 | @BaseIntegrationTest |
+
+#### Spring Boot 4 包路径变更
+
+Spring Boot 4 模块化后，测试注解包路径发生变化：
+
+- `@WebMvcTest` → `org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`
+- `@AutoConfigureMockMvc` → `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`
+- `@DataJpaTest` → `org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest`
+- `@AutoConfigureTestDatabase` → `org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase`
+- `@MockitoBean` 替代已废弃的 `@MockBean`（Spring Framework 7 新增）
+
+#### Controller Slice Test
+
+```java
+@BaseControllerSliceTest(UserController.class)
+@DisplayName("User Controller Tests")
+class UserControllerTest {
+    @Autowired MockMvcTester mvc;
+    @MockitoBean UserService userService;
+
+    @Test
+    @WithMockUser
+    void getUser_whenExists_returns200() {
+        assertThat(mvc.get().uri("/api/users/1")).hasStatusOk();
+    }
+}
+```
+
+#### Repository Test
+
+```java
+@BaseRepositoryTest
+@DisplayName("UserRepository Tests")
+class UserRepositoryTest {
+    @Autowired TestEntityManager em;
+    @Autowired UserRepository userRepository;
+
+    @Test
+    void findByEmail_whenExists_returnsUser() {
+        var user = new User();
+        user.setEmail("test@example.com");
+        em.persistAndFlush(user);
+
+        assertThat(userRepository.findByEmailIgnoreCase("TEST@EXAMPLE.COM")).isPresent();
+    }
+}
+```
+
+#### Integration Test
+
+```java
+@BaseIntegrationTest
+@DisplayName("User API Integration Tests")
+class UserIntegrationTest {
+    @Autowired MockMvcTester mvc;
+
+    @Test
+    void createUser_endToEnd_success() {
+        assertThat(mvc.post().uri("/api/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"test@example.com\"}"))
+                .hasStatus(HttpStatus.CREATED);
+    }
+}
+```
+
+#### Context 复用原则
+
+集成测试必须维护 Spring ApplicationContext 缓存：
+
+- 禁止使用 `@DirtiesContext`
+- 禁止类级别 `@TestConfiguration` 覆盖 Bean
+- 禁止修改静态状态影响 Context
+- 所有测试类共享同一个 Context 以保证 CI 性能
+
+#### Testcontainers 镜像策略
+
+固定 Docker 镜像版本，防止 CI 环境不可复现：
+
+```java
+// 固定版本（推荐）
+return new PostgreSQLContainer<>(DockerImageName.parse("postgres:16.3"));
+return new GenericContainer<>(DockerImageName.parse("redis:7.2"));
+
+// 禁止使用 latest
+// return new PostgreSQLContainer<>(DockerImageName.parse("postgres:latest")); // ❌
+```
 
 ### Java 新特性规范 (JDK 25)
 
@@ -446,3 +545,4 @@ private final ReentrantLock lock = new ReentrantLock();
 | C020 | SpelExpressionResolver | SpEL 表达式解析器共享组件 (供限流和幂等框架复用) | stable     |
 | C021 | ClientIdentity       | 客户端身份上下文模型 (支持 Web/IDE插件/OpenAPI 多端) | stable     |
 | C022 | SecurityProperties   | 强类型安全配置类 (JWT/密码/限流/审计策略 @ConfigurationProperties) | stable     |
+| C023 | Test Baseline        | 测试基线脚手架 (BaseControllerSliceTest, BaseRepositoryTest, BaseIntegrationTest) | stable     |

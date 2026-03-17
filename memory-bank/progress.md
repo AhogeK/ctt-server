@@ -19,6 +19,11 @@
     - [x] AuditLog 实体升级为强类型枚举
     - [x] 数据库迁移：audit_logs 表添加 severity 列
     - [x] AuditEventListener 适配新事件结构
+- [x] **测试基线脚手架**
+    - [x] BaseControllerSliceTest：Controller 层测试基类注解
+    - [x] BaseRepositoryTest：Repository 层测试基类注解
+    - [x] BaseIntegrationTest：集成测试基类注解
+    - [x] TestcontainersConfiguration：固定 Docker 镜像版本（postgres:16.3, redis:7.2）
 
 ## 开发计划 (8周) 🗓️
 

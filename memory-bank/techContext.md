@@ -32,6 +32,8 @@ Package-by-Feature Structure:
 - **构建命令**: `./gradlew build`
 - **依赖检查**: `./gradlew dependencies`
 - **版本更新**: `./gradlew dependencyUpdates` (via ben-manes plugin)
+- **代码格式化**: `./gradlew spotlessApply`
+- **覆盖率验证**: `./gradlew test jacocoTestCoverageVerification`
 
 ## 版本管理
 
