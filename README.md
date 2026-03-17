@@ -98,7 +98,8 @@ ctt-server/
 │   ├── dto/             # Auth request/response DTOs
 │   └── AuthController.java  # Authentication REST endpoints
 ├── user/                # User management module
-│   ├── entity/          # User JPA entity
+│   ├── entity/          # User JPA entity with state machine
+│   ├── enums/           # UserStatus state machine enum
 │   ├── repository/      # UserRepository
 │   ├── service/         # UserService (application service)
 │   └── validator/       # UserValidator (domain rules)

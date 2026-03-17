@@ -207,3 +207,24 @@
     - 添加 GlobalExceptionHandler 对 DataIntegrityViolationException 的处理（409 Conflict）
     - 更新 README.md Package Structure
     - 验证：203个测试全部通过
+
+- [2026-03-17] - 实现用户状态机 (User State Machine)：
+    - 创建 UserStatus 枚举：PENDING_VERIFICATION → ACTIVE → LOCKED/SUSPENDED/DELETED
+    - 定义状态流转矩阵：每个状态允许的下一个状态集合 (O(1) 验证)
+    - 充血模型 User 实体：内部封装状态流转行为方法
+        - verifyEmail(): PENDING_VERIFICATION → ACTIVE
+        - recordFailedLogin(): ACTIVE → LOCKED (达到阈值时自动)
+        - recordSuccessfulLogin(): LOCKED → ACTIVE (自动解锁)
+        - suspend(): 任意状态 → SUSPENDED
+        - reactivate(): SUSPENDED/LOCKED → ACTIVE
+        - markAsDeleted(): 任意状态 → DELETED (终态，数据脱敏)
+    - 核心守卫 transitionTo(): 验证状态合法性，非法则抛 ConflictException
+    - GDPR 合规：markAsDeleted() 执行数据脱敏 (email/displayName/passwordHash)
+    - 新增单元测试：UserStatusTest (18个测试), UserTest (20个测试)
+    - 更新 README.md：Package Structure 添加 user/enums/
+
+- [2026-03-17] - 修复用户状态机边界风险并现代化实现：
+    - 修复 NPE: User.markAsDeleted() 增加 id 为 null 的防御性检查
+    - 修复 NPE: User.recordFailedLogin() 增加 failedLoginAttempts 为 null 的防御性检查
+    - 现代化 UserStatus: 使用 Java 25 switch 表达式替代静态代码块和 Set
+    - 验证: 243 个测试全部通过

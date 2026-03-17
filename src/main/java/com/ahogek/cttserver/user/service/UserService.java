@@ -68,13 +68,11 @@ public class UserService {
         userValidator.assertEmailUnique(request.email());
 
         // 2. Build domain entity
+        // Status defaults to PENDING_VERIFICATION via entity initialization
         User newUser = new User();
         newUser.setEmail(request.email());
         newUser.setDisplayName(request.displayName());
         newUser.setPasswordHash(passwordEncoder.encode(request.password()));
-        newUser.setStatus("PENDING_VERIFICATION");
-        newUser.setFailedLoginAttempts(0);
-        newUser.setEmailVerified(false);
 
         // 3. Persist
         User savedUser = userRepository.save(newUser);

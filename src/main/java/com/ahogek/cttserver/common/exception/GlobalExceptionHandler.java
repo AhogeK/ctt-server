@@ -12,10 +12,10 @@ import com.ahogek.cttserver.common.response.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 
 import org.slf4j.Logger;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;

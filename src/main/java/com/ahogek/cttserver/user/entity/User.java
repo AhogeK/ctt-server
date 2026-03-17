@@ -1,5 +1,9 @@
 package com.ahogek.cttserver.user.entity;
 
+import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.user.enums.UserStatus;
+
 import jakarta.persistence.*;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -10,6 +14,9 @@ import java.util.UUID;
 
 /**
  * User entity representing a registered end user.
+ *
+ * <p>This is an aggregate root that encapsulates user state machine transitions and domain rules.
+ * All state changes must go through behavioral methods to ensure state machine integrity.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-16
@@ -31,8 +38,9 @@ public class User {
     @Column(name = "password_hash")
     private String passwordHash;
 
-    @Column(nullable = false)
-    private String status = "PENDING_VERIFICATION";
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private UserStatus status = UserStatus.PENDING_VERIFICATION;
 
     @Column(name = "failed_login_attempts")
     private Integer failedLoginAttempts = 0;
@@ -49,6 +57,118 @@ public class User {
     private Instant updatedAt;
 
     public User() {}
+
+    // ==========================================
+    // State Machine Transition Behaviors
+    // ==========================================
+
+    /**
+     * Verifies user email and transitions to ACTIVE state.
+     *
+     * @throws ConflictException if state transition is not allowed
+     */
+    public void verifyEmail() {
+        transitionTo(UserStatus.ACTIVE);
+        this.emailVerified = true;
+    }
+
+    /**
+     * Records a failed login attempt.
+     *
+     * <p>Automatically locks the account if failed attempts reach the threshold.
+     *
+     * @param maxAttempts maximum allowed failed attempts before locking
+     */
+    public void recordFailedLogin(int maxAttempts) {
+        if (this.status == UserStatus.DELETED) {
+            return;
+        }
+
+        // Defensive null check for database compatibility
+        if (this.failedLoginAttempts == null) {
+            this.failedLoginAttempts = 0;
+        }
+
+        this.failedLoginAttempts++;
+
+        if (this.failedLoginAttempts >= maxAttempts && this.status == UserStatus.ACTIVE) {
+            transitionTo(UserStatus.LOCKED);
+        }
+    }
+
+    /**
+     * Records a successful login.
+     *
+     * <p>Resets failed login counter and unlocks account if applicable.
+     */
+    public void recordSuccessfulLogin() {
+        this.failedLoginAttempts = 0;
+
+        if (this.status == UserStatus.LOCKED) {
+            transitionTo(UserStatus.ACTIVE);
+        }
+    }
+
+    /**
+     * Suspends user account due to violations.
+     *
+     * @throws ConflictException if state transition is not allowed
+     */
+    public void suspend() {
+        transitionTo(UserStatus.SUSPENDED);
+    }
+
+    /**
+     * Reactivates a suspended user account.
+     *
+     * @throws ConflictException if state transition is not allowed
+     */
+    public void reactivate() {
+        transitionTo(UserStatus.ACTIVE);
+    }
+
+    /**
+     * Soft deletes the user account.
+     *
+     * <p>Data anonymization is performed according to GDPR requirements.
+     *
+     * @throws ConflictException if state transition is not allowed
+     */
+    public void markAsDeleted() {
+        transitionTo(UserStatus.DELETED);
+
+        // Data anonymization (GDPR compliance)
+        // Defensive null check for unpersisted entities
+        String idStr = this.id != null ? this.id.toString() : UUID.randomUUID().toString();
+        this.email = idStr + "@deleted.local";
+        this.displayName = "Deleted User";
+        this.passwordHash = null;
+        this.emailVerified = false;
+    }
+
+    // ==========================================
+    // Core Transition Guard
+    // ==========================================
+
+    /**
+     * Validates and performs state transition.
+     *
+     * @param nextStatus the target state
+     * @throws ConflictException if transition is not allowed
+     */
+    private void transitionTo(UserStatus nextStatus) {
+        if (!this.status.canTransitionTo(nextStatus)) {
+            throw new ConflictException(
+                    ErrorCode.COMMON_003,
+                    String.format(
+                            "Invalid state transition from %s to %s", this.status, nextStatus));
+        }
+        this.status = nextStatus;
+    }
+
+    // ==========================================
+    // Getters and Setters
+    // ==========================================
 
     public UUID getId() {
         return id;
@@ -82,12 +202,8 @@ public class User {
         this.passwordHash = passwordHash;
     }
 
-    public String getStatus() {
+    public UserStatus getStatus() {
         return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
     }
 
     public Integer getFailedLoginAttempts() {
