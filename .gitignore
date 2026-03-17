@@ -35,4 +35,11 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Local Configuration (Security: Never commit sensitive data) ###
 src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+src/main/resources/application-local.properties
+.env
+.env.*
+*.env

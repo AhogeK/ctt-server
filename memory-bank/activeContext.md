@@ -98,3 +98,33 @@
     - 移除 docs/api-governance.md 中的 emoji（符合 AGENTS.md 规则 10）
     - 更新 README.md 添加 OWASP Security Headers 说明
     - 验证：全部测试通过
+
+- [2026-03-18] - 代码审查修复（配置分层审查反馈）：
+    - 修复 README.md Configuration 部分：更新为 12-Factor App 配置分层说明
+        - 添加配置文件拓扑图
+        - 添加环境变量表格
+        - 更新运行命令示例
+    - 修复 application-dev.yaml：移除 Redis密码空默认值，与DB 凭证风格统一（无默认= 必填）
+    - 添加 application.yaml：graceful shutdown 超时配置 (30s)
+    - 验证：全部测试通过
+
+- [2026-03-18] - 建立配置分层架构（12-Factor App 方法论）：
+    - 重构 application.yaml：仅存放全局基线配置（非环境相关）
+        - 默认激活 local profile
+        - Jackson UTC 时区策略
+        - JPA/Flyway 基础策略
+        - graceful shutdown
+    - 创建 application-dev.yaml：云端部署环境配置
+        - 全量使用环境变量注入（${ENV_VAR:default} 模式）
+        - 连接池、Redis、日志级别参数化
+    - 加强 .gitignore 安全策略：
+        - 扩展 application-local.* 忽略规则
+        - 添加 .env 环境变量文件保护
+    - 创建 application-local.yaml.template：
+        - 供新人复制重命名使用
+        - 包含本地调试推荐的日志级别
+    - 架构收益：
+        - 防泄漏：敏感密码绝不进入 Git
+        - 云原生：镜像不可变，环境差异通过变量注入
+        - 高聚合：修改公共配置只需改一处
+    - 验证：配置加载正常，测试通过

@@ -133,23 +133,47 @@ ctt-server/
 
 ### Configuration
 
-Create `application-local.yaml`:
+This project follows **12-Factor App** methodology with configuration layering:
 
-```yaml
-spring:
-    datasource:
-        url: jdbc:postgresql://localhost:5432/ctt
-        username: your_username
-        password: your_password
-    redis:
-        host: localhost
-        port: 6379
 ```
+src/main/resources/
+├── application.yaml              # Global baseline (in Git)
+├── application-dev.yaml          # Dev/Test environment (env vars)
+├── application-prod.yaml          # Production (env vars)
+└── application-local.yaml        # Local development (.gitignore)
+```
+
+**Setup for Local Development:**
+
+1. Copy the template and customize:
+   ```bash
+   cp src/main/resources/application-local.yaml.template \
+      src/main/resources/application-local.yaml
+   ```
+
+2. Edit `application-local.yaml` with your local credentials.
+
+**Environment Variables (Dev/Prod):**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DB_HOST` | Database host | `localhost` |
+| `DB_PORT` | Database port | `5432` |
+| `DB_NAME` | Database name | `ctt_server` |
+| `DB_USERNAME` | Database username | (required) |
+| `DB_PASSWORD` | Database password | (required) |
+| `REDIS_HOST` | Redis host | `localhost` |
+| `REDIS_PORT` | Redis port | `6379` |
+| `REDIS_PASSWORD` | Redis password | (required) |
 
 ### Run
 
 ```bash
-./gradlew bootRun --args='--spring.profiles.active=local'
+# Local development (auto-loads application-local.yaml)
+./gradlew bootRun
+
+# Dev/Test environment
+SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
 ```
 
 ## API Documentation

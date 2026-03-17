@@ -123,6 +123,11 @@
         - [x] X-Frame-Options: DENY (防点击劫持)
         - [x] Strict-Transport-Security: max-age=31536000 (HSTS)
         - [x] Content-Security-Policy: default-src 'self' (CSP)
+    - [x] **配置分层架构 (12-Factor App)**
+        - [x] application.yaml: 全局基线配置（非环境相关）
+        - [x] application-dev.yaml: 云端部署配置（环境变量驱动）
+        - [x] .gitignore: 本地敏感配置保护
+        - [x] application-local.yaml.template: 新人配置模板
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

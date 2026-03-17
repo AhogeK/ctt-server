@@ -1,0 +1,28 @@
+# Local Development Configuration Template
+# Copy this file to application-local.yaml and customize for your environment
+# WARNING: Never commit application-local.yaml to Git (it's in .gitignore)
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ctt_server
+    username: postgres
+    password: your_local_password
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 5
+      connection-timeout: 30000
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: your_redis_password
+      database: 0
+
+logging:
+  level:
+    com.ahogek.cttserver: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    io.netty.resolver.dns.DnsServerAddressStreamProviders: OFF

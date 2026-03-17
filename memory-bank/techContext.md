@@ -40,3 +40,40 @@ Package-by-Feature Structure:
 - 应用版本: `appVersion = "0.0.1-SNAPSHOT"`
 - 依赖引用: `libs.spring.boot.starter.web`
 - Bundles: `libs.bundles.jjwt` (group related deps)
+
+## 配置分层 (12-Factor App)
+
+遵循 **代码与配置分离** 原则，配置文件按环境分层：
+
+```
+src/main/resources/
+├── application.yaml          # 全局基线配置 (强制入库)
+├── application-dev.yaml      # 开发/测试环境 (环境变量驱动)
+├── application-prod.yaml     # 生产环境 (环境变量驱动)
+├── application-local.yaml    # 本地开发 (禁止入库 - .gitignore)
+└── application-local.yaml.template  # 本地配置模板 (新人参考)
+```
+
+### 配置加载规则
+
+| Profile | 配置文件 | 用途 | 敏感数据 |
+|---------|----------|------|----------|
+| (default) | application.yaml | 全局默认值、时区策略、序列化规则 | 禁止 |
+| local | application-local.yaml | 开发者本地调试 | 允许明文 |
+| dev | application-dev.yaml | 测试/开发服务器 | 环境变量注入 |
+| prod | application-prod.yaml | 生产环境 | 环境变量注入 |
+
+### 环境变量规范
+
+敏感配置通过环境变量注入：
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
+- `SPRING_PROFILES_ACTIVE`
+
+启动示例：
+```bash
+SPRING_PROFILES_ACTIVE=dev \
+DB_PASSWORD=secret \
+REDIS_PASSWORD=secret \
+./gradlew bootRun
+```
