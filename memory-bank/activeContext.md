@@ -62,10 +62,39 @@
         - ClientIdentityTest (10 个测试)：isPluginClient, getValidDeviceId, hasIdentity, equals/hashCode
         - ClientHeaderConstantsTest (3 个测试)：header 值验证、私有构造函数、命名规范
         - RequestInfoTest (11 个测试)：client() 访问、getDeviceUuid、向后兼容构造
-    - 总测试数：338 个（新增 24 个）
+    - 总测试数：264 个（实际统计）
     - 验证：全部测试通过，Spotless 格式化通过
 
 - [2026-03-17] - 代码审查修复：
     - 删除 ClientIdentity 冗余的 equals()/hashCode()（Record 自动生成）
     - 删除 activeContext.md 文档残留行
     - 更新 README.md 添加 context 包组件说明
+
+- [2026-03-17] - 实现 OWASP 安全 Header 规范：
+    - SecurityConfig 添加 headers() 配置
+    - X-Content-Type-Options: nosniff (防 MIME 嗅探)
+    - X-XSS-Protection: 1; mode=block (XSS 防护)
+    - X-Frame-Options: DENY (防点击劫持)
+    - Strict-Transport-Security: max-age=31536000 (HSTS)
+    - Content-Security-Policy: default-src 'self' (CSP)
+    - 新增依赖：spring-boot-webmvc-test（Spring Boot 4 新模块）
+    - 注意：Spring Boot 4 中 @WebMvcTest 路径变为 org.springframework.boot.webmvc.test.autoconfigure
+    - 验证：264 个测试全部通过
+
+- [2026-03-17] - 修复代码审查问题（已完成）：
+    - 回滚 build.gradle.kts 到正确的细粒度 starter 配置
+    - 创建 SecurityConfigHeadersTest（5 个集成测试）：
+        - @SpringBootTest + Testcontainers（正确方式，非 @WebMvcTest）
+        - 测试 X-Content-Type-Options: nosniff
+        - 测试 X-XSS-Protection: 1; mode=block
+        - 测试 X-Frame-Options: DENY
+        - 测试 Content-Security-Policy: default-src 'self'
+        - 测试 Strict-Transport-Security（使用 Assumptions 处理 HTTPS 场景）
+    - 使用 MockMvcTester（Spring Boot 4 推荐，AssertJ 风格）
+    - 总测试数：269 个（新增 5 个）
+
+- [2026-03-17] - 代码审查修复（已完成）：
+    - 简化 SecurityConfigHeadersTest HSTS 测试代码
+    - 移除 docs/api-governance.md 中的 emoji（符合 AGENTS.md 规则 10）
+    - 更新 README.md 添加 OWASP Security Headers 说明
+    - 验证：全部测试通过

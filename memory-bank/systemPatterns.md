@@ -216,16 +216,48 @@ public LoginResponse login(LoginRequest request) {
     ClientIdentity client = RequestContext.currentRequired().client();
 
     // 注册或更新设备
-    if (client.getValidDeviceId().isPresent()) {
+    if (client.deviceId() != null) {
         deviceService.registerOrUpdateDevice(user.getId(), client, ...);
     }
 
     // 签发 Token，动态决定生命周期
     String issuedFor = client.isPluginClient() ? "PLUGIN" : "WEB";
+
     RefreshToken rt = tokenService.createRefreshToken(user.getId(), client.deviceId(), issuedFor);
 
     return new LoginResponse(jwt, rt.getTokenHash());
 }
+```
+
+### 传输安全: OWASP 安全 Header 集合 (Defense in Depth)
+
+**决策**: 在 Spring Security 过滤器链中注入 OWASP 推荐的安全 Header 集合
+**理由**:
+
+- **纵深防御**: 作为第一道物理防线，阻止 XSS、点击劫持、MIME 嗅探等攻击
+- **标准化**: 遵循 OWASP Cheat Sheet 最佳实践
+- **透明化**: 通过 Spring Security 声明式配置，业务代码零侵入
+
+**实施层级**:
+
+1. **X-Content-Type-Options**: `nosniff` - 禁止 MIME 类型嗅探
+2. **X-XSS-Protection**: `1; mode=block` - 启用 XSS 过滤器（旧版浏览器）
+3. **X-Frame-Options**: `DENY` - 禁止页面被嵌入 iframe（点击劫持防护）
+4. **Strict-Transport-Security**: `max-age=31536000; includeSubDomains` - 强制 HTTPS
+5. **Content-Security-Policy**: `default-src 'self'` - 限制资源加载源
+
+**配置方式**:
+
+```java
+.headers(headers -> headers
+    .contentTypeOptions(contentType -> {})
+    .xssProtection(xss -> xss.headerValue(ENABLED_MODE_BLOCK))
+    .frameOptions(frame -> frame.deny())
+    .httpStrictTransportSecurity(hsts -> hsts
+        .includeSubDomains(true)
+        .maxAgeInSeconds(31536000))
+    .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
+)
 ```
 
 ## 代码规范

@@ -12,6 +12,7 @@ CTT Server provides:
 - **Statistics & Analytics**: Time-series aggregation queries with device filtering
 - **Global Leaderboard**: Redis-powered real-time ranking system
 - **Soft Delete Architecture**: Safe data handling with `is_deleted` flags for sync integrity
+- **OWASP Security Headers**: X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP
 
 ## Tech Stack
 

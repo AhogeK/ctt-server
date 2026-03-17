@@ -117,6 +117,12 @@
         - [x] ClientIdentity：强类型不可变客户端身份载体
         - [x] RequestInfo 扩展：集成 ClientIdentity
         - [x] RequestContextInitializerFilter：O(1) 提取并灌入上下文
+    - [x] **OWASP 安全 Header 规范**
+        - [x] X-Content-Type-Options: nosniff (防 MIME 嗅探)
+        - [x] X-XSS-Protection: 1; mode=block (XSS 防护)
+        - [x] X-Frame-Options: DENY (防点击劫持)
+        - [x] Strict-Transport-Security: max-age=31536000 (HSTS)
+        - [x] Content-Security-Policy: default-src 'self' (CSP)
     - [ ] Spring Boot 项目结构
     - [ ] Redis 缓存配置
     - [ ] JWT 认证实现

@@ -8,7 +8,7 @@ strategies for any new or existing endpoint.
 
 ## Classification Tiers
 
-### 🟢 Tier 1: Public / Anonymous
+### Tier 1: Public / Anonymous
 Endpoints accessible without any authentication. High risk of abuse.
 
 *   **Examples**:
@@ -22,7 +22,7 @@ Endpoints accessible without any authentication. High risk of abuse.
 *   **Idempotency**: Recommended for mutating endpoints (e.g., register) using
     client-provided correlation IDs or strict database constraints.
 
-### 🟡 Tier 2: Authenticated User (Web)
+### Tier 2: Authenticated User (Web)
 Endpoints accessed via browser using JWT. Standard user operations.
 
 *   **Examples**:
@@ -36,7 +36,7 @@ Endpoints accessed via browser using JWT. Standard user operations.
 *   **Idempotency**: Strongly recommended for state-changing operations
     (e.g., creating an API key, changing password).
 
-### 🟠 Tier 3: High-Privilege User (Web)
+### Tier 3: High-Privilege User (Web)
 Endpoints requiring a fully active and verified account.
 
 *   **Examples**:
@@ -49,7 +49,7 @@ Endpoints requiring a fully active and verified account.
 *   **Additional**: May require Re-authentication (password confirmation) or
     MFA step-up (Future).
 
-### 🟣 Tier 4: Device / Machine (Plugin)
+### Tier 4: Device / Machine (Plugin)
 Endpoints accessed by JetBrains IDE plugins or automated scripts.
 
 *   **Examples**:
