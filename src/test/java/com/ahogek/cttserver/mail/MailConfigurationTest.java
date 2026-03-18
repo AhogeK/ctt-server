@@ -37,11 +37,7 @@ class MailConfigurationTest {
     }
 
     @AfterEach
-    void clearMailbox() {
-        try {
-            greenMail.purgeEmailFromAllMailboxes();
-        } catch (Exception e) {
-            // Ignore cleanup errors in tests
-        }
+    void clearMailbox() throws Exception {
+        greenMail.purgeEmailFromAllMailboxes();
     }
 }

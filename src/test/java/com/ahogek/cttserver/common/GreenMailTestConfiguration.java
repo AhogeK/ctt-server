@@ -21,7 +21,7 @@ import com.icegreen.greenmail.util.ServerSetup;
 @TestConfiguration
 public class GreenMailTestConfiguration {
 
-    @Bean
+    @Bean(destroyMethod = "stop")
     public GreenMail greenMail() {
         // ServerSetup.port(0) = let OS assign random port to avoid CI conflicts
         ServerSetup setup = new ServerSetup(0, "localhost", ServerSetup.PROTOCOL_SMTP);

@@ -16,6 +16,15 @@
     - 保留 docker-compose.yaml 用于本地开发调试（Mailpit Web UI 可视化）
     - 验收：所有测试通过（269 个测试）
 
+- [2026-03-18] - 代码审查修复（GreenMail 集成优化）：
+    - GreenMailTestConfiguration：添加 @Bean(destroyMethod = "stop")
+        - 原因：GreenMail 的关闭方法是 stop()，Spring 默认寻找 close()/shutdown()
+        - 修复：显式指定销毁方法，防止 Spring Context 重启时资源泄漏
+    - MailConfigurationTest：移除 @AfterEach 中的 try-catch 块
+        - 原因：静默吞噬异常会掩盖 GreenMail 内部状态损坏
+        - 修复：使用 throws Exception 实现 Fail-fast，确保清理失败立即暴露
+    - 验证：全部测试通过（269 tests）
+
 - [2026-03-18] - 项目版本升级：0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT
     - 基建工程阶段性完成（测试基线、Fixture工具包、配置分层、接口治理等）
     - 更新 gradle/libs.versions.toml
@@ -273,3 +282,15 @@
         - 消除 IDE 警告：Override equals, hashCode and toString to consider array's content
         - List 的 equals/hashCode 已实现内容比较，无需手动覆盖
     - 验证：全部测试通过，配置加载正常
+
+- [2026-03-18] - 邮件基础设施 GreenMail 集成完成：
+    - 添加 greenmail:2.1.3 测试依赖（gradle/libs.versions.toml）
+    - 创建 GreenMailTestConfiguration：
+        - ServerSetup(0) 随机端口绑定
+        - @DynamicPropertyRegistrar 动态注入 spring.mail.* 配置
+        - 测试用户：test@localhost / test / test
+    - 更新 application-test.yaml：端口占位符改为 0，启用 SMTP auth
+    - 更新 BaseIntegrationTest：导入 GreenMailTestConfiguration
+    - 更新 MailConfigurationTest：添加 GreenMail 注入和 @AfterEach 清理
+    - 优势：无需 Docker、CI 启动更快、直接操作 MimeMessage[] 断言、进程内运行更轻量
+    - 验证：全部测试通过（269 个测试）
