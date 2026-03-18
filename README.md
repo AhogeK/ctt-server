@@ -147,20 +147,31 @@ src/main/resources/
 
 **Setup for Local Development:**
 
-1. Start local infrastructure (PostgreSQL + Redis + Mailpit):
+1. Copy `.env.example` to `.env` and customize passwords:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` with your preferred passwords (default values are examples).
+
+2. Start local infrastructure (PostgreSQL + Redis + Mailpit):
    ```bash
    docker compose up -d
    ```
 
-2. Copy the template and customize:
+3. Copy the template and customize:
    ```bash
    cp src/main/resources/application-local.yaml.template \
       src/main/resources/application-local.yaml
    ```
-
-3. Edit `application-local.yaml` with your local credentials.
+   
+   The template uses environment variable placeholders with defaults. You can either:
+   - Set environment variables in `.env` (recommended)
+   - Or hardcode values directly in `application-local.yaml`
 
 4. Access Mailpit Web UI to view emails: http://localhost:8025
+
+> **Security Note**: Both `.env` and `application-local.yaml` are gitignored. Never commit sensitive data.
 
 **Environment Variables (Dev/Prod):**
 

@@ -10,8 +10,8 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * Testcontainers configuration for integration tests.
  *
- * <p>Provides PostgreSQL, Redis, and Mailpit containers for testing. Uses latest Docker image tags
- * to stay current with upstream updates.
+ * <p>Provides PostgreSQL and Redis containers for testing. Uses latest Docker image tags to stay
+ * current with upstream updates.
  *
  * <p><b>Image version policy:</b> Uses `latest` tags to always run the most recent stable versions.
  * This ensures compatibility with production environments that also track latest releases.
@@ -32,16 +32,6 @@ import org.testcontainers.utility.DockerImageName;
 public class TestcontainersConfiguration {
 
     private static final boolean IS_CI = "true".equalsIgnoreCase(System.getenv("CI"));
-
-    static {
-        // Start Mailpit container for email tests
-        // Mailpit provides SMTP sandbox for testing email delivery
-        var mailpitContainer =
-                new GenericContainer<>(DockerImageName.parse("axllent/mailpit:latest"))
-                        .withExposedPorts(1025)
-                        .withReuse(!IS_CI);
-        mailpitContainer.start();
-    }
 
     /**
      * PostgreSQL container for database tests. Uses latest official postgres image to stay current

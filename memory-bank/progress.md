@@ -26,17 +26,19 @@
     - [x] BaseRepositoryTest：Repository 层测试基类注解
     - [x] BaseIntegrationTest：集成测试基类注解
     - [x] TestcontainersConfiguration：固定 Docker 镜像版本（postgres:16.3, redis:7.2）
-- [x] **邮件基础设施 Phase A**（含代码审查修复）
+- [x] **邮件基础设施 Phase A**（GreenMail 内嵌 SMTP 迁移）
     - [x] 添加 spring-boot-starter-mail 依赖
-    - [x] 创建 docker-compose.yaml（PostgreSQL + Redis + Mailpit）
-    - [x] 配置 application-local.yaml.template（Mailpit SMTP: localhost:1025）
-    - [x] 配置 application-dev.yaml（Resend SMTP: smtp.resend.com:465）
-    - [x] 更新 README.md 文档（邮件环境变量、Docker Compose 指引、Mailpit UI）
-    - [x] 修复 docker-compose.yaml Redis healthcheck（环境变量传递密码）
-    - [x] 修复 TestcontainersConfiguration：添加 Mailpit 容器启动（静态初始化块）
-    - [x] 修复 application-test.yaml：配置固定 localhost:1025 用于集成测试
-    - [x] 新增 MailConfigurationTest 集成测试（验证 JavaMailSender Bean 创建）
-    - [x] 验收：所有测试通过
+    - [x] 添加 greenmail:2.1.3 测试依赖
+    - [x] 创建 GreenMailTestConfiguration（进程内 SMTP 沙箱）
+        - [x] ServerSetup(0) 随机端口绑定
+        - [x] @DynamicPropertyRegistrar 动态注入配置
+        - [x] 测试用户：test@localhost / test
+    - [x] 更新 application-test.yaml：端口占位符 0，启用 SMTP auth
+    - [x] 更新 BaseIntegrationTest：导入 GreenMailTestConfiguration
+    - [x] 更新 MailConfigurationTest：添加 GreenMail 注入和清理逻辑
+    - [x] 移除 TestcontainersConfiguration 中的 Mailpit 容器
+    - [x] 保留 docker-compose.yaml 用于本地开发调试
+    - [x] 验收：所有测试通过（269 个测试）
 
 ## 开发计划 (8周) 🗓️
 

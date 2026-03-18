@@ -35,6 +35,7 @@ import java.lang.annotation.Target;
  *   <li>WebEnvironment.RANDOM_PORT: Start embedded server on random port
  *   <li>@AutoConfigureMockMvc: Provide MockMvc and MockMvcTester beans
  *   <li>Import TestcontainersConfiguration: PostgreSQL + Redis containers
+ *   <li>Import GreenMailTestConfiguration: Embedded SMTP server (GreenMail)
  *   <li>ActiveProfiles("test"): Test-specific configuration
  *   <li>TestPropertySource: Validate schema against Flyway migrations
  * </ul>
@@ -72,7 +73,7 @@ import java.lang.annotation.Target;
 @Documented
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, GreenMailTestConfiguration.class})
 @ActiveProfiles("test")
 @TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
 public @interface BaseIntegrationTest {}

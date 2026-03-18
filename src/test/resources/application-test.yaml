@@ -16,18 +16,17 @@ spring:
       ddl-auto: create-drop
     show-sql: false
 
-  # Mail configuration for tests.
-  # Mailpit container provides SMTP sandbox for integration tests.
-  # Note: Mailpit runs in the same container network during tests.
+  # Mail — GreenMail embedded SMTP (JVM process, no Docker, no real emails).
+  # Port is dynamically overridden by GreenMailConfiguration#dynamicProperties().
   mail:
     host: localhost
-    port: 1025
-    username: ""
-    password: ""
+    port: 0          # placeholder, overridden at runtime
+    username: test
+    password: test
     properties:
       mail:
         smtp:
-          auth: false
+          auth: true
           starttls:
             enable: false
 

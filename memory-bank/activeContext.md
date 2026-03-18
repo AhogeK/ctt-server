@@ -1,14 +1,20 @@
-- [2026-03-18] - 邮件基础设施 Phase A：Resend 接入与环境配置（代码审查修复）
-    - 添加 spring-boot-starter-mail 依赖
-    - 创建 docker-compose.yaml（PostgreSQL + Redis + Mailpit）
-    - 配置 application-local.yaml.template（Mailpit SMTP: localhost:1025）
-    - 配置 application-dev.yaml（Resend SMTP: smtp.resend.com:465）
-    - 环境变量清单：MAIL_SMTP_HOST, MAIL_SMTP_PORT, MAIL_SMTP_USERNAME, MAIL_SMTP_PASSWORD
-    - 更新 README.md：添加邮件环境变量表格、Docker Compose 启动说明、Mailpit Web UI 链接
-    - 修复 docker-compose.yaml：Redis healthcheck 使用环境变量传递密码（避免警告日志）
-    - 修复 TestcontainersConfiguration：添加 Mailpit 容器启动（静态初始化块）
-    - 修复 application-test.yaml：配置固定 localhost:1025 用于集成测试
-    - 验收：本地 Mailpit Web UI http://localhost:8025，所有测试通过
+- [2026-03-18] - 邮件基础设施 Phase A：GreenMail 内嵌 SMTP 迁移
+    - 迁移从 Mailpit (Testcontainers) 到 GreenMail (进程内 SMTP 沙箱)
+    - 添加 greenmail:2.1.3 测试依赖
+    - 创建 GreenMailTestConfiguration：
+        - 使用 ServerSetup(0) 随机端口绑定
+        - 通过 @DynamicPropertyRegistrar 动态注入 spring.mail.* 配置
+        - 创建测试用户 test@localhost / test / test
+    - 更新 application-test.yaml：端口占位符改为 0，启用 SMTP auth
+    - 更新 BaseIntegrationTest：导入 GreenMailTestConfiguration
+    - 更新 MailConfigurationTest：添加 GreenMail 注入和 @AfterEach 清理
+    - 移除 TestcontainersConfiguration 中的 Mailpit 容器启动代码
+    - 优势：
+        - 无需 Docker，CI 启动更快
+        - 直接操作 MimeMessage[] 断言
+        - 进程内运行，测试更轻量
+    - 保留 docker-compose.yaml 用于本地开发调试（Mailpit Web UI 可视化）
+    - 验收：所有测试通过（269 个测试）
 
 - [2026-03-18] - 项目版本升级：0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT
     - 基建工程阶段性完成（测试基线、Fixture工具包、配置分层、接口治理等）
