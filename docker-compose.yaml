@@ -37,12 +37,23 @@ services:
     image: axllent/mailpit:latest
     container_name: ctt-mailpit
     ports:
-      - "1025:1025"   # SMTP port for Spring Mail
-      - "8025:8025"   # Web UI for viewing emails
+      - "1025:1025"   # SMTP — spring.mail.port
+      - "8025:8025"   # Web UI — http://localhost:8025
+    volumes:
+      - mailpit_data:/data   # Persistent email storage
     environment:
-      MP_MAX_MESSAGES: 500
-      MP_SMTP_AUTH_ACCEPT_ANY: 1
-      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      MP_DATABASE: /data/mailpit.db          # SQLite database path
+      MP_MAX_MESSAGES: 500                   # Max messages to retain (auto-prune older)
+      MP_SMTP_AUTH_ACCEPT_ANY: 1             # Accept any username/password
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1         # Allow plaintext auth (no TLS required locally)
+      MP_UI_AUTH_FILE: ""                    # No web UI authentication (local dev only)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8025/livez || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 volumes:
   postgres_data:
+  mailpit_data:

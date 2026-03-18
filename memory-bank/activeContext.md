@@ -1,3 +1,35 @@
+- [2026-03-18] - Docker Compose Mailpit 配置完善
+    - 更新 docker-compose.yaml：
+        - PostgreSQL: postgres:latest（用户要求保持最新版）
+        - Redis: redis:latest（用户要求保持最新版）
+        - Mailpit 持久化：
+          - 添加 mailpit_data volume 挂载到 /data
+          - 设置 MP_DATABASE=/data/mailpit.db（SQLite 落盘）
+          - 重启后邮件不会丢失
+        - Mailpit healthcheck：
+          - 使用 /livez 端点检测健康
+          - interval: 10s, timeout: 5s, retries: 3, start_period: 5s
+        - Mailpit 环境配置：
+          - MP_MAX_MESSAGES: 500（超出自动淘汰最旧邮件）
+          - MP_SMTP_AUTH_ACCEPT_ANY: 1（接受任意认证）
+          - MP_SMTP_AUTH_ALLOW_INSECURE: 1（允许明文认证）
+          - MP_UI_AUTH_FILE: ""（Web UI 无需密码）
+        - volumes 声明：添加 mailpit_data
+    - 更新 application-local.yaml.template：
+        - 添加 ctt.mail.from 配置块
+        - from.address: dev@localhost
+        - from.name: CTT Local
+        - 与 ctt.mail.* 命名空间对齐
+    - 验证：
+        - docker compose up -d mailpit 启动成功
+        - Mailpit 状态：Up (healthy)
+        - 端口：1025 (SMTP), 8025 (Web UI)
+        - 访问 http://localhost:8025 查看邮件
+    - 使用方式：
+        - 一键启动：docker compose up -d
+        - 查看状态：docker compose ps mailpit
+        - 访问 Web UI: http://localhost:8025
+
 - [2026-03-18] - 代码审查修复与优化
     - README.md 更新：
         - 添加 MAIL_FROM_ADDRESS 环境变量（生产环境必填）

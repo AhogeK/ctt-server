@@ -32,6 +32,13 @@ spring:
           starttls:
             enable: false
 
+# Business sender configuration — corresponds to ctt.mail.from.*
+ctt:
+  mail:
+    from:
+      address: dev@localhost
+      name: CTT Local
+
 logging:
   level:
     com.ahogek.cttserver: DEBUG
