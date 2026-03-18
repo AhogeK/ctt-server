@@ -17,8 +17,20 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: your_redis_password
+      password: ctt_redis_pass
       database: 0
+
+  mail:
+    host: localhost
+    port: 1025
+    username: ""
+    password: ""
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
 
 logging:
   level:

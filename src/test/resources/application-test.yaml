@@ -16,6 +16,21 @@ spring:
       ddl-auto: create-drop
     show-sql: false
 
+  # Mail configuration for tests.
+  # Mailpit container provides SMTP sandbox for integration tests.
+  # Note: Mailpit runs in the same container network during tests.
+  mail:
+    host: localhost
+    port: 1025
+    username: ""
+    password: ""
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
   # Testcontainers @ServiceConnection will override datasource config
   # No need to specify url/username/password here
 

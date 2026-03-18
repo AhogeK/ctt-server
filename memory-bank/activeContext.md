@@ -1,3 +1,15 @@
+- [2026-03-18] - 邮件基础设施 Phase A：Resend 接入与环境配置（代码审查修复）
+    - 添加 spring-boot-starter-mail 依赖
+    - 创建 docker-compose.yaml（PostgreSQL + Redis + Mailpit）
+    - 配置 application-local.yaml.template（Mailpit SMTP: localhost:1025）
+    - 配置 application-dev.yaml（Resend SMTP: smtp.resend.com:465）
+    - 环境变量清单：MAIL_SMTP_HOST, MAIL_SMTP_PORT, MAIL_SMTP_USERNAME, MAIL_SMTP_PASSWORD
+    - 更新 README.md：添加邮件环境变量表格、Docker Compose 启动说明、Mailpit Web UI 链接
+    - 修复 docker-compose.yaml：Redis healthcheck 使用环境变量传递密码（避免警告日志）
+    - 修复 TestcontainersConfiguration：添加 Mailpit 容器启动（静态初始化块）
+    - 修复 application-test.yaml：配置固定 localhost:1025 用于集成测试
+    - 验收：本地 Mailpit Web UI http://localhost:8025，所有测试通过
+
 - [2026-03-18] - 项目版本升级：0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT
     - 基建工程阶段性完成（测试基线、Fixture工具包、配置分层、接口治理等）
     - 更新 gradle/libs.versions.toml

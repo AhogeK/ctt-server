@@ -10,11 +10,11 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * Testcontainers configuration for integration tests.
  *
- * <p>Provides PostgreSQL and Redis containers for testing. Uses fixed Docker image versions to
- * ensure reproducible CI builds.
+ * <p>Provides PostgreSQL, Redis, and Mailpit containers for testing. Uses latest Docker image tags
+ * to stay current with upstream updates.
  *
- * <p><b>Image version policy:</b> Fixed versions prevent CI instability caused by upstream image
- * updates. Update versions intentionally when aligning with production environment changes.
+ * <p><b>Image version policy:</b> Uses `latest` tags to always run the most recent stable versions.
+ * This ensures compatibility with production environments that also track latest releases.
  *
  * <p><b>Container reuse:</b> Containers can be reused across JVM processes for faster local
  * development. Enable by setting {@code ~/.testcontainers.properties}:
@@ -33,9 +33,19 @@ public class TestcontainersConfiguration {
 
     private static final boolean IS_CI = "true".equalsIgnoreCase(System.getenv("CI"));
 
+    static {
+        // Start Mailpit container for email tests
+        // Mailpit provides SMTP sandbox for testing email delivery
+        var mailpitContainer =
+                new GenericContainer<>(DockerImageName.parse("axllent/mailpit:latest"))
+                        .withExposedPorts(1025)
+                        .withReuse(!IS_CI);
+        mailpitContainer.start();
+    }
+
     /**
-     * PostgreSQL 16.3 container for database tests. Uses official postgres image with fixed minor
-     * version for reproducibility.
+     * PostgreSQL container for database tests. Uses latest official postgres image to stay current
+     * with production environment.
      *
      * <p>Container reuse is enabled in local development (disabled in CI) for faster test cycles.
      */
@@ -43,12 +53,12 @@ public class TestcontainersConfiguration {
     @ServiceConnection
     @SuppressWarnings("resource")
     PostgreSQLContainer postgresContainer() {
-        return new PostgreSQLContainer(DockerImageName.parse("postgres:16.3")).withReuse(!IS_CI);
+        return new PostgreSQLContainer(DockerImageName.parse("postgres:latest")).withReuse(!IS_CI);
     }
 
     /**
-     * Redis 7.2 container for cache tests. Uses official redis image with fixed minor version for
-     * reproducibility.
+     * Redis container for cache tests. Uses latest official redis image to stay current with
+     * production environment.
      *
      * <p>Container reuse is enabled in local development (disabled in CI) for faster test cycles.
      */
@@ -56,7 +66,7 @@ public class TestcontainersConfiguration {
     @ServiceConnection(name = "redis")
     @SuppressWarnings("resource")
     GenericContainer<?> redisContainer() {
-        return new GenericContainer<>(DockerImageName.parse("redis:7.2"))
+        return new GenericContainer<>(DockerImageName.parse("redis:latest"))
                 .withExposedPorts(6379)
                 .withReuse(!IS_CI);
     }

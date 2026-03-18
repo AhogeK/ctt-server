@@ -1,0 +1,47 @@
+# Docker Compose - Local Development Infrastructure
+# Provides: PostgreSQL, Redis, Mailpit (SMTP sandbox)
+# Usage: docker compose up -d
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: ctt-postgres
+    environment:
+      POSTGRES_DB: ctt_server
+      POSTGRES_USER: ctt
+      POSTGRES_PASSWORD: ctt_local_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ctt -d ctt_server"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    container_name: ctt-redis
+    command: redis-server --requirepass ctt_redis_pass
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=ctt_redis_pass redis-cli ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: ctt-mailpit
+    ports:
+      - "1025:1025"   # SMTP port for Spring Mail
+      - "8025:8025"   # Web UI for viewing emails
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  postgres_data:

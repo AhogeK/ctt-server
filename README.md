@@ -21,9 +21,9 @@ CTT Server provides:
 | Language       | Java 25 (Virtual Threads)            |
 | Framework      | Spring Boot 4.0.3 (MVC)              |
 | Authentication | Spring Security 7 + JWT + API Key    |
-| Database       | PostgreSQL 16                        |
+| Database       | PostgreSQL (latest)                  |
 | Migration      | Flyway                               |
-| Cache          | Redis 7                              |
+| Cache          | Redis (latest)                       |
 | API Docs       | springdoc-openapi                    |
 | Testing        | JUnit 5 + Testcontainers             |
 | Configuration  | @ConfigurationProperties (Type-safe) |
@@ -53,7 +53,7 @@ CTT Server provides:
         ┌───────────┴───────────┐
         ▼                       ▼
 ┌──────────────────┐  ┌──────────────────┐
-│ PostgreSQL 16    │  │ Redis 7          │
+│ PostgreSQL       │  │ Redis            │
 │ - users          │  │ - key cache      │
 │ - api_keys       │  │ - rate limiting  │
 │ - sessions       │  │ - leaderboard    │
@@ -130,8 +130,8 @@ ctt-server/
 ### Prerequisites
 
 - Java 25+
-- PostgreSQL 16+
-- Redis 7+
+- PostgreSQL (latest)
+- Redis (latest)
 
 ### Configuration
 
@@ -147,26 +147,37 @@ src/main/resources/
 
 **Setup for Local Development:**
 
-1. Copy the template and customize:
+1. Start local infrastructure (PostgreSQL + Redis + Mailpit):
+   ```bash
+   docker compose up -d
+   ```
+
+2. Copy the template and customize:
    ```bash
    cp src/main/resources/application-local.yaml.template \
       src/main/resources/application-local.yaml
    ```
 
-2. Edit `application-local.yaml` with your local credentials.
+3. Edit `application-local.yaml` with your local credentials.
+
+4. Access Mailpit Web UI to view emails: http://localhost:8025
 
 **Environment Variables (Dev/Prod):**
 
-| Variable         | Description       | Default      |
-|------------------|-------------------|--------------|
-| `DB_HOST`        | Database host     | `localhost`  |
-| `DB_PORT`        | Database port     | `5432`       |
-| `DB_NAME`        | Database name     | `ctt_server` |
-| `DB_USERNAME`    | Database username | (required)   |
-| `DB_PASSWORD`    | Database password | (required)   |
-| `REDIS_HOST`     | Redis host        | `localhost`  |
-| `REDIS_PORT`     | Redis port        | `6379`       |
-| `REDIS_PASSWORD` | Redis password    | (required)   |
+| Variable              | Description           | Default             |
+|-----------------------|-----------------------|---------------------|
+| `DB_HOST`             | Database host         | `localhost`         |
+| `DB_PORT`             | Database port         | `5432`              |
+| `DB_NAME`             | Database name         | `ctt_server`        |
+| `DB_USERNAME`         | Database username     | (required)          |
+| `DB_PASSWORD`         | Database password     | (required)          |
+| `REDIS_HOST`          | Redis host            | `localhost`         |
+| `REDIS_PORT`          | Redis port            | `6379`              |
+| `REDIS_PASSWORD`      | Redis password        | (required)          |
+| `MAIL_SMTP_HOST`      | SMTP server host      | `smtp.resend.com`   |
+| `MAIL_SMTP_PORT`      | SMTP server port      | `465`               |
+| `MAIL_SMTP_USERNAME`  | SMTP username         | `resend`            |
+| `MAIL_SMTP_PASSWORD`  | SMTP/API key          | (required)          |
 
 ### Run
 
