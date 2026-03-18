@@ -432,6 +432,7 @@ CREATE INDEX idx_audit_logs_details
 CREATE TABLE mail_outbox
 (
     id            UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
+    version       BIGINT       NOT NULL DEFAULT 0,
     biz_type      VARCHAR(32)  NOT NULL,
     biz_id        UUID,
     recipient     VARCHAR(255) NOT NULL,
@@ -454,6 +455,8 @@ CREATE TABLE mail_outbox
 );
 
 COMMENT ON TABLE mail_outbox IS 'Transactional outbox for asynchronous email delivery';
+COMMENT ON COLUMN mail_outbox.id IS 'Unique identifier for mail outbox entry';
+COMMENT ON COLUMN mail_outbox.version IS 'Optimistic lock version to prevent duplicate sends under concurrent scheduler nodes';
 COMMENT ON COLUMN mail_outbox.biz_type IS 'Business type such as REGISTER_VERIFY or RESET_PASSWORD';
 COMMENT ON COLUMN mail_outbox.biz_id IS 'Related business entity identifier';
 COMMENT ON COLUMN mail_outbox.recipient IS 'Target email recipient';
@@ -464,7 +467,7 @@ COMMENT ON COLUMN mail_outbox.template_code IS 'Email template code for traceabi
 COMMENT ON COLUMN mail_outbox.payload IS 'Template rendering payload for traceability';
 COMMENT ON COLUMN mail_outbox.status IS 'Delivery status: PENDING, SENDING, SENT, FAILED, CANCELLED';
 COMMENT ON COLUMN mail_outbox.retry_count IS 'Number of delivery retries';
-COMMENT ON COLUMN mail_outbox.max_retries IS 'Maximum number of delivery retries before marking FAILED';
+COMMENT ON COLUMN mail_outbox.max_retries IS 'Maximum number of delivery retries before auto-cancellation';
 COMMENT ON COLUMN mail_outbox.next_retry_at IS 'Next scheduled retry timestamp';
 COMMENT ON COLUMN mail_outbox.sent_at IS 'Timestamp when the email was sent';
 COMMENT ON COLUMN mail_outbox.last_error IS 'Last delivery error message';

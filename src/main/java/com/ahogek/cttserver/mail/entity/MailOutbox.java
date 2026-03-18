@@ -11,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -24,11 +25,14 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Mail outbox entity for asynchronous email delivery.
+ * Transactional outbox entity for asynchronous email delivery.
  *
- * <p>Uses pre-rendered storage strategy: {@code bodyHtml} and {@code bodyText} contain the fully
- * rendered content ready for delivery, while {@code templateCode} and {@code payload} are retained
- * for audit traceability.
+ * <p>Strategy: <b>pre-rendered storage</b> — {@code bodyHtml} and {@code bodyText} hold the fully
+ * rendered content used during delivery; {@code templateCode} and {@code payload} are retained for
+ * audit and replay traceability.
+ *
+ * <p>Concurrency: {@code @Version} provides optimistic locking so that only one scheduler node
+ * transitions a record from {@code PENDING → SENDING} at a time.
  *
  * @author AhogeK
  * @since 2026-03-18
@@ -42,9 +46,14 @@ public class MailOutbox {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    /** Optimistic lock — prevents duplicate sends under concurrent scheduler nodes. */
+    @Version private Long version;
+
+    /** Business category, e.g. {@code REGISTER_VERIFY}, {@code RESET_PASSWORD}. */
     @Column(nullable = false, length = 32)
     private String bizType;
 
+    /** Optional reference to the business entity that triggered this email. */
     private UUID bizId;
 
     @Column(nullable = false)
@@ -53,17 +62,21 @@ public class MailOutbox {
     @Column(nullable = false)
     private String subject;
 
+    /** Pre-rendered HTML body; used directly during SMTP delivery. */
     @Column(columnDefinition = "TEXT")
     private String bodyHtml;
 
+    /** Pre-rendered plain-text fallback body. */
     @Column(columnDefinition = "TEXT")
     private String bodyText;
 
+    /** Template identifier retained for audit/replay; not used at delivery time. */
     @Column(length = 64)
     private String templateCode;
 
+    /** Template rendering payload retained for audit/replay. */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @Column(columnDefinition = "jsonb", nullable = false)
     private Map<String, Object> payload = new HashMap<>();
 
     @Enumerated(EnumType.STRING)
@@ -73,16 +86,21 @@ public class MailOutbox {
     @Column(nullable = false)
     private int retryCount = 0;
 
+    /** Hard ceiling on delivery attempts; auto-cancels when exceeded. */
     @Column(nullable = false)
     private int maxRetries = 3;
 
+    /** Timestamp after which a FAILED record becomes eligible for re-dispatch. */
     private Instant nextRetryAt;
 
+    /** Populated when status transitions to SENT. */
     private Instant sentAt;
 
+    /** Last SMTP or rendering error message; overwritten on each attempt. */
     @Column(columnDefinition = "TEXT")
     private String lastError;
 
+    /** OpenTelemetry trace ID for end-to-end delivery observability. */
     @Column(length = 64)
     private String traceId;
 
@@ -94,36 +112,43 @@ public class MailOutbox {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    // --- Default constructor for JPA ---
+    /** Required no-args constructor for JPA. */
     public MailOutbox() {}
 
-    // --- Business logic methods (Entity state machine) ---
+    // -------------------------------------------------------------------------
+    // State-machine methods — always mutate status through these, never setters
+    // -------------------------------------------------------------------------
 
     /**
-     * Checks if this mail entry can be retried.
-     *
-     * @return true if retry count is below max and status is not CANCELLED
+     * Returns {@code true} when another delivery attempt is permissible. Evaluated <em>before</em>
+     * incrementing {@code retryCount}.
      */
     public boolean canRetry() {
-        return retryCount < maxRetries && status != MailOutboxStatus.CANCELLED;
+        return !status.isTerminal() && retryCount < maxRetries;
     }
 
-    /** Marks this mail as being sent. */
+    /** Transitions {@code PENDING → SENDING}. Guarded by optimistic lock at the DB level. */
     public void markSending() {
         this.status = MailOutboxStatus.SENDING;
     }
 
-    /** Marks this mail as successfully sent. */
+    /** Transitions {@code SENDING → SENT} and records delivery time. */
     public void markSent() {
         this.status = MailOutboxStatus.SENT;
         this.sentAt = Instant.now();
     }
 
     /**
-     * Marks this mail as failed with an error message and next retry time.
+     * Handles a delivery failure.
      *
-     * @param error the error message
-     * @param nextRetry the scheduled next retry time
+     * <ul>
+     *   <li>Increments {@code retryCount} unconditionally.
+     *   <li>If retries remain: sets {@code FAILED} and schedules {@code nextRetryAt}.
+     *   <li>If retries are exhausted: auto-cancels via {@link #cancel()}.
+     * </ul>
+     *
+     * @param error the error message from the failed attempt
+     * @param nextRetry the earliest time the scheduler should re-attempt delivery
      */
     public void markFailed(String error, Instant nextRetry) {
         this.retryCount++;
@@ -132,16 +157,25 @@ public class MailOutbox {
             this.status = MailOutboxStatus.FAILED;
             this.nextRetryAt = nextRetry;
         } else {
-            this.status = MailOutboxStatus.CANCELLED;
+            cancel();
         }
     }
 
-    /** Cancels this mail entry. */
+    /**
+     * Transitions to {@code CANCELLED} from any non-terminal state.
+     *
+     * @throws IllegalStateException if the current status is already terminal (SENT or CANCELLED)
+     */
     public void cancel() {
+        if (status.isTerminal()) {
+            throw new IllegalStateException("Cannot cancel a terminal state: " + status);
+        }
         this.status = MailOutboxStatus.CANCELLED;
     }
 
-    // --- Getters and Setters ---
+    // -------------------------------------------------------------------------
+    // Getters & Setters
+    // -------------------------------------------------------------------------
 
     public UUID getId() {
         return id;
@@ -149,6 +183,14 @@ public class MailOutbox {
 
     public void setId(UUID id) {
         this.id = id;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 
     public String getBizType() {
@@ -212,7 +254,7 @@ public class MailOutbox {
     }
 
     public void setPayload(Map<String, Object> payload) {
-        this.payload = payload;
+        this.payload = (payload != null) ? payload : new HashMap<>();
     }
 
     public MailOutboxStatus getStatus() {
