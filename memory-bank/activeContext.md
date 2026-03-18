@@ -1,3 +1,75 @@
+- [2026-03-18] - **重要**：AGENTS.md 和 memory-bank/ 内容精简
+    - 问题：文档内容过多，占用大量上下文 token
+    - 优化措施：
+        - AGENTS.md: 650 行 → 298 行（精简 54%）
+            - 删除重复的错误示例
+            - 精简规则描述，删除过多解释性文字
+            - 合并相似规则，删除冗余示例
+            - 删除记忆库结构模板和更新示例
+        - activeContext.md: 352 行 → 120 行（精简 66%）
+            - 只保留最近的变更记录
+            - 删除历史记录，符合 200 行限制
+        - systemPatterns.md: 592 行 → 260 行（精简 56%）
+            - 保留核心设计决策
+            - 删除过多的代码示例和测试规范细节
+    - 效果：总 token 占用减少约 32%，提高上下文效率
+
+- [2026-03-18] - **重要**：AGENTS.md 规则 7 边界优化
+    - 问题：AI 在审查任务后擅自提交代码，违反 Git 操作需人工确认规则
+    - 根本原因：边界定义不够清晰，混淆了"审查建议"和"执行授权"
+    - 优化措施：
+        - 在"严格禁止的误解"中添加：
+            - ❌ "审查通过" ≠ "可以提交"（审查建议不是执行授权）
+            - ❌ 第三方工具/Agent 的建议 ≠ 用户授权
+        - 添加"审查任务违规"错误示例（计划模式 vs 执行模式混淆）
+        - 新增"强制确认清单"（执行 Git 提交前必须自问 4 个问题）：
+            - 用户是否明确说了"提交"、"commit"或"做吧"？
+            - 我是否混淆了"审查建议"和"执行授权"？
+            - 我是否混淆了"第三方工具建议"和"用户授权"？
+            - 如果用户事后说"我没让你提交"，我是否有证据证明用户授权了？
+    - 目的：防止 AI 再次混淆 plan 模式和 build 模式，确保所有 Git 操作都有明确授权
+
+- [2026-03-18] - 本地开发配置：.env 环境变量注入
+    - 代码审查修复：
+        - 移除未使用的 ctt.mail.from 配置（application-local.yaml 和 application-prod.yaml）
+        - 原因：当前无邮件发送服务，该配置无代码使用
+        - 原则：保持配置文件简洁，只配置实际使用的属性
+    - 更新 application.yaml：
+        - 添加 spring.config.import: optional:file:.env[.properties]
+        - 自动加载 .env 文件（本地开发），生产环境自动跳过
+    - 重构 application-local.yaml：
+        - 所有凭证改用环境变量注入（与 dev/prod 风格统一）
+        - DB: ${DB_HOST}, ${DB_PORT}, ${DB_NAME}, ${DB_USERNAME}, ${DB_PASSWORD}
+        - Redis: ${REDIS_HOST}, ${REDIS_PORT}, ${REDIS_PASSWORD}
+        - Mail: ${MAIL_SMTP_HOST:localhost}, ${MAIL_SMTP_PORT:1025}（带默认值）
+        - JWT: ${JWT_SECRET_KEY:...}（开发用弱密钥）
+    - 更新 .env 文件：
+        - 添加 MAIL_SMTP_HOST, MAIL_SMTP_PORT 等 Mailpit 配置
+        - 添加 JWT_SECRET_KEY 开发用密钥
+    - 优势：
+        - 本地开发与云端部署配置风格完全一致
+        - 符合 12-Factor App 原则（配置与代码分离）
+        - 新人只需复制 .env.example 即可启动
+    - 验证：应用启动成功，数据库连接正常（192.168.5.178:5432）
+
+- [2026-03-18] - 生产环境配置：Resend SMTP 集成
+    - 创建 application-prod.yaml：
+        - 全量环境变量注入（DB、Redis、Resend API Key）
+        - Resend SMTP Relay 配置（smtp.resend.com:465，SSL/TLS）
+        - 生产级 HikariCP 连接池（max 20，min 5）
+        - 优雅关闭（graceful shutdown）
+        - 生产日志级别（INFO）
+    - 安全配置：
+        - RESEND_API_KEY：环境变量注入，绝不硬编码
+        - JWT_SECRET_KEY：环境变量注入（256+ bits）
+        - BCrypt rounds：12（生产强度）
+        - 限流：启用（200 QPS）
+    - 更新 README.md：
+        - 添加生产环境运行命令示例
+        - 环境变量表格添加 RESEND_API_KEY、JWT_SECRET_KEY
+        - Kubernetes/Docker/Railway 部署指南
+    - 12-Factor App 原则：代码与配置分离，凭证不入代码库
+
 - [2026-03-18] - 邮件基础设施 Phase A：GreenMail 内嵌 SMTP 迁移
     - 迁移从 Mailpit (Testcontainers) 到 GreenMail (进程内 SMTP 沙箱)
     - 添加 greenmail:2.1.3 测试依赖
@@ -62,235 +134,3 @@
         - auditLog()、loginSuccess()、loginFailed() 等
         - 与 TestEntityManager 集成
     - 新增：fixtures/package-info.java（包文档）
-    - 验证：全部测试通过（335 tests），Spotless 格式化通过
-
-- [2026-03-18] - 修复测试基线 Schema 策略问题（代码审查反馈）：
-    - 移除 BaseRepositoryTest 中冗余的 FlywayAutoConfiguration 导入
-        - Repository Slice 测试使用 Hibernate create-drop 快速迭代
-        - 无需 Flyway 迁移，避免重复建表拖慢速度
-    - BaseIntegrationTest 添加 @TestPropertySource 覆盖 ddl-auto 为 validate
-        - 集成测试严格验证 Flyway 迁移脚本与实体定义一致性
-        - 及早发现字段、索引不匹配问题
-    - 清理 application-test.yaml 中的过时注释（删除不存在的 FlywayTestExecutionListener）
-    - 更新 README.md 添加测试基线文档（新人验收步骤、容器复用配置）
-    - 验证：全部测试通过（335 tests），Spotless 格式化通过
-
-- [2026-03-18] - 完善 Testcontainers 测试基础设施：
-    - 创建 application-test.yaml 测试配置文件
-        - Hibernate ddl-auto: create-drop（slice 测试用）
-        - BCrypt rounds: 4（测试加速 100x）
-        - Rate-limit disabled（避免断言干扰）
-        - JWT secret key 测试专用
-    - 更新 BaseRepositoryTest 添加 FlywayAutoConfiguration 导入
-    - 更新 TestcontainersConfiguration 添加容器复用支持
-        - CI 环境自动禁用复用（防止状态污染）
-        - 本地开发启用复用（加速测试周期）
-    - 创建 TestBaselineSmokeTest 冒烟测试
-        - 验证 Testcontainers + PostgreSQL + Hibernate 链路
-        - 新人入职验收步骤：./gradlew test --tests "*TestBaselineSmokeTest"
-    - 修复 Spring Boot 4 包路径：
-        - TestEntityManager: org.springframework.boot.jpa.test.autoconfigure.TestEntityManager
-        - FlywayAutoConfiguration: org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
-    - 验证：全部测试通过（335 tests），Spotless 格式化通过
-
-- [2026-03-18] - 修复 BaseControllerSliceTest 代码审查问题：
-    - 添加 @AliasFor 桥接到 @WebMvcTest 的 controllers 和 excludeFilters 属性
-    - 添加 @ActiveProfiles("test") 统一测试环境配置
-    - 完善 Javadoc 说明 excludeFilters 用法（排除全局 AOP 切面）
-    - 验证：全部测试通过，Spotless 格式化通过
-
-- [2026-03-18] - 建立测试基线脚手架：
-    - 创建 BaseControllerSliceTest 注解（Controller 层测试基类）
-        - 使用 @WebMvcTest 只加载 Web 层 Bean
-        - Spring Boot 4 新包路径：org.springframework.boot.webmvc.test.autoconfigure
-    - 创建 BaseRepositoryTest 注解（Repository 层测试基类）
-        - 使用 @DataJpaTest 只加载 JPA 相关 Bean
-        - 配合 Testcontainers 真实 PostgreSQL
-        - Spring Boot 4 新包路径：org.springframework.boot.data.jpa.test.autoconfigure
-    - 创建 BaseIntegrationTest 注解（集成测试基类）
-        - 启动完整 ApplicationContext
-        - Context 复用机制（禁止 @DirtiesContext）
-    - 修复 TestcontainersConfiguration
-        - 固定 Docker 镜像版本：postgres:16.3, redis:7.2
-        - 防止 CI 环境不可复现
-    - 重构 SecurityConfigHeadersTest 使用 BaseIntegrationTest
-    - 新增组件：C023 Test Baseline（组件字典）
-    - 验证：全部测试通过，Spotless 格式化通过
-
-- [2026-03-17] - 代码审查修复：补充限流框架单元测试并更新文档：
-    - 更新 docs/api-governance.md：
-        - 修复 Tier 4 限流类型：RateLimitType.DEVICE → RateLimitType.USER
-        - 更新示例代码：使用新的 limit/windowSeconds 参数替代 capacity/period/unit
-        - 更新 Implementation Matrix 表格
-    - 新增 RateLimitKeyFactoryTest (5 个测试)：
-        - 测试 IP 类型 Key 生成
-        - 测试 USER 类型 Key 生成
-        - 测试 EMAIL 类型 Key 生成（含异常场景）
-        - 测试 API 类型 Key 生成
-    - 新增 RedisRateLimiterTest (3 个测试)：
-        - 测试限流通过场景（返回 true）
-        - 测试限流拦截场景（返回 false）
-        - 测试 Redis 返回 null 的防御性处理
-    - 新增 RateLimitAspectTest (2 个测试)：
-        - 测试正常通过时执行目标方法
-        - 测试限流触发时抛出异常并记录审计日志
-    - 新增测试文件：3 个，新增测试方法：10 个
-    - 总测试数：248 个
-    - 验证：全部测试通过，JaCoCo 覆盖率达标 (80%指令，70%分支)，Spotless 格式化通过
-
-- [2026-03-17] - 代码审查修复：完善幂等框架实现并补充测试：
-    - 更新 docs/api-governance.md：
-        - 修复示例代码 @Idempotent 注解：使用新 API (prefix, keyExpression, includeUserId, expireSeconds, message)
-    - 新增 IdempotentLockerTest (4 个测试)：
-        - 测试 tryLock() 成功获取锁场景
-        - 测试 tryLock() 锁已存在返回 false
-        - 测试 tryLock() Redis 返回 null 的防御性处理
-        - 测试 unlock() 释放锁
-    - 补充 IdempotentAspectTest (2 个测试)：
-        - 测试 SpEL 表达式解析（从方法参数中提取值）
-        - 测试 SpEL 返回 null 的边界情况
-    - 新增测试文件：1 个，新增测试方法：6 个
-    - 总测试数：254 个
-    - 验证：全部测试通过，JaCoCo 覆盖率达标，Spotless 格式化通过
-
-- [2026-03-17] - 代码审查修复：提取 SpEL 表达式解析器共享组件（DRY 原则）：
-    - 问题识别：RateLimitAspect 和 IdempotentAspect 存在 12 行重复代码（SpEL 解析逻辑）
-    - 解决方案：创建 SpelExpressionResolver 共享组件 (common/util/)
-    - 重构 RateLimitAspect：使用 SpelExpressionResolver 替代本地 resolveSpEl() 方法
-    - 重构 IdempotentAspect：使用 SpelExpressionResolver 替代本地 resolveSpEl() 方法
-    - 更新测试：
-        - RateLimitAspectTest 添加 SpelExpressionResolver mock
-        - IdempotentAspectTest 添加 SpelExpressionResolver mock
-    - 架构收益：
-        - 消除重复代码 ~24 行
-        - 单一职责：SpEL 解析逻辑集中到一处
-        - 可维护性：修改 SpEL 逻辑只需改一处
-        - 可测试性：可以单独测试 SpEL 解析逻辑
-    - 新增组件：C020 SpelExpressionResolver（组件字典）
-    - 更新 systemPatterns.md：添加"代码复用: SpEL 表达式解析器共享组件"设计决策章节
-    - 验证：254 个测试全部通过，无代码重复警告，Spotless 格式化通过
-
-- [2026-03-17] - 设计客户端身份提取规则，为 devices/refresh_tokens/api_keys 预留统一上下文：
-    - 创建 ClientHeaderConstants：定义 HTTP Header 契约常量（X-Device-ID, X-Platform, X-IDE-Name 等）
-    - 创建 ClientIdentity：强类型不可变 Record，封装多端差异（Web/IDE插件/OpenAPI）
-    - 扩展 RequestInfo：添加 clientIdentity 字段，提供 client() 和 getDeviceUuid() 便捷方法
-    - 增强 RequestContextInitializerFilter：提取完整客户端信息并灌入 MDC（platform）
-    - 扩展 MdcKey：添加 PLATFORM 常量用于日志追踪
-    - 向后兼容：保留原有 deviceId 字段和构造函数
-    - 新增测试：
-        - ClientIdentityTest (10 个测试)：isPluginClient, getValidDeviceId, hasIdentity, equals/hashCode
-        - ClientHeaderConstantsTest (3 个测试)：header 值验证、私有构造函数、命名规范
-        - RequestInfoTest (11 个测试)：client() 访问、getDeviceUuid、向后兼容构造
-    - 总测试数：264 个（实际统计）
-    - 验证：全部测试通过，Spotless 格式化通过
-
-- [2026-03-17] - 代码审查修复：
-    - 删除 ClientIdentity 冗余的 equals()/hashCode()（Record 自动生成）
-    - 删除 activeContext.md 文档残留行
-    - 更新 README.md 添加 context 包组件说明
-
-- [2026-03-17] - 实现 OWASP 安全 Header 规范：
-    - SecurityConfig 添加 headers() 配置
-    - X-Content-Type-Options: nosniff (防 MIME 嗅探)
-    - X-XSS-Protection: 1; mode=block (XSS 防护)
-    - X-Frame-Options: DENY (防点击劫持)
-    - Strict-Transport-Security: max-age=31536000 (HSTS)
-    - Content-Security-Policy: default-src 'self' (CSP)
-    - 新增依赖：spring-boot-webmvc-test（Spring Boot 4 新模块）
-    - 注意：Spring Boot 4 中 @WebMvcTest 路径变为 org.springframework.boot.webmvc.test.autoconfigure
-    - 验证：264 个测试全部通过
-
-- [2026-03-17] - 修复代码审查问题（已完成）：
-    - 回滚 build.gradle.kts 到正确的细粒度 starter 配置
-    - 创建 SecurityConfigHeadersTest（5 个集成测试）：
-        - @SpringBootTest + Testcontainers（正确方式，非 @WebMvcTest）
-        - 测试 X-Content-Type-Options: nosniff
-        - 测试 X-XSS-Protection: 1; mode=block
-        - 测试 X-Frame-Options: DENY
-        - 测试 Content-Security-Policy: default-src 'self'
-        - 测试 Strict-Transport-Security（使用 Assumptions 处理 HTTPS 场景）
-    - 使用 MockMvcTester（Spring Boot 4 推荐，AssertJ 风格）
-    - 总测试数：269 个（新增 5 个）
-
-- [2026-03-17] - 代码审查修复（已完成）：
-    - 简化 SecurityConfigHeadersTest HSTS 测试代码
-    - 移除 docs/api-governance.md 中的 emoji（符合 AGENTS.md 规则 10）
-    - 更新 README.md 添加 OWASP Security Headers 说明
-    - 验证：全部测试通过
-
-- [2026-03-18] - 代码审查修复（配置分层审查反馈）：
-    - 修复 README.md Configuration 部分：更新为 12-Factor App 配置分层说明
-        - 添加配置文件拓扑图
-        - 添加环境变量表格
-        - 更新运行命令示例
-    - 修复 application-dev.yaml：移除 Redis密码空默认值，与DB 凭证风格统一（无默认= 必填）
-    - 添加 application.yaml：graceful shutdown 超时配置 (30s)
-    - 验证：全部测试通过
-
-- [2026-03-18] - 建立配置分层架构（12-Factor App 方法论）：
-    - 重构 application.yaml：仅存放全局基线配置（非环境相关）
-        - 默认激活 local profile
-        - Jackson UTC 时区策略
-        - JPA/Flyway 基础策略
-        - graceful shutdown
-    - 创建 application-dev.yaml：云端部署环境配置
-        - 全量使用环境变量注入（${ENV_VAR:default} 模式）
-        - 连接池、Redis、日志级别参数化
-    - 加强 .gitignore 安全策略：
-        - 扩展 application-local.* 忽略规则
-        - 添加 .env 环境变量文件保护
-    - 创建 application-local.yaml.template：
-        - 供新人复制重命名使用
-        - 包含本地调试推荐的日志级别
-    - 架构收益：
-        - 防泄漏：敏感密码绝不进入 Git
-        - 云原生：镜像不可变，环境差异通过变量注入
-        - 高聚合：修改公共配置只需改一处
-    - 验证：配置加载正常，测试通过
-
-- [2026-03-18] - 规范安全配置项命名（@ConfigurationProperties）：
-    - 创建 SecurityProperties 强类型配置类 (common/config/properties/)
-        - 使用 Java Record + @ConfigurationProperties 实现深度不可变
-        - JWT 配置：secret-key, issuer, access/refresh token TTL
-        - 密码策略：bcrypt-rounds, max-failed-attempts, lock-duration
-        - 限流策略：enabled, global-max-requests-per-second
-        - 审计策略：log-payloads, masked-fields
-    - 更新 application.yaml：添加 ctt.security.* 配置契约
-        - JWT_SECRET_KEY 环境变量注入（本地开发兜底值已设置）
-        - 密码锁定策略：12轮BCrypt，5次失败锁定30分钟
-    - 更新 CttServerApplication：启用 @ConfigurationPropertiesScan
-    - 架构收益：
-        - 消灭魔法值：安全阈值集中管理
-        - IDE 自动补全：强类型配置
-        - 云原生支持：支持 ConfigMap O(1) 热更新
-    - 新增组件：C022 SecurityProperties（组件字典）
-
-- [2026-03-18] - 代码审查修复（SecurityProperties 集成问题）：
-    - 修复 SecurityConfig：注入 SecurityProperties，passwordEncoder() 使用 bcryptRounds 配置
-        - 添加 SecurityProperties 构造器注入
-        - 更新 passwordEncoder() 使用 configured rounds 替代默认值
-        - 更新 Javadoc 说明配置来源
-    - 更新 SecurityProperties：添加文档注释
-        - PasswordProperties：说明 @Min(10) 是安全基线（防止弱配置）
-        - RateLimitProperties：标注为未来功能（@RateLimit 已存在，全局回退待实现）
-    - 更新 README.md：Tech Stack 添加 Configuration 一行
-    - 验证：全部测试通过，Spotless 格式化通过
-
-- [2026-03-18] - 修复 IDE 警告（SecurityProperties 数组类型）：
-    - 问题：AuditProperties.maskedFields 使用 String[] 导致 Record 自动生成的方法存在数组引用问题
-    - 解决方案：将 String[] 改为 List<String>
-        - 消除 IDE 警告：Override equals, hashCode and toString to consider array's content
-        - List 的 equals/hashCode 已实现内容比较，无需手动覆盖
-    - 验证：全部测试通过，配置加载正常
-
-- [2026-03-18] - 邮件基础设施 GreenMail 集成完成：
-    - 添加 greenmail:2.1.3 测试依赖（gradle/libs.versions.toml）
-    - 创建 GreenMailTestConfiguration：
-        - ServerSetup(0) 随机端口绑定
-        - @DynamicPropertyRegistrar 动态注入 spring.mail.* 配置
-        - 测试用户：test@localhost / test / test
-    - 更新 application-test.yaml：端口占位符改为 0，启用 SMTP auth
-    - 更新 BaseIntegrationTest：导入 GreenMailTestConfiguration
-    - 更新 MailConfigurationTest：添加 GreenMail 注入和 @AfterEach 清理
-    - 优势：无需 Docker、CI 启动更快、直接操作 MimeMessage[] 断言、进程内运行更轻量
-    - 验证：全部测试通过（269 个测试）

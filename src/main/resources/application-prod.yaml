@@ -1,0 +1,90 @@
+# Production Profile Configuration
+# This file is activated by SPRING_PROFILES_ACTIVE=prod
+# All sensitive credentials are injected via environment variables.
+
+spring:
+  # Database - Production PostgreSQL
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  # Flyway - Database migrations
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  # JPA - Production settings
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  # Redis - Production cache
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      timeout: 2000ms
+
+  # Mail - Resend SMTP Relay (Production)
+  # Username is literally "resend", not your account
+  # API Key injected from environment variable, never hardcoded
+  mail:
+    host: smtp.resend.com
+    port: 465
+    username: resend
+    password: ${RESEND_API_KEY}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true        # Port 465 uses SSL/TLS
+          starttls:
+            enable: false       # STARTTLS only for port 587
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+# Application - Production settings
+server:
+  # Graceful shutdown for zero-downtime deployments
+  shutdown: graceful
+
+# Security configuration for production
+ctt:
+  security:
+    jwt:
+      # JWT secret key from environment variable (256+ bits for HMAC-SHA256)
+      secret-key: ${JWT_SECRET_KEY}
+    password:
+      # Production BCrypt rounds (12 rounds ≈ 250ms per hash)
+      bcrypt-rounds: 12
+    rate-limit:
+      # Enable rate limiting in production
+      enabled: true
+      # Global QPS limit across all endpoints
+      global-max-requests-per-second: 200
+    audit:
+      # Enable audit logging in production
+      log-payloads: true
+
+# Logging - Production level
+logging:
+  level:
+    root: INFO
+    com.ahogek.cttserver: INFO
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN

@@ -185,10 +185,11 @@ src/main/resources/
 | `REDIS_HOST`          | Redis host            | `localhost`         |
 | `REDIS_PORT`          | Redis port            | `6379`              |
 | `REDIS_PASSWORD`      | Redis password        | (required)          |
-| `MAIL_SMTP_HOST`      | SMTP server host      | `smtp.resend.com`   |
-| `MAIL_SMTP_PORT`      | SMTP server port      | `465`               |
-| `MAIL_SMTP_USERNAME`  | SMTP username         | `resend`            |
-| `MAIL_SMTP_PASSWORD`  | SMTP/API key          | (required)          |
+| `RESEND_API_KEY`      | Resend SMTP API key   | (required for prod) |
+| `JWT_SECRET_KEY`      | JWT signing key (256+ bits) | (required for prod) |
+| `SPRING_PROFILES_ACTIVE` | Active Spring profile | `local`           |
+
+> **Note**: Production environment requires all variables to be set. Local development uses sensible defaults from `application-local.yaml`.
 
 ### Run
 
@@ -198,6 +199,32 @@ src/main/resources/
 
 # Dev/Test environment
 SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
+
+# Production environment
+SPRING_PROFILES_ACTIVE=prod \
+  DB_HOST=prod-db.example.com \
+  DB_PASSWORD=secret \
+  REDIS_HOST=prod-redis.example.com \
+  REDIS_PASSWORD=secret \
+  RESEND_API_KEY=re_xxx \
+  JWT_SECRET_KEY=your-secret-key \
+  ./gradlew bootRun
+```
+
+**Production Deployment:**
+
+For production deployments (Kubernetes, Docker, Railway, etc.), set environment variables via your platform's secret management:
+
+```bash
+# Example: Docker Compose production override
+docker compose -f docker-compose.prod.yml up -d
+
+# Example: Kubernetes Secrets
+kubectl create secret generic ctt-mail-secret \
+  --from-literal=RESEND_API_KEY=re_xxx
+
+# Example: Railway / Fly.io
+railway variables set RESEND_API_KEY=re_xxx
 ```
 
 ## API Documentation
