@@ -484,6 +484,9 @@ CREATE INDEX idx_mail_outbox_retry
     ON mail_outbox (status, retry_count, next_retry_at)
     WHERE status IN ('PENDING', 'FAILED');
 
+CREATE INDEX idx_mail_outbox_dedup
+    ON mail_outbox (recipient, biz_type, status, created_at);
+
 -- ------------------------------------------------------------------------------
 -- updated_at triggers
 -- ------------------------------------------------------------------------------

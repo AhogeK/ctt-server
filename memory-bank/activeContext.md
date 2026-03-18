@@ -1,3 +1,44 @@
+- [2026-03-18] - MailOutboxRepository 最终版本实现
+    - 修复 `findPendingJobs` 方法（原 `findDispatchable`）：
+        - 问题：`@Param("limit") int limit` 参数在 JPQL 中未使用，完全失效
+        - 修复：改用 `Pageable pageable` 参数，由 Spring Data 自动注入 LIMIT/OFFSET
+        - 收益：调用方可动态调整批次大小和排序，无需修改 Repository
+        - 实现细节：
+          - 使用全限定枚举类名 `com.ahogek.cttserver.mail.enums.MailOutboxStatus.PENDING`
+          - 移除 JPQL 中的 `ORDER BY`，由 `Pageable` 的 `Sort` 驱动，保持可组合性
+          - 覆盖两种情况：
+            - `status = PENDING`：新邮件，始终可投递
+            - `status = FAILED AND nextRetryAt <= now AND retryCount < maxRetries`：重试邮件
+    - 新增 `countDuplicates` 方法（防重复投递频率校验）：
+        - 用途：enqueue 前的 rate-guard，防止短时间向同一收件人发送过多相同类型邮件
+        - 参数：
+          - `recipient`：目标邮箱地址
+          - `bizType`：业务类型（如 "REGISTER_VERIFY"）
+          - `statuses`：状态列表（通常 `[PENDING, SENDING, SENT]`）
+          - `windowStart`：滚动时间窗口起始点
+        - 使用场景示例：
+          ```java
+          long recent = repo.countDuplicates(
+              recipient, "REGISTER_VERIFY",
+              List.of(PENDING, SENDING, SENT),
+              Instant.now().minus(10, ChronoUnit.MINUTES)
+          );
+          if (recent >= 3) throw new TooManyRequestsException(...);
+          ```
+        - 为什么不用派生方法名：
+          - `countByRecipientAndStatusAndCreatedAtAfter` 只能绑定单个 `status`
+          - 防重复需要同时匹配多个状态（`IN` 查询），必须用 `@Query`
+    - 保留方法：
+        - `findByTraceId(String traceId)`：按 OpenTelemetry trace ID 查询
+        - `countByStatus()`：按状态分组统计（监控仪表盘用）
+    - 索引依赖：
+        - `findPendingJobs` 依赖 `idx_mail_outbox_dispatch (status, next_retry_at, created_at)`
+        - 该索引已在初始化脚本中创建，无需额外 DDL
+    - 验证：
+        - 编译成功
+        - 全部测试通过（269 tests）
+        - Spotless 格式化通过
+
 - [2026-03-18] - 代码审查修复（Mail Outbox 最终版本）
     - 修复 AGENTS.md 规则 10 违规（Medium）：
         - 问题：MailOutboxStatus 枚举 description 使用中文
