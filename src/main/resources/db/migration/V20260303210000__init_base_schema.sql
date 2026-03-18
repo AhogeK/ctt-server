@@ -436,17 +436,21 @@ CREATE TABLE mail_outbox
     biz_id        UUID,
     recipient     VARCHAR(255) NOT NULL,
     subject       VARCHAR(255) NOT NULL,
-    template_code VARCHAR(64)  NOT NULL,
+    body_html     TEXT,
+    body_text     TEXT,
+    template_code VARCHAR(64),
     payload       JSONB        NOT NULL DEFAULT '{}'::jsonb,
     status        VARCHAR(16)  NOT NULL DEFAULT 'PENDING',
     retry_count   INTEGER      NOT NULL DEFAULT 0,
+    max_retries   INTEGER      NOT NULL DEFAULT 3,
     next_retry_at TIMESTAMPTZ,
     sent_at       TIMESTAMPTZ,
     last_error    TEXT,
+    trace_id      VARCHAR(64),
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_mail_outbox_status
-        CHECK (status IN ('PENDING', 'SENDING', 'SENT', 'FAILED'))
+        CHECK (status IN ('PENDING', 'SENDING', 'SENT', 'FAILED', 'CANCELLED'))
 );
 
 COMMENT ON TABLE mail_outbox IS 'Transactional outbox for asynchronous email delivery';
@@ -454,16 +458,28 @@ COMMENT ON COLUMN mail_outbox.biz_type IS 'Business type such as REGISTER_VERIFY
 COMMENT ON COLUMN mail_outbox.biz_id IS 'Related business entity identifier';
 COMMENT ON COLUMN mail_outbox.recipient IS 'Target email recipient';
 COMMENT ON COLUMN mail_outbox.subject IS 'Email subject';
-COMMENT ON COLUMN mail_outbox.template_code IS 'Email template code';
-COMMENT ON COLUMN mail_outbox.payload IS 'Template rendering payload';
-COMMENT ON COLUMN mail_outbox.status IS 'Delivery status: PENDING, SENDING, SENT, FAILED';
+COMMENT ON COLUMN mail_outbox.body_html IS 'Pre-rendered HTML body; used directly during delivery';
+COMMENT ON COLUMN mail_outbox.body_text IS 'Pre-rendered plain-text fallback body';
+COMMENT ON COLUMN mail_outbox.template_code IS 'Email template code for traceability';
+COMMENT ON COLUMN mail_outbox.payload IS 'Template rendering payload for traceability';
+COMMENT ON COLUMN mail_outbox.status IS 'Delivery status: PENDING, SENDING, SENT, FAILED, CANCELLED';
 COMMENT ON COLUMN mail_outbox.retry_count IS 'Number of delivery retries';
+COMMENT ON COLUMN mail_outbox.max_retries IS 'Maximum number of delivery retries before marking FAILED';
 COMMENT ON COLUMN mail_outbox.next_retry_at IS 'Next scheduled retry timestamp';
 COMMENT ON COLUMN mail_outbox.sent_at IS 'Timestamp when the email was sent';
 COMMENT ON COLUMN mail_outbox.last_error IS 'Last delivery error message';
+COMMENT ON COLUMN mail_outbox.trace_id IS 'OpenTelemetry trace ID for distributed observability';
 
 CREATE INDEX idx_mail_outbox_dispatch
     ON mail_outbox (status, next_retry_at, created_at);
+
+CREATE INDEX idx_mail_outbox_trace_id
+    ON mail_outbox (trace_id)
+    WHERE trace_id IS NOT NULL;
+
+CREATE INDEX idx_mail_outbox_retry
+    ON mail_outbox (status, retry_count, next_retry_at)
+    WHERE status IN ('PENDING', 'FAILED');
 
 -- ------------------------------------------------------------------------------
 -- updated_at triggers

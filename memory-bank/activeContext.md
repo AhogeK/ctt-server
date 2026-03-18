@@ -1,3 +1,73 @@
+- [2026-03-18] - 代码审查修复（Mail Outbox 实现）
+    - 修复 Bug：`markFailed` 方法逻辑
+        - 问题：超过最大重试次数时仍设为 `FAILED` 而非 `CANCELLED`
+        - 修复：`canRetry()` 返回 `false` 时设置为 `CANCELLED`
+        - 影响：避免调度器继续尝试处理已超重试上限的邮件
+    - 修复时间类型违反规范问题：
+        - 问题：使用 `OffsetDateTime` 违反 `docs/time-strategy.md` 规范
+        - 修复：全部改为 `Instant`（`nextRetryAt`, `sentAt`, `createdAt`, `updatedAt`）
+        - 影响：与项目其他实体（User, AuditLog 等）保持一致
+    - 重构包结构（Package-by-Feature）：
+        - 问题：文件直接放在 `mail/` 包下，未遵循现有结构
+        - 修复：
+          - `mail/enums/MailOutboxStatus.java`
+          - `mail/entity/MailOutbox.java`
+          - `mail/repository/MailOutboxRepository.java`
+          - `mail/package-info.java`（新增）
+        - 影响：与其他模块（user, audit）保持一致的包结构
+    - 修复 Repository 查询：
+        - 问题：`findDispatchable` 方法签名有 `limit` 参数但 JPQL 未使用
+        - 修复：更新参数类型为 `Instant`（JPQL 暂不支持 LIMIT，由调用方手动截取）
+    - 更新 README.md：
+        - 添加 `mail_outbox` 表到 Database Schema 表格
+        - 说明：Transactional email queue
+        - 关键字段：id, recipient, status, retry_count, trace_id
+    - 验证：
+        - 编译成功
+        - 全部测试通过（269 tests）
+        - Spotless 格式化通过
+
+- [2026-03-18] - Mail Outbox 表字段完善与 JPA 实体实现
+    - 更新 Flyway 初始化脚本（V20260303210000__init_base_schema.sql）：
+        - 新增预渲染内容字段：body_html, body_text（TEXT 类型）
+        - 新增最大重试次数：max_retries（默认 3 次）
+        - 新增链路追踪：trace_id（VARCHAR(64)，关联 OpenTelemetry）
+        - 扩展 status CHECK 约束：添加 CANCELLED 状态
+        - 新增索引：
+          - idx_mail_outbox_trace_id：trace_id 关联查询
+          - idx_mail_outbox_retry：失败重试过滤（status, retry_count, next_retry_at）
+        - 补充字段注释：说明预渲染策略和可观测性用途
+    - 创建 MailOutboxStatus 枚举：
+        - PENDING：待投递
+        - SENDING：投递中（乐观锁占位，防重复发送）
+        - SENT：已送达
+        - FAILED：投递失败，等待重试
+        - CANCELLED：已取消（手动或超重试上限）
+    - 创建 MailOutbox JPA 实体：
+        - 完整字段映射：id, bizType, bizId, recipient, subject, bodyHtml, bodyText,
+          templateCode, payload, status, retryCount, maxRetries, nextRetryAt, sentAt,
+          lastError, traceId, createdAt, updatedAt
+        - 预渲染存储策略：bodyHtml/bodyText 为实际投递内容，templateCode/payload 保留溯源
+        - 业务状态机方法：
+          - canRetry()：判断是否可重试
+          - markSending()：标记为投递中
+          - markSent()：标记为已送达
+          - markFailed(error, nextRetry)：标记失败并计算下次重试时间
+          - cancel()：取消投递
+        - 使用 Spring Data JPA Auditing：@CreatedDate, @LastModifiedDate
+    - 创建 MailOutboxRepository：
+        - findDispatchable(now, limit)：调度器轮询可投递记录
+          - status=PENDING 的新邮件
+          - status=FAILED 且 nextRetryAt <= now 且 retryCount < maxRetries 的重试邮件
+        - findByTraceId(traceId)：按链路 ID 查询
+        - countByStatus()：统计各状态数量（监控仪表盘）
+    - 设计决策：
+        - 预渲染存储模式：业务层生成邮件时即渲染好内容落库
+        - 优势：投递层职责单一，重试时无需依赖模板引擎
+        - 溯源保留：templateCode/payload 仍然保留用于审计和故障排查
+        - traceId 集成：后续从 Span.current() 提取写入，实现全链路可观测
+    - 验证：编译成功，Spotless 格式化通过
+
 - [2026-03-18] - Docker Compose Mailpit 配置完善
     - 更新 docker-compose.yaml：
         - PostgreSQL: postgres:latest（用户要求保持最新版）

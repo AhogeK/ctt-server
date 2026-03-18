@@ -77,6 +77,7 @@ CTT Server provides:
 | `session_changes` | Sync change log (watermark base)   | `change_id`, `op`, `server_version`, `happened_at`         |
 | `sync_cursors`    | Per-device sync state              | `last_pulled_change_id`, `last_push_at`                    |
 | `audit_logs`      | Security audit trail               | `action`, `resource_type`, `details (JSONB)`, `ip_address` |
+| `mail_outbox`     | Transactional email queue          | `id`, `recipient`, `status`, `retry_count`, `trace_id`     |
 
 **Key Design Features**:
 
@@ -151,7 +152,7 @@ src/main/resources/
    ```bash
    cp .env.example .env
    ```
-   
+
    Edit `.env` with your preferred passwords (default values are examples).
 
 2. Start local infrastructure (PostgreSQL + Redis + Mailpit):
@@ -164,7 +165,7 @@ src/main/resources/
    cp src/main/resources/application-local.yaml.template \
       src/main/resources/application-local.yaml
    ```
-   
+
    The template uses environment variable placeholders with defaults. You can either:
    - Set environment variables in `.env` (recommended)
    - Or hardcode values directly in `application-local.yaml`
@@ -175,21 +176,21 @@ src/main/resources/
 
 **Environment Variables (Dev/Prod):**
 
-| Variable              | Description           | Default             |
-|-----------------------|-----------------------|---------------------|
-| `DB_HOST`             | Database host         | `localhost`         |
-| `DB_PORT`             | Database port         | `5432`              |
-| `DB_NAME`             | Database name         | `ctt_server`        |
-| `DB_USERNAME`         | Database username     | (required)          |
-| `DB_PASSWORD`         | Database password     | (required)          |
-| `REDIS_HOST`          | Redis host            | `localhost`         |
-| `REDIS_PORT`          | Redis port            | `6379`              |
-| `REDIS_PASSWORD`      | Redis password        | (required)          |
-| `RESEND_API_KEY`      | Resend SMTP API key   | (required for prod) |
-| `JWT_SECRET_KEY`      | JWT signing key (256+ bits) | (required for prod) |
-| `MAIL_FROM_ADDRESS`   | Sender email address  | (required for prod) |
-| `MAIL_FROM_NAME`      | Sender display name   | `CTT`               |
-| `SPRING_PROFILES_ACTIVE` | Active Spring profile | `local`           |
+| Variable                 | Description                 | Default             |
+|--------------------------|-----------------------------|---------------------|
+| `DB_HOST`                | Database host               | `localhost`         |
+| `DB_PORT`                | Database port               | `5432`              |
+| `DB_NAME`                | Database name               | `ctt_server`        |
+| `DB_USERNAME`            | Database username           | (required)          |
+| `DB_PASSWORD`            | Database password           | (required)          |
+| `REDIS_HOST`             | Redis host                  | `localhost`         |
+| `REDIS_PORT`             | Redis port                  | `6379`              |
+| `REDIS_PASSWORD`         | Redis password              | (required)          |
+| `RESEND_API_KEY`         | Resend SMTP API key         | (required for prod) |
+| `JWT_SECRET_KEY`         | JWT signing key (256+ bits) | (required for prod) |
+| `MAIL_FROM_ADDRESS`      | Sender email address        | (required for prod) |
+| `MAIL_FROM_NAME`         | Sender display name         | `CTT`               |
+| `SPRING_PROFILES_ACTIVE` | Active Spring profile       | `local`             |
 
 > **Note**: Production environment requires all variables to be set. Local development uses sensible defaults from `application-local.yaml`.
 
