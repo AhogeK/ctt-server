@@ -90,3 +90,26 @@ ctt:
         - refresh_token
         - secret
         - key
+
+  mail:
+    from:
+      address: ${MAIL_FROM_ADDRESS:noreply@localhost}
+      name: ${MAIL_FROM_NAME:CTT Server}
+
+    outbox:
+      # Polling interval for outbox table (milliseconds)
+      poll-interval-ms: ${MAIL_OUTBOX_POLL_INTERVAL_MS:5000}
+      # Maximum emails to fetch and send per batch
+      batch-size: ${MAIL_OUTBOX_BATCH_SIZE:50}
+      # Timeout in seconds to reset stuck PROCESSING emails to PENDING
+      zombie-timeout-seconds: ${MAIL_OUTBOX_ZOMBIE_TIMEOUT_SECONDS:300}
+
+    retry:
+      # Base delay in seconds for first retry
+      base-delay-seconds: ${MAIL_RETRY_BASE_DELAY_SECONDS:10}
+      # Exponential backoff multiplier (base * multiplier^n)
+      multiplier: ${MAIL_RETRY_MULTIPLIER:2.0}
+      # Maximum delay cap in seconds
+      max-delay-seconds: ${MAIL_RETRY_MAX_DELAY_SECONDS:3600}
+      # Maximum retry attempts before marking as DEAD
+      max-attempts: ${MAIL_RETRY_MAX_ATTEMPTS:5}

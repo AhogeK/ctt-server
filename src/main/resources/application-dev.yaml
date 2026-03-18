@@ -39,6 +39,20 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
+# Mail configuration for development
+ctt:
+  mail:
+    from:
+      address: ${MAIL_FROM_ADDRESS:dev@localhost}
+      name: ${MAIL_FROM_NAME:CTT Dev}
+    outbox:
+      poll-interval-ms: ${MAIL_OUTBOX_POLL_INTERVAL_MS:2000}
+      batch-size: ${MAIL_OUTBOX_BATCH_SIZE:5}
+      zombie-timeout-seconds: ${MAIL_OUTBOX_ZOMBIE_TIMEOUT_SECONDS:60}
+    retry:
+      base-delay-seconds: ${MAIL_RETRY_BASE_DELAY_SECONDS:5}
+      max-attempts: ${MAIL_RETRY_MAX_ATTEMPTS:3}
+
 logging:
   level:
     root: INFO

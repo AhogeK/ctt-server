@@ -45,3 +45,19 @@ ctt:
     rate-limit:
       # Disable rate limiting in tests to avoid interference
       enabled: false
+
+  # Mail configuration for tests
+  mail:
+    from:
+      address: test@localhost
+      name: CTT Test
+    outbox:
+      # Disable outbox scheduler in tests (use very large interval)
+      poll-interval-ms: 999999999
+      batch-size: 10
+      zombie-timeout-seconds: 30
+    retry:
+      base-delay-seconds: 1
+      multiplier: 1.0
+      max-delay-seconds: 5
+      max-attempts: 2

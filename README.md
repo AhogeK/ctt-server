@@ -187,6 +187,8 @@ src/main/resources/
 | `REDIS_PASSWORD`      | Redis password        | (required)          |
 | `RESEND_API_KEY`      | Resend SMTP API key   | (required for prod) |
 | `JWT_SECRET_KEY`      | JWT signing key (256+ bits) | (required for prod) |
+| `MAIL_FROM_ADDRESS`   | Sender email address  | (required for prod) |
+| `MAIL_FROM_NAME`      | Sender display name   | `CTT`               |
 | `SPRING_PROFILES_ACTIVE` | Active Spring profile | `local`           |
 
 > **Note**: Production environment requires all variables to be set. Local development uses sensible defaults from `application-local.yaml`.

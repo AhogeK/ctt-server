@@ -1,3 +1,58 @@
+- [2026-03-18] - 代码审查修复与优化
+    - README.md 更新：
+        - 添加 MAIL_FROM_ADDRESS 环境变量（生产环境必填）
+        - 添加 MAIL_FROM_NAME 环境变量（默认值：CTT）
+        - 原因：application-prod.yaml 中发件人地址无默认值，必须通过环境变量提供
+    - build.gradle.kts 优化：
+        - 添加 spring-boot-configuration-processor 注解处理器
+        - 作用：自动生成 spring-configuration-metadata.json
+        - 收益：IDE 编辑 application.yaml 时提供 ctt.mail.* 属性补全和 Javadoc 提示
+    - 验证：全部测试通过，编译成功
+
+- [2026-03-18] - 邮件配置项命名规范落位
+    - 创建 CttMailProperties 配置类（common/config/properties/）：
+        - From 嵌套 Record：address, name（发件人地址和显示名）
+        - Outbox 嵌套 Record：poll-interval-ms, batch-size, zombie-timeout-seconds
+        - Retry 嵌套 Record：base-delay-seconds, multiplier, max-delay-seconds, max-attempts
+        - 使用 Jakarta Validation 注解（@NotNull, @Positive, @Min, @DecimalMin）
+        - 支持指数退避计算：delay = min(base * multiplier^(attempt-1), maxDelay)
+    - 更新 application.yaml（全局默认值）：
+        - from.address: ${MAIL_FROM_ADDRESS:noreply@localhost}
+        - from.name: ${MAIL_FROM_NAME:CTT Server}
+        - outbox.poll-interval-ms: 5000（5 秒轮询）
+        - outbox.batch-size: 50（每批 50 封）
+        - outbox.zombie-timeout-seconds: 300（5 分钟僵尸超时）
+        - retry.base-delay-seconds: 10（基础延迟 10 秒）
+        - retry.multiplier: 2.0（指数倍数）
+        - retry.max-delay-seconds: 3600（最大延迟 1 小时）
+        - retry.max-attempts: 5（最多重试 5 次）
+    - 更新 application-dev.yaml（开发环境）：
+        - 轮询间隔：2000ms（2 秒，快速调试）
+        - 批量大小：5（小批量）
+        - 僵尸超时：60 秒
+        - 基础延迟：5 秒
+        - 最大重试：3 次
+    - 更新 application-prod.yaml（生产环境）：
+        - from.address: ${MAIL_FROM_ADDRESS}（必须环境变量提供）
+        - 轮询间隔：10000ms（10 秒）
+        - 批量大小：100（大批量）
+        - 僵尸超时：600 秒（10 分钟）
+        - 基础延迟：30 秒
+        - 最大延迟：7200 秒（2 小时）
+        - 最大重试：7 次
+    - 更新 application-test.yaml（测试环境）：
+        - 轮询间隔：999999999（ фактически 禁用调度）
+        - 基础延迟：1 秒
+        - 退避乘数：1.0（无需退避）
+        - 最大延迟：5 秒
+        - 最大重试：2 次
+    - 配置分层策略：
+        - application.yaml：全局合理默认值
+        - application-dev.yaml：开发环境快速反馈
+        - application-prod.yaml：生产环境高性能高可靠
+        - application-test.yaml：测试环境快速执行
+    - 验证：全部测试通过，编译成功
+
 - [2026-03-18] - **重要**：AGENTS.md 和 memory-bank/ 内容精简
     - 问题：文档内容过多，占用大量上下文 token
     - 优化措施：

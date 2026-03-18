@@ -81,6 +81,21 @@ ctt:
       # Enable audit logging in production
       log-payloads: true
 
+  # Mail configuration for production
+  mail:
+    from:
+      address: ${MAIL_FROM_ADDRESS}
+      name: ${MAIL_FROM_NAME:CTT}
+    outbox:
+      poll-interval-ms: ${MAIL_OUTBOX_POLL_INTERVAL_MS:10000}
+      batch-size: ${MAIL_OUTBOX_BATCH_SIZE:100}
+      zombie-timeout-seconds: ${MAIL_OUTBOX_ZOMBIE_TIMEOUT_SECONDS:600}
+    retry:
+      base-delay-seconds: ${MAIL_RETRY_BASE_DELAY_SECONDS:30}
+      multiplier: ${MAIL_RETRY_MULTIPLIER:2.0}
+      max-delay-seconds: ${MAIL_RETRY_MAX_DELAY_SECONDS:7200}
+      max-attempts: ${MAIL_RETRY_MAX_ATTEMPTS:7}
+
 # Logging - Production level
 logging:
   level:
