@@ -15,10 +15,11 @@
 - [x] 测试基线脚手架 (BaseControllerSliceTest, BaseRepositoryTest, BaseIntegrationTest)
 - [x] 邮件基础设施 Phase A (GreenMail 内嵌 SMTP)
 - [x] 邮件基础设施 Phase B (Mail Outbox 事务性邮件队列 + 测试基础设施)
+- [x] 测试覆盖率提升 (指令 87%→92%, 分支 76%→84%)
 
 ## 进行中 🔄
 
-Week 1 基础设施搭建 - 进度: 80%
+Week 1 基础设施搭建 - 进度: 85%
 - [x] Flyway 数据库迁移
 - [x] 代码规范文件
 - [x] 构建工具配置
@@ -37,6 +38,7 @@ Week 1 基础设施搭建 - 进度: 80%
 - [x] 安全配置规范 (@ConfigurationProperties)
 - [x] 测试基线脚手架 (完整)
 - [x] 测试数据 Fixture 工具包
+- [x] 测试覆盖率达标 (指令 92%, 分支 84%)
 - [ ] Spring Boot 项目结构
 - [ ] Redis 缓存配置
 - [ ] JWT 认证实现
