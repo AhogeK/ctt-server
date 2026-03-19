@@ -1,6 +1,9 @@
 package com.ahogek.cttserver.mail.service;
 
 import com.ahogek.cttserver.common.config.properties.CttMailProperties;
+import com.ahogek.cttserver.common.context.MdcKey;
+import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
@@ -10,6 +13,7 @@ import com.ahogek.cttserver.mail.template.EmailVerificationTemplateData;
 import com.ahogek.cttserver.mail.template.MailTemplateRenderer;
 import com.ahogek.cttserver.mail.template.PasswordResetTemplateData;
 
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -135,7 +139,19 @@ public class MailOutboxService {
         outbox.setBodyHtml(bodyHtml);
         outbox.setBodyText(bodyText);
         outbox.setPayload(payload);
+        outbox.setTraceId(extractCurrentTraceId());
         outbox.setMaxRetries(properties.retry().maxAttempts());
         return outbox;
+    }
+
+    private String extractCurrentTraceId() {
+        return RequestContext.current()
+                .map(RequestInfo::traceId)
+                .orElseGet(this::getTraceIdFromMdc);
+    }
+
+    private String getTraceIdFromMdc() {
+        String traceId = MDC.get(MdcKey.TRACE_ID);
+        return traceId != null ? traceId : "no-trace";
     }
 }

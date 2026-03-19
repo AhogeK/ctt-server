@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.mail.service;
 
 import com.ahogek.cttserver.common.config.properties.CttMailProperties;
+import com.ahogek.cttserver.common.context.MdcKey;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
@@ -8,6 +9,7 @@ import com.ahogek.cttserver.mail.enums.MailOutboxStatus;
 import com.ahogek.cttserver.mail.repository.MailOutboxRepository;
 import com.ahogek.cttserver.mail.template.MailTemplateRenderer;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -17,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.MDC;
 
 import java.util.List;
 import java.util.Map;
@@ -55,6 +58,11 @@ class MailOutboxServiceTest {
                         new CttMailProperties.Frontend(FRONTEND_BASE_URL));
 
         service = new MailOutboxService(repository, renderer, properties);
+    }
+
+    @AfterEach
+    void tearDown() {
+        MDC.clear();
     }
 
     @Nested
@@ -216,6 +224,43 @@ class MailOutboxServiceTest {
             Map<String, Object> payload = outboxCaptor.getValue().getPayload();
             String expectedLink = FRONTEND_BASE_URL + "/reset-password?token=xyz789";
             assertThat(payload).containsEntry("resetLink", expectedLink);
+        }
+
+        @Test
+        @DisplayName("should set trace_id from MDC when available")
+        void shouldSetTraceIdFromMdc() {
+            // Given
+            String expectedTraceId = "abc123def456";
+            MDC.put(MdcKey.TRACE_ID, expectedTraceId);
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(0L);
+            when(renderer.renderHtml(any())).thenReturn("<html></html>");
+            when(renderer.renderText(any())).thenReturn("text");
+
+            // When
+            service.enqueuePasswordResetEmail(UUID.randomUUID(), "user", "email@test.com", "token");
+
+            // Then
+            verify(repository).save(outboxCaptor.capture());
+            assertThat(outboxCaptor.getValue().getTraceId()).isEqualTo(expectedTraceId);
+        }
+
+        @Test
+        @DisplayName(
+                "should set trace_id to no-trace when neither RequestContext nor MDC has trace")
+        void shouldSetNoTraceWhenUnavailable() {
+            // Given
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(0L);
+            when(renderer.renderHtml(any())).thenReturn("<html></html>");
+            when(renderer.renderText(any())).thenReturn("text");
+
+            // When
+            service.enqueuePasswordResetEmail(UUID.randomUUID(), "user", "email@test.com", "token");
+
+            // Then
+            verify(repository).save(outboxCaptor.capture());
+            assertThat(outboxCaptor.getValue().getTraceId()).isEqualTo("no-trace");
         }
 
         @Test
