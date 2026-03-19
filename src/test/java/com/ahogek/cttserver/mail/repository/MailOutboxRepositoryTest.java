@@ -22,11 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("MailOutboxRepository")
 class MailOutboxRepositoryTest {
 
-    @Autowired
-    TestEntityManager em;
+    @Autowired TestEntityManager em;
 
-    @Autowired
-    MailOutboxRepository repository;
+    @Autowired MailOutboxRepository repository;
 
     @Nested
     @DisplayName("findPendingJobs")
@@ -44,8 +42,9 @@ class MailOutboxRepositoryTest {
             persist(MailOutboxFixtures.sent().recipient("sent@x.com"));
             persist(MailOutboxFixtures.cancelled().recipient("cancelled@x.com"));
 
-            List<MailOutbox> result = repository.findPendingJobs(
-                    now, PageRequest.of(0, 20, Sort.by("createdAt").ascending()));
+            List<MailOutbox> result =
+                    repository.findPendingJobs(
+                            now, PageRequest.of(0, 20, Sort.by("createdAt").ascending()));
 
             assertThat(result)
                     .extracting(MailOutbox::getRecipient)
@@ -60,8 +59,9 @@ class MailOutboxRepositoryTest {
                 persist(MailOutboxFixtures.pending().recipient("u" + i + "@x.com"));
             }
 
-            List<MailOutbox> result = repository.findPendingJobs(
-                    now, PageRequest.of(0, 4, Sort.by("createdAt").ascending()));
+            List<MailOutbox> result =
+                    repository.findPendingJobs(
+                            now, PageRequest.of(0, 4, Sort.by("createdAt").ascending()));
 
             assertThat(result).hasSize(4);
         }
@@ -72,8 +72,9 @@ class MailOutboxRepositoryTest {
             Instant now = Instant.now();
             persist(MailOutboxFixtures.exhaustedFailed());
 
-            List<MailOutbox> result = repository.findPendingJobs(
-                    now, PageRequest.of(0, 10, Sort.by("createdAt").ascending()));
+            List<MailOutbox> result =
+                    repository.findPendingJobs(
+                            now, PageRequest.of(0, 10, Sort.by("createdAt").ascending()));
 
             assertThat(result).isEmpty();
         }
@@ -82,18 +83,18 @@ class MailOutboxRepositoryTest {
         @DisplayName("includes record when nextRetryAt equals now (boundary: <= now)")
         void includesRecordWhoseNextRetryAtEqualsNow() {
             Instant boundary = Instant.now();
-            MailOutbox atBoundary = MailOutboxFixtures.retryableFailed()
-                    .recipient("boundary@x.com")
-                    .nextRetryAt(boundary)
-                    .build();
+            MailOutbox atBoundary =
+                    MailOutboxFixtures.retryableFailed()
+                            .recipient("boundary@x.com")
+                            .nextRetryAt(boundary)
+                            .build();
             em.persistAndFlush(atBoundary);
 
-            List<MailOutbox> result = repository.findPendingJobs(
-                    boundary, PageRequest.of(0, 10, Sort.by("createdAt").ascending()));
+            List<MailOutbox> result =
+                    repository.findPendingJobs(
+                            boundary, PageRequest.of(0, 10, Sort.by("createdAt").ascending()));
 
-            assertThat(result)
-                    .extracting(MailOutbox::getRecipient)
-                    .contains("boundary@x.com");
+            assertThat(result).extracting(MailOutbox::getRecipient).contains("boundary@x.com");
         }
     }
 
@@ -106,23 +107,21 @@ class MailOutboxRepositoryTest {
         @Test
         @DisplayName("finds record by traceId exact match")
         void findsRecordByTraceId() {
-            persist(MailOutboxFixtures.pending()
-                    .recipient("trace@x.com")
-                    .traceId(TRACE_ID));
+            persist(MailOutboxFixtures.pending().recipient("trace@x.com").traceId(TRACE_ID));
 
             assertThat(repository.findByTraceId(TRACE_ID))
                     .isPresent()
-                    .hasValueSatisfying(m -> {
-                        assertThat(m.getRecipient()).isEqualTo("trace@x.com");
-                        assertThat(m.getTraceId()).isEqualTo(TRACE_ID);
-                    });
+                    .hasValueSatisfying(
+                            m -> {
+                                assertThat(m.getRecipient()).isEqualTo("trace@x.com");
+                                assertThat(m.getTraceId()).isEqualTo(TRACE_ID);
+                            });
         }
 
         @Test
         @DisplayName("returns Optional.empty() for unknown traceId")
         void returnsEmptyForUnknownTraceId() {
-            assertThat(repository.findByTraceId("00000000000000000000000000000000"))
-                    .isEmpty();
+            assertThat(repository.findByTraceId("00000000000000000000000000000000")).isEmpty();
         }
 
         @Test
@@ -146,22 +145,29 @@ class MailOutboxRepositoryTest {
         void countsMatchingRecordsWithinWindow() {
             Instant windowStart = Instant.now().minusSeconds(600);
 
-            persist(MailOutboxFixtures.pending()
-                    .recipient("user@x.com").bizType("REGISTER_VERIFY"));
-            persist(MailOutboxFixtures.sending()
-                    .recipient("user@x.com").bizType("REGISTER_VERIFY"));
-            persist(MailOutboxFixtures.sent()
-                    .recipient("user@x.com").bizType("REGISTER_VERIFY"));
+            persist(
+                    MailOutboxFixtures.pending()
+                            .recipient("user@x.com")
+                            .bizType("REGISTER_VERIFY"));
+            persist(
+                    MailOutboxFixtures.sending()
+                            .recipient("user@x.com")
+                            .bizType("REGISTER_VERIFY"));
+            persist(MailOutboxFixtures.sent().recipient("user@x.com").bizType("REGISTER_VERIFY"));
 
-            persist(MailOutboxFixtures.pending()
-                    .recipient("other@x.com").bizType("REGISTER_VERIFY"));
-            persist(MailOutboxFixtures.pending()
-                    .recipient("user@x.com").bizType("RESET_PASSWORD"));
-            persist(MailOutboxFixtures.cancelled()
-                    .recipient("user@x.com").bizType("REGISTER_VERIFY"));
+            persist(
+                    MailOutboxFixtures.pending()
+                            .recipient("other@x.com")
+                            .bizType("REGISTER_VERIFY"));
+            persist(MailOutboxFixtures.pending().recipient("user@x.com").bizType("RESET_PASSWORD"));
+            persist(
+                    MailOutboxFixtures.cancelled()
+                            .recipient("user@x.com")
+                            .bizType("REGISTER_VERIFY"));
 
-            long count = repository.countDuplicates(
-                    "user@x.com", "REGISTER_VERIFY", ACTIVE_STATUSES, windowStart);
+            long count =
+                    repository.countDuplicates(
+                            "user@x.com", "REGISTER_VERIFY", ACTIVE_STATUSES, windowStart);
 
             assertThat(count).isEqualTo(3);
         }
@@ -171,11 +177,14 @@ class MailOutboxRepositoryTest {
         void excludesRecordCreatedExactlyAtWindowStart() {
             Instant futureWindowStart = Instant.now().plusSeconds(60);
 
-            persist(MailOutboxFixtures.pending()
-                    .recipient("user@x.com").bizType("REGISTER_VERIFY"));
+            persist(
+                    MailOutboxFixtures.pending()
+                            .recipient("user@x.com")
+                            .bizType("REGISTER_VERIFY"));
 
-            long count = repository.countDuplicates(
-                    "user@x.com", "REGISTER_VERIFY", ACTIVE_STATUSES, futureWindowStart);
+            long count =
+                    repository.countDuplicates(
+                            "user@x.com", "REGISTER_VERIFY", ACTIVE_STATUSES, futureWindowStart);
 
             assertThat(count).isZero();
         }
@@ -185,8 +194,9 @@ class MailOutboxRepositoryTest {
         void returnsZeroWhenNoMatches() {
             Instant windowStart = Instant.now().minusSeconds(600);
 
-            long count = repository.countDuplicates(
-                    "nobody@x.com", "REGISTER_VERIFY", ACTIVE_STATUSES, windowStart);
+            long count =
+                    repository.countDuplicates(
+                            "nobody@x.com", "REGISTER_VERIFY", ACTIVE_STATUSES, windowStart);
 
             assertThat(count).isZero();
         }
@@ -194,12 +204,17 @@ class MailOutboxRepositoryTest {
         @Test
         @DisplayName("returns zero when statuses list is empty")
         void returnsZeroForEmptyStatusList() {
-            persist(MailOutboxFixtures.pending()
-                    .recipient("user@x.com").bizType("REGISTER_VERIFY"));
+            persist(
+                    MailOutboxFixtures.pending()
+                            .recipient("user@x.com")
+                            .bizType("REGISTER_VERIFY"));
 
-            long count = repository.countDuplicates(
-                    "user@x.com", "REGISTER_VERIFY", List.of(),
-                    Instant.now().minusSeconds(600));
+            long count =
+                    repository.countDuplicates(
+                            "user@x.com",
+                            "REGISTER_VERIFY",
+                            List.of(),
+                            Instant.now().minusSeconds(600));
 
             assertThat(count).isZero();
         }
@@ -227,7 +242,9 @@ class MailOutboxRepositoryTest {
             assertThat(result)
                     .extracting(row -> (MailOutboxStatus) row[0])
                     .containsExactlyInAnyOrder(
-                            MailOutboxStatus.PENDING, MailOutboxStatus.SENT, MailOutboxStatus.FAILED);
+                            MailOutboxStatus.PENDING,
+                            MailOutboxStatus.SENT,
+                            MailOutboxStatus.FAILED);
 
             assertThat(result)
                     .filteredOn(row -> row[0] == MailOutboxStatus.PENDING)

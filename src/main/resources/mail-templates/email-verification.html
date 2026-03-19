@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(~{::body})}">
+<!--/*@thymesVar id="username" type="java.lang.String"*/-->
+<!--/*@thymesVar id="verificationLink" type="java.lang.String"*/-->
+<!--/*@thymesVar id="expirationMinutes" type="java.lang.Long"*/-->
+<body>
+<h2 style="color: #333333; margin: 0 0 24px 0; font-size: 20px; font-weight: 600;">
+  Welcome, <span th:text="${username}">User</span>!
+</h2>
+
+<p style="color: #333333; line-height: 1.6; margin: 0 0 24px 0;">
+  Thank you for registering. Please confirm your email address to activate your account.
+</p>
+
+<div style="text-align: center; margin: 32px 0;">
+  <a th:href="${verificationLink}"
+     style="display: inline-block; padding: 14px 32px; background-color: #635BFF; color: #ffffff !important; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+    Verify Email Address
+  </a>
+</div>
+
+<p style="color: #666666; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0; text-align: center;">
+  This verification link will expire in <strong th:text="${expirationMinutes}">15</strong> minutes.
+</p>
+</body>
+</html>

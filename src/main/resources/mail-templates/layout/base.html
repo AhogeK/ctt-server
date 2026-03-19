@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:fragment="layout(content)">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CTT Server</title>
+</head>
+<body
+  style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f7f6;">
+  <tr>
+    <td align="center" style="padding: 40px 0;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+             style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <!-- Header -->
+        <tr>
+          <td style="background-color: #0A2540; padding: 32px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">CTT Server</h1>
+          </td>
+        </tr>
+
+        <!-- Content -->
+        <tr>
+          <td style="padding: 40px 32px;">
+            <th:block th:replace="${content}"/>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background-color: #f8f9fa; padding: 24px; text-align: center;">
+            <p style="color: #888888; margin: 0 0 8px 0; font-size: 13px; line-height: 1.5;">
+              If you didn't request this email, please ignore it.
+            </p>
+            <p style="color: #888888; margin: 0; font-size: 13px;">
+              &copy; 2026 CTT Server. All rights reserved.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

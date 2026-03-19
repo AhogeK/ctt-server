@@ -25,6 +25,7 @@ CTT Server provides:
 | Migration      | Flyway                               |
 | Cache          | Redis (latest)                       |
 | API Docs       | springdoc-openapi                    |
+| Templates      | Thymeleaf (email rendering)          |
 | Testing        | JUnit 5 + Testcontainers             |
 | Configuration  | @ConfigurationProperties (Type-safe) |
 
@@ -110,13 +111,19 @@ ctt-server/
 │   └── validator/       # UserValidator (domain rules)
 ├── common/              # Shared utilities and cross-cutting concerns
 │   ├── context/         # Request context (ClientIdentity, RequestInfo, ScopedValue)
-│   ├── config/          # Global configuration (Jackson, Security, etc.)
+│   ├── config/          # Global configuration (Jackson, Security, etc)
 │   ├── exception/       # Global exception handling
 │   ├── ratelimit/       # Declarative rate limiting framework (@RateLimit)
 │   ├── idempotent/      # Declarative idempotency framework (@Idempotent)
 │   ├── response/        # Unified response models (ApiResponse, ErrorResponse)
 │   ├── logging/         # Structured logging (LogRecord)
 │   └── utils/           # Utility classes (IpUtils, SpelExpressionResolver)
+├── mail/                # Email infrastructure
+│   ├── config/          # MailTemplateConfig (standalone TemplateEngine)
+│   ├── entity/          # MailOutbox entity (transactional outbox pattern)
+│   ├── enums/           # MailOutboxStatus (delivery state machine)
+│   ├── repository/      # MailOutboxRepository
+│   └── template/        # MailTemplateRenderer (Thymeleaf), DTOs (sealed interface + records)
 ```
 
 ## Documentation

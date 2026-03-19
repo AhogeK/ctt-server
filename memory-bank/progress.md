@@ -39,6 +39,24 @@
     - [x] 移除 TestcontainersConfiguration 中的 Mailpit 容器
     - [x] 保留 docker-compose.yaml 用于本地开发调试
     - [x] 验收：所有测试通过（269 个测试）
+- [x] **邮件基础设施 Phase B**（Mail Outbox 事务性邮件队列）
+    - [x] MailOutbox 实体设计（预渲染策略 + 乐观锁 + 状态机）
+    - [x] MailOutboxStatus 枚举（description + isTerminal()）
+    - [x] MailOutboxRepository 查询方法：
+        - [x] findPendingJobs(Instant, Pageable) - 调度器轮询
+        - [x] findByTraceId(String) - 分布式追踪
+        - [x] countDuplicates(...) - 防重复投递频率校验
+        - [x] countByStatus() - 监控仪表盘
+    - [x] 数据库索引优化：
+        - [x] idx_mail_outbox_dispatch (status, next_retry_at, created_at)
+        - [x] idx_mail_outbox_dedup (recipient, biz_type, status, created_at)
+        - [x] idx_mail_outbox_trace_id (trace_id) WHERE trace_id IS NOT NULL
+        - [x] idx_mail_outbox_retry (status, retry_count, next_retry_at) WHERE status IN ('PENDING', 'FAILED')
+    - [x] 测试基础设施：
+        - [x] MailOutboxFixtures (Object Mother + Builder)
+        - [x] MailOutboxRepositoryTest (13 tests, @Nested structure)
+        - [x] BaseRepositoryTest 添加 @EnableJpaAuditing
+    - [x] 验收：全部测试通过（269 tests）
 
 ## 开发计划 (8周) 🗓️
 

@@ -1,6 +1,6 @@
-# Developer Handbook: Four Standard Operations
+# Developer Handbook: Five Standard Operations
 
-This handbook provides step-by-step instructions for four common development tasks in the CTT Server codebase.
+This handbook provides step-by-step instructions for five common development tasks in the CTT Server codebase.
 
 ## Table of Contents
 
@@ -8,6 +8,7 @@ This handbook provides step-by-step instructions for four common development tas
 2. [Adding Audit Events](#adding-audit-events)
 3. [Adding Public Exceptions](#adding-public-exceptions)
 4. [Adding Protected Interfaces](#adding-protected-interfaces)
+5. [Using Mail Template Renderer](#using-mail-template-renderer)
 
 ---
 
@@ -323,6 +324,132 @@ class UserControllerTest {
     @DisplayName("GET /me - unauthenticated returns 401")
     void getMe_whenUnauthenticated_returns401() {
         assertThat(mvc.get().uri("/api/v1/users/me")).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+}
+```
+
+---
+
+## Using Mail Template Renderer
+
+### Overview
+
+The Mail Template Renderer provides type-safe email template rendering using Thymeleaf with strongly-typed DTOs (sealed interface + records).
+
+### Architecture
+
+```
+MailTemplateData (sealed interface)
+├── EmailVerificationTemplateData (record)
+└── PasswordResetTemplateData (record)
+
+MailTemplateRenderer (interface)
+└── ThymeleafMailTemplateRenderer (implementation)
+```
+
+### Standard Steps
+
+**Step 1**: Create Template Data
+
+```java
+import com.ahogek.cttserver.mail.template.EmailVerificationTemplateData;
+
+var data = new EmailVerificationTemplateData(
+    "username",
+    "https://example.com/verify?token=abc123",
+    Duration.ofMinutes(15)
+);
+```
+
+**Step 2**: Inject and Use Renderer
+
+```java
+@Service
+public class AuthService {
+    private final MailTemplateRenderer templateRenderer;
+    private final JavaMailSender mailSender;
+    
+    public void sendVerificationEmail(User user, String token) {
+        var data = new EmailVerificationTemplateData(
+            user.getEmail(),
+            buildVerificationLink(token),
+            Duration.ofMinutes(15)
+        );
+        
+        String html = templateRenderer.renderHtml(data);
+        String text = templateRenderer.renderText(data);
+        
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+        helper.setTo(user.getEmail());
+        helper.setSubject("Verify Your Email");
+        helper.setText(html, text);
+        
+        mailSender.send(message);
+    }
+}
+```
+
+### Template Files
+
+Templates are located in `src/main/resources/mail-templates/`:
+
+```
+mail-templates/
+├── layout/base.html              # Shared layout (header, footer, brand colors)
+├── email-verification.html       # Verification email HTML
+├── email-verification.txt        # Verification email plain text
+├── password-reset.html           # Password reset email HTML
+└── password-reset.txt            # Password reset email plain text
+```
+
+### Adding New Template Types
+
+**Step 1**: Create Template Data Record
+
+```java
+public record WelcomeEmailTemplateData(String username, String welcomeLink) implements MailTemplateData {
+    public WelcomeEmailTemplateData {
+        Objects.requireNonNull(username);
+        Objects.requireNonNull(welcomeLink);
+    }
+    
+    @Override
+    public String getTemplateName() {
+        return "welcome-email";
+    }
+    
+    @Override
+    public Map<String, Object> getVariables() {
+        return Map.of("username", username, "welcomeLink", welcomeLink);
+    }
+}
+```
+
+**Step 2**: Create Template Files
+
+Create `welcome-email.html` and `welcome-email.txt` in `src/main/resources/mail-templates/`.
+
+**Step 3**: Use in Service
+
+```java
+var data = new WelcomeEmailTemplateData(user.getName(), welcomeLink);
+String html = templateRenderer.renderHtml(data);
+```
+
+### Testing
+
+```java
+@SpringBootTest(classes = {MailTemplateConfig.class, ThymeleafMailTemplateRenderer.class})
+class MailTemplateRendererTest {
+    @Autowired private MailTemplateRenderer renderer;
+    
+    @Test
+    void shouldRenderEmail() {
+        var data = new EmailVerificationTemplateData("user", "https://example.com", Duration.ofMinutes(15));
+        String html = renderer.renderHtml(data);
+        
+        assertThat(html).contains("user").contains("https://example.com");
     }
 }
 ```

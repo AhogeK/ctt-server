@@ -1,0 +1,10 @@
+Welcome to CTT Server, [(${username})]!
+
+Thank you for registering. Please confirm your email address to activate your account by visiting the link below:
+
+[(${verificationLink})]
+
+This verification link will expire in [(${expirationMinutes})] minutes.
+
+If you didn't request this email, please ignore it.
+© 2026 CTT Server. All rights reserved.
