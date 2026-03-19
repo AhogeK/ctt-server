@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "code-reviewer": {
+      "source": "a-pavithraa/springboot-skills-marketplace",
+      "sourceType": "github",
+      "computedHash": "aac269e9e8b718d57a1c2d0e8ec7d9525548c48661d413dfc30a5c34d577e365"
+    },
+    "spring-data-jpa": {
+      "source": "a-pavithraa/springboot-skills-marketplace",
+      "sourceType": "github",
+      "computedHash": "6282f03e27fbc2874811651062a9c8aab92f1fa9b38c735ba92a02d56d92fe0b"
+    }
+  }
+}
