@@ -44,6 +44,16 @@ X-Device-ID/X-Platform/X-IDE-Name Header 标准化，业务层不接触 HttpServ
 
 X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP。
 
+## 测试风格: 轻量级 BDD
+
+采用 `// Given // When // Then` 注释结构组织测试代码，不引入 Cucumber 等重量级 BDD 框架。
+
+**决策依据**：
+- 个人/小团队项目，无需跨团队协作
+- 开发者为主要读者，注释结构已足够清晰
+- 遵循 AGENTS.md R12（禁止擅自添加依赖）
+- AssertJ `then()` 与 `assertThat()` 功能相同，无实际改进价值
+
 ## 详细文档
 
 - [时间策略](../docs/time-strategy.md)
