@@ -294,7 +294,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Related Projects
 
 - [CTT JetBrains Plugin](https://github.com/AhogeK/code-time-tracker) - JetBrains IDE plugin
-- CTT Web - Vue.js dashboard frontend (planned)
+- [CTT Web](https://github.com/AhogeK/ctt-web) - Vue.js dashboard frontend
 
 ---
 
