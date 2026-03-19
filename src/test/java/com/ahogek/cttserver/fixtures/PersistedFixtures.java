@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.fixtures;
 
 import com.ahogek.cttserver.audit.entity.AuditLog;
+import com.ahogek.cttserver.mail.entity.MailOutbox;
 import com.ahogek.cttserver.user.entity.User;
 
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
@@ -134,6 +135,30 @@ public final class PersistedFixtures {
     /** Persists an account locked audit event. */
     public static AuditLog accountLocked(TestEntityManager em, UUID userId, int attemptCount) {
         return auditLog(em, AuditFixtures.accountLocked(userId, attemptCount));
+    }
+
+    // ==========================================
+    // Mail Outbox Persistence
+    // ==========================================
+
+    /** Persists a mail outbox entry from a builder and returns the managed entity. */
+    public static MailOutbox mailOutbox(TestEntityManager em, MailOutboxFixtures.Builder builder) {
+        return em.persistFlushFind(builder.build());
+    }
+
+    /** Persists a pending mail outbox entry with default settings. */
+    public static MailOutbox pendingMail(TestEntityManager em) {
+        return mailOutbox(em, MailOutboxFixtures.pending());
+    }
+
+    /** Persists a retryable failed mail outbox entry. */
+    public static MailOutbox retryableFailedMail(TestEntityManager em) {
+        return mailOutbox(em, MailOutboxFixtures.retryableFailed());
+    }
+
+    /** Persists a sent mail outbox entry. */
+    public static MailOutbox sentMail(TestEntityManager em) {
+        return mailOutbox(em, MailOutboxFixtures.sent());
     }
 
     // ==========================================

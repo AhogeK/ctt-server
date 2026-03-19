@@ -5,6 +5,7 @@ import com.ahogek.cttserver.TestcontainersConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.lang.annotation.Documented;
@@ -70,5 +71,6 @@ import java.lang.annotation.Target;
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(TestcontainersConfiguration.class)
+@EnableJpaAuditing
 @ActiveProfiles("test")
 public @interface BaseRepositoryTest {}
