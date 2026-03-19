@@ -108,6 +108,25 @@ class MailTemplateRendererTest {
                     .doesNotContain("<html>")
                     .doesNotContain("</");
         }
+
+        @Test
+        @DisplayName("Text rendering should NOT escape ampersand in URL")
+        void shouldNotEscapeAmpersandInUrl() {
+            // Given: URL with & symbol - critical test for text mode escaping
+            var data =
+                    new EmailVerificationTemplateData(
+                            "AhogeK",
+                            "https://api.cttserver.com/verify?token=abc123&type=verification",
+                            Duration.ofMinutes(15));
+
+            // When
+            String textOutput = renderer.renderText(data);
+
+            // Then: & must NOT be escaped to &amp; in plain text mode
+            assertThat(textOutput)
+                    .contains("https://api.cttserver.com/verify?token=abc123&type=verification")
+                    .doesNotContain("&amp;");
+        }
     }
 
     @Nested
@@ -174,6 +193,25 @@ class MailTemplateRendererTest {
                     .contains("60")
                     .doesNotContain("<html>")
                     .doesNotContain("</");
+        }
+
+        @Test
+        @DisplayName("Text rendering should NOT escape ampersand in reset URL")
+        void shouldNotEscapeAmpersandInResetUrl() {
+            // Given: URL with & symbol - critical test for text mode escaping
+            var data =
+                    new PasswordResetTemplateData(
+                            "Admin",
+                            "https://api.cttserver.com/reset?token=xyz&expires=3600",
+                            Duration.ofMinutes(30));
+
+            // When
+            String textOutput = renderer.renderText(data);
+
+            // Then: & must NOT be escaped to &amp; in plain text mode
+            assertThat(textOutput)
+                    .contains("https://api.cttserver.com/reset?token=xyz&expires=3600")
+                    .doesNotContain("&amp;");
         }
     }
 }
