@@ -2,198 +2,68 @@
 
 ## 已完成 ✅
 
-- [x] 创建 AGENTS.md 项目记忆配置文件
-- [x] 创建开发者手册 (docs/developer-handbook.md) - 新增错误码、审计事件、公共异常、受保护接口操作指南
-- [x] **版本升级**: 0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT (基建工程阶段性完成)
-- [x] 初始化 memory-bank/ 目录结构
-- [x] 项目架构设计与技术选型确定
-- [x] README 基础版本
-- [x] MIT LICENSE
-- [x] 创建 Flyway 数据库迁移脚本 (V20260303210000__init_base_schema.sql)
-- [x] 添加代码规范：CONVENTIONS.md、.editorconfig、.gitmessage
-- [x] 添加构建工具：Spotless + JaCoCo
-- [x] 合并 scaffold 分支到 master
-- [x] 拆分包结构 (common, auth, user, device, audit, mail)
+- [x] AGENTS.md 项目记忆配置
+- [x] 开发者手册 (docs/developer-handbook.md)
+- [x] 版本升级: 0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT
+- [x] memory-bank/ 目录结构
+- [x] Flyway 数据库迁移脚本
+- [x] 代码规范：CONVENTIONS.md、.editorconfig、.gitmessage
+- [x] 构建工具：Spotless + JaCoCo
+- [x] 包结构拆分 (common, auth, user, device, audit, mail)
 - [x] 统一响应模型 (ApiResponse, ErrorResponse, PagedResponse, EmptyResponse)
-- [x] 审计事件模型与安全事件模型
-    - [x] 审计枚举：ResourceType, AuditAction, SecuritySeverity
-    - [x] SecurityAuditEvent 五元组模型重构
-    - [x] AuditLog 实体升级为强类型枚举
-    - [x] 数据库迁移：audit_logs 表添加 severity 列
-    - [x] AuditEventListener 适配新事件结构
-- [x] **测试基线脚手架**
-    - [x] BaseControllerSliceTest：Controller 层测试基类注解
-    - [x] BaseRepositoryTest：Repository 层测试基类注解
-    - [x] BaseIntegrationTest：集成测试基类注解
-    - [x] TestcontainersConfiguration：固定 Docker 镜像版本（postgres:16.3, redis:7.2）
-- [x] **邮件基础设施 Phase A**（GreenMail 内嵌 SMTP 迁移）
-    - [x] 添加 spring-boot-starter-mail 依赖
-    - [x] 添加 greenmail:2.1.3 测试依赖
-    - [x] 创建 GreenMailTestConfiguration（进程内 SMTP 沙箱）
-        - [x] ServerSetup(0) 随机端口绑定
-        - [x] @DynamicPropertyRegistrar 动态注入配置
-        - [x] 测试用户：test@localhost / test
-    - [x] 更新 application-test.yaml：端口占位符 0，启用 SMTP auth
-    - [x] 更新 BaseIntegrationTest：导入 GreenMailTestConfiguration
-    - [x] 更新 MailConfigurationTest：添加 GreenMail 注入和清理逻辑
-    - [x] 移除 TestcontainersConfiguration 中的 Mailpit 容器
-    - [x] 保留 docker-compose.yaml 用于本地开发调试
-    - [x] 验收：所有测试通过（269 个测试）
-- [x] **邮件基础设施 Phase B**（Mail Outbox 事务性邮件队列）
-    - [x] MailOutbox 实体设计（预渲染策略 + 乐观锁 + 状态机）
-    - [x] MailOutboxStatus 枚举（description + isTerminal()）
-    - [x] MailOutboxRepository 查询方法：
-        - [x] findPendingJobs(Instant, Pageable) - 调度器轮询
-        - [x] findByTraceId(String) - 分布式追踪
-        - [x] countDuplicates(...) - 防重复投递频率校验
-        - [x] countByStatus() - 监控仪表盘
-    - [x] 数据库索引优化：
-        - [x] idx_mail_outbox_dispatch (status, next_retry_at, created_at)
-        - [x] idx_mail_outbox_dedup (recipient, biz_type, status, created_at)
-        - [x] idx_mail_outbox_trace_id (trace_id) WHERE trace_id IS NOT NULL
-        - [x] idx_mail_outbox_retry (status, retry_count, next_retry_at) WHERE status IN ('PENDING', 'FAILED')
-    - [x] 测试基础设施：
-        - [x] MailOutboxFixtures (Object Mother + Builder)
-        - [x] MailOutboxRepositoryTest (13 tests, @Nested structure)
-        - [x] BaseRepositoryTest 添加 @EnableJpaAuditing
-    - [x] 验收：全部测试通过（269 tests）
-
-## 开发计划 (8周) 🗓️
-
-### Week 1-2: 基础设施与认证 🔧
-
-**目标**: 搭建脚手架、数据库、认证系统
-
-- [ ] 搭建 Spring Boot 4.x + Gradle Kotlin 项目结构
-- [x] 配置 PostgreSQL + Flyway 数据库迁移 (脚本已创建)
-- [ ] 配置 Redis 缓存
-- [ ] 实现 JWT 用户认证 (注册/登录)
-- [ ] 实现 API Key 生成与管理 (设备绑定)
-- [ ] 编写基础单元测试
-
-### Week 3-4: 双向同步引擎 🔄
-
-**目标**: 实现核心同步逻辑 (Pull/Push + 冲突解决)
-
-- [ ] 设计 CodingSession 数据模型 (含软删除、updated_at)
-- [ ] 实现 SyncCursor 设备同步状态追踪
-- [ ] 实现 SyncPullService (增量拉取)
-- [ ] 实现 SyncPushService (数据合并)
-- [ ] 实现 ConflictResolver (LWW 冲突解决)
-- [ ] 编写详尽的并发/冲突单元测试
-
-### Week 5-6: 插件端集成 🔌
-
-**目标**: 升级插件实现云端同步
-
-- [ ] 升级 SQLite 表结构 (添加软删除字段)
-- [ ] 实现先 Pull 后 Push 的调度逻辑
-- [ ] 实现空闲触发同步机制
-- [ ] 多端冲突场景测试验证
-
-### Week 7: 统计与排行榜 📊
-
-**目标**: 实现数据分析与实时榜单
-
-- [ ] 实现多维时序聚合查询接口
-- [ ] 实现设备过滤统计功能
-- [ ] 实现 Redis ZSet 排行榜机制
-- [ ] 性能优化与缓存策略
-
-### Week 8: 测试与上线 🚀
-
-**目标**: 压测、监控、部署
-
-- [ ] 压力测试 (大规模离线数据同步)
-- [ ] 集成 Sentry 错误监控
-- [ ] Railway/Fly.io 部署配置
-- [ ] API 文档完善
-- [ ] 上线文档与运维手册
+- [x] 审计事件模型与安全事件模型 (强类型枚举 + 五元组)
+- [x] 测试基线脚手架 (BaseControllerSliceTest, BaseRepositoryTest, BaseIntegrationTest)
+- [x] 邮件基础设施 Phase A (GreenMail 内嵌 SMTP)
+- [x] 邮件基础设施 Phase B (Mail Outbox 事务性邮件队列 + 测试基础设施)
 
 ## 进行中 🔄
 
-- [ ] Week 1 基础设施搭建 - 进度: 80%
-    - [x] Flyway 数据库迁移脚本
-    - [x] 代码规范文件 (CONVENTIONS.md, .editorconfig)
-    - [x] 构建工具配置 (Spotless, JaCoCo)
-    - [x] 包结构拆分 (common, auth, user, device, audit, mail)
-    - [x] 统一响应模型 (ApiResponse, ErrorResponse, PagedResponse, EmptyResponse)
-    - [x] 统一错误码体系 (ErrorCode enum)
-    - [x] 统一异常体系 (BusinessException + 7个子类 + GlobalExceptionHandler)
-    - [x] 全局 Jackson 配置 (application.yaml non_null)
-    - [x] 响应类改为 record (Java 25)
-    - [x] 测试覆盖率 80% 达标
-    - [x] TraceId 透传机制 (TraceIdFilter + TraceContext + MDC)
-    - [x] logback-spring.xml 配置
-    - [x] RequestContext 体系 (RequestInfo + RequestContext + ScopedValue)
-    - [x] IpUtils 工具类
-- [x] **三层日志规范 (请求/业务/错误)**
-        - [x] RequestLoggingFilter - 请求层日志 (ACCESS_LOG, SLOW_REQUEST_LOG)
-        - [x] LogRecord - 业务层结构化日志工具
-        - [x] GlobalExceptionHandler - 错误日志统一出口 (Fluent API)
-    - [x] **安全基础架构**
-        - [x] UTC 时间策略 (JVM + Jackson + Database)
-        - [x] 大小写规范化策略 (DTO + Entity + Repository 三层防御)
-        - [x] CurrentUserProvider 安全底座 (防腐层 + Spring Security 适配)
-        - [x] Token 状态机设计 (动态状态推导 + GDPR 数据脱敏)
-        - [x] User 状态机 (充血模型 + 状态流转守卫)
-    - [x] **接口治理框架 (完整实现)**
-        - [x] @RateLimit 声明式限流注解 (支持 IP/USER/EMAIL/API 四维度 + SpEL)
-        - [x] RateLimitAspect AOP 切面 (SpEL 解析 + 审计集成)
-        - [x] RateLimitKeyFactory 策略工厂 (O(1) Key 生成)
-        - [x] RedisRateLimiter Lua 脚本 (原子性固定窗口算法)
-        - [x] @Idempotent 声明式幂等注解 (prefix, keyExpression, includeUserId, expireSeconds)
-        - [x] IdempotentAspect AOP 切面 (SpEL 解析 + Redis 分布式锁)
-        - [x] IdempotentLocker Redis SETNX 实现 (O(1) 轻量级锁)
-        - [x] docs/api-governance.md 接口安全分类清单
-    - [x] **接口安全分类模型 (Secure by Default)**
-        - [x] @PublicApi 注解：声明式标记公开接口
-        - [x] PublicApiEndpointRegistry：动态扫描公开端点
-        - [x] SecurityConfig：集成动态白名单 + 默认拒绝策略
-    - [x] **客户端身份提取上下文**（为 devices/refresh_tokens/api_keys 预留）
-        - [x] ClientHeaderConstants：HTTP Header 契约常量（X-Device-ID, X-Platform 等）
-        - [x] ClientIdentity：强类型不可变客户端身份载体
-        - [x] RequestInfo 扩展：集成 ClientIdentity
-        - [x] RequestContextInitializerFilter：O(1) 提取并灌入上下文
-    - [x] **OWASP 安全 Header 规范**
-        - [x] X-Content-Type-Options: nosniff (防 MIME 嗅探)
-        - [x] X-XSS-Protection: 1; mode=block (XSS 防护)
-        - [x] X-Frame-Options: DENY (防点击劫持)
-        - [x] Strict-Transport-Security: max-age=31536000 (HSTS)
-        - [x] Content-Security-Policy: default-src 'self' (CSP)
-    - [x] **配置分层架构 (12-Factor App)**
-        - [x] application.yaml: 全局基线配置（非环境相关）
-        - [x] application-dev.yaml: 云端部署配置（环境变量驱动）
-        - [x] .gitignore: 本地敏感配置保护
-        - [x] application-local.yaml.template: 新人配置模板
-    - [x] **安全配置规范 (@ConfigurationProperties)**
-        - [x] SecurityProperties: 强类型安全配置类 (Record + @Validated)
-        - [x] JWT 配置：secret-key, issuer, token TTL (access/plugin/web)
-        - [x] 密码策略：bcrypt-rounds (12), max-failed-attempts (5), lock-duration (30m)
-        - [x] 限流策略：global-max-requests-per-second (200)
-        - [x] 审计策略：masked-fields (password, token, secret, key)
-        - [x] @ConfigurationPropertiesScan 启用配置扫描
-    - [x] **测试基线脚手架 (完整)**
-        - [x] BaseControllerSliceTest：@AliasFor 桥接 + @ActiveProfiles("test") + excludeFilters
-        - [x] BaseRepositoryTest：FlywayAutoConfiguration 导入 + @ActiveProfiles("test")
-        - [x] BaseIntegrationTest：完整 ApplicationContext + Context 复用规则
-        - [x] TestcontainersConfiguration：固定版本 (postgres:16.3, redis:7.2) + CI 环境禁用复用
-        - [x] application-test.yaml：ddl-auto: create-drop, bcrypt-rounds: 4, rate-limit: disabled
-        - [x] TestBaselineSmokeTest：冒烟测试验证 Testcontainers + Hibernate + JPA 链路
-    - [x] **测试数据 Fixture 工具包**
-        - [x] UserFixtures：Object Mother + Builder 模式（预设角色、反射绕过状态机）
-        - [x] TokenFixtures：JWT/RefreshToken 测试数据（TokenPair record、边界场景）
-        - [x] AuditFixtures：审计日志测试数据（预设事件、Builder 模式）
-        - [x] PersistedFixtures：统一持久化入口（与 TestEntityManager 集成）
-    - [ ] Spring Boot 项目结构
-    - [ ] Redis 缓存配置
-    - [ ] JWT 认证实现
-    - [ ] API Key 管理
+Week 1 基础设施搭建 - 进度: 80%
+- [x] Flyway 数据库迁移
+- [x] 代码规范文件
+- [x] 构建工具配置
+- [x] 包结构拆分
+- [x] 统一响应/错误码/异常模型
+- [x] 全局 Jackson 配置
+- [x] TraceId 透传机制
+- [x] RequestContext 体系
+- [x] 三层日志规范
+- [x] 安全基础架构 (UTC/大小写/CurrentUserProvider/Token状态机/User状态机)
+- [x] 接口治理框架 (@RateLimit + @Idempotent)
+- [x] 接口安全分类 (@PublicApi + 动态白名单)
+- [x] 客户端身份上下文 (ClientIdentity)
+- [x] OWASP 安全 Headers
+- [x] 配置分层架构 (12-Factor App)
+- [x] 安全配置规范 (@ConfigurationProperties)
+- [x] 测试基线脚手架 (完整)
+- [x] 测试数据 Fixture 工具包
+- [ ] Spring Boot 项目结构
+- [ ] Redis 缓存配置
+- [ ] JWT 认证实现
+- [ ] API Key 管理
 
-## 待开始 ⏳
+## 开发计划 (8周)
 
-- [ ] 项目脚手架初始化
+### Week 1-2: 基础设施与认证
+- [ ] 配置 Redis 缓存
+- [ ] 实现 JWT 用户认证
+- [ ] 实现 API Key 管理
 
-## 已知问题 🐛
+### Week 3-4: 双向同步引擎
+- [ ] CodingSession 数据模型
+- [ ] SyncCursor 设备同步状态
+- [ ] SyncPullService / SyncPushService
+- [ ] ConflictResolver (LWW)
 
-- 无
+### Week 5-6: 插件端集成
+- [ ] 升级 SQLite 表结构
+- [ ] 同步调度逻辑
+
+### Week 7: 统计与排行榜
+- [ ] 多维时序聚合查询
+- [ ] Redis ZSet 排行榜
+
+### Week 8: 测试与上线
+- [ ] 压力测试
+- [ ] Sentry 监控
+- [ ] 部署配置
