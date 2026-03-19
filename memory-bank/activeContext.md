@@ -1,3 +1,13 @@
+- [2026-03-20] - MailOutboxService 实现 (Transactional Outbox 写入侧)
+    - 新增 `MailOutboxService.java`: 邮件入队服务
+        - `enqueueVerificationEmail(userId, username, email, token)`: 注册验证邮件
+        - `enqueuePasswordResetEmail(userId, username, email, token)`: 密码重置邮件
+        - 限流防护: 1分钟/5分钟窗口，最多3次
+        - 预渲染模板存储 (bodyHtml/bodyText)
+    - 扩展 `CttMailProperties`: 添加 `Frontend` record (baseUrl)
+    - 新增 `MailOutboxServiceTest.java`: 8 个测试用例
+    - 更新 `application.yaml`/`application-test.yaml`: 添加 `ctt.mail.frontend.base-url`
+
 - [2026-03-20] - 测试覆盖率提升 (87% → 92% 指令, 76% → 84% 分支)
     - 新增测试文件：
         - `UserValidatorTest.java`: 18 个领域规则测试（邮箱唯一性/登录限制/邮箱验证/用户存在）
@@ -31,6 +41,6 @@
 
 ## 下一步行动
 
-1. 实现 MailOutboxService 业务逻辑
-2. 实现邮件发送调度器
+1. ~~实现 MailOutboxService 业务逻辑~~ ✅ 已完成
+2. 实现邮件发送调度器 (MailOutboxScheduler)
 3. 集成 Resend API 生产环境发送

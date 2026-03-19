@@ -113,3 +113,6 @@ ctt:
       max-delay-seconds: ${MAIL_RETRY_MAX_DELAY_SECONDS:3600}
       # Maximum retry attempts before marking as DEAD
       max-attempts: ${MAIL_RETRY_MAX_ATTEMPTS:5}
+
+    frontend:
+      base-url: ${FRONTEND_BASE_URL:http://localhost:5173}

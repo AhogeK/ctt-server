@@ -61,3 +61,5 @@ ctt:
       multiplier: 1.0
       max-delay-seconds: 5
       max-attempts: 2
+    frontend:
+      base-url: http://localhost:5173

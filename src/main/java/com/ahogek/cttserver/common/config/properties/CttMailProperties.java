@@ -22,7 +22,10 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "ctt.mail")
 @Validated
 public record CttMailProperties(
-        @Valid @NotNull From from, @Valid @NotNull Outbox outbox, @Valid @NotNull Retry retry) {
+        @Valid @NotNull From from,
+        @Valid @NotNull Outbox outbox,
+        @Valid @NotNull Retry retry,
+        @Valid @NotNull Frontend frontend) {
 
     /**
      * Sender configuration.
@@ -31,6 +34,13 @@ public record CttMailProperties(
      * @param name Sender display name (e.g., "CTT Server")
      */
     public record From(@NotBlank String address, @NotBlank String name) {}
+
+    /**
+     * Frontend URL configuration for building email links.
+     *
+     * @param baseUrl Frontend application base URL (e.g., https://app.cttserver.com)
+     */
+    public record Frontend(@NotBlank String baseUrl) {}
 
     /**
      * Outbox scheduler configuration.

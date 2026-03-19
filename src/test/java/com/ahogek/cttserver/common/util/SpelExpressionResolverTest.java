@@ -7,7 +7,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,11 +26,9 @@ import static org.mockito.BDDMockito.given;
 @DisplayName("SpelExpressionResolver Utility Tests")
 class SpelExpressionResolverTest {
 
-    @Mock
-    private ProceedingJoinPoint joinPoint;
+    @Mock private ProceedingJoinPoint joinPoint;
 
-    @Mock
-    private MethodSignature methodSignature;
+    @Mock private MethodSignature methodSignature;
 
     private SpelExpressionResolver resolver;
 
@@ -61,7 +58,7 @@ class SpelExpressionResolverTest {
         // Given - use real Method for parameter name discovery
         Method method = TestService.class.getMethod("singleParamMethod", String.class);
         given(methodSignature.getMethod()).willReturn(method);
-        given(joinPoint.getArgs()).willReturn(new Object[]{"test@example.com"});
+        given(joinPoint.getArgs()).willReturn(new Object[] {"test@example.com"});
 
         // When
         String result = resolver.resolve(joinPoint, methodSignature, "#email");
@@ -76,7 +73,7 @@ class SpelExpressionResolverTest {
         // Given
         Method method = TestService.class.getMethod("intParamMethod", Integer.class);
         given(methodSignature.getMethod()).willReturn(method);
-        given(joinPoint.getArgs()).willReturn(new Object[]{42});
+        given(joinPoint.getArgs()).willReturn(new Object[] {42});
 
         // When
         String result = resolver.resolve(joinPoint, methodSignature, "#count");
@@ -91,7 +88,7 @@ class SpelExpressionResolverTest {
         // Given
         Method method = TestService.class.getMethod("singleParamMethod", String.class);
         given(methodSignature.getMethod()).willReturn(method);
-        given(joinPoint.getArgs()).willReturn(new Object[]{null});
+        given(joinPoint.getArgs()).willReturn(new Object[] {null});
 
         // When
         String result = resolver.resolve(joinPoint, methodSignature, "#email");
@@ -107,7 +104,7 @@ class SpelExpressionResolverTest {
         Method method = TestService.class.getMethod("objectParamMethod", UserDto.class);
         UserDto user = new UserDto("john", "john@example.com");
         given(methodSignature.getMethod()).willReturn(method);
-        given(joinPoint.getArgs()).willReturn(new Object[]{user});
+        given(joinPoint.getArgs()).willReturn(new Object[] {user});
 
         // When
         String username = resolver.resolve(joinPoint, methodSignature, "#user.username");
@@ -124,7 +121,7 @@ class SpelExpressionResolverTest {
         // Given
         Method method = TestService.class.getMethod("singleParamMethod", String.class);
         given(methodSignature.getMethod()).willReturn(method);
-        given(joinPoint.getArgs()).willReturn(new Object[]{"test@example.com"});
+        given(joinPoint.getArgs()).willReturn(new Object[] {"test@example.com"});
 
         // When
         String result = resolver.resolve(joinPoint, methodSignature, "#nonExistent");
@@ -136,17 +133,13 @@ class SpelExpressionResolverTest {
     // Test helper classes
     @SuppressWarnings("unused")
     public static class TestService {
-        public void singleParamMethod(String email) {
-        }
+        public void singleParamMethod(String email) {}
 
-        public void intParamMethod(Integer count) {
-        }
+        public void intParamMethod(Integer count) {}
 
-        public void objectParamMethod(UserDto user) {
-        }
+        public void objectParamMethod(UserDto user) {}
     }
 
     @SuppressWarnings("unused")
-    public record UserDto(String username, String email) {
-    }
+    public record UserDto(String username, String email) {}
 }
