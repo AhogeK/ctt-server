@@ -141,4 +141,49 @@ class GlobalExceptionHandlerTest {
         var result = handler.handleConstraintViolation(ex);
         assertThat(result.getStatusCode().value()).isEqualTo(400);
     }
+
+    @Test
+    void handleUnauthorizedException_returns_401() {
+        UnauthorizedException ex = new UnauthorizedException(ErrorCode.AUTH_003, "Invalid token");
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        var result = handler.handleSecurityException(ex);
+        assertThat(result.getStatusCode().value()).isEqualTo(401);
+        assert result.getBody() != null;
+        assertThat(result.getBody().code()).isEqualTo("AUTH_003");
+    }
+
+    @Test
+    void handleForbiddenException_returns_403() {
+        ForbiddenException ex = new ForbiddenException(ErrorCode.AUTH_005, "Access denied");
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        var result = handler.handleSecurityException(ex);
+        assertThat(result.getStatusCode().value()).isEqualTo(403);
+        assert result.getBody() != null;
+        assertThat(result.getBody().code()).isEqualTo("AUTH_005");
+    }
+
+    @Test
+    void handleInternalServerErrorException_returns_500() {
+        InternalServerErrorException ex = new InternalServerErrorException("Internal system error");
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        var result = handler.handleInternalServerError(ex);
+        assertThat(result.getStatusCode().value()).isEqualTo(500);
+        assert result.getBody() != null;
+        assertThat(result.getBody().code()).isEqualTo("SYSTEM_001");
+    }
+
+    @Test
+    void handleDataIntegrityViolationException_returns_409() {
+        org.springframework.dao.DataIntegrityViolationException ex =
+                new org.springframework.dao.DataIntegrityViolationException("Duplicate key");
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        var result = handler.handleDataIntegrityViolation(ex);
+        assertThat(result.getStatusCode().value()).isEqualTo(409);
+        assert result.getBody() != null;
+        assertThat(result.getBody().code()).isEqualTo("USER_001");
+    }
 }

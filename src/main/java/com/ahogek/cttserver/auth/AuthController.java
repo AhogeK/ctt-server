@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.common.response.ApiResponse;
 import com.ahogek.cttserver.common.response.EmptyResponse;
+import com.ahogek.cttserver.common.security.annotation.PublicApi;
 import com.ahogek.cttserver.user.service.UserService;
 
 import jakarta.validation.Valid;
@@ -52,6 +53,7 @@ public class AuthController {
      * @param request the registration request (validated)
      * @return success response
      */
+    @PublicApi(reason = "User registration endpoint - Tier 1 public API")
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<EmptyResponse>> register(
             @Valid @RequestBody UserRegisterRequest request) {
