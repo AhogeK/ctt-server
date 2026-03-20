@@ -25,6 +25,9 @@ public enum ResourceType {
     /** Client / plugin API key entity. */
     API_KEY,
 
+    /** Mail outbox entity for transactional email queue. */
+    MAIL_OUTBOX,
+
     /** Fallback type for system-level or uncategorized resources. */
     UNKNOWN
 }

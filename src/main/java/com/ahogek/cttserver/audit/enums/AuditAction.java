@@ -91,6 +91,9 @@ public enum AuditAction {
     /** Rate limit quota exceeded. */
     RATE_LIMIT_EXCEEDED("Rate limit quota exceeded"),
 
+    /** Mail operation skipped due to idempotency protection. */
+    MAIL_IDEMPOTENT_SKIP("Mail operation skipped due to idempotency"),
+
     /** Unauthorized access attempt (401 - missing or invalid token). */
     UNAUTHORIZED_ACCESS("Unauthorized access attempt"),
 

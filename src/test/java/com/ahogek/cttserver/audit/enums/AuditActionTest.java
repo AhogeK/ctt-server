@@ -54,6 +54,8 @@ class AuditActionTest {
     void description_returns_correct_value_for_security_actions() {
         assertThat(AuditAction.RATE_LIMIT_EXCEEDED.description())
                 .isEqualTo("Rate limit quota exceeded");
+        assertThat(AuditAction.MAIL_IDEMPOTENT_SKIP.description())
+                .isEqualTo("Mail operation skipped due to idempotency");
         assertThat(AuditAction.UNAUTHORIZED_ACCESS.description())
                 .isEqualTo("Unauthorized access attempt");
         assertThat(AuditAction.FORBIDDEN_ACCESS.description())

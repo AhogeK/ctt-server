@@ -123,4 +123,24 @@ public interface MailOutboxRepository extends JpaRepository<MailOutbox, UUID> {
      */
     @Query("SELECT m.status, COUNT(m) FROM MailOutbox m GROUP BY m.status")
     List<Object[]> countByStatus();
+
+    /**
+     * Checks if a mail entry exists for the given recipient, business type, business ID, and status
+     * set within a time window.
+     *
+     * <p>Used for idempotency protection to prevent duplicate email enqueues within a time window.
+     *
+     * @param recipient target email address
+     * @param bizType business category, e.g. {@code "REGISTER_VERIFY"}
+     * @param bizId the business entity ID (typically userId)
+     * @param statuses statuses to include; typically {@code [PENDING, SENDING, SENT]}
+     * @param windowStart the start of the time window (exclusive lower bound)
+     * @return {@code true} if a matching entry exists
+     */
+    boolean existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+            String recipient,
+            String bizType,
+            UUID bizId,
+            List<MailOutboxStatus> statuses,
+            Instant windowStart);
 }

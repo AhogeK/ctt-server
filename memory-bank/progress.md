@@ -15,7 +15,7 @@
 - [x] 测试基线脚手架 (BaseControllerSliceTest, BaseRepositoryTest, BaseIntegrationTest)
 - [x] 邮件基础设施 Phase A (GreenMail 内嵌 SMTP)
 - [x] 邮件基础设施 Phase B (Mail Outbox 事务性邮件队列 + 测试基础设施)
-- [x] 邮件基础设施 Phase C (MailOutboxService 写入侧服务)
+- [x] 邮件基础设施 Phase C (MailOutboxService 写入侧服务 + 10 tests)
 - [x] 测试覆盖率提升 (指令 87%→92%, 分支 76%→84%)
 
 ## 进行中 🔄

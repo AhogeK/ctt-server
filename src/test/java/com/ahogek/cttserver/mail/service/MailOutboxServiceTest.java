@@ -1,7 +1,11 @@
 package com.ahogek.cttserver.mail.service;
 
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
+import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.config.properties.CttMailProperties;
-import com.ahogek.cttserver.common.context.MdcKey;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
@@ -43,8 +47,10 @@ class MailOutboxServiceTest {
 
     @Mock private MailOutboxRepository repository;
     @Mock private MailTemplateRenderer renderer;
+    @Mock private AuditLogService auditLog;
 
     @Captor private ArgumentCaptor<MailOutbox> outboxCaptor;
+    @Captor private ArgumentCaptor<AuditDetails> auditDetailsCaptor;
 
     private MailOutboxService service;
 
@@ -57,7 +63,7 @@ class MailOutboxServiceTest {
                         new CttMailProperties.Retry(10, 2.0, 3600, MAX_RETRIES),
                         new CttMailProperties.Frontend(FRONTEND_BASE_URL));
 
-        service = new MailOutboxService(repository, renderer, properties);
+        service = new MailOutboxService(repository, renderer, properties, auditLog);
     }
 
     @AfterEach
@@ -98,6 +104,9 @@ class MailOutboxServiceTest {
             assertThat(saved.getBodyHtml()).isEqualTo("<html>verification</html>");
             assertThat(saved.getBodyText()).isEqualTo("verification text");
             assertThat(saved.getMaxRetries()).isEqualTo(MAX_RETRIES);
+            assertThat(saved.getStatus()).isEqualTo(MailOutboxStatus.PENDING);
+            assertThat(saved.getRetryCount()).isZero();
+            assertThat(saved.getNextRetryAt()).isNotNull();
         }
 
         @Test
@@ -203,6 +212,9 @@ class MailOutboxServiceTest {
             assertThat(saved.getBodyHtml()).isEqualTo("<html>reset</html>");
             assertThat(saved.getBodyText()).isEqualTo("reset text");
             assertThat(saved.getMaxRetries()).isEqualTo(MAX_RETRIES);
+            assertThat(saved.getStatus()).isEqualTo(MailOutboxStatus.PENDING);
+            assertThat(saved.getRetryCount()).isZero();
+            assertThat(saved.getNextRetryAt()).isNotNull();
         }
 
         @Test
@@ -227,88 +239,159 @@ class MailOutboxServiceTest {
         }
 
         @Test
-        @DisplayName("should set trace_id from MDC when available")
-        void shouldSetTraceIdFromMdc() {
+        @DisplayName("should skip enqueue when duplicate exists in idempotent window")
+        void shouldSkipEnqueue_whenDuplicateExistsInWindow() {
             // Given
-            String expectedTraceId = "abc123def456";
-            MDC.put(MdcKey.TRACE_ID, expectedTraceId);
-            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
-                    .thenReturn(0L);
-            when(renderer.renderHtml(any())).thenReturn("<html></html>");
-            when(renderer.renderText(any())).thenReturn("text");
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
 
             // When
-            service.enqueuePasswordResetEmail(UUID.randomUUID(), "user", "email@test.com", "token");
+            service.enqueuePasswordResetEmail(userId, "user", email, "token");
 
             // Then
-            verify(repository).save(outboxCaptor.capture());
-            assertThat(outboxCaptor.getValue().getTraceId()).isEqualTo(expectedTraceId);
+            verify(repository, never()).save(any());
+            verify(repository, never()).countDuplicates(anyString(), anyString(), anyList(), any());
+            verify(auditLog)
+                    .log(
+                            eq(userId),
+                            eq(AuditAction.MAIL_IDEMPOTENT_SKIP),
+                            eq(ResourceType.MAIL_OUTBOX),
+                            eq(email),
+                            eq(SecuritySeverity.INFO),
+                            any(AuditDetails.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("idempotent protection")
+    class IdempotentProtectionTests {
+
+        @Test
+        @DisplayName("should skip verification email when duplicate exists in window")
+        void shouldSkipVerificationEmail_whenDuplicateExistsInWindow() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
+
+            // When
+            service.enqueueVerificationEmail(userId, "user", email, "token");
+
+            // Then
+            verify(repository, never()).save(any());
+            verify(repository, never()).countDuplicates(anyString(), anyString(), anyList(), any());
+            verify(auditLog)
+                    .log(
+                            eq(userId),
+                            eq(AuditAction.MAIL_IDEMPOTENT_SKIP),
+                            eq(ResourceType.MAIL_OUTBOX),
+                            eq(email),
+                            eq(SecuritySeverity.INFO),
+                            any(AuditDetails.class));
         }
 
         @Test
-        @DisplayName(
-                "should set trace_id to no-trace when neither RequestContext nor MDC has trace")
-        void shouldSetNoTraceWhenUnavailable() {
+        @DisplayName("should skip password reset email when duplicate exists in window")
+        void shouldSkipPasswordResetEmail_whenDuplicateExistsInWindow() {
             // Given
-            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
-                    .thenReturn(0L);
-            when(renderer.renderHtml(any())).thenReturn("<html></html>");
-            when(renderer.renderText(any())).thenReturn("text");
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
 
             // When
-            service.enqueuePasswordResetEmail(UUID.randomUUID(), "user", "email@test.com", "token");
+            service.enqueuePasswordResetEmail(userId, "user", email, "token");
 
             // Then
-            verify(repository).save(outboxCaptor.capture());
-            assertThat(outboxCaptor.getValue().getTraceId()).isEqualTo("no-trace");
+            verify(repository, never()).save(any());
+            verify(auditLog)
+                    .log(
+                            eq(userId),
+                            eq(AuditAction.MAIL_IDEMPOTENT_SKIP),
+                            eq(ResourceType.MAIL_OUTBOX),
+                            eq(email),
+                            eq(SecuritySeverity.INFO),
+                            any(AuditDetails.class));
         }
 
         @Test
-        @DisplayName("should throw TooManyRequestsException when rate limit exceeded")
-        void shouldThrowException_whenRateLimitExceeded() {
+        @DisplayName("should check idempotency before rate limit")
+        void shouldCheckIdempotency_beforeRateLimit() {
             // Given
-            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
-                    .thenReturn(3L);
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
 
-            // When & Then
-            var thrown =
-                    assertThatThrownBy(
-                            () ->
-                                    service.enqueuePasswordResetEmail(
-                                            UUID.randomUUID(),
-                                            "user",
-                                            "test@example.com",
-                                            "token"));
-            thrown.isInstanceOf(TooManyRequestsException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MAIL_004);
+            // When
+            service.enqueueVerificationEmail(userId, "user", email, "token");
 
+            // Then - idempotent skip should win, rate limit never checked
+            verify(repository, never()).countDuplicates(anyString(), anyString(), anyList(), any());
             verify(repository, never()).save(any());
         }
 
         @Test
-        @DisplayName("should check rate limit with correct parameters")
-        void shouldCheckRateLimit_withCorrectParameters() {
+        @DisplayName("should check idempotency with correct parameters")
+        void shouldCheckIdempotency_withCorrectParameters() {
             // Given
+            UUID userId = UUID.randomUUID();
             String email = "test@example.com";
-            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
-                    .thenReturn(0L);
-            when(renderer.renderHtml(any())).thenReturn("<html></html>");
-            when(renderer.renderText(any())).thenReturn("text");
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
 
             // When
-            service.enqueuePasswordResetEmail(UUID.randomUUID(), "user", email, "token");
+            service.enqueueVerificationEmail(userId, "user", email, "token");
 
             // Then
             verify(repository)
-                    .countDuplicates(
+                    .existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
                             eq(email),
-                            eq("RESET_PASSWORD"),
+                            eq("REGISTER_VERIFY"),
+                            eq(userId),
                             eq(
                                     List.of(
                                             MailOutboxStatus.PENDING,
                                             MailOutboxStatus.SENDING,
                                             MailOutboxStatus.SENT)),
                             any());
+        }
+
+        @Test
+        @DisplayName("should include bizType and recipient in audit details")
+        void shouldIncludeDetails_inAuditEvent() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
+
+            // When
+            service.enqueuePasswordResetEmail(userId, "user", email, "token");
+
+            // Then
+            verify(auditLog)
+                    .log(
+                            any(UUID.class),
+                            any(AuditAction.class),
+                            any(ResourceType.class),
+                            anyString(),
+                            any(SecuritySeverity.class),
+                            auditDetailsCaptor.capture());
+
+            AuditDetails details = auditDetailsCaptor.getValue();
+            assertThat(details.ext()).containsEntry("bizType", "RESET_PASSWORD");
+            assertThat(details.ext()).containsEntry("recipient", email);
+            assertThat(details.ext()).containsEntry("windowMinutes", 10L);
         }
     }
 }
