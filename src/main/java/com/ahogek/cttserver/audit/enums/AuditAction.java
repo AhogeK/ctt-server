@@ -101,7 +101,20 @@ public enum AuditAction {
     FORBIDDEN_ACCESS("Forbidden resource access attempt"),
 
     /** Potential malicious payload intercepted. */
-    MALICIOUS_PAYLOAD_DETECTED("Potential malicious payload intercepted");
+    MALICIOUS_PAYLOAD_DETECTED("Potential malicious payload intercepted"),
+
+    // ==========================================
+    // Mail Delivery
+    // ==========================================
+
+    /** Email delivered successfully. */
+    MAIL_SENT("Email delivered successfully"),
+
+    /** Email delivery failed, scheduled for retry. */
+    MAIL_DELIVERY_FAILED("Email delivery failed, scheduled for retry"),
+
+    /** Email delivery exhausted max retries. */
+    MAIL_DELIVERY_EXHAUSTED("Email delivery exhausted max retries");
 
     private final String description;
 

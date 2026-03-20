@@ -65,6 +65,15 @@ class AuditActionTest {
     }
 
     @Test
+    void description_returns_correct_value_for_mail_delivery_actions() {
+        assertThat(AuditAction.MAIL_SENT.description()).isEqualTo("Email delivered successfully");
+        assertThat(AuditAction.MAIL_DELIVERY_FAILED.description())
+                .isEqualTo("Email delivery failed, scheduled for retry");
+        assertThat(AuditAction.MAIL_DELIVERY_EXHAUSTED.description())
+                .isEqualTo("Email delivery exhausted max retries");
+    }
+
+    @Test
     void all_enum_values_have_non_blank_descriptions() {
         for (AuditAction action : AuditAction.values()) {
             assertThat(action.description()).isNotNull().isNotBlank().hasSizeGreaterThan(3);

@@ -4,6 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.TimeZone;
 
@@ -14,6 +15,7 @@ import java.util.TimeZone;
  *
  * <ul>
  *   <li>Async processing via {@code @EnableAsync}
+ *   <li>Scheduled tasks via {@code @EnableScheduling}
  *   <li>Configuration properties scanning via {@code @ConfigurationPropertiesScan}
  *   <li>Global UTC timezone enforcement for consistent timestamp handling
  * </ul>
@@ -24,6 +26,7 @@ import java.util.TimeZone;
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableAsync
+@EnableScheduling
 public class CttServerApplication {
 
     /**
