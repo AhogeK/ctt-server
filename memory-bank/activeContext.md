@@ -1,3 +1,12 @@
+- [2026-03-20] - MailDispatcher 实现 (SMTP 投递组件)
+    - `mail/dispatch/MailDispatcher.java`: 底层邮件派发器
+        - 持有 `JavaMailSender` 执行真实 SMTP 发送
+        - 将 `MailOutbox` 转换为 `MimeMessage`
+        - Multipart Alternative (HTML + 纯文本) 防垃圾邮件
+        - 异常穿透 (不内部捕获，交给 Scheduler 处理)
+        - Trace ID 日志穿透
+    - `MailDispatcherTest.java`: 2 个测试用例 (正常发送、异常传播)
+
 - [2026-03-20] - MailOutboxService 幂等保护实现
     - 新增 `MAIL_IDEMPOTENT_SKIP` 到 `AuditAction.java`
     - 新增 `MAIL_OUTBOX` 到 `ResourceType.java`
@@ -22,5 +31,9 @@
 
 ## 下一步行动
 
-1. 实现邮件发送调度器 (MailOutboxScheduler)
-2. 集成 Resend API 生产环境发送
+1. 实现 MailOutboxScheduler (调度器)
+    - 轮询 PENDING 记录
+    - 调用 MailDispatcher 发送
+    - 状态转换: PENDING → SENDING → SENT/FAILED
+    - 指数退避重试
+2. 多实例锁 (分布式锁)

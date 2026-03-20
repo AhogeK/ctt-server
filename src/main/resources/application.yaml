@@ -12,6 +12,18 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
+  mail:
+    host: ${MAIL_SMTP_HOST:localhost}
+    port: ${MAIL_SMTP_PORT:1025}
+    username: ${MAIL_SMTP_USERNAME:}
+    password: ${MAIL_SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
   jackson:
     time-zone: UTC
     default-property-inclusion: non_null
