@@ -394,4 +394,50 @@ class MailOutboxServiceTest {
             assertThat(details.ext()).containsEntry("windowMinutes", 10L);
         }
     }
+
+    @Nested
+    @DisplayName("error handling")
+    class ErrorHandlingTests {
+
+        @Test
+        @DisplayName("should propagate exception and not save when template rendering fails")
+        void shouldPropagateException_whenTemplateRenderingFails() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(0L);
+            when(renderer.renderHtml(any()))
+                    .thenThrow(new RuntimeException("Template processing failed"));
+
+            // When & Then
+            assertThatThrownBy(
+                            () -> service.enqueueVerificationEmail(userId, "user", email, "token"))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Template processing failed");
+
+            verify(repository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should propagate exception when template text rendering fails")
+        void shouldPropagateException_whenTextRenderingFails() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(0L);
+            when(renderer.renderHtml(any())).thenReturn("<html></html>");
+            when(renderer.renderText(any()))
+                    .thenThrow(new RuntimeException("Text rendering failed"));
+
+            // When & Then
+            assertThatThrownBy(
+                            () -> service.enqueuePasswordResetEmail(userId, "user", email, "token"))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Text rendering failed");
+
+            verify(repository, never()).save(any());
+        }
+    }
 }
