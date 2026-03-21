@@ -10,6 +10,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -18,9 +20,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
-
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -54,7 +53,7 @@ class MailOutboxPollerTest {
                         new CttMailProperties.From("test@localhost", "CTT Test"),
                         new CttMailProperties.Outbox(
                                 POLL_INTERVAL_MS, BATCH_SIZE, 300, ZOMBIE_INTERVAL_MS),
-                        new CttMailProperties.Retry(10, 2.0, 3600, 5),
+                        new CttMailProperties.Retry(10, 2.0, 3600, 5, 0.1),
                         new CttMailProperties.Frontend("http://localhost:5173"));
 
         poller = new MailOutboxPoller(outboxRepository, outboxProcessor, properties);
@@ -183,7 +182,7 @@ class MailOutboxPollerTest {
                             new CttMailProperties.From("test@localhost", "CTT Test"),
                             new CttMailProperties.Outbox(
                                     POLL_INTERVAL_MS, 1, 300, ZOMBIE_INTERVAL_MS),
-                            new CttMailProperties.Retry(10, 2.0, 3600, 5),
+                            new CttMailProperties.Retry(10, 2.0, 3600, 5, 0.1),
                             new CttMailProperties.Frontend("http://localhost:5173"));
 
             return new MailOutboxPoller(outboxRepository, outboxProcessor, smallBatchProperties);
@@ -213,10 +212,7 @@ class MailOutboxPollerTest {
     class CompensateStuckJobsTests {
 
         @ParameterizedTest
-        @CsvSource({
-            "3, should reset stuck records",
-            "0, should handle no stuck records"
-        })
+        @CsvSource({"3, should reset stuck records", "0, should handle no stuck records"})
         @DisplayName("should call resetStuckSendingJobs and handle different return values")
         void shouldResetStuckSendingJobs(int recoveredCount) {
             // Given

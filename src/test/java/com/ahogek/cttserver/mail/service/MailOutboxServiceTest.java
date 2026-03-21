@@ -60,7 +60,7 @@ class MailOutboxServiceTest {
                 new CttMailProperties(
                         new CttMailProperties.From("test@localhost", "CTT Test"),
                         new CttMailProperties.Outbox(5000, 50, 300, 120000),
-                        new CttMailProperties.Retry(10, 2.0, 3600, MAX_RETRIES),
+                        new CttMailProperties.Retry(10, 2.0, 3600, MAX_RETRIES, 0.1),
                         new CttMailProperties.Frontend(FRONTEND_BASE_URL));
 
         service = new MailOutboxService(repository, renderer, properties, auditLog);

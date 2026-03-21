@@ -5,7 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
-import com.ahogek.cttserver.common.config.properties.CttMailProperties;
+import com.ahogek.cttserver.mail.dispatch.ExponentialBackoffRetryStrategy;
 import com.ahogek.cttserver.mail.dispatch.MailDispatcher;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
 import com.ahogek.cttserver.mail.enums.MailOutboxStatus;
@@ -33,7 +33,7 @@ import java.util.UUID;
  * <ul>
  *   <li>Optimistic locking via {@code @Version} to prevent duplicate sends
  *   <li>State transitions: PENDING → SENDING → SENT/FAILED
- *   <li>Exponential backoff retry scheduling
+ *   <li>Exponential backoff retry scheduling with jitter
  *   <li>Audit event publishing for delivery tracking
  * </ul>
  *
@@ -44,6 +44,7 @@ import java.util.UUID;
  * @since 2026-03-20
  * @see MailOutboxPoller
  * @see MailDispatcher
+ * @see ExponentialBackoffRetryStrategy
  */
 @Service
 public class MailOutboxProcessor {
@@ -59,17 +60,17 @@ public class MailOutboxProcessor {
     private final MailOutboxRepository outboxRepository;
     private final MailDispatcher mailDispatcher;
     private final AuditLogService auditLogService;
-    private final CttMailProperties mailProperties;
+    private final ExponentialBackoffRetryStrategy retryStrategy;
 
     public MailOutboxProcessor(
             MailOutboxRepository outboxRepository,
             MailDispatcher mailDispatcher,
             AuditLogService auditLogService,
-            CttMailProperties mailProperties) {
+            ExponentialBackoffRetryStrategy retryStrategy) {
         this.outboxRepository = outboxRepository;
         this.mailDispatcher = mailDispatcher;
         this.auditLogService = auditLogService;
-        this.mailProperties = mailProperties;
+        this.retryStrategy = retryStrategy;
     }
 
     /**
@@ -139,12 +140,11 @@ public class MailOutboxProcessor {
         UUID messageId = outbox.getId();
         int currentAttempt = outbox.getRetryCount();
 
-        Instant nextRetryAt = calculateNextRetryTime(currentAttempt);
+        Instant nextRetryAt = retryStrategy.calculateNextRetryTime(currentAttempt);
         outbox.markFailed(errorMessage, nextRetryAt);
         outboxRepository.save(outbox);
 
         if (outbox.getStatus() == MailOutboxStatus.CANCELLED) {
-            // Retries exhausted
             log.warn(
                     "Email delivery exhausted max retries [id={}] to {} after {} attempts",
                     messageId,
@@ -153,7 +153,6 @@ public class MailOutboxProcessor {
 
             publishMailDeliveryExhaustedAudit(outbox, errorMessage);
         } else {
-            // Scheduled for retry
             log.warn(
                     "Email delivery failed [id={}] to {}, retry {}/{} scheduled at {}",
                     messageId,
@@ -164,25 +163,6 @@ public class MailOutboxProcessor {
 
             publishMailDeliveryFailedAudit(outbox, errorMessage);
         }
-    }
-
-    /**
-     * Calculates next retry time using exponential backoff.
-     *
-     * @param currentAttempt the current retry count (0-based before increment)
-     * @return the timestamp for next retry attempt
-     */
-    private Instant calculateNextRetryTime(int currentAttempt) {
-        CttMailProperties.Retry retry = mailProperties.retry();
-
-        // Calculate delay: base * multiplier^attempt
-        double delaySeconds =
-                retry.baseDelaySeconds() * Math.pow(retry.multiplier(), currentAttempt);
-
-        // Cap at max delay
-        long actualDelaySeconds = (long) Math.min(delaySeconds, retry.maxDelaySeconds());
-
-        return Instant.now().plusSeconds(actualDelaySeconds);
     }
 
     /**

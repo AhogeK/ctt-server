@@ -5,7 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
-import com.ahogek.cttserver.common.config.properties.CttMailProperties;
+import com.ahogek.cttserver.mail.dispatch.ExponentialBackoffRetryStrategy;
 import com.ahogek.cttserver.mail.dispatch.MailDispatcher;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
 import com.ahogek.cttserver.mail.enums.MailOutboxStatus;
@@ -48,6 +48,7 @@ class MailOutboxProcessorTest {
     @Mock private MailOutboxRepository outboxRepository;
     @Mock private MailDispatcher mailDispatcher;
     @Mock private AuditLogService auditLogService;
+    @Mock private ExponentialBackoffRetryStrategy retryStrategy;
 
     @Captor private ArgumentCaptor<MailOutbox> outboxCaptor;
     @Captor private ArgumentCaptor<AuditDetails> auditDetailsCaptor;
@@ -56,17 +57,9 @@ class MailOutboxProcessorTest {
 
     @BeforeEach
     void setUp() {
-        CttMailProperties properties =
-                new CttMailProperties(
-                        new CttMailProperties.From("test@localhost", "CTT Test"),
-                        new CttMailProperties.Outbox(5000, 50, 300, 120000),
-                        new CttMailProperties.Retry(
-                                BASE_DELAY_SECONDS, MULTIPLIER, MAX_DELAY_SECONDS, MAX_ATTEMPTS),
-                        new CttMailProperties.Frontend("http://localhost:5173"));
-
         processor =
                 new MailOutboxProcessor(
-                        outboxRepository, mailDispatcher, auditLogService, properties);
+                        outboxRepository, mailDispatcher, auditLogService, retryStrategy);
     }
 
     @Nested
@@ -110,27 +103,28 @@ class MailOutboxProcessorTest {
     class RetryPathTests {
 
         @Test
-        @DisplayName("should schedule retry with exponential backoff on failure")
+        @DisplayName("should schedule retry with strategy on failure")
         void shouldScheduleRetry_onFailure() throws Exception {
             // Given
             MailOutbox outbox = createPendingOutbox();
             outbox.setRetryCount(0);
             doThrow(new MessagingException("SMTP error")).when(mailDispatcher).dispatch(outbox);
 
-            Instant beforeProcessing = Instant.now();
+            Instant expectedRetryTime = Instant.now().plusSeconds(60);
+            when(retryStrategy.calculateNextRetryTime(0)).thenReturn(expectedRetryTime);
 
             // When
             processor.processSingleMessage(outbox);
 
             // Then
+            verify(retryStrategy).calculateNextRetryTime(0);
             verify(outboxRepository).save(outboxCaptor.capture());
             MailOutbox saved = outboxCaptor.getValue();
 
             assertThat(saved.getStatus()).isEqualTo(MailOutboxStatus.FAILED);
             assertThat(saved.getRetryCount()).isEqualTo(1);
             assertThat(saved.getLastError()).isEqualTo("SMTP error");
-            assertThat(saved.getNextRetryAt())
-                    .isAfter(beforeProcessing.plusSeconds(BASE_DELAY_SECONDS - 1));
+            assertThat(saved.getNextRetryAt()).isEqualTo(expectedRetryTime);
 
             verify(auditLogService)
                     .log(
@@ -143,50 +137,22 @@ class MailOutboxProcessorTest {
         }
 
         @Test
-        @DisplayName("should calculate exponential backoff correctly for subsequent retries")
-        void shouldCalculateExponentialBackoff() throws Exception {
+        @DisplayName("should call strategy with correct retry count")
+        void shouldCallStrategyWithCorrectRetryCount() throws Exception {
             // Given
             MailOutbox outbox = createPendingOutbox();
             outbox.setRetryCount(2);
             doThrow(new MessagingException("SMTP error")).when(mailDispatcher).dispatch(outbox);
 
-            Instant beforeProcessing = Instant.now();
+            Instant expectedRetryTime = Instant.now().plusSeconds(120);
+            when(retryStrategy.calculateNextRetryTime(2)).thenReturn(expectedRetryTime);
 
             // When
             processor.processSingleMessage(outbox);
 
             // Then
-            verify(outboxRepository).save(outboxCaptor.capture());
-            MailOutbox saved = outboxCaptor.getValue();
-
-            long expectedDelay = (long) (BASE_DELAY_SECONDS * Math.pow(MULTIPLIER, 2));
-            assertThat(saved.getNextRetryAt())
-                    .isAfter(beforeProcessing.plusSeconds(expectedDelay - 1));
-            assertThat(saved.getNextRetryAt())
-                    .isBefore(beforeProcessing.plusSeconds(expectedDelay + 1));
-        }
-
-        @Test
-        @DisplayName("should cap retry delay at max delay")
-        void shouldCapRetryDelayAtMax() throws Exception {
-            // Given
-            MailOutbox outbox = createPendingOutbox();
-            outbox.setMaxRetries(20);
-            outbox.setRetryCount(10);
-            doThrow(new MessagingException("SMTP error")).when(mailDispatcher).dispatch(outbox);
-
-            Instant beforeProcessing = Instant.now();
-
-            processor.processSingleMessage(outbox);
-
-            Instant afterProcessing = Instant.now();
-
-            // With retryCount=10, uncapped delay would be 10 * 2^10 = 10240 seconds
-            // Should be capped at MAX_DELAY_SECONDS (3600)
-            assertThat(outbox.getNextRetryAt())
-                    .isBetween(
-                            beforeProcessing.plusSeconds(MAX_DELAY_SECONDS - 5),
-                            afterProcessing.plusSeconds(MAX_DELAY_SECONDS + 5));
+            verify(retryStrategy).calculateNextRetryTime(2);
+            assertThat(outbox.getNextRetryAt()).isEqualTo(expectedRetryTime);
         }
     }
 
@@ -202,6 +168,8 @@ class MailOutboxProcessorTest {
             outbox.setRetryCount(MAX_ATTEMPTS - 1);
             outbox.setMaxRetries(MAX_ATTEMPTS);
             doThrow(new MessagingException("SMTP error")).when(mailDispatcher).dispatch(outbox);
+            when(retryStrategy.calculateNextRetryTime(MAX_ATTEMPTS - 1))
+                    .thenReturn(Instant.now().plusSeconds(60));
 
             // When
             processor.processSingleMessage(outbox);
@@ -288,6 +256,8 @@ class MailOutboxProcessorTest {
             doThrow(new MessagingException("Connection timeout"))
                     .when(mailDispatcher)
                     .dispatch(outbox);
+            when(retryStrategy.calculateNextRetryTime(1))
+                    .thenReturn(Instant.now().plusSeconds(120));
 
             // When
             processor.processSingleMessage(outbox);

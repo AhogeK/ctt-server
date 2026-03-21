@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.common.config.properties;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -57,28 +58,32 @@ public record CttMailProperties(
             @Positive long zombieIntervalMs) {}
 
     /**
-     * Retry policy with exponential backoff.
+     * Retry policy with exponential backoff and jitter.
      *
-     * <p>Delay calculation: {@code delay = min(base * multiplier^(attempt-1), maxDelay)}
+     * <p>Delay calculation: {@code delay = min(base * multiplier^(attempt), maxDelay) ± jitter}
      *
-     * <p>Example with base=10s, multiplier=2.0:
+     * <p>Jitter prevents retry storms in distributed deployments by randomizing retry times within
+     * a configurable range.
+     *
+     * <p>Example with base=60s, multiplier=2.0, jitterFactor=0.1:
      *
      * <ul>
-     *   <li>Attempt 1: 10s
-     *   <li>Attempt 2: 10 * 2.0¹ = 20s
-     *   <li>Attempt 3: 10 * 2.0² = 40s
-     *   <li>Attempt 4: 10 * 2.0³ = 80s
-     *   <li>Attempt 5+: capped at maxDelay
+     *   <li>Attempt 1: 60 * 2.0⁰ = 60s ± 10% = [54s, 66s]
+     *   <li>Attempt 2: 60 * 2.0¹ = 120s ± 10% = [108s, 132s]
+     *   <li>Attempt 3: 60 * 2.0² = 240s ± 10% = [216s, 264s]
+     *   <li>Attempt 5+: capped at maxDelay ± jitter
      * </ul>
      *
      * @param baseDelaySeconds Base delay in seconds for first retry
      * @param multiplier Exponential backoff multiplier (must be >= 1.0)
      * @param maxDelaySeconds Maximum delay cap in seconds
-     * @param maxAttempts Maximum retry attempts before marking as DEAD
+     * @param maxAttempts Maximum retry attempts before marking as CANCELLED
+     * @param jitterFactor Jitter factor for randomization (0.0 to 1.0, default 0.1 = ±10%)
      */
     public record Retry(
             @Positive int baseDelaySeconds,
             @DecimalMin("1.0") double multiplier,
             @Positive int maxDelaySeconds,
-            @Min(1) int maxAttempts) {}
+            @Min(1) int maxAttempts,
+            @DecimalMin("0.0") @DecimalMax("1.0") double jitterFactor) {}
 }

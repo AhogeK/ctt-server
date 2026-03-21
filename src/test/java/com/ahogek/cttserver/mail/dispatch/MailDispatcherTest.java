@@ -45,7 +45,7 @@ class MailDispatcherTest {
                 new CttMailProperties(
                         new CttMailProperties.From(FROM_ADDRESS, FROM_NAME),
                         new CttMailProperties.Outbox(5000, 50, 300, 120000),
-                        new CttMailProperties.Retry(10, 2.0, 3600, 5),
+                        new CttMailProperties.Retry(10, 2.0, 3600, 5, 0.1),
                         new CttMailProperties.Frontend("http://localhost:5173"));
 
         dispatcher = new MailDispatcher(mailSender, properties);
