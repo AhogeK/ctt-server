@@ -237,7 +237,7 @@ public final class AuditFixtures {
     }
 
     /**
-     * Creates a mail enqueued audit event.
+     * Creates a mail enqueued audit event with standardized details.
      *
      * @param userId user who triggered the email
      * @param outboxId mail outbox entry ID
@@ -249,7 +249,120 @@ public final class AuditFixtures {
                 .resourceType(ResourceType.MAIL_OUTBOX)
                 .resourceId(outboxId.toString())
                 .userId(userId)
-                .severity(SecuritySeverity.INFO);
+                .severity(SecuritySeverity.INFO)
+                .details(
+                        AuditDetails.extension(
+                                java.util.Map.of(
+                                        "mailOutboxId",
+                                        outboxId.toString(),
+                                        "templateName",
+                                        "email-verification",
+                                        "recipientMasked",
+                                        "te***@example.com",
+                                        "retryCount",
+                                        0)));
+    }
+
+    /**
+     * Creates a mail sent audit event.
+     *
+     * @param userId user who triggered the email
+     * @param outboxId mail outbox entry ID
+     * @return builder for further customization
+     */
+    public static Builder mailSent(UUID userId, UUID outboxId) {
+        return builder()
+                .action(AuditAction.MAIL_SENT)
+                .resourceType(ResourceType.MAIL_OUTBOX)
+                .resourceId(outboxId.toString())
+                .userId(userId)
+                .severity(SecuritySeverity.INFO)
+                .details(
+                        AuditDetails.extension(
+                                java.util.Map.of(
+                                        "mailOutboxId",
+                                        outboxId.toString(),
+                                        "templateName",
+                                        "email-verification",
+                                        "recipientMasked",
+                                        "te***@example.com",
+                                        "retryCount",
+                                        0)));
+    }
+
+    /**
+     * Creates a mail delivery failed audit event (retry scheduled).
+     *
+     * @param userId user who triggered the email
+     * @param outboxId mail outbox entry ID
+     * @param retryCount current retry count after failure
+     * @return builder for further customization
+     */
+    public static Builder mailDeliveryFailed(UUID userId, UUID outboxId, int retryCount) {
+        return builder()
+                .action(AuditAction.MAIL_DELIVERY_FAILED)
+                .resourceType(ResourceType.MAIL_OUTBOX)
+                .resourceId(outboxId.toString())
+                .userId(userId)
+                .severity(SecuritySeverity.WARNING)
+                .details(
+                        AuditDetails.extension(
+                                java.util.Map.of(
+                                        "mailOutboxId", outboxId.toString(),
+                                        "templateName", "email-verification",
+                                        "recipientMasked", "te***@example.com",
+                                        "retryCount", retryCount,
+                                        "lastError", "MessagingException: Connection timed out")));
+    }
+
+    /**
+     * Creates a mail delivery exhausted audit event (dead letter).
+     *
+     * @param userId user who triggered the email
+     * @param outboxId mail outbox entry ID
+     * @return builder for further customization
+     */
+    public static Builder mailDeliveryExhausted(UUID userId, UUID outboxId) {
+        return builder()
+                .action(AuditAction.MAIL_DELIVERY_EXHAUSTED)
+                .resourceType(ResourceType.MAIL_OUTBOX)
+                .resourceId(outboxId.toString())
+                .userId(userId)
+                .severity(SecuritySeverity.CRITICAL)
+                .details(
+                        AuditDetails.extension(
+                                java.util.Map.of(
+                                        "mailOutboxId", outboxId.toString(),
+                                        "templateName", "email-verification",
+                                        "recipientMasked", "te***@example.com",
+                                        "retryCount", 5,
+                                        "lastError",
+                                                "MessagingException: SMTP Authentication failed")));
+    }
+
+    /**
+     * Creates a mail idempotent skip audit event.
+     *
+     * @param userId user who triggered the email
+     * @param recipientMasked masked recipient email
+     * @return builder for further customization
+     */
+    public static Builder mailIdempotentSkip(UUID userId, String recipientMasked) {
+        return builder()
+                .action(AuditAction.MAIL_IDEMPOTENT_SKIP)
+                .resourceType(ResourceType.MAIL_OUTBOX)
+                .resourceId(recipientMasked)
+                .userId(userId)
+                .severity(SecuritySeverity.INFO)
+                .details(
+                        AuditDetails.extension(
+                                java.util.Map.of(
+                                        "bizType",
+                                        "REGISTER_VERIFY",
+                                        "recipientMasked",
+                                        recipientMasked,
+                                        "windowMinutes",
+                                        10L)));
     }
 
     /**
