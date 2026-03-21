@@ -1,3 +1,10 @@
+- [2026-03-21] - MAIL_ENQUEUED 审计事件 (邮件生命周期完整覆盖)
+    - `AuditAction.java`: 新增 `MAIL_ENQUEUED` 枚举值
+    - `MailOutboxService.java`: 新增 `logMailEnqueued()` 私有方法
+    - `AuditFixtures.java`: 新增 `mailEnqueued()` fixture builder
+    - `MailOutboxServiceTest.java`: 新增 4 个测试用例验证 MAIL_ENQUEUED
+    - 邮件生命周期审计完整覆盖: ENQUEUED → SENT/FAILED/EXHAUSTED
+
 - [2026-03-21] - AGENTS.md 规则强化 (Git 授权边界)
     - R6 新增红线: **每次变更独立授权** — 新代码变更需要新授权，之前授权不延续
     - R6 自检新增: "本次变更是否已获得授权？"
