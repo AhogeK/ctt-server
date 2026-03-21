@@ -122,26 +122,6 @@
 - 禁止添加与现有功能重复的包
 - 同类功能优先复用现有依赖
 
-### R13: MCP Code Intelligence（强制）
-IDE 级语义分析工具。对 Java/Kotlin/XML 优先使用 MCP 而非 `grep`/文件读取。
-
-**可用工具**：
-| 工具 | 用途 |
-|------|------|
-| `resolve_symbol` / `find_references` / `get_scope` | 符号查找 |
-| `query_project` / `query_framework` | 项目/框架结构 |
-| `analyze_data_flow` / `analyze_quality` | 数据流 & 代码质量 |
-| `refactor` / `structural_search` | 安全重构 & AST 搜索 |
-| `checkpoint` / `sandbox` | Local History & 反编译/转换 |
-
-**使用场景**：
-- 查找方法调用者 → `find_references`
-- 跳转到定义 → `resolve_symbol`
-- 代码质量分析 → `analyze_quality`
-- 重命名重构 → `refactor`
-
-**触发示例**：`使用 mcp-code-intel 工具查找 X 的所有调用者`
-
 ## 执行流程
 
 **会话开始** → 读取 memory-bank → 创建 todo (如需要) → 处理请求 → 清理临时文件 → 更新记忆
