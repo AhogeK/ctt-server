@@ -1,3 +1,16 @@
+- [2026-03-21] - 指数退避重试策略 (Exponential Backoff with Jitter)
+    - `ExponentialBackoffRetryStrategy`: 独立重试策略组件
+        - 公式: `delay = min(base * multiplier^attempt, maxDelay) ± jitter`
+        - 抖动防止多实例雷同重试 (Thundering Herd)
+        - `ThreadLocalRandom` 并发安全随机数
+    - `CttMailProperties.Retry` 扩展:
+        - 新增 `jitterFactor` (默认 0.1 = ±10%)
+        - 添加 `@DecimalMax("1.0")` 验证
+    - `MailOutboxProcessor` 重构: 注入策略组件，移除内联计算
+    - AGENTS.md 更新:
+        - R9 注释原则 (Clean Code): 明确必要/禁止的注释类型
+        - R6 移除 "继续" 关键词授权
+
 - [2026-03-21] - AGENTS.md R6 规则调整
     - 移除 "继续" 关键词的 Git 执行授权
     - 只有明确的 "提交/commit/推送/push" 才触发 Git 写操作授权
