@@ -404,7 +404,7 @@ class MailOutboxServiceTest {
 
             AuditDetails details = auditDetailsCaptor.getValue();
             assertThat(details.ext()).containsEntry("bizType", "RESET_PASSWORD");
-            assertThat(details.ext()).containsEntry("recipient", email);
+            assertThat(details.ext()).containsEntry("recipientMasked", "te***@example.com");
             assertThat(details.ext()).containsEntry("windowMinutes", 10L);
         }
     }
@@ -510,7 +510,7 @@ class MailOutboxServiceTest {
         }
 
         @Test
-        @DisplayName("should include recipient and bizType in MAIL_ENQUEUED audit details")
+        @DisplayName("should include standardized fields in MAIL_ENQUEUED audit details")
         void shouldIncludeDetails_inMailEnqueuedAudit() {
             // Given
             UUID userId = UUID.randomUUID();
@@ -524,6 +524,9 @@ class MailOutboxServiceTest {
             service.enqueueVerificationEmail(userId, "user", email, "token");
 
             // Then
+            verify(repository).save(outboxCaptor.capture());
+            MailOutbox saved = outboxCaptor.getValue();
+
             verify(auditLog)
                     .log(
                             any(UUID.class),
@@ -534,9 +537,10 @@ class MailOutboxServiceTest {
                             auditDetailsCaptor.capture());
 
             AuditDetails details = auditDetailsCaptor.getValue();
-            assertThat(details.ext()).containsEntry("recipient", email);
-            assertThat(details.ext()).containsEntry("bizType", "REGISTER_VERIFY");
-            assertThat(details.ext()).containsEntry("subject", "Verify Your Email Address");
+            assertThat(details.ext()).containsEntry("mailOutboxId", saved.getId().toString());
+            assertThat(details.ext()).containsEntry("templateName", "email-verification");
+            assertThat(details.ext()).containsEntry("recipientMasked", "te***@example.com");
+            assertThat(details.ext()).containsEntry("retryCount", 0);
         }
 
         @Test

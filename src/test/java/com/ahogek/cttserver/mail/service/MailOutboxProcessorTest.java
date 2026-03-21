@@ -40,9 +40,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class MailOutboxProcessorTest {
 
-    private static final int BASE_DELAY_SECONDS = 10;
-    private static final double MULTIPLIER = 2.0;
-    private static final int MAX_DELAY_SECONDS = 3600;
     private static final int MAX_ATTEMPTS = 5;
 
     @Mock private MailOutboxRepository outboxRepository;
@@ -93,8 +90,10 @@ class MailOutboxProcessorTest {
                             auditDetailsCaptor.capture());
 
             AuditDetails details = auditDetailsCaptor.getValue();
-            assertThat(details.ext()).containsEntry("recipient", outbox.getRecipient());
-            assertThat(details.ext()).containsEntry("subject", outbox.getSubject());
+            assertThat(details.ext()).containsEntry("mailOutboxId", outbox.getId().toString());
+            assertThat(details.ext()).containsEntry("templateName", outbox.getTemplateCode());
+            assertThat(details.ext()).containsEntry("recipientMasked", "te***@example.com");
+            assertThat(details.ext()).containsEntry("retryCount", outbox.getRetryCount());
         }
     }
 
@@ -191,8 +190,9 @@ class MailOutboxProcessorTest {
                             auditDetailsCaptor.capture());
 
             AuditDetails details = auditDetailsCaptor.getValue();
-            assertThat(details.ext()).containsEntry("totalAttempts", MAX_ATTEMPTS);
-            assertThat(details.ext()).containsEntry("finalError", "SMTP error");
+            assertThat(details.ext()).containsEntry("mailOutboxId", outbox.getId().toString());
+            assertThat(details.ext()).containsEntry("retryCount", MAX_ATTEMPTS);
+            assertThat(details.ext()).containsEntry("lastError", "SMTP error");
         }
     }
 
@@ -223,11 +223,10 @@ class MailOutboxProcessorTest {
     class AuditEventDetailsTests {
 
         @Test
-        @DisplayName("should include traceId in MAIL_SENT audit")
-        void shouldIncludeTraceId_inMailSentAudit() {
+        @DisplayName("should include standardized fields in MAIL_SENT audit")
+        void shouldIncludeStandardizedFields_inMailSentAudit() {
             // Given
             MailOutbox outbox = createPendingOutbox();
-            outbox.setTraceId("trace-abc-123");
 
             // When
             processor.processSingleMessage(outbox);
@@ -243,7 +242,11 @@ class MailOutboxProcessorTest {
                             auditDetailsCaptor.capture());
 
             AuditDetails details = auditDetailsCaptor.getValue();
-            assertThat(details.ext()).containsEntry("traceId", "trace-abc-123");
+            assertThat(details.ext()).containsEntry("mailOutboxId", outbox.getId().toString());
+            assertThat(details.ext()).containsEntry("templateName", outbox.getTemplateCode());
+            assertThat(details.ext()).containsEntry("recipientMasked", "te***@example.com");
+            assertThat(details.ext()).containsEntry("retryCount", 0);
+            assertThat(details.ext()).doesNotContainKey("lastError");
         }
 
         @Test
@@ -274,17 +277,17 @@ class MailOutboxProcessorTest {
 
             AuditDetails details = auditDetailsCaptor.getValue();
             assertThat(details.ext()).containsEntry("retryCount", 2);
-            assertThat(details.ext()).containsEntry("maxRetries", 5);
-            assertThat(details.ext()).containsEntry("error", "Connection timeout");
-            assertThat(details.ext()).containsKey("nextRetryAt");
+            assertThat(details.ext()).containsEntry("lastError", "Connection timeout");
         }
 
         @Test
-        @DisplayName("should use N/A for null traceId")
-        void shouldUseNaForNullTraceId() {
+        @DisplayName("should truncate lastError to 500 characters")
+        void shouldTruncateLastError_to500Chars() throws Exception {
             // Given
             MailOutbox outbox = createPendingOutbox();
-            outbox.setTraceId(null);
+            String longError = "x".repeat(600);
+            doThrow(new MessagingException(longError)).when(mailDispatcher).dispatch(outbox);
+            when(retryStrategy.calculateNextRetryTime(0)).thenReturn(Instant.now().plusSeconds(60));
 
             // When
             processor.processSingleMessage(outbox);
@@ -293,14 +296,15 @@ class MailOutboxProcessorTest {
             verify(auditLogService)
                     .log(
                             any(),
-                            eq(AuditAction.MAIL_SENT),
+                            eq(AuditAction.MAIL_DELIVERY_FAILED),
                             any(),
                             any(),
                             any(),
                             auditDetailsCaptor.capture());
 
             AuditDetails details = auditDetailsCaptor.getValue();
-            assertThat(details.ext()).containsEntry("traceId", "N/A");
+            String lastError = (String) details.ext().get("lastError");
+            assertThat(lastError).hasSize(503).endsWith("...");
         }
     }
 
@@ -313,6 +317,7 @@ class MailOutboxProcessorTest {
         outbox.setBodyHtml("<html><body>Test</body></html>");
         outbox.setBodyText("Test plain text");
         outbox.setBizType("REGISTER_VERIFY");
+        outbox.setTemplateCode("email-verification");
         outbox.setStatus(MailOutboxStatus.PENDING);
         outbox.setRetryCount(0);
         outbox.setMaxRetries(MAX_ATTEMPTS);

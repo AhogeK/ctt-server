@@ -5,6 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 import com.ahogek.cttserver.mail.dispatch.ExponentialBackoffRetryStrategy;
 import com.ahogek.cttserver.mail.dispatch.MailDispatcher;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.UnsupportedEncodingException;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -51,11 +53,7 @@ public class MailOutboxProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(MailOutboxProcessor.class);
 
-    private static final String KEY_RECIPIENT = "recipient";
-    private static final String KEY_SUBJECT = "subject";
-    private static final String KEY_BIZ_TYPE = "bizType";
-    private static final String KEY_TRACE_ID = "traceId";
-    private static final String VALUE_NA = "N/A";
+    private static final int MAX_ERROR_LENGTH = 500;
 
     private final MailOutboxRepository outboxRepository;
     private final MailDispatcher mailDispatcher;
@@ -166,96 +164,57 @@ public class MailOutboxProcessor {
     }
 
     /**
-     * Publishes MAIL_SENT audit event.
-     *
-     * @param outbox the successfully sent message
+     * Builds standardized audit details for mail events. Ensures GDPR compliance via email masking
+     * and prevents JSON overflow via error truncation.
      */
-    private void publishMailSentAudit(MailOutbox outbox) {
-        AuditDetails details =
-                AuditDetails.extension(
-                        Map.of(
-                                KEY_RECIPIENT, outbox.getRecipient(),
-                                KEY_SUBJECT, outbox.getSubject(),
-                                KEY_BIZ_TYPE, outbox.getBizType(),
-                                KEY_TRACE_ID,
-                                        outbox.getTraceId() != null
-                                                ? outbox.getTraceId()
-                                                : VALUE_NA));
+    private AuditDetails buildMailAuditDetails(MailOutbox outbox, String error) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("mailOutboxId", outbox.getId().toString());
+        fields.put("templateName", outbox.getTemplateCode());
+        fields.put("recipientMasked", DesensitizeUtils.maskEmail(outbox.getRecipient()));
+        fields.put("retryCount", outbox.getRetryCount());
 
+        if (error != null && !error.isBlank()) {
+            fields.put("lastError", truncateError(error));
+        }
+
+        return AuditDetails.extension(fields);
+    }
+
+    private String truncateError(String error) {
+        if (error.length() <= MAX_ERROR_LENGTH) {
+            return error;
+        }
+        return error.substring(0, MAX_ERROR_LENGTH) + "...";
+    }
+
+    private void publishMailSentAudit(MailOutbox outbox) {
         auditLogService.log(
                 outbox.getBizId(),
                 AuditAction.MAIL_SENT,
                 ResourceType.MAIL_OUTBOX,
                 outbox.getId().toString(),
                 SecuritySeverity.INFO,
-                details);
+                buildMailAuditDetails(outbox, null));
     }
 
-    /**
-     * Publishes MAIL_DELIVERY_FAILED audit event.
-     *
-     * @param outbox the failed message
-     * @param errorMessage the failure reason
-     */
     private void publishMailDeliveryFailedAudit(MailOutbox outbox, String errorMessage) {
-        AuditDetails details =
-                AuditDetails.extension(
-                        Map.of(
-                                KEY_RECIPIENT,
-                                outbox.getRecipient(),
-                                KEY_SUBJECT,
-                                outbox.getSubject(),
-                                KEY_BIZ_TYPE,
-                                outbox.getBizType(),
-                                "retryCount",
-                                outbox.getRetryCount(),
-                                "maxRetries",
-                                outbox.getMaxRetries(),
-                                "nextRetryAt",
-                                outbox.getNextRetryAt().toString(),
-                                "error",
-                                errorMessage,
-                                KEY_TRACE_ID,
-                                outbox.getTraceId() != null ? outbox.getTraceId() : VALUE_NA));
-
         auditLogService.log(
                 outbox.getBizId(),
                 AuditAction.MAIL_DELIVERY_FAILED,
                 ResourceType.MAIL_OUTBOX,
                 outbox.getId().toString(),
                 SecuritySeverity.WARNING,
-                details);
+                buildMailAuditDetails(outbox, errorMessage));
     }
 
-    /**
-     * Publishes MAIL_DELIVERY_EXHAUSTED audit event.
-     *
-     * @param outbox the exhausted message
-     * @param errorMessage the final failure reason
-     */
     private void publishMailDeliveryExhaustedAudit(MailOutbox outbox, String errorMessage) {
-        AuditDetails details =
-                AuditDetails.extension(
-                        Map.of(
-                                KEY_RECIPIENT,
-                                outbox.getRecipient(),
-                                KEY_SUBJECT,
-                                outbox.getSubject(),
-                                KEY_BIZ_TYPE,
-                                outbox.getBizType(),
-                                "totalAttempts",
-                                outbox.getRetryCount(),
-                                "finalError",
-                                errorMessage,
-                                KEY_TRACE_ID,
-                                outbox.getTraceId() != null ? outbox.getTraceId() : VALUE_NA));
-
         auditLogService.log(
                 outbox.getBizId(),
                 AuditAction.MAIL_DELIVERY_EXHAUSTED,
                 ResourceType.MAIL_OUTBOX,
                 outbox.getId().toString(),
                 SecuritySeverity.CRITICAL,
-                details);
+                buildMailAuditDetails(outbox, errorMessage));
     }
 }

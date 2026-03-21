@@ -11,6 +11,7 @@ import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
+import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
 import com.ahogek.cttserver.mail.enums.MailOutboxStatus;
 import com.ahogek.cttserver.mail.repository.MailOutboxRepository;
@@ -184,8 +185,8 @@ public class MailOutboxService {
                             Map.of(
                                     "bizType",
                                     bizType,
-                                    "recipient",
-                                    recipient,
+                                    "recipientMasked",
+                                    DesensitizeUtils.maskEmail(recipient),
                                     "windowMinutes",
                                     IDEMPOTENT_WINDOW.toMinutes())));
 
@@ -204,14 +205,11 @@ public class MailOutboxService {
                 SecuritySeverity.INFO,
                 AuditDetails.extension(
                         Map.of(
-                                "recipient",
-                                outbox.getRecipient(),
-                                "subject",
-                                outbox.getSubject(),
-                                "bizType",
-                                outbox.getBizType(),
-                                "traceId",
-                                outbox.getTraceId() != null ? outbox.getTraceId() : "N/A")));
+                                "mailOutboxId", outbox.getId().toString(),
+                                "templateName", outbox.getTemplateCode(),
+                                "recipientMasked",
+                                        DesensitizeUtils.maskEmail(outbox.getRecipient()),
+                                "retryCount", outbox.getRetryCount())));
     }
 
     private String buildVerificationLink(String token) {
