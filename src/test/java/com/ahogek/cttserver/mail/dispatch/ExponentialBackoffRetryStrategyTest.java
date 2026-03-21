@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,6 +19,8 @@ class ExponentialBackoffRetryStrategyTest {
     private static final int MAX_DELAY_SECONDS = 3600;
     private static final int MAX_ATTEMPTS = 5;
     private static final double JITTER_FACTOR = 0.1;
+
+    private static final int MONTE_CARLO_ITERATIONS = 1000;
 
     private ExponentialBackoffRetryStrategy strategy;
 
@@ -39,18 +42,52 @@ class ExponentialBackoffRetryStrategyTest {
     }
 
     @Nested
-    @DisplayName("calculateNextRetryTime")
-    class CalculateNextRetryTimeTests {
+    @DisplayName("Monte Carlo Boundary Tests")
+    class MonteCarloBoundaryTests {
+
+        private void assertBoundsWithJitter(int retryCount, long expectedMinSeconds, long expectedMaxSeconds) {
+            for (int i = 0; i < MONTE_CARLO_ITERATIONS; i++) {
+                Instant start = Instant.now();
+                Instant nextRetryTime = strategy.calculateNextRetryTime(retryCount);
+                long actualDelaySeconds = Duration.between(start, nextRetryTime).getSeconds();
+
+                assertThat(actualDelaySeconds)
+                        .as(
+                                "Retry count %d: delay %d should be between [%d, %d] (iteration %d)",
+                                retryCount, actualDelaySeconds, expectedMinSeconds, expectedMaxSeconds, i)
+                        .isGreaterThanOrEqualTo(expectedMinSeconds)
+                        .isLessThanOrEqualTo(expectedMaxSeconds);
+            }
+        }
 
         @Test
-        @DisplayName("should return future instant")
-        void shouldReturnFutureInstant() {
-            Instant before = Instant.now();
-            Instant result = strategy.calculateNextRetryTime(0);
-            Instant after = Instant.now();
+        @DisplayName("0 retries (first failure): delay bounds [54s, 66s]")
+        void boundsFor0Retries() {
+            assertBoundsWithJitter(0, 54L, 66L);
+        }
 
-            assertThat(result).isAfterOrEqualTo(before);
-            assertThat(result).isBeforeOrEqualTo(after.plusSeconds(MAX_DELAY_SECONDS + 1));
+        @Test
+        @DisplayName("1 retry: delay bounds [108s, 132s]")
+        void boundsFor1Retry() {
+            assertBoundsWithJitter(1, 108L, 132L);
+        }
+
+        @Test
+        @DisplayName("3 retries: delay bounds [432s, 528s]")
+        void boundsFor3Retries() {
+            assertBoundsWithJitter(3, 432L, 528L);
+        }
+
+        @Test
+        @DisplayName("5 retries: delay bounds [1728s, 2112s]")
+        void boundsFor5Retries() {
+            assertBoundsWithJitter(5, 1728L, 2112L);
+        }
+
+        @Test
+        @DisplayName("Max delay capping (10 retries): delay bounds [3240s, 3960s]")
+        void boundsForMaxDelayCapping() {
+            assertBoundsWithJitter(10, 3240L, 3960L);
         }
     }
 
@@ -59,49 +96,33 @@ class ExponentialBackoffRetryStrategyTest {
     class CalculateDelaySecondsTests {
 
         @Test
-        @DisplayName("should calculate exponential delay for first retry")
-        void shouldCalculateFirstRetry() {
-            long delay = strategy.calculateDelaySeconds(0);
-
-            assertThat(delay)
-                    .isGreaterThanOrEqualTo((long) (BASE_DELAY_SECONDS * (1 - JITTER_FACTOR)))
-                    .isLessThanOrEqualTo((long) (BASE_DELAY_SECONDS * (1 + JITTER_FACTOR)));
-        }
-
-        @Test
-        @DisplayName("should calculate exponential delay for subsequent retries")
-        void shouldCalculateSubsequentRetry() {
-            long delay = strategy.calculateDelaySeconds(1);
-
-            long expectedBase = BASE_DELAY_SECONDS * 2;
-            assertThat(delay)
-                    .isGreaterThanOrEqualTo((long) (expectedBase * (1 - JITTER_FACTOR)))
-                    .isLessThanOrEqualTo((long) (expectedBase * (1 + JITTER_FACTOR)));
-        }
-
-        @Test
-        @DisplayName("should cap delay at max delay seconds")
-        void shouldCapAtMaxDelay() {
-            long delay = strategy.calculateDelaySeconds(10);
-
-            assertThat(delay)
-                    .isGreaterThanOrEqualTo((long) (MAX_DELAY_SECONDS * (1 - JITTER_FACTOR)))
-                    .isLessThanOrEqualTo((long) (MAX_DELAY_SECONDS * (1 + JITTER_FACTOR)));
-        }
-
-        @Test
-        @DisplayName("should include jitter in delay")
+        @DisplayName("should include jitter variation across multiple calls")
         void shouldIncludeJitter() {
             long minDelay = Long.MAX_VALUE;
             long maxDelay = Long.MIN_VALUE;
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < MONTE_CARLO_ITERATIONS; i++) {
                 long delay = strategy.calculateDelaySeconds(0);
                 minDelay = Math.min(minDelay, delay);
                 maxDelay = Math.max(maxDelay, delay);
             }
 
-            assertThat(minDelay).isLessThan(maxDelay);
+            assertThat(minDelay)
+                    .isLessThan(maxDelay)
+                    .isGreaterThanOrEqualTo((long) (BASE_DELAY_SECONDS * (1 - JITTER_FACTOR)));
+            assertThat(maxDelay).isLessThanOrEqualTo((long) (BASE_DELAY_SECONDS * (1 + JITTER_FACTOR)));
+        }
+
+        @Test
+        @DisplayName("should cap delay at max delay seconds")
+        void shouldCapAtMaxDelay() {
+            for (int i = 0; i < MONTE_CARLO_ITERATIONS; i++) {
+                long delay = strategy.calculateDelaySeconds(10);
+
+                assertThat(delay)
+                        .isGreaterThanOrEqualTo((long) (MAX_DELAY_SECONDS * (1 - JITTER_FACTOR)))
+                        .isLessThanOrEqualTo((long) (MAX_DELAY_SECONDS * (1 + JITTER_FACTOR)));
+            }
         }
     }
 
