@@ -110,6 +110,7 @@ public class MailOutboxService {
                         data.getVariables());
 
         repository.save(outbox);
+        logMailEnqueued(outbox);
     }
 
     /**
@@ -148,6 +149,7 @@ public class MailOutboxService {
                         data.getVariables());
 
         repository.save(outbox);
+        logMailEnqueued(outbox);
     }
 
     private void checkRateLimit(String email, String bizType, Duration window) {
@@ -191,6 +193,25 @@ public class MailOutboxService {
         }
 
         return false;
+    }
+
+    private void logMailEnqueued(MailOutbox outbox) {
+        auditLog.log(
+                outbox.getBizId(),
+                AuditAction.MAIL_ENQUEUED,
+                ResourceType.MAIL_OUTBOX,
+                outbox.getId().toString(),
+                SecuritySeverity.INFO,
+                AuditDetails.extension(
+                        Map.of(
+                                "recipient",
+                                outbox.getRecipient(),
+                                "subject",
+                                outbox.getSubject(),
+                                "bizType",
+                                outbox.getBizType(),
+                                "traceId",
+                                outbox.getTraceId() != null ? outbox.getTraceId() : "N/A")));
     }
 
     private String buildVerificationLink(String token) {

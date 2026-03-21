@@ -45,7 +45,8 @@ class ExponentialBackoffRetryStrategyTest {
     @DisplayName("Monte Carlo Boundary Tests")
     class MonteCarloBoundaryTests {
 
-        private void assertBoundsWithJitter(int retryCount, long expectedMinSeconds, long expectedMaxSeconds) {
+        private void assertBoundsWithJitter(
+                int retryCount, long expectedMinSeconds, long expectedMaxSeconds) {
             for (int i = 0; i < MONTE_CARLO_ITERATIONS; i++) {
                 Instant start = Instant.now();
                 Instant nextRetryTime = strategy.calculateNextRetryTime(retryCount);
@@ -54,7 +55,11 @@ class ExponentialBackoffRetryStrategyTest {
                 assertThat(actualDelaySeconds)
                         .as(
                                 "Retry count %d: delay %d should be between [%d, %d] (iteration %d)",
-                                retryCount, actualDelaySeconds, expectedMinSeconds, expectedMaxSeconds, i)
+                                retryCount,
+                                actualDelaySeconds,
+                                expectedMinSeconds,
+                                expectedMaxSeconds,
+                                i)
                         .isGreaterThanOrEqualTo(expectedMinSeconds)
                         .isLessThanOrEqualTo(expectedMaxSeconds);
             }
@@ -110,7 +115,8 @@ class ExponentialBackoffRetryStrategyTest {
             assertThat(minDelay)
                     .isLessThan(maxDelay)
                     .isGreaterThanOrEqualTo((long) (BASE_DELAY_SECONDS * (1 - JITTER_FACTOR)));
-            assertThat(maxDelay).isLessThanOrEqualTo((long) (BASE_DELAY_SECONDS * (1 + JITTER_FACTOR)));
+            assertThat(maxDelay)
+                    .isLessThanOrEqualTo((long) (BASE_DELAY_SECONDS * (1 + JITTER_FACTOR)));
         }
 
         @Test

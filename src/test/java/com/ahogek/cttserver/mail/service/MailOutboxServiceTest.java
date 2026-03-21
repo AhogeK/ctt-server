@@ -23,6 +23,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.slf4j.MDC;
 
 import java.util.List;
@@ -40,6 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class MailOutboxServiceTest {
 
     private static final String FRONTEND_BASE_URL = "http://localhost:5173";
@@ -64,6 +67,17 @@ class MailOutboxServiceTest {
                         new CttMailProperties.Frontend(FRONTEND_BASE_URL));
 
         service = new MailOutboxService(repository, renderer, properties, auditLog);
+
+        // Mock repository.save() to set ID on entity to support MAIL_ENQUEUED audit event
+        when(repository.save(any(MailOutbox.class)))
+                .thenAnswer(
+                        invocation -> {
+                            MailOutbox outbox = invocation.getArgument(0);
+                            if (outbox.getId() == null) {
+                                outbox.setId(UUID.randomUUID());
+                            }
+                            return outbox;
+                        });
     }
 
     @AfterEach
@@ -438,6 +452,123 @@ class MailOutboxServiceTest {
                     .hasMessage("Text rendering failed");
 
             verify(repository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("MAIL_ENQUEUED audit event")
+    class MailEnqueuedAuditTests {
+
+        @Test
+        @DisplayName("should publish MAIL_ENQUEUED when verification email is enqueued")
+        void shouldPublishMailEnqueued_whenVerificationEmailEnqueued() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(0L);
+            when(renderer.renderHtml(any())).thenReturn("<html></html>");
+            when(renderer.renderText(any())).thenReturn("text");
+
+            // When
+            service.enqueueVerificationEmail(userId, "user", email, "token");
+
+            // Then
+            verify(auditLog)
+                    .log(
+                            eq(userId),
+                            eq(AuditAction.MAIL_ENQUEUED),
+                            eq(ResourceType.MAIL_OUTBOX),
+                            anyString(),
+                            eq(SecuritySeverity.INFO),
+                            any(AuditDetails.class));
+        }
+
+        @Test
+        @DisplayName("should publish MAIL_ENQUEUED when password reset email is enqueued")
+        void shouldPublishMailEnqueued_whenPasswordResetEmailEnqueued() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(0L);
+            when(renderer.renderHtml(any())).thenReturn("<html></html>");
+            when(renderer.renderText(any())).thenReturn("text");
+
+            // When
+            service.enqueuePasswordResetEmail(userId, "user", email, "token");
+
+            // Then
+            verify(auditLog)
+                    .log(
+                            eq(userId),
+                            eq(AuditAction.MAIL_ENQUEUED),
+                            eq(ResourceType.MAIL_OUTBOX),
+                            anyString(),
+                            eq(SecuritySeverity.INFO),
+                            any(AuditDetails.class));
+        }
+
+        @Test
+        @DisplayName("should include recipient and bizType in MAIL_ENQUEUED audit details")
+        void shouldIncludeDetails_inMailEnqueuedAudit() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(0L);
+            when(renderer.renderHtml(any())).thenReturn("<html></html>");
+            when(renderer.renderText(any())).thenReturn("text");
+
+            // When
+            service.enqueueVerificationEmail(userId, "user", email, "token");
+
+            // Then
+            verify(auditLog)
+                    .log(
+                            any(UUID.class),
+                            eq(AuditAction.MAIL_ENQUEUED),
+                            eq(ResourceType.MAIL_OUTBOX),
+                            anyString(),
+                            eq(SecuritySeverity.INFO),
+                            auditDetailsCaptor.capture());
+
+            AuditDetails details = auditDetailsCaptor.getValue();
+            assertThat(details.ext()).containsEntry("recipient", email);
+            assertThat(details.ext()).containsEntry("bizType", "REGISTER_VERIFY");
+            assertThat(details.ext()).containsEntry("subject", "Verify Your Email Address");
+        }
+
+        @Test
+        @DisplayName("should not publish MAIL_ENQUEUED when idempotent skip occurs")
+        void shouldNotPublishMailEnqueued_whenIdempotentSkip() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
+
+            // When
+            service.enqueueVerificationEmail(userId, "user", email, "token");
+
+            // Then - should publish MAIL_IDEMPOTENT_SKIP, not MAIL_ENQUEUED
+            verify(auditLog)
+                    .log(
+                            eq(userId),
+                            eq(AuditAction.MAIL_IDEMPOTENT_SKIP),
+                            eq(ResourceType.MAIL_OUTBOX),
+                            eq(email),
+                            eq(SecuritySeverity.INFO),
+                            any(AuditDetails.class));
+            verify(auditLog, never())
+                    .log(
+                            any(UUID.class),
+                            eq(AuditAction.MAIL_ENQUEUED),
+                            any(ResourceType.class),
+                            anyString(),
+                            any(SecuritySeverity.class),
+                            any(AuditDetails.class));
         }
     }
 }

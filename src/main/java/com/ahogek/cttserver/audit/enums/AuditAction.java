@@ -107,6 +107,9 @@ public enum AuditAction {
     // Mail Delivery
     // ==========================================
 
+    /** Email queued to outbox for delivery. */
+    MAIL_ENQUEUED("Email queued to outbox for delivery"),
+
     /** Email delivered successfully. */
     MAIL_SENT("Email delivered successfully"),
 

@@ -237,6 +237,22 @@ public final class AuditFixtures {
     }
 
     /**
+     * Creates a mail enqueued audit event.
+     *
+     * @param userId user who triggered the email
+     * @param outboxId mail outbox entry ID
+     * @return builder for further customization
+     */
+    public static Builder mailEnqueued(UUID userId, UUID outboxId) {
+        return builder()
+                .action(AuditAction.MAIL_ENQUEUED)
+                .resourceType(ResourceType.MAIL_OUTBOX)
+                .resourceId(outboxId.toString())
+                .userId(userId)
+                .severity(SecuritySeverity.INFO);
+    }
+
+    /**
      * Creates an unauthorized access audit event.
      *
      * @param ip client IP address

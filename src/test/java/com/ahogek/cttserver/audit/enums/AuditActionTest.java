@@ -71,6 +71,8 @@ class AuditActionTest {
                 .isEqualTo("Email delivery failed, scheduled for retry");
         assertThat(AuditAction.MAIL_DELIVERY_EXHAUSTED.description())
                 .isEqualTo("Email delivery exhausted max retries");
+        assertThat(AuditAction.MAIL_ENQUEUED.description())
+                .isEqualTo("Email queued to outbox for delivery");
     }
 
     @Test
