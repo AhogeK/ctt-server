@@ -5,6 +5,10 @@
     - `MailOutboxServiceTest.java`: 新增 4 个测试用例验证 MAIL_ENQUEUED
     - 邮件生命周期审计完整覆盖: ENQUEUED → SENT/FAILED/EXHAUSTED
 
+- [2026-03-21] - 移除 MCP Code Intelligence
+    - 删除 `opencode.json` (MCP code-intel 配置)
+    - 移除 AGENTS.md R13 (MCP Code Intelligence 规则)
+
 - [2026-03-21] - Audit Details 标准化 (GDPR 合规)
     - `MailOutboxProcessor.java`: `buildMailAuditDetails()` 统一审计详情构建
     - GDPR 合规: `recipientMasked` 字段使用 `DesensitizeUtils.maskEmail()`
