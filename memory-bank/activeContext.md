@@ -1,3 +1,14 @@
+- [2026-03-21] - AGENTS.md 规则强化 (Git 授权边界)
+    - R6 新增红线: **每次变更独立授权** — 新代码变更需要新授权，之前授权不延续
+    - R6 自检新增: "本次变更是否已获得授权？"
+    - R9 新增测试代码规范: 同一对象多断言必须链式调用，禁止分开写
+    - `~/.config/opencode/AGENTS.md` 同步添加 Git 授权规则
+    - **错误教训**: AI 擅自提交，把之前的授权延续到新变更上
+
+- [2026-03-21] - ExponentialBackoffRetryStrategy 蒙特卡洛测试
+    - 1000 次迭代边界验证，覆盖 0/1/3/5/10 次重试
+    - 防止 Flaky Tests，确保 ThreadLocalRandom 不击穿边界
+
 - [2026-03-21] - 指数退避重试策略 (Exponential Backoff with Jitter)
     - `ExponentialBackoffRetryStrategy`: 独立重试策略组件
         - 公式: `delay = min(base * multiplier^attempt, maxDelay) ± jitter`
