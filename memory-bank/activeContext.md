@@ -1,3 +1,10 @@
+- [2026-03-21] - AuditFixtures 邮件生命周期预设数据
+    - `mailEnqueued()`: 更新标准化字段
+    - `mailSent()`: 新增发送成功 fixture
+    - `mailDeliveryFailed()`: 新增重试调度 fixture
+    - `mailDeliveryExhausted()`: 新增死信 fixture (CRITICAL 级别)
+    - `mailIdempotentSkip()`: 新增幂等跳过 fixture
+
 - [2026-03-21] - MAIL_ENQUEUED 审计事件 (邮件生命周期完整覆盖)
     - `AuditAction.java`: 新增 `MAIL_ENQUEUED` 枚举值
     - `MailOutboxService.java`: 新增 `logMailEnqueued()` 私有方法
