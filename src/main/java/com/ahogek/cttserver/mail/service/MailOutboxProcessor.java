@@ -198,7 +198,9 @@ public class MailOutboxProcessor {
                                 KEY_SUBJECT, outbox.getSubject(),
                                 KEY_BIZ_TYPE, outbox.getBizType(),
                                 KEY_TRACE_ID,
-                                        outbox.getTraceId() != null ? outbox.getTraceId() : VALUE_NA));
+                                        outbox.getTraceId() != null
+                                                ? outbox.getTraceId()
+                                                : VALUE_NA));
 
         auditLogService.log(
                 outbox.getBizId(),
@@ -219,15 +221,22 @@ public class MailOutboxProcessor {
         AuditDetails details =
                 AuditDetails.extension(
                         Map.of(
-                                KEY_RECIPIENT, outbox.getRecipient(),
-                                KEY_SUBJECT, outbox.getSubject(),
-                                KEY_BIZ_TYPE, outbox.getBizType(),
-                                "retryCount", outbox.getRetryCount(),
-                                "maxRetries", outbox.getMaxRetries(),
-                                "nextRetryAt", outbox.getNextRetryAt().toString(),
-                                "error", errorMessage,
+                                KEY_RECIPIENT,
+                                outbox.getRecipient(),
+                                KEY_SUBJECT,
+                                outbox.getSubject(),
+                                KEY_BIZ_TYPE,
+                                outbox.getBizType(),
+                                "retryCount",
+                                outbox.getRetryCount(),
+                                "maxRetries",
+                                outbox.getMaxRetries(),
+                                "nextRetryAt",
+                                outbox.getNextRetryAt().toString(),
+                                "error",
+                                errorMessage,
                                 KEY_TRACE_ID,
-                                        outbox.getTraceId() != null ? outbox.getTraceId() : VALUE_NA));
+                                outbox.getTraceId() != null ? outbox.getTraceId() : VALUE_NA));
 
         auditLogService.log(
                 outbox.getBizId(),
@@ -248,13 +257,18 @@ public class MailOutboxProcessor {
         AuditDetails details =
                 AuditDetails.extension(
                         Map.of(
-                                KEY_RECIPIENT, outbox.getRecipient(),
-                                KEY_SUBJECT, outbox.getSubject(),
-                                KEY_BIZ_TYPE, outbox.getBizType(),
-                                "totalAttempts", outbox.getRetryCount(),
-                                "finalError", errorMessage,
+                                KEY_RECIPIENT,
+                                outbox.getRecipient(),
+                                KEY_SUBJECT,
+                                outbox.getSubject(),
+                                KEY_BIZ_TYPE,
+                                outbox.getBizType(),
+                                "totalAttempts",
+                                outbox.getRetryCount(),
+                                "finalError",
+                                errorMessage,
                                 KEY_TRACE_ID,
-                                        outbox.getTraceId() != null ? outbox.getTraceId() : VALUE_NA));
+                                outbox.getTraceId() != null ? outbox.getTraceId() : VALUE_NA));
 
         auditLogService.log(
                 outbox.getBizId(),

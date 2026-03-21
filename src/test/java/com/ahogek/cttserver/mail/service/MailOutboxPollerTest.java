@@ -18,6 +18,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
+
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +37,7 @@ class MailOutboxPollerTest {
 
     private static final int BATCH_SIZE = 50;
     private static final long POLL_INTERVAL_MS = 5000;
+    private static final long ZOMBIE_INTERVAL_MS = 120000;
 
     @Mock private MailOutboxRepository outboxRepository;
     @Mock private MailOutboxProcessor outboxProcessor;
@@ -48,7 +52,8 @@ class MailOutboxPollerTest {
         CttMailProperties properties =
                 new CttMailProperties(
                         new CttMailProperties.From("test@localhost", "CTT Test"),
-                        new CttMailProperties.Outbox(POLL_INTERVAL_MS, BATCH_SIZE, 300),
+                        new CttMailProperties.Outbox(
+                                POLL_INTERVAL_MS, BATCH_SIZE, 300, ZOMBIE_INTERVAL_MS),
                         new CttMailProperties.Retry(10, 2.0, 3600, 5),
                         new CttMailProperties.Frontend("http://localhost:5173"));
 
@@ -176,7 +181,8 @@ class MailOutboxPollerTest {
             CttMailProperties smallBatchProperties =
                     new CttMailProperties(
                             new CttMailProperties.From("test@localhost", "CTT Test"),
-                            new CttMailProperties.Outbox(POLL_INTERVAL_MS, 1, 300),
+                            new CttMailProperties.Outbox(
+                                    POLL_INTERVAL_MS, 1, 300, ZOMBIE_INTERVAL_MS),
                             new CttMailProperties.Retry(10, 2.0, 3600, 5),
                             new CttMailProperties.Frontend("http://localhost:5173"));
 
@@ -198,9 +204,30 @@ class MailOutboxPollerTest {
             // Then
             verify(outboxRepository).findPendingJobs(instantCaptor.capture(), any());
             Instant capturedInstant = instantCaptor.getValue();
-            assertThat(capturedInstant)
-                    .isAfterOrEqualTo(beforeCall)
-                    .isBeforeOrEqualTo(afterCall);
+            assertThat(capturedInstant).isAfterOrEqualTo(beforeCall).isBeforeOrEqualTo(afterCall);
+        }
+    }
+
+    @Nested
+    @DisplayName("compensateStuckJobs")
+    class CompensateStuckJobsTests {
+
+        @ParameterizedTest
+        @CsvSource({
+            "3, should reset stuck records",
+            "0, should handle no stuck records"
+        })
+        @DisplayName("should call resetStuckSendingJobs and handle different return values")
+        void shouldResetStuckSendingJobs(int recoveredCount) {
+            // Given
+            when(outboxRepository.resetStuckSendingJobs(any(Instant.class), any(Instant.class)))
+                    .thenReturn(recoveredCount);
+
+            // When
+            poller.compensateStuckJobs();
+
+            // Then
+            verify(outboxRepository).resetStuckSendingJobs(any(Instant.class), any(Instant.class));
         }
     }
 

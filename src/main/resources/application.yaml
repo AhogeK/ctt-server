@@ -113,8 +113,10 @@ ctt:
       poll-interval-ms: ${MAIL_OUTBOX_POLL_INTERVAL_MS:5000}
       # Maximum emails to fetch and send per batch
       batch-size: ${MAIL_OUTBOX_BATCH_SIZE:50}
-      # Timeout in seconds to reset stuck PROCESSING emails to PENDING
+      # Timeout in seconds to reset stuck SENDING emails to PENDING
       zombie-timeout-seconds: ${MAIL_OUTBOX_ZOMBIE_TIMEOUT_SECONDS:300}
+      # Interval for zombie recovery task (milliseconds)
+      zombie-interval-ms: ${MAIL_OUTBOX_ZOMBIE_INTERVAL_MS:120000}
 
     retry:
       # Base delay in seconds for first retry

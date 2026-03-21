@@ -59,7 +59,7 @@ class MailOutboxProcessorTest {
         CttMailProperties properties =
                 new CttMailProperties(
                         new CttMailProperties.From("test@localhost", "CTT Test"),
-                        new CttMailProperties.Outbox(5000, 50, 300),
+                        new CttMailProperties.Outbox(5000, 50, 300, 120000),
                         new CttMailProperties.Retry(
                                 BASE_DELAY_SECONDS, MULTIPLIER, MAX_DELAY_SECONDS, MAX_ATTEMPTS),
                         new CttMailProperties.Frontend("http://localhost:5173"));

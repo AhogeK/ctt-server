@@ -5,6 +5,7 @@ import com.ahogek.cttserver.mail.enums.MailOutboxStatus;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -143,4 +144,26 @@ public interface MailOutboxRepository extends JpaRepository<MailOutbox, UUID> {
             UUID bizId,
             List<MailOutboxStatus> statuses,
             Instant windowStart);
+
+    /**
+     * Resets stuck SENDING records back to PENDING for zombie recovery.
+     *
+     * <p>Used when a Pod crashes while processing, leaving records in SENDING state indefinitely.
+     * This bulk update avoids loading records into memory.
+     *
+     * @param timeoutThreshold records with updatedAt before this threshold are considered stuck
+     * @param now current timestamp to set as new updatedAt
+     * @return number of records reset to PENDING
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            """
+            UPDATE MailOutbox m
+            SET m.status = com.ahogek.cttserver.mail.enums.MailOutboxStatus.PENDING,
+                m.updatedAt = :now
+            WHERE m.status = com.ahogek.cttserver.mail.enums.MailOutboxStatus.SENDING
+              AND m.updatedAt < :timeoutThreshold
+            """)
+    int resetStuckSendingJobs(
+            @Param("timeoutThreshold") Instant timeoutThreshold, @Param("now") Instant now);
 }

@@ -47,12 +47,14 @@ public record CttMailProperties(
      *
      * @param pollIntervalMs Polling interval for outbox table in milliseconds
      * @param batchSize Maximum emails to fetch and send per batch
-     * @param zombieTimeoutSeconds Timeout in seconds to reset stuck PROCESSING emails to PENDING
+     * @param zombieTimeoutSeconds Timeout in seconds to reset stuck SENDING emails to PENDING
+     * @param zombieIntervalMs Interval for zombie recovery task in milliseconds
      */
     public record Outbox(
             @Positive long pollIntervalMs,
             @Min(1) int batchSize,
-            @Positive int zombieTimeoutSeconds) {}
+            @Positive int zombieTimeoutSeconds,
+            @Positive long zombieIntervalMs) {}
 
     /**
      * Retry policy with exponential backoff.

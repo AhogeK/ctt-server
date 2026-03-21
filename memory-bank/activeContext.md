@@ -1,3 +1,19 @@
+- [2026-03-21] - AGENTS.md R6 规则调整
+    - 移除 "继续" 关键词的 Git 执行授权
+    - 只有明确的 "提交/commit/推送/push" 才触发 Git 写操作授权
+
+- [2026-03-21] - 僵尸记录恢复机制 (多实例并发安全)
+    - `MailOutboxRepository.resetStuckSendingJobs()`: 批量更新 SENDING → PENDING
+        - `@Modifying` DML 操作，避免加载到 JVM 内存
+        - 参数: `timeoutThreshold`, `now`
+    - `MailOutboxPoller.compensateStuckJobs()`: 僵尸清道夫定时任务
+        - `@Scheduled(fixedDelayString = "${ctt.mail.outbox.zombie-interval-ms:120000}")`
+        - 使用 `zombieTimeoutSeconds` 配置超时阈值
+        - 恢复记录在下一个 poll 周期被其他健康 Pod 抢占
+    - 配置扩展:
+        - `CttMailProperties.Outbox.zombieIntervalMs`: 补偿任务间隔
+        - `application.yaml`: 添加 `zombie-interval-ms` 配置
+
 - [2026-03-20] - MailOutboxPoller + MailOutboxProcessor 实现 (投递调度器)
     - `mail/service/MailOutboxPoller.java`: @Scheduled 轮询器
         - `pollAndDispatch()`: 每 ${ctt.mail.outbox.poll-interval-ms:5000}ms 执行

@@ -11,7 +11,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -88,5 +90,25 @@ public class MailOutboxPoller {
         }
 
         log.info("Outbox poll completed: {} processed, {} failed", successCount, failureCount);
+    }
+
+    /**
+     * Zombie record reaper — resets stuck SENDING records back to PENDING.
+     *
+     * <p>Runs at a lower frequency than regular polling to recover records left in SENDING state
+     * when a Pod crashes during processing. Uses the configured zombie timeout threshold.
+     */
+    @Scheduled(fixedDelayString = "${ctt.mail.outbox.zombie-interval-ms:120000}")
+    @Transactional
+    public void compensateStuckJobs() {
+        int zombieTimeoutSeconds = mailProperties.outbox().zombieTimeoutSeconds();
+        Instant timeoutThreshold = Instant.now().minus(Duration.ofSeconds(zombieTimeoutSeconds));
+        Instant now = Instant.now();
+
+        int recoveredCount = outboxRepository.resetStuckSendingJobs(timeoutThreshold, now);
+
+        if (recoveredCount > 0) {
+            log.warn("Zombie recovery: reset {} stuck SENDING records to PENDING", recoveredCount);
+        }
     }
 }
