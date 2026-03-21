@@ -5,6 +5,12 @@
     - `MailOutboxServiceTest.java`: 新增 4 个测试用例验证 MAIL_ENQUEUED
     - 邮件生命周期审计完整覆盖: ENQUEUED → SENT/FAILED/EXHAUSTED
 
+- [2026-03-21] - Audit Details 标准化 (GDPR 合规)
+    - `MailOutboxProcessor.java`: `buildMailAuditDetails()` 统一审计详情构建
+    - GDPR 合规: `recipientMasked` 字段使用 `DesensitizeUtils.maskEmail()`
+    - 错误截断: `MAX_ERROR_LENGTH = 500` 防止 JSONB 溢出
+    - 统一字段: `mailOutboxId`, `templateName`, `recipientMasked`, `retryCount`, `lastError`
+
 - [2026-03-21] - AGENTS.md 规则强化 (Git 授权边界)
     - R6 新增红线: **每次变更独立授权** — 新代码变更需要新授权，之前授权不延续
     - R6 自检新增: "本次变更是否已获得授权？"
