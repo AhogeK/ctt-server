@@ -19,6 +19,9 @@
 - [x] 邮件基础设施 Phase D (MailOutboxPoller + MailOutboxProcessor + 调度投递)
 - [x] 邮件基础设施 Phase E (ExponentialBackoffRetryStrategy + Jitter + Monte Carlo 测试)
 - [x] 测试覆盖率提升 (指令 87%→92%, 分支 76%→84%)
+- [x] MailOutboxProcessor Detached Entity 修复 (REQUIRES_NEW 事务隔离)
+- [x] JPA Auditing 配置独立化 (解决切片测试冲突)
+- [x] 审计资源类型扩展 (MAIL_OUTBOX 数据库约束)
 
 ## 进行中 🔄
 

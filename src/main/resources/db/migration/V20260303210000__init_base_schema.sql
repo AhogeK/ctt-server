@@ -401,7 +401,15 @@ CREATE TABLE audit_logs
     CONSTRAINT chk_audit_severity
         CHECK (severity IN ('INFO', 'WARNING', 'CRITICAL')),
     CONSTRAINT chk_audit_resource_type
-        CHECK (resource_type IN ('USER', 'EMAIL_VERIFICATION', 'PASSWORD_RESET', 'REFRESH_TOKEN', 'API_KEY', 'UNKNOWN'))
+        CHECK (resource_type IN (
+                                 'USER',
+                                 'EMAIL_VERIFICATION',
+                                 'PASSWORD_RESET',
+                                 'REFRESH_TOKEN',
+                                 'API_KEY',
+                                 'MAIL_OUTBOX',
+                                 'UNKNOWN'
+            ))
 );
 
 COMMENT ON TABLE audit_logs IS 'System security and operational audit logs';
@@ -414,6 +422,7 @@ COMMENT ON COLUMN audit_logs.details IS 'Additional structured audit payload sto
 COMMENT ON COLUMN audit_logs.ip_address IS 'Client IP address (IPv4/IPv6)';
 COMMENT ON COLUMN audit_logs.user_agent IS 'Client user agent';
 COMMENT ON COLUMN audit_logs.created_at IS 'Timestamp when the action occurred';
+COMMENT ON CONSTRAINT chk_audit_resource_type ON audit_logs IS 'Validates audit log resource types - includes MAIL_OUTBOX for email delivery tracking';
 
 CREATE INDEX idx_audit_logs_user_id
     ON audit_logs (user_id);
@@ -475,15 +484,12 @@ COMMENT ON COLUMN mail_outbox.trace_id IS 'OpenTelemetry trace ID for distribute
 
 CREATE INDEX idx_mail_outbox_dispatch
     ON mail_outbox (status, next_retry_at, created_at);
-
 CREATE INDEX idx_mail_outbox_trace_id
     ON mail_outbox (trace_id)
     WHERE trace_id IS NOT NULL;
-
 CREATE INDEX idx_mail_outbox_retry
     ON mail_outbox (status, retry_count, next_retry_at)
     WHERE status IN ('PENDING', 'FAILED');
-
 CREATE INDEX idx_mail_outbox_dedup
     ON mail_outbox (recipient, biz_type, status, created_at);
 

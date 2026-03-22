@@ -97,7 +97,21 @@
         - 命中幂等时发布 `MAIL_IDEMPOTENT_SKIP` 审计事件 (INFO 级别)
         - 静默跳过（不抛异常）
 
+- [2026-03-22] - MailOutboxProcessor Detached Entity 修复
+    - 问题: `REQUIRES_NEW` 事务中传入的 entity 是 detached 状态
+    - 修复: 在方法开头 merge detached entity，异常处理中重新加载
+    - 新增 `MailException` 异常捕获 (Spring Mail 异常不是 `MessagingException` 子类)
+    - `MailOutboxProcessorTest.java`: 更新 mock 设置匹配新实现
+
+- [2026-03-22] - JPA Auditing 配置独立化
+    - 问题: 主应用类的 `@EnableJpaAuditing` 与 `@WebMvcTest` 切片测试冲突
+    - 修复: 创建独立的 `JpaAuditingConfig` 配置类
+    - `CttServerApplication.java`: 移除 `@EnableJpaAuditing`
+    - `BaseRepositoryTest.java`: 保持 `@EnableJpaAuditing` (切片测试需要)
+
+- [2026-03-22] - 数据库迁移: MAIL_OUTBOX 审计资源类型
+    - 修复 `audit_logs` 表约束，添加 `MAIL_OUTBOX` 资源类型
+
 ## 下一步行动
 
-1. 集成测试验证完整邮件流程
-2. 监控指标暴露 (Prometheus)
+1. 监控指标暴露 (Prometheus)

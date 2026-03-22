@@ -17,6 +17,7 @@ import jakarta.mail.MessagingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,35 +94,45 @@ public class MailOutboxProcessor {
         UUID messageId = outbox.getId();
 
         try {
+            // Merge detached entity into persistence context
+            MailOutbox managedOutbox = outboxRepository.saveAndFlush(outbox);
+
             // Optimistic lock: mark as SENDING
-            outbox.markSending();
-            outboxRepository.saveAndFlush(outbox);
+            managedOutbox.markSending();
+            outboxRepository.saveAndFlush(managedOutbox);
 
             log.debug(
                     "Processing email [id={}, traceId={}] to {}",
                     messageId,
-                    outbox.getTraceId(),
-                    outbox.getRecipient());
+                    managedOutbox.getTraceId(),
+                    managedOutbox.getRecipient());
 
             // Attempt SMTP delivery
-            mailDispatcher.dispatch(outbox);
+            mailDispatcher.dispatch(managedOutbox);
 
             // Success: mark as SENT
-            outbox.markSent();
-            outboxRepository.save(outbox);
+            managedOutbox.markSent();
+            outboxRepository.save(managedOutbox);
 
-            log.info("Email sent successfully [id={}] to {}", messageId, outbox.getRecipient());
+            log.info(
+                    "Email sent successfully [id={}] to {}",
+                    messageId,
+                    managedOutbox.getRecipient());
 
             // Publish audit event
-            publishMailSentAudit(outbox);
+            publishMailSentAudit(managedOutbox);
 
         } catch (OptimisticLockingFailureException _) {
             // Another node is processing this message - skip silently
             log.debug("Optimistic lock conflict for email [id={}], skipping", messageId);
 
-        } catch (MessagingException | UnsupportedEncodingException e) {
+        } catch (MessagingException | UnsupportedEncodingException | MailException e) {
             // Delivery failure - schedule retry
-            handleDeliveryFailure(outbox, e.getMessage());
+            // Reload entity to get current state from database
+            outboxRepository
+                    .findById(messageId)
+                    .ifPresent(
+                            currentOutbox -> handleDeliveryFailure(currentOutbox, e.getMessage()));
         }
     }
 
