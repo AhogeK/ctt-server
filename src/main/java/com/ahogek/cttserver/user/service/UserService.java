@@ -4,9 +4,9 @@ import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
-import com.ahogek.cttserver.auth.entity.EmailVerificationToken;
 import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
 import com.ahogek.cttserver.common.utils.TokenUtils;
+import com.ahogek.cttserver.common.utils.TokenUtils.TokenPair;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -17,8 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.util.UUID;
 
 /**
  * User application service.
@@ -65,31 +63,6 @@ public class UserService {
     }
 
     /**
-     * Holds a verification token entity and its raw (unhashed) value.
-     *
-     * @param token the persisted token entity
-     * @param rawToken the raw token string (transient, not stored)
-     */
-    public record TokenPair(EmailVerificationToken token, String rawToken) {}
-
-    /**
-     * Creates and persists a verification token for a user.
-     *
-     * @param userId the user ID
-     * @param ttl time-to-live for the token
-     * @return TokenPair containing the persisted token and raw token
-     */
-    public TokenPair createVerificationToken(UUID userId, Duration ttl) {
-        String rawToken = TokenUtils.generateRawToken();
-        EmailVerificationToken token = new EmailVerificationToken();
-        token.setUserId(userId);
-        token.setTokenHash(TokenUtils.hashToken(rawToken));
-        token.setExpiresAt(Instant.now().plus(ttl));
-        tokenRepository.save(token);
-        return new TokenPair(token, rawToken);
-    }
-
-    /**
      * Registers a new user.
      *
      * <p>Process:
@@ -123,7 +96,9 @@ public class UserService {
         User savedUser = userRepository.save(newUser);
 
         // 4. Generate verification token
-        TokenPair tokenPair = createVerificationToken(savedUser.getId(), VERIFICATION_TOKEN_TTL);
+        TokenPair tokenPair =
+                TokenUtils.createVerificationToken(
+                        savedUser.getId(), VERIFICATION_TOKEN_TTL, tokenRepository);
 
         // 5. Enqueue verification email
         mailOutboxService.enqueueVerificationEmail(

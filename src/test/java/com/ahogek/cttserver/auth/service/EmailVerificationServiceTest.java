@@ -19,8 +19,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -37,9 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -50,8 +46,6 @@ class EmailVerificationServiceTest {
     @Mock private MailOutboxService mailOutboxService;
     @Mock private AuditLogService auditLog;
 
-    @Captor private ArgumentCaptor<EmailVerificationToken> tokenCaptor;
-
     private EmailVerificationService service;
 
     @BeforeEach
@@ -59,6 +53,72 @@ class EmailVerificationServiceTest {
         service =
                 new EmailVerificationService(
                         tokenRepository, userRepository, mailOutboxService, auditLog);
+    }
+
+    private EmailVerificationToken createValidToken(UUID tokenId, UUID userId, String tokenHash) {
+        EmailVerificationToken token = new EmailVerificationToken();
+        org.springframework.test.util.ReflectionTestUtils.setField(token, "id", tokenId);
+        token.setUserId(userId);
+        token.setTokenHash(tokenHash);
+        token.setExpiresAt(Instant.now().plus(24, ChronoUnit.HOURS));
+        return token;
+    }
+
+    private EmailVerificationToken createExpiredToken(UUID tokenId, UUID userId, String tokenHash) {
+        EmailVerificationToken token = new EmailVerificationToken();
+        org.springframework.test.util.ReflectionTestUtils.setField(token, "id", tokenId);
+        token.setUserId(userId);
+        token.setTokenHash(tokenHash);
+        token.setExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS));
+        return token;
+    }
+
+    private EmailVerificationToken createConsumedToken(
+            UUID tokenId, UUID userId, String tokenHash) {
+        EmailVerificationToken token = new EmailVerificationToken();
+        org.springframework.test.util.ReflectionTestUtils.setField(token, "id", tokenId);
+        token.setUserId(userId);
+        token.setTokenHash(tokenHash);
+        token.setExpiresAt(Instant.now().plus(24, ChronoUnit.HOURS));
+        token.setConsumedAt(Instant.now().minus(1, ChronoUnit.HOURS));
+        return token;
+    }
+
+    private EmailVerificationToken createRevokedToken(UUID tokenId, UUID userId, String tokenHash) {
+        EmailVerificationToken token = new EmailVerificationToken();
+        org.springframework.test.util.ReflectionTestUtils.setField(token, "id", tokenId);
+        token.setUserId(userId);
+        token.setTokenHash(tokenHash);
+        token.setExpiresAt(Instant.now().plus(24, ChronoUnit.HOURS));
+        token.setRevokedAt(Instant.now().minus(1, ChronoUnit.HOURS));
+        return token;
+    }
+
+    private User createUser(UUID userId, String email, boolean emailVerified) {
+        User user = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", userId);
+        user.setEmail(email);
+        user.setDisplayName("Test User");
+        user.setEmailVerified(emailVerified);
+        return user;
+    }
+
+    private String hashTokenSha256(String rawToken) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(rawToken.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Nested
@@ -85,11 +145,8 @@ class EmailVerificationServiceTest {
             // When
             service.verify(rawToken);
 
-            // Then
-            verify(tokenRepository).save(tokenCaptor.capture());
-            assertThat(tokenCaptor.getValue().getConsumedAt()).isNotNull();
-
-            verify(userRepository).save(any(User.class));
+            // Then - Verify state changes (JPA Dirty Checking persists on commit)
+            assertThat(token.getConsumedAt()).isNotNull();
             assertThat(user.getEmailVerified()).isTrue();
 
             verify(auditLog)
@@ -211,12 +268,9 @@ class EmailVerificationServiceTest {
             // When
             service.verify(rawToken);
 
-            // Then - verify the consumed token was saved
+            // Then - Verify state changes (JPA Dirty Checking persists on commit)
             assertThat(token.getConsumedAt()).isNotNull();
-            // Then - verify the other token was revoked
             assertThat(otherToken.getRevokedAt()).isNotNull();
-            verify(tokenRepository, org.mockito.Mockito.times(2))
-                    .save(any(EmailVerificationToken.class));
         }
     }
 
@@ -306,72 +360,6 @@ class EmailVerificationServiceTest {
             // Then - verify save was called twice (revoke + new token)
             verify(tokenRepository, org.mockito.Mockito.times(2))
                     .save(any(EmailVerificationToken.class));
-        }
-    }
-
-    private EmailVerificationToken createValidToken(UUID tokenId, UUID userId, String tokenHash) {
-        EmailVerificationToken token = new EmailVerificationToken();
-        org.springframework.test.util.ReflectionTestUtils.setField(token, "id", tokenId);
-        token.setUserId(userId);
-        token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().plus(24, ChronoUnit.HOURS));
-        return token;
-    }
-
-    private EmailVerificationToken createExpiredToken(UUID tokenId, UUID userId, String tokenHash) {
-        EmailVerificationToken token = new EmailVerificationToken();
-        org.springframework.test.util.ReflectionTestUtils.setField(token, "id", tokenId);
-        token.setUserId(userId);
-        token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS));
-        return token;
-    }
-
-    private EmailVerificationToken createConsumedToken(
-            UUID tokenId, UUID userId, String tokenHash) {
-        EmailVerificationToken token = new EmailVerificationToken();
-        org.springframework.test.util.ReflectionTestUtils.setField(token, "id", tokenId);
-        token.setUserId(userId);
-        token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().plus(24, ChronoUnit.HOURS));
-        token.setConsumedAt(Instant.now().minus(1, ChronoUnit.HOURS));
-        return token;
-    }
-
-    private EmailVerificationToken createRevokedToken(UUID tokenId, UUID userId, String tokenHash) {
-        EmailVerificationToken token = new EmailVerificationToken();
-        org.springframework.test.util.ReflectionTestUtils.setField(token, "id", tokenId);
-        token.setUserId(userId);
-        token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().plus(24, ChronoUnit.HOURS));
-        token.setRevokedAt(Instant.now().minus(1, ChronoUnit.HOURS));
-        return token;
-    }
-
-    private User createUser(UUID userId, String email, boolean emailVerified) {
-        User user = new User();
-        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", userId);
-        user.setEmail(email);
-        user.setDisplayName("Test User");
-        user.setEmailVerified(emailVerified);
-        return user;
-    }
-
-    private String hashTokenSha256(String rawToken) {
-        try {
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawToken.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) {
-                    hexString.append('0');
-                }
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
         }
     }
 }

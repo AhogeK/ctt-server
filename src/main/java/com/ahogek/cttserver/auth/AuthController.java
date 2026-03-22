@@ -56,11 +56,7 @@ public class AuthController {
      * @return success response
      */
     @PublicApi(reason = "User registration endpoint - Tier 1 public API")
-    @RateLimit(
-            type = RateLimitType.EMAIL,
-            keyExpression = "#request.email",
-            limit = 5,
-            windowSeconds = 3600)
+    @RateLimit(type = RateLimitType.IP, limit = 60, windowSeconds = 3600)
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<EmptyResponse>> register(
             @Valid @RequestBody UserRegisterRequest request) {

@@ -12,6 +12,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.common.utils.TokenUtils;
+import com.ahogek.cttserver.common.utils.TokenUtils.TokenPair;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -42,31 +43,6 @@ public class EmailVerificationService {
         this.userRepository = userRepository;
         this.mailOutboxService = mailOutboxService;
         this.auditLog = auditLog;
-    }
-
-    /**
-     * Holds a verification token entity and its raw (unhashed) value.
-     *
-     * @param token the persisted token entity
-     * @param rawToken the raw token string (transient, not stored)
-     */
-    public record TokenPair(EmailVerificationToken token, String rawToken) {}
-
-    /**
-     * Creates and persists a verification token for a user.
-     *
-     * @param userId the user ID
-     * @param ttl time-to-live for the token
-     * @return TokenPair containing the persisted token and raw token
-     */
-    public TokenPair createVerificationToken(UUID userId, Duration ttl) {
-        String rawToken = TokenUtils.generateRawToken();
-        EmailVerificationToken token = new EmailVerificationToken();
-        token.setUserId(userId);
-        token.setTokenHash(TokenUtils.hashToken(rawToken));
-        token.setExpiresAt(Instant.now().plus(ttl));
-        tokenRepository.save(token);
-        return new TokenPair(token, rawToken);
     }
 
     @Transactional
@@ -109,8 +85,8 @@ public class EmailVerificationService {
 
         revokeOtherTokens(token);
 
-        tokenRepository.save(token);
-        userRepository.save(user);
+        // JPA Dirty Checking auto-persists state changes on transaction commit
+        // No explicit save() needed for token and user
 
         auditLog.log(
                 user.getId(),
@@ -135,7 +111,8 @@ public class EmailVerificationService {
 
         revokeExistingValidTokens(user.getId());
 
-        TokenPair tokenPair = createVerificationToken(user.getId(), TOKEN_TTL);
+        TokenPair tokenPair =
+                TokenUtils.createVerificationToken(user.getId(), TOKEN_TTL, tokenRepository);
 
         mailOutboxService.enqueueVerificationEmail(
                 user.getId(), user.getDisplayName(), user.getEmail(), tokenPair.rawToken());

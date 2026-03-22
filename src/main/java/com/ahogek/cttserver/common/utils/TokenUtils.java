@@ -1,10 +1,16 @@
 package com.ahogek.cttserver.common.utils;
 
+import com.ahogek.cttserver.auth.entity.EmailVerificationToken;
+import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
+import java.util.UUID;
 
 /**
  * Token generation and hashing utility.
@@ -81,5 +87,35 @@ public final class TokenUtils {
             hexString.append(hex);
         }
         return hexString.toString();
+    }
+
+    /**
+     * Holds a verification token entity and its raw (unhashed) value.
+     *
+     * @param token the persisted token entity
+     * @param rawToken the raw token string (transient, not stored)
+     */
+    public record TokenPair(EmailVerificationToken token, String rawToken) {}
+
+    /**
+     * Creates and persists a verification token for a user.
+     *
+     * <p>Generates a cryptographically secure token, hashes it, persists the hash, and returns both
+     * the persisted entity and the raw token for email delivery.
+     *
+     * @param userId the user ID
+     * @param ttl time-to-live for the token
+     * @param tokenRepository the repository for persisting tokens
+     * @return TokenPair containing the persisted token and raw token
+     */
+    public static TokenPair createVerificationToken(
+            UUID userId, Duration ttl, EmailVerificationTokenRepository tokenRepository) {
+        String rawToken = generateRawToken();
+        EmailVerificationToken token = new EmailVerificationToken();
+        token.setUserId(userId);
+        token.setTokenHash(hashToken(rawToken));
+        token.setExpiresAt(Instant.now().plus(ttl));
+        tokenRepository.save(token);
+        return new TokenPair(token, rawToken);
     }
 }
