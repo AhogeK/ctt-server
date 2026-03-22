@@ -150,6 +150,7 @@ CREATE TABLE email_verification_tokens
     purpose     VARCHAR(30)  NOT NULL DEFAULT 'REGISTER_VERIFY',
     expires_at  TIMESTAMPTZ  NOT NULL,
     consumed_at TIMESTAMPTZ,
+    revoked_at  TIMESTAMPTZ,
     sent_at     TIMESTAMPTZ,
     request_ip  VARCHAR(45),
     user_agent  TEXT,
@@ -164,6 +165,7 @@ COMMENT ON COLUMN email_verification_tokens.token_hash IS 'SHA-256 hex digest of
 COMMENT ON COLUMN email_verification_tokens.purpose IS 'Token purpose: REGISTER_VERIFY or CHANGE_EMAIL';
 COMMENT ON COLUMN email_verification_tokens.expires_at IS 'Token expiration timestamp';
 COMMENT ON COLUMN email_verification_tokens.consumed_at IS 'Timestamp when the token was consumed';
+COMMENT ON COLUMN email_verification_tokens.revoked_at IS 'Timestamp when token was actively revoked (admin action, security event, or resend verification email)';
 COMMENT ON COLUMN email_verification_tokens.sent_at IS 'Timestamp when the verification email was sent';
 COMMENT ON COLUMN email_verification_tokens.request_ip IS 'IP address from which the request originated (IPv4/IPv6)';
 COMMENT ON COLUMN email_verification_tokens.user_agent IS 'User agent from which the request originated';
@@ -171,7 +173,7 @@ COMMENT ON COLUMN email_verification_tokens.user_agent IS 'User agent from which
 CREATE UNIQUE INDEX uk_email_verification_token_hash
     ON email_verification_tokens (token_hash);
 CREATE INDEX idx_email_verification_lookup
-    ON email_verification_tokens (user_id, purpose, expires_at, consumed_at);
+    ON email_verification_tokens (user_id, purpose, expires_at, consumed_at, revoked_at);
 CREATE INDEX idx_email_verification_email
     ON email_verification_tokens ((LOWER(email)));
 

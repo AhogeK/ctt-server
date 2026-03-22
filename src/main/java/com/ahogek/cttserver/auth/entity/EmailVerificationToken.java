@@ -24,23 +24,21 @@ public class EmailVerificationToken extends AbstractToken {
     @Column(name = "consumed_at")
     private Instant consumedAt;
 
+    @Column(name = "revoked_at")
+    private Instant revokedAt;
+
     public EmailVerificationToken() {
         super();
     }
 
-    /**
-     * Determines current token status through dynamic derivation.
-     *
-     * <p>Derives state from timestamps in real-time, eliminating the need for scheduled status
-     * updates.
-     *
-     * @return current token status
-     */
     @Override
     public TokenStatus determineStatus() {
-        // Defensive null check for unpersisted or incomplete entities
         if (this.expiresAt == null) {
             return TokenStatus.UNAVAILABLE;
+        }
+
+        if (this.revokedAt != null) {
+            return TokenStatus.REVOKED;
         }
 
         if (this.consumedAt != null) {
@@ -54,13 +52,6 @@ public class EmailVerificationToken extends AbstractToken {
         return TokenStatus.VALID;
     }
 
-    /**
-     * Consumes the token.
-     *
-     * <p>Marks token as consumed at current timestamp. Validates token status before consumption.
-     *
-     * @throws IllegalStateException if token is not in VALID status
-     */
     public void consume() {
         if (determineStatus() != TokenStatus.VALID) {
             throw new IllegalStateException(
@@ -69,7 +60,27 @@ public class EmailVerificationToken extends AbstractToken {
         this.consumedAt = Instant.now();
     }
 
+    public void revoke() {
+        if (determineStatus() != TokenStatus.VALID) {
+            throw new IllegalStateException(
+                    "Token is not valid for revocation: " + determineStatus());
+        }
+        this.revokedAt = Instant.now();
+    }
+
     public Instant getConsumedAt() {
         return consumedAt;
+    }
+
+    public void setConsumedAt(Instant consumedAt) {
+        this.consumedAt = consumedAt;
+    }
+
+    public Instant getRevokedAt() {
+        return revokedAt;
+    }
+
+    public void setRevokedAt(Instant revokedAt) {
+        this.revokedAt = revokedAt;
     }
 }

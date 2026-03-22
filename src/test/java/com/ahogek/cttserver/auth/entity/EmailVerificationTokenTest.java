@@ -115,4 +115,87 @@ class EmailVerificationTokenTest {
         Instant after = Instant.now();
         assertThat(token.getConsumedAt()).isBetween(before, after);
     }
+
+    // ========== Revoke Tests ==========
+
+    @Test
+    void determineStatusReturnsRevokedWhenRevokedAtIsSet() {
+        EmailVerificationToken token = createValidToken();
+        token.revoke();
+
+        assertThat(token.determineStatus()).isEqualTo(TokenStatus.REVOKED);
+        assertThat(token.isValid()).isFalse();
+        assertThat(token.getRevokedAt()).isNotNull();
+    }
+
+    @Test
+    void revokeSetsRevokedAtTimestamp() {
+        EmailVerificationToken token = createValidToken();
+        Instant before = Instant.now();
+
+        token.revoke();
+
+        Instant after = Instant.now();
+        assertThat(token.getRevokedAt()).isBetween(before, after);
+    }
+
+    @Test
+    void revokeThrowsExceptionForExpiredToken() {
+        EmailVerificationToken token = createValidToken();
+        token.setExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS));
+
+        assertThatThrownBy(token::revoke)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Token is not valid for revocation");
+    }
+
+    @Test
+    void revokeThrowsExceptionForConsumedToken() {
+        EmailVerificationToken token = createValidToken();
+        token.consume();
+
+        assertThatThrownBy(token::revoke)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Token is not valid for revocation");
+    }
+
+    @Test
+    void revokeThrowsExceptionForAlreadyRevokedToken() {
+        EmailVerificationToken token = createValidToken();
+        token.revoke();
+
+        assertThatThrownBy(token::revoke)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Token is not valid for revocation");
+    }
+
+    @Test
+    void revokeThrowsExceptionForUnavailableToken() {
+        EmailVerificationToken token = new EmailVerificationToken();
+        token.setUserId(UUID.randomUUID());
+        token.setTokenHash("hashedToken123");
+        // expiresAt is null, so status is UNAVAILABLE
+
+        assertThatThrownBy(token::revoke)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Token is not valid for revocation");
+    }
+
+    @Test
+    void revokedAtTakesPriorityOverConsumedAt() {
+        EmailVerificationToken token = createValidToken();
+        token.setConsumedAt(Instant.now());
+        token.setRevokedAt(Instant.now());
+
+        assertThat(token.determineStatus()).isEqualTo(TokenStatus.REVOKED);
+    }
+
+    @Test
+    void revokedAtTakesPriorityOverExpired() {
+        EmailVerificationToken token = createValidToken();
+        token.setExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS));
+        token.setRevokedAt(Instant.now());
+
+        assertThat(token.determineStatus()).isEqualTo(TokenStatus.REVOKED);
+    }
 }

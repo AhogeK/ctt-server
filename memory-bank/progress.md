@@ -22,6 +22,9 @@
 - [x] MailOutboxProcessor Detached Entity 修复 (REQUIRES_NEW 事务隔离)
 - [x] JPA Auditing 配置独立化 (解决切片测试冲突)
 - [x] 审计资源类型扩展 (MAIL_OUTBOX 数据库约束)
+- [x] MailOutboxService 集成测试 (4 个测试用例全部通过)
+- [x] AGENTS.md R8 变更溯源原则 (防止 AI 揣测行为)
+- [x] AGENTS.md R9 代码规范执行 (中文注释/测试名清理)
 
 ## 进行中 🔄
 

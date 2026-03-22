@@ -121,6 +121,22 @@
     - `TestConfig.java`: 测试用异步执行器配置
     - 测试结果：4/4 通过，完整构建通过
 
+- [2026-03-22] - AGENTS.md R8 新增变更溯源原则
+    - 发现与预期不一致时，优先猜想"是否被用户修改了"
+    - 三步流程：检查 git history → 验证业务逻辑 → 更新记忆适应新逻辑
+    - 禁止揣测"AI 忘了改"或"这应该是错的"
+
+- [2026-03-22] - AGENTS.md R9 代码规范执行 (中文清理)
+    - `UserService.java`: 中文注释改为英文
+    - `MailOutboxServiceIntegrationTest.java`: @DisplayName 中文改为英文
+    - `audit_logs.user_id`: 数据库 schema 可空化修改
+    - 保留"张三"测试数据 (国际化验证需要)
+
+- [2026-03-22] - 项目启动上下文搜索完成
+    - 已读取：AGENTS.md, memory-bank/*, README.md, docs/*.md
+    - 已扫描：100+ Java 文件，6 个配置文件，1 个 Flyway 迁移脚本
+    - 当前无进行中的开发任务
+
 ## 下一步行动
 
-1. 监控指标暴露 (Prometheus)
+1. 监控指标暴露 (Prometheus) - 待开始

@@ -91,7 +91,8 @@ class MailOutboxServiceIntegrationTest {
     class HappyPathTests {
 
         @Test
-        @DisplayName("should enqueue verification email and persist audit log with desensitized recipient")
+        @DisplayName(
+                "should enqueue verification email and persist audit log with desensitized recipient")
         void shouldEnqueueVerificationEmailAndAuditSuccessfully() {
             // When
             mailOutboxService.enqueueVerificationEmail(
@@ -207,7 +208,8 @@ class MailOutboxServiceIntegrationTest {
     class RateLimitingTests {
 
         @Test
-        @DisplayName("should throw TooManyRequestsException when exceeding 3 requests per minute rate limit")
+        @DisplayName(
+                "should throw TooManyRequestsException when exceeding 3 requests per minute rate limit")
         void shouldThrowException_whenRateLimitExceeded() {
             // Given: Send 3 emails to the SAME address within the rate limit window
             // Use different bizId for each to avoid idempotency check
