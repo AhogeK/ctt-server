@@ -112,6 +112,15 @@
 - [2026-03-22] - 数据库迁移: MAIL_OUTBOX 审计资源类型
     - 修复 `audit_logs` 表约束，添加 `MAIL_OUTBOX` 资源类型
 
+- [2026-03-22] - MailOutboxService 集成测试完成
+    - `MailOutboxServiceIntegrationTest.java`: 4 个集成测试用例
+        - 正常入队 + 审计事件持久化验证
+        - 10 分钟幂等窗口验证
+        - 3 次/1 分钟限流阈值验证
+        - 审计日志 JSONB 邮箱脱敏验证
+    - `TestConfig.java`: 测试用异步执行器配置
+    - 测试结果：4/4 通过，完整构建通过
+
 ## 下一步行动
 
 1. 监控指标暴露 (Prometheus)

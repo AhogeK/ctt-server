@@ -73,7 +73,7 @@ import java.lang.annotation.Target;
 @Documented
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, GreenMailTestConfiguration.class})
+@Import({TestcontainersConfiguration.class, GreenMailTestConfiguration.class, TestConfig.class})
 @ActiveProfiles("test")
 @TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
 public @interface BaseIntegrationTest {}
