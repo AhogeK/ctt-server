@@ -61,10 +61,10 @@ public enum ErrorCode {
     MAIL_002("Email template not found", HttpStatus.INTERNAL_SERVER_ERROR),
     MAIL_003("Invalid email address", HttpStatus.BAD_REQUEST),
     MAIL_004("Email rate limit exceeded", HttpStatus.TOO_MANY_REQUESTS),
-    MAIL_005("Verification token expired", HttpStatus.BAD_REQUEST),
-    MAIL_006("Verification token invalid", HttpStatus.BAD_REQUEST),
-    MAIL_007("Password reset token expired", HttpStatus.BAD_REQUEST),
-    MAIL_008("Password reset token invalid", HttpStatus.BAD_REQUEST),
+    MAIL_005("Verification token expired", HttpStatus.UNAUTHORIZED),
+    MAIL_006("Verification token invalid", HttpStatus.UNAUTHORIZED),
+    MAIL_007("Password reset token expired", HttpStatus.UNAUTHORIZED),
+    MAIL_008("Password reset token invalid", HttpStatus.UNAUTHORIZED),
 
     // =========================================================================
     // RATE_LIMIT - Rate limiting errors

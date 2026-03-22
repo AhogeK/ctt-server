@@ -7,9 +7,9 @@ import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.entity.EmailVerificationToken;
 import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
-import com.ahogek.cttserver.common.exception.BusinessException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -166,8 +166,8 @@ class EmailVerificationServiceTest {
         }
 
         @Test
-        @DisplayName("should throw NotFoundException when token not found")
-        void shouldThrowNotFoundException_whenTokenNotFound() {
+        @DisplayName("should throw UnauthorizedException when token not found")
+        void shouldThrowUnauthorizedException_whenTokenNotFound() {
             // Given
             String rawToken = "non-existent-token";
             String tokenHash = hashTokenSha256(rawToken);
@@ -176,7 +176,7 @@ class EmailVerificationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> service.verify(rawToken))
-                    .isInstanceOf(NotFoundException.class)
+                    .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MAIL_006)
                     .hasMessageContaining("Verification token not found");
 
@@ -185,8 +185,8 @@ class EmailVerificationServiceTest {
         }
 
         @Test
-        @DisplayName("should throw BusinessException when token expired")
-        void shouldThrowBusinessException_whenTokenExpired() {
+        @DisplayName("should throw UnauthorizedException when token expired")
+        void shouldThrowUnauthorizedException_whenTokenExpired() {
             // Given
             String rawToken = "expired-token";
             String tokenHash = hashTokenSha256(rawToken);
@@ -198,7 +198,7 @@ class EmailVerificationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> service.verify(rawToken))
-                    .isInstanceOf(BusinessException.class)
+                    .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MAIL_005)
                     .hasMessageContaining("Verification token has expired");
 
@@ -207,8 +207,8 @@ class EmailVerificationServiceTest {
         }
 
         @Test
-        @DisplayName("should throw BusinessException when token consumed")
-        void shouldThrowBusinessException_whenTokenConsumed() {
+        @DisplayName("should throw UnauthorizedException when token consumed")
+        void shouldThrowUnauthorizedException_whenTokenConsumed() {
             // Given
             String rawToken = "consumed-token";
             String tokenHash = hashTokenSha256(rawToken);
@@ -221,7 +221,7 @@ class EmailVerificationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> service.verify(rawToken))
-                    .isInstanceOf(BusinessException.class)
+                    .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MAIL_006)
                     .hasMessageContaining("Verification token has already been used");
 
@@ -230,8 +230,8 @@ class EmailVerificationServiceTest {
         }
 
         @Test
-        @DisplayName("should throw BusinessException when token revoked")
-        void shouldThrowBusinessException_whenTokenRevoked() {
+        @DisplayName("should throw UnauthorizedException when token revoked")
+        void shouldThrowUnauthorizedException_whenTokenRevoked() {
             // Given
             String rawToken = "revoked-token";
             String tokenHash = hashTokenSha256(rawToken);
@@ -243,7 +243,7 @@ class EmailVerificationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> service.verify(rawToken))
-                    .isInstanceOf(BusinessException.class)
+                    .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MAIL_006)
                     .hasMessageContaining("Verification token has been revoked");
 

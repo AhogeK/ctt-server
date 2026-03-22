@@ -48,7 +48,7 @@ public class UserValidator {
      */
     public void assertEmailUnique(String email) {
         if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new ConflictException(ErrorCode.AUTH_002, "Email is already registered");
+            throw new ConflictException(ErrorCode.USER_001, "Email is already registered");
         }
     }
 

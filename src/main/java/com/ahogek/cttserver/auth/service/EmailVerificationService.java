@@ -10,7 +10,7 @@ import com.ahogek.cttserver.auth.enums.TokenStatus;
 import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
-import com.ahogek.cttserver.common.exception.ValidationException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.common.utils.TokenUtils.TokenPair;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
@@ -58,24 +58,25 @@ public class EmailVerificationService {
                         .findByTokenHash(tokenHash)
                         .orElseThrow(
                                 () ->
-                                        new NotFoundException(
+                                        new UnauthorizedException(
                                                 ErrorCode.MAIL_006,
                                                 "Verification token not found"));
 
         TokenStatus status = token.determineStatus();
         if (status == TokenStatus.EXPIRED) {
-            throw new ValidationException(ErrorCode.MAIL_005, "Verification token has expired");
+            throw new UnauthorizedException(ErrorCode.MAIL_005, "Verification token has expired");
         }
         if (status == TokenStatus.CONSUMED) {
-            throw new ValidationException(
+            throw new UnauthorizedException(
                     ErrorCode.MAIL_006, "Verification token has already been used");
         }
         if (status == TokenStatus.REVOKED) {
-            throw new ValidationException(
+            throw new UnauthorizedException(
                     ErrorCode.MAIL_006, "Verification token has been revoked");
         }
         if (status == TokenStatus.UNAVAILABLE) {
-            throw new ValidationException(ErrorCode.MAIL_006, "Verification token is unavailable");
+            throw new UnauthorizedException(
+                    ErrorCode.MAIL_006, "Verification token is unavailable");
         }
 
         User user =

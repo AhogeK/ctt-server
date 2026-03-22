@@ -25,6 +25,11 @@
 - [x] MailOutboxService 集成测试 (4 个测试用例全部通过)
 - [x] AGENTS.md R8 变更溯源原则 (防止 AI 揣测行为)
 - [x] AGENTS.md R9 代码规范执行 (中文注释/测试名清理)
+- [x] EmailVerificationToken Entity 字段补全 (email, purpose, sentAt, requestIp, userAgent)
+- [x] EmailVerificationTokenRepository 方法扩展 (findByUserIdAndPurpose, existsBy...)
+- [x] TokenUtils 重构消除重复代码
+- [x] EmailVerificationService 集成 UserValidator
+- [x] 邮件验证文档更新 (README.md, developer-handbook.md)
 
 ## 进行中 🔄
 

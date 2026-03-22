@@ -504,10 +504,10 @@ return VALID;
 
 | Scenario | Error Code | HTTP Status |
 |----------|------------|-------------|
-| Token not found | `MAIL_006` | 404 |
-| Token expired | `MAIL_005` | 400 |
-| Token already used | `MAIL_006` | 400 |
-| Token revoked | `MAIL_006` | 400 |
+| Token not found | `MAIL_006` | 401 |
+| Token expired | `MAIL_005` | 401 |
+| Token already used | `MAIL_006` | 401 |
+| Token revoked | `MAIL_006` | 401 |
 | User already verified | `USER_001` | 400 |
 
 ### Testing
