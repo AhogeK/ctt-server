@@ -389,7 +389,7 @@ COMMENT ON COLUMN sync_cursors.updated_at IS 'Record last update timestamp';
 CREATE TABLE audit_logs
 (
     id            BIGSERIAL PRIMARY KEY,
-    user_id       UUID         REFERENCES users (id) ON DELETE SET NULL,
+    user_id       UUID, -- Explicitly define column without inline REFERENCES to allow named constraint below
     action        VARCHAR(100) NOT NULL,
     resource_type VARCHAR(50)  NOT NULL,
     resource_id   VARCHAR(255),
@@ -398,6 +398,8 @@ CREATE TABLE audit_logs
     ip_address    VARCHAR(45),
     user_agent    TEXT,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT audit_logs_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
     CONSTRAINT chk_audit_severity
         CHECK (severity IN ('INFO', 'WARNING', 'CRITICAL')),
     CONSTRAINT chk_audit_resource_type
@@ -413,7 +415,7 @@ CREATE TABLE audit_logs
 );
 
 COMMENT ON TABLE audit_logs IS 'System security and operational audit logs';
-COMMENT ON COLUMN audit_logs.user_id IS 'Reference to user who performed the action';
+COMMENT ON COLUMN audit_logs.user_id IS 'Reference to user who performed the action (nullable for system events)';
 COMMENT ON COLUMN audit_logs.action IS 'Operation type (e.g., LOGIN_FAILED, UNAUTHORIZED_ACCESS)';
 COMMENT ON COLUMN audit_logs.resource_type IS 'Type of affected resource (Must match enum ResourceType)';
 COMMENT ON COLUMN audit_logs.resource_id IS 'Identifier of the affected resource';
@@ -423,6 +425,7 @@ COMMENT ON COLUMN audit_logs.ip_address IS 'Client IP address (IPv4/IPv6)';
 COMMENT ON COLUMN audit_logs.user_agent IS 'Client user agent';
 COMMENT ON COLUMN audit_logs.created_at IS 'Timestamp when the action occurred';
 COMMENT ON CONSTRAINT chk_audit_resource_type ON audit_logs IS 'Validates audit log resource types - includes MAIL_OUTBOX for email delivery tracking';
+COMMENT ON CONSTRAINT audit_logs_user_id_fkey ON audit_logs IS 'Optional reference to user who triggered the action (null for system events)';
 
 CREATE INDEX idx_audit_logs_user_id
     ON audit_logs (user_id);
