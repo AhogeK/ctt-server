@@ -289,7 +289,9 @@ public final class TokenFixtures {
     /** Fluent builder for EmailVerificationToken entity. */
     public static final class EmailVerificationTokenBuilder {
         private UUID userId;
+        private String email = "test@example.com";
         private String tokenHash = UUID.randomUUID().toString();
+        private String purpose = EmailVerificationToken.PURPOSE_REGISTER_VERIFY;
         private Instant expiresAt = Instant.now().plusSeconds(86400);
         private Instant consumedAt;
         private Instant revokedAt;
@@ -301,8 +303,18 @@ public final class TokenFixtures {
             return this;
         }
 
+        public EmailVerificationTokenBuilder email(String email) {
+            this.email = email;
+            return this;
+        }
+
         public EmailVerificationTokenBuilder tokenHash(String tokenHash) {
             this.tokenHash = tokenHash;
+            return this;
+        }
+
+        public EmailVerificationTokenBuilder purpose(String purpose) {
+            this.purpose = purpose;
             return this;
         }
 
@@ -332,7 +344,9 @@ public final class TokenFixtures {
         public EmailVerificationToken build() {
             var token = new EmailVerificationToken();
             token.setUserId(userId);
+            token.setEmail(email);
             token.setTokenHash(tokenHash);
+            token.setPurpose(purpose);
             token.setExpiresAt(expiresAt);
             token.setConsumedAt(consumedAt);
             token.setRevokedAt(revokedAt);

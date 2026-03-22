@@ -172,4 +172,163 @@ class EmailVerificationTokenRepositoryTest {
             assertThat(deletedCount).isZero();
         }
     }
+
+    @Nested
+    @DisplayName("findByUserIdAndPurpose")
+    class FindByUserIdAndPurpose {
+
+        @Test
+        @DisplayName("should return tokens when user and purpose match")
+        void shouldReturnTokens_whenUserAndPurposeMatch() {
+            // Given
+            User user = em.persistFlushFind(UserFixtures.regularUser().build());
+
+            EmailVerificationToken token1 =
+                    TokenFixtures.emailVerificationTokenBuilder()
+                            .userId(user.getId())
+                            .tokenHash("hash1")
+                            .purpose(EmailVerificationToken.PURPOSE_REGISTER_VERIFY)
+                            .build();
+            em.persistFlushFind(token1);
+
+            EmailVerificationToken token2 =
+                    TokenFixtures.emailVerificationTokenBuilder()
+                            .userId(user.getId())
+                            .tokenHash("hash2")
+                            .purpose(EmailVerificationToken.PURPOSE_REGISTER_VERIFY)
+                            .build();
+            em.persistFlushFind(token2);
+
+            // When
+            var result =
+                    repository.findByUserIdAndPurpose(
+                            user.getId(), EmailVerificationToken.PURPOSE_REGISTER_VERIFY);
+
+            // Then
+            assertThat(result)
+                    .hasSize(2)
+                    .extracting(EmailVerificationToken::getUserId)
+                    .allMatch(id -> id.equals(user.getId()));
+        }
+
+        @Test
+        @DisplayName("should return empty list when no match")
+        void shouldReturnEmptyList_whenNoMatch() {
+            // Given
+            UUID nonExistentUserId = UUID.randomUUID();
+
+            // When
+            var result =
+                    repository.findByUserIdAndPurpose(
+                            nonExistentUserId, EmailVerificationToken.PURPOSE_REGISTER_VERIFY);
+
+            // Then
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should filter by purpose")
+        void shouldFilterByPurpose() {
+            // Given
+            User user = em.persistFlushFind(UserFixtures.regularUser().build());
+
+            EmailVerificationToken registerToken =
+                    TokenFixtures.emailVerificationTokenBuilder()
+                            .userId(user.getId())
+                            .tokenHash("register-hash")
+                            .purpose(EmailVerificationToken.PURPOSE_REGISTER_VERIFY)
+                            .build();
+            em.persistFlushFind(registerToken);
+
+            EmailVerificationToken changeEmailToken =
+                    TokenFixtures.emailVerificationTokenBuilder()
+                            .userId(user.getId())
+                            .tokenHash("change-email-hash")
+                            .purpose(EmailVerificationToken.PURPOSE_CHANGE_EMAIL)
+                            .build();
+            em.persistFlushFind(changeEmailToken);
+
+            // When
+            var result =
+                    repository.findByUserIdAndPurpose(
+                            user.getId(), EmailVerificationToken.PURPOSE_REGISTER_VERIFY);
+
+            // Then
+            assertThat(result)
+                    .hasSize(1)
+                    .first()
+                    .satisfies(
+                            t ->
+                                    assertThat(t.getPurpose())
+                                            .isEqualTo(
+                                                    EmailVerificationToken
+                                                            .PURPOSE_REGISTER_VERIFY));
+        }
+    }
+
+    @Nested
+    @DisplayName("existsByUserIdAndPurposeAndConsumedAtIsNull")
+    class ExistsByUserIdAndPurposeAndConsumedAtIsNull {
+
+        @Test
+        @DisplayName("should return true when unconsumed token exists")
+        void shouldReturnTrue_whenUnconsumedTokenExists() {
+            // Given
+            User user = em.persistFlushFind(UserFixtures.regularUser().build());
+
+            EmailVerificationToken token =
+                    TokenFixtures.emailVerificationTokenBuilder()
+                            .userId(user.getId())
+                            .purpose(EmailVerificationToken.PURPOSE_REGISTER_VERIFY)
+                            .consumedAt(null)
+                            .build();
+            em.persistFlushFind(token);
+
+            // When
+            boolean exists =
+                    repository.existsByUserIdAndPurposeAndConsumedAtIsNull(
+                            user.getId(), EmailVerificationToken.PURPOSE_REGISTER_VERIFY);
+
+            // Then
+            assertThat(exists).isTrue();
+        }
+
+        @Test
+        @DisplayName("should return false when only consumed tokens exist")
+        void shouldReturnFalse_whenOnlyConsumedTokensExist() {
+            // Given
+            User user = em.persistFlushFind(UserFixtures.regularUser().build());
+
+            EmailVerificationToken token =
+                    TokenFixtures.emailVerificationTokenBuilder()
+                            .userId(user.getId())
+                            .purpose(EmailVerificationToken.PURPOSE_REGISTER_VERIFY)
+                            .consumedAt(Instant.now())
+                            .build();
+            em.persistFlushFind(token);
+
+            // When
+            boolean exists =
+                    repository.existsByUserIdAndPurposeAndConsumedAtIsNull(
+                            user.getId(), EmailVerificationToken.PURPOSE_REGISTER_VERIFY);
+
+            // Then
+            assertThat(exists).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return false when no tokens exist")
+        void shouldReturnFalse_whenNoTokensExist() {
+            // Given
+            UUID nonExistentUserId = UUID.randomUUID();
+
+            // When
+            boolean exists =
+                    repository.existsByUserIdAndPurposeAndConsumedAtIsNull(
+                            nonExistentUserId, EmailVerificationToken.PURPOSE_REGISTER_VERIFY);
+
+            // Then
+            assertThat(exists).isFalse();
+        }
+    }
 }

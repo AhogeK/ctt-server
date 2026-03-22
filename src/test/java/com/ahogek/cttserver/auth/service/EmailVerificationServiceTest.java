@@ -54,7 +54,11 @@ class EmailVerificationServiceTest {
     void setUp() {
         service =
                 new EmailVerificationService(
-                        tokenRepository, userRepository, mailOutboxService, auditLog, userValidator);
+                        tokenRepository,
+                        userRepository,
+                        mailOutboxService,
+                        auditLog,
+                        userValidator);
     }
 
     private EmailVerificationToken createValidToken(UUID tokenId, UUID userId, String tokenHash) {
@@ -329,8 +333,10 @@ class EmailVerificationServiceTest {
             User user = createUser(userId, email, true);
 
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
-            doThrow(new com.ahogek.cttserver.common.exception.ConflictException(
-                            ErrorCode.COMMON_003, "User is not in pending verification state"))
+            doThrow(
+                            new com.ahogek.cttserver.common.exception.ConflictException(
+                                    ErrorCode.COMMON_003,
+                                    "User is not in pending verification state"))
                     .when(userValidator)
                     .assertCanVerifyEmail(user);
 
