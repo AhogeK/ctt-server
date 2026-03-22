@@ -247,7 +247,7 @@ railway variables set RESEND_API_KEY=re_xxx
 |----------|--------|-------------|
 | `/api/v1/auth/register` | POST | Register new user (rate limited: 60/hour per IP) |
 | `/api/v1/auth/verify-email` | GET | Verify email with token param (public, 24h token TTL) |
-| `/api/v1/auth/resend-verification` | POST | Resend verification email (rate limited: 3/5min per email) |
+| `/api/v1/auth/resend-verification` | POST | Resend verification email (rate limited: 3/1min per email) |
 
 ### Email Verification Flow
 

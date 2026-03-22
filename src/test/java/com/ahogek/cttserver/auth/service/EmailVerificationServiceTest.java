@@ -13,6 +13,7 @@ import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
+import com.ahogek.cttserver.user.validator.UserValidator;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +46,7 @@ class EmailVerificationServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private MailOutboxService mailOutboxService;
     @Mock private AuditLogService auditLog;
+    @Mock private UserValidator userValidator;
 
     private EmailVerificationService service;
 
@@ -52,7 +54,7 @@ class EmailVerificationServiceTest {
     void setUp() {
         service =
                 new EmailVerificationService(
-                        tokenRepository, userRepository, mailOutboxService, auditLog);
+                        tokenRepository, userRepository, mailOutboxService, auditLog, userValidator);
     }
 
     private EmailVerificationToken createValidToken(UUID tokenId, UUID userId, String tokenHash) {
@@ -319,20 +321,24 @@ class EmailVerificationServiceTest {
         }
 
         @Test
-        @DisplayName("should throw BusinessException when email already verified")
-        void shouldThrowBusinessException_whenEmailAlreadyVerified() {
+        @DisplayName("should throw ConflictException when user status is not PENDING_VERIFICATION")
+        void shouldThrowConflictException_whenUserStatusIsNotPendingVerification() {
             // Given
             String email = "verified@example.com";
             UUID userId = UUID.randomUUID();
             User user = createUser(userId, email, true);
 
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
+            doThrow(new com.ahogek.cttserver.common.exception.ConflictException(
+                            ErrorCode.COMMON_003, "User is not in pending verification state"))
+                    .when(userValidator)
+                    .assertCanVerifyEmail(user);
 
             // When & Then
             assertThatThrownBy(() -> service.resendVerificationEmail(email))
-                    .isInstanceOf(BusinessException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_001)
-                    .hasMessageContaining("Email is already verified");
+                    .isInstanceOf(com.ahogek.cttserver.common.exception.ConflictException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COMMON_003)
+                    .hasMessageContaining("not in pending verification state");
 
             verify(tokenRepository, never()).save(any());
             verify(mailOutboxService, never()).enqueueVerificationEmail(any(), any(), any(), any());

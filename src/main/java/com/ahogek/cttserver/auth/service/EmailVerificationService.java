@@ -16,6 +16,7 @@ import com.ahogek.cttserver.common.utils.TokenUtils.TokenPair;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
+import com.ahogek.cttserver.user.validator.UserValidator;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,16 +34,19 @@ public class EmailVerificationService {
     private final UserRepository userRepository;
     private final MailOutboxService mailOutboxService;
     private final AuditLogService auditLog;
+    private final UserValidator userValidator;
 
     public EmailVerificationService(
             EmailVerificationTokenRepository tokenRepository,
             UserRepository userRepository,
             MailOutboxService mailOutboxService,
-            AuditLogService auditLog) {
+            AuditLogService auditLog,
+            UserValidator userValidator) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.mailOutboxService = mailOutboxService;
         this.auditLog = auditLog;
+        this.userValidator = userValidator;
     }
 
     @Transactional
@@ -105,9 +109,7 @@ public class EmailVerificationService {
                         .orElseThrow(
                                 () -> new NotFoundException(ErrorCode.USER_004, "User not found"));
 
-        if (Boolean.TRUE.equals(user.getEmailVerified())) {
-            throw new ValidationException(ErrorCode.USER_001, "Email is already verified");
-        }
+        userValidator.assertCanVerifyEmail(user);
 
         revokeExistingValidTokens(user.getId());
 
@@ -116,6 +118,14 @@ public class EmailVerificationService {
 
         mailOutboxService.enqueueVerificationEmail(
                 user.getId(), user.getDisplayName(), user.getEmail(), tokenPair.rawToken());
+
+        auditLog.log(
+                user.getId(),
+                AuditAction.EMAIL_VERIFICATION_SENT,
+                ResourceType.EMAIL_VERIFICATION,
+                user.getId().toString(),
+                SecuritySeverity.INFO,
+                AuditDetails.empty());
     }
 
     private void revokeOtherTokens(EmailVerificationToken consumedToken) {

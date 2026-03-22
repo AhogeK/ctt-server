@@ -80,7 +80,7 @@ public class EmailVerificationController {
      * <ul>
      *   <li>User must exist with provided email
      *   <li>User status must be PENDING_VERIFICATION (not already verified)
-     *   <li>Rate limited: 3 requests per 5 minutes per email
+     *   <li>Rate limited: 3 requests per 1 minute per email
      * </ul>
      *
      * <p>Old valid tokens are revoked before generating new one.
@@ -93,7 +93,7 @@ public class EmailVerificationController {
             type = RateLimitType.EMAIL,
             keyExpression = "#request.email",
             limit = 3,
-            windowSeconds = 300)
+            windowSeconds = 60)
     @PostMapping("/resend-verification")
     public ResponseEntity<ApiResponse<EmptyResponse>> resendVerification(
             @Valid @RequestBody ResendVerificationRequest request) {
