@@ -2,8 +2,10 @@ package com.ahogek.cttserver.user.service;
 
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
+import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -48,6 +50,10 @@ class UserServiceTest {
     @Mock private PasswordEncoder passwordEncoder;
 
     @Mock private AuditLogService auditLogService;
+
+    @Mock private EmailVerificationTokenRepository tokenRepository;
+
+    @Mock private MailOutboxService mailOutboxService;
 
     @InjectMocks private UserService userService;
 

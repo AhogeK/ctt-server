@@ -48,7 +48,7 @@ public class MailOutboxService {
     private static final String BIZ_TYPE_VERIFICATION = "REGISTER_VERIFY";
     private static final String BIZ_TYPE_PASSWORD_RESET = "RESET_PASSWORD";
 
-    private static final Duration VERIFICATION_TOKEN_TTL = Duration.ofMinutes(15);
+    private static final Duration VERIFICATION_TOKEN_TTL = Duration.ofHours(24);
     private static final Duration PASSWORD_RESET_TOKEN_TTL = Duration.ofMinutes(30);
 
     private static final Duration VERIFICATION_RATE_WINDOW = Duration.ofMinutes(1);
@@ -79,7 +79,7 @@ public class MailOutboxService {
     /**
      * Enqueues a verification email for delivery.
      *
-     * <p>Rate-limited to 3 requests per 1 minute window. Pre-renders HTML and text templates before
+     * <p>Rate-limited to 3 requests per 1-minute window. Pre-renders HTML and text templates before
      * persistence.
      *
      * @param userId the user's unique identifier

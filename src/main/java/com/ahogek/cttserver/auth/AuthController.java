@@ -1,6 +1,8 @@
 package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
+import com.ahogek.cttserver.common.ratelimit.RateLimit;
+import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.ApiResponse;
 import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
@@ -54,6 +56,11 @@ public class AuthController {
      * @return success response
      */
     @PublicApi(reason = "User registration endpoint - Tier 1 public API")
+    @RateLimit(
+            type = RateLimitType.EMAIL,
+            keyExpression = "#request.email",
+            limit = 5,
+            windowSeconds = 3600)
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<EmptyResponse>> register(
             @Valid @RequestBody UserRegisterRequest request) {

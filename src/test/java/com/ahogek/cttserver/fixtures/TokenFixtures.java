@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.fixtures;
 
+import com.ahogek.cttserver.auth.entity.EmailVerificationToken;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
 
 import java.time.Instant;
@@ -272,6 +273,69 @@ public final class TokenFixtures {
             token.setDeviceId(deviceId);
             token.setTokenHash(tokenHash);
             token.setExpiresAt(expiresAt);
+            return token;
+        }
+    }
+
+    // ==========================================
+    // EmailVerificationToken Entity Builder (for Repository tests)
+    // ==========================================
+
+    /** Creates a new email verification token entity builder. */
+    public static EmailVerificationTokenBuilder emailVerificationTokenBuilder() {
+        return new EmailVerificationTokenBuilder();
+    }
+
+    /** Fluent builder for EmailVerificationToken entity. */
+    public static final class EmailVerificationTokenBuilder {
+        private UUID userId;
+        private String tokenHash = UUID.randomUUID().toString();
+        private Instant expiresAt = Instant.now().plusSeconds(86400);
+        private Instant consumedAt;
+        private Instant revokedAt;
+
+        private EmailVerificationTokenBuilder() {}
+
+        public EmailVerificationTokenBuilder userId(UUID userId) {
+            this.userId = userId;
+            return this;
+        }
+
+        public EmailVerificationTokenBuilder tokenHash(String tokenHash) {
+            this.tokenHash = tokenHash;
+            return this;
+        }
+
+        public EmailVerificationTokenBuilder expiresAt(Instant expiresAt) {
+            this.expiresAt = expiresAt;
+            return this;
+        }
+
+        public EmailVerificationTokenBuilder consumedAt(Instant consumedAt) {
+            this.consumedAt = consumedAt;
+            return this;
+        }
+
+        public EmailVerificationTokenBuilder revokedAt(Instant revokedAt) {
+            this.revokedAt = revokedAt;
+            return this;
+        }
+
+        /**
+         * Builds the EmailVerificationToken entity.
+         *
+         * <p>Note: createdAt is managed by JPA (@CreationTimestamp) and will be null until
+         * persisted.
+         *
+         * @return new EmailVerificationToken instance
+         */
+        public EmailVerificationToken build() {
+            var token = new EmailVerificationToken();
+            token.setUserId(userId);
+            token.setTokenHash(tokenHash);
+            token.setExpiresAt(expiresAt);
+            token.setConsumedAt(consumedAt);
+            token.setRevokedAt(revokedAt);
             return token;
         }
     }

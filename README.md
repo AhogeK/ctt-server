@@ -7,6 +7,8 @@ and provides personal analytics dashboards.
 
 CTT Server provides:
 
+- **Email Verification**: One-time token-based verification with 24h expiration and SHA-256 token hashing
+- **Transactional Email Queue**: Outbox pattern with retry scheduling, exponential backoff, and audit logging
 - **Bidirectional Sync Engine**: Multi-device data synchronization with LWW conflict resolution
 - **API Key Management**: Product-grade authentication with device-binding and revocation
 - **Statistics & Analytics**: Time-series aggregation queries with device filtering
