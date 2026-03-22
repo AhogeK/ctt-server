@@ -91,7 +91,7 @@ class MailOutboxServiceIntegrationTest {
     class HappyPathTests {
 
         @Test
-        @DisplayName("验证：正常入队时，发件箱落盘且触发 MAIL_ENQUEUED 审计，邮箱脱敏")
+        @DisplayName("should enqueue verification email and persist audit log with desensitized recipient")
         void shouldEnqueueVerificationEmailAndAuditSuccessfully() {
             // When
             mailOutboxService.enqueueVerificationEmail(
@@ -141,7 +141,7 @@ class MailOutboxServiceIntegrationTest {
     class IdempotencyTests {
 
         @Test
-        @DisplayName("验证：命中 10 分钟幂等窗口时，静默跳过入队并触发 MAIL_IDEMPOTENT_SKIP 风控审计")
+        @DisplayName("should skip duplicate enqueue within 10-minute idempotency window and audit")
         void shouldSkipDuplicateWithinIdempotentWindowAndAudit() {
             // Given
             mailOutboxService.enqueueVerificationEmail(
@@ -207,7 +207,7 @@ class MailOutboxServiceIntegrationTest {
     class RateLimitingTests {
 
         @Test
-        @DisplayName("验证：超过 3 次/1 分钟限流阈值时，抛出 TooManyRequestsException")
+        @DisplayName("should throw TooManyRequestsException when exceeding 3 requests per minute rate limit")
         void shouldThrowException_whenRateLimitExceeded() {
             // Given: Send 3 emails to the SAME address within the rate limit window
             // Use different bizId for each to avoid idempotency check
@@ -245,7 +245,7 @@ class MailOutboxServiceIntegrationTest {
     class DesensitizationTests {
 
         @Test
-        @DisplayName("验证：审计日志 JSONB 字段中的邮箱被正确脱敏")
+        @DisplayName("should desensitize email in audit log JSONB field")
         void shouldMaskEmailInAuditDetails() {
             // Given
             String[] testEmails = {"user@domain.com", "a@b.com", "test.user@example.org"};
