@@ -9,6 +9,7 @@ This handbook provides step-by-step instructions for five common development tas
 3. [Adding Public Exceptions](#adding-public-exceptions)
 4. [Adding Protected Interfaces](#adding-protected-interfaces)
 5. [Using Mail Template Renderer](#using-mail-template-renderer)
+6. [Implementing Email Verification](#implementing-email-verification)
 
 ---
 
@@ -456,6 +457,80 @@ class MailTemplateRendererTest {
 
 ---
 
+## Implementing Email Verification
+
+### Overview
+
+Email verification uses one-time tokens with 24h expiration and SHA-256 hashing for security.
+
+### Architecture
+
+```
+User clicks email link
+        ↓
+GET /api/v1/auth/verify-email?token=abc123
+        ↓
+EmailVerificationController.verifyEmail(token)
+        ↓
+EmailVerificationService.verify(token)
+        ↓
+1. Hash token (SHA-256)
+2. Find by hash
+3. Validate status (not expired/consumed/revoked)
+4. Load user
+5. Consume token + verify user
+6. Revoke other tokens
+7. Log audit event
+```
+
+### Key Design Decisions
+
+1. **Token Hashing**: Raw tokens never stored, only SHA-256 hashes (prevents DB breach token theft)
+2. **Dynamic Status**: No status column - derived from `consumed_at`, `revoked_at`, `expires_at` timestamps
+3. **One-Time Use**: Token consumed on first use, all other user tokens revoked
+4. **Audit Trail**: Every verification logged with `SecuritySeverity.INFO`
+
+### Token Status Priority
+
+```java
+// EmailVerificationToken.determineStatus()
+if (revokedAt != null) return REVOKED;      // Admin action
+if (consumedAt != null) return CONSUMED;    // Already used
+if (Instant.now().isAfter(expiresAt)) return EXPIRED;
+return VALID;
+```
+
+### Error Handling
+
+| Scenario | Error Code | HTTP Status |
+|----------|------------|-------------|
+| Token not found | `MAIL_006` | 404 |
+| Token expired | `MAIL_005` | 400 |
+| Token already used | `MAIL_006` | 400 |
+| Token revoked | `MAIL_006` | 400 |
+| User already verified | `USER_001` | 400 |
+
+### Testing
+
+```java
+@BaseRepositoryTest
+class EmailVerificationTokenRepositoryTest {
+
+    @Test
+    @DisplayName("findByTokenHash returns token when exists")
+    void findByTokenHash_returnsToken_whenExists() {
+        var token = PersistedFixtures.emailVerificationToken(entityManager);
+        entityManager.flush();
+
+        var found = repository.findByTokenHash(token.getTokenHash());
+
+        assertThat(found).isPresent();
+    }
+}
+```
+
+---
+
 ## Quick Reference
 
 ### Operation Entry Points
@@ -466,6 +541,7 @@ class MailTemplateRendererTest {
 | Add Audit Event | `AuditAction.java` | 1. Add to enum 2. Publish in Service 3. Add to Fixtures                    |
 | Add Exception   | Module package     | 1. Verify ErrorCode 2. Extend BusinessException 3. Write tests             |
 | Add Interface   | Controller class   | 1. Use @PublicApi for public 2. No annotation for protected 3. Write tests |
+| Email Verify    | `EmailVerificationService` | 1. Token hash lookup 2. Status validation 3. User activation      |
 
 ### File Locations
 
@@ -473,7 +549,10 @@ class MailTemplateRendererTest {
 src/main/java/com/ahogek/cttserver/
 ├── common/exception/ErrorCode.java           # Error codes
 ├── common/exception/BusinessException.java   # Base exception
+├── common/utils/TokenUtils.java              # Token generation & hashing
 ├── audit/enums/AuditAction.java              # Audit events
+├── auth/EmailVerificationController.java     # Email verification endpoints
+├── auth/service/EmailVerificationService.java # Verification business logic
 ├── auth/infrastructure/security/PublicApi.java # Public API annotation
 └── common/config/SecurityConfig.java         # Security rules
 

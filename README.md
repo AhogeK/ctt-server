@@ -239,6 +239,28 @@ kubectl create secret generic ctt-mail-secret \
 railway variables set RESEND_API_KEY=re_xxx
 ```
 
+## API Endpoints
+
+### Authentication
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/auth/register` | POST | Register new user (rate limited: 60/hour per IP) |
+| `/api/v1/auth/verify-email` | GET | Verify email with token param (public, 24h token TTL) |
+| `/api/v1/auth/resend-verification` | POST | Resend verification email (rate limited: 3/5min per email) |
+
+### Email Verification Flow
+
+```
+User registers → System sends verification email
+                      ↓
+              User clicks link
+                      ↓
+GET /verify-email?token=xxx → User status: ACTIVE
+```
+
+**Security**: Tokens are SHA-256 hashed before storage. Raw tokens never stored in database.
+
 ## API Documentation
 
 Once running, access OpenAPI docs at: `http://localhost:8080/swagger-ui.html`
