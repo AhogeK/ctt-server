@@ -74,10 +74,10 @@ public class UserService {
         newUser.setDisplayName(request.displayName());
         newUser.setPasswordHash(passwordEncoder.encode(request.password()));
 
-        // 3. Persist
+        // 3. Persist to database
         User savedUser = userRepository.save(newUser);
 
-        // 4. Audit log
+        // 4. Publish audit event
         auditLogService.logSuccess(
                 savedUser.getId(),
                 AuditAction.REGISTER_REQUESTED,
