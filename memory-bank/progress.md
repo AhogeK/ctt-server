@@ -32,6 +32,7 @@
 - [x] 邮件验证文档更新 (README.md, developer-handbook.md)
 - [x] JWT 认证基础设施 Phase A (依赖 + TokenUtils 扩展)
 - [x] JWT 认证基础设施 Phase B (JwtEncoder/JwtDecoder Bean 注册)
+- [x] JWT 认证基础设施 Phase C (JwtTokenProvider 签发服务)
 
 ## 进行中 🔄
 

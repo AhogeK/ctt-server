@@ -1,3 +1,11 @@
+- [2026-03-23] - JWT 认证基础设施 Phase C (JwtTokenProvider)
+    - `JwtTokenProvider.java`: 创建 JWT Access Token 签发服务
+        - `generateAccessToken(User)`: 使用 JwtClaimsSet 构建 Claims
+        - 标准 Claims: iss, sub, iat, exp
+        - 自定义 Claims: email
+    - `JwtTokenProviderTest.java`: 6 个单元测试覆盖核心功能
+    - 安全设计: Payload 不加密，禁止放入敏感数据
+
 - [2026-03-23] - JWT 认证基础设施 Phase B (JWT Bean 注册)
     - `build.gradle.kts`: 替换 `spring-security-oauth2-jose` → `spring-boot-starter-oauth2-resource-server`
     - `JwtConfig.java`: 创建独立配置类 (auth/config/)
@@ -91,5 +99,5 @@
 
 ## 下一步行动
 
-1. JWT 认证基础设施 Phase C: 实现 `JwtService` (Access Token 签发/验签)
-2. JWT 认证基础设施 Phase D: 实现 `LoginService` (串联认证流程)
+1. JWT 认证基础设施 Phase D: 实现 `LoginService` (串联认证流程)
+2. JWT 认证基础设施 Phase E: Token 刷新机制
