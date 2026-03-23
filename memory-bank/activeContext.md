@@ -13,7 +13,7 @@
 - [2026-03-22] - TokenUtils 重构消除重复代码
     - 将 `createVerificationToken()` 从 UserService/EmailVerificationService 移至 TokenUtils
     - `TokenPair` record 移至 TokenUtils 作为 public static record
-    - 方法签名: `static TokenPair createVerificationToken(userId, ttl, tokenRepository)`
+    - 方法签名: `static TokenPair createVerificationToken(userId, email, ttl, tokenRepository)`
 
 - [2026-03-22] - EmailVerificationService 改进
     - 注入 `UserValidator` 依赖
@@ -33,6 +33,7 @@
     - R2 增强: 添加详细更新流程和格式规范
     - R13 新增: 记忆文件维护规则 (行数限制 + 修剪规则)
     - R14 新增: AGENTS.md 自更新机制
+    - R15 新增: 版本号管理规则 (代码变更必须同步版本号)
 
 - [2026-03-22] - MailOutboxService 集成测试完成
     - `MailOutboxServiceIntegrationTest.java`: 4 个集成测试用例
@@ -42,6 +43,24 @@
     - 发现与预期不一致时，优先猜想"是否被用户修改了"
     - 三步流程：检查 git history → 验证业务逻辑 → 更新记忆适应新逻辑
     - 禁止揣测"AI 忘了改"或"这应该是错的"
+
+- [2026-03-23] - Bug 修复：审计事件竞态条件
+    - 问题：`@EventListener` 在事务内立即触发，异步线程尝试插入 audit_logs 时 FK 违规
+    - 修复：`@EventListener` → `@TransactionalEventListener(AFTER_COMMIT, fallbackExecution=true)`
+    - 新增 `RaceConditionPreventionTests` 测试嵌套类，覆盖真实场景
+    - 新增 `AuditLogRepository.findByUserId(UUID)` 方法
+
+- [2026-03-23] - Bug 修复：Token 创建缺少 email 字段
+    - 问题：`TokenUtils.createVerificationToken()` 没有设置 email，导致 DB 约束违规
+    - 修复：添加 email 参数，更新所有调用方
+
+- [2026-03-23] - Bug 修复：PublicApiEndpointRegistry 初始化顺序
+    - 问题：`@PostConstruct` 在 SecurityFilterChain 创建后执行，导致 publicUrls 为空
+    - 修复：改用 `@PostConstruct` 确保在 Bean 初始化时填充 URL
+
+- [2026-03-23] - 版本号更新
+    - 0.1.0-SNAPSHOT → 0.1.1-SNAPSHOT
+    - 变更类型：Bug 修复 (3 个)
 
 ## 架构决策 (保留)
 

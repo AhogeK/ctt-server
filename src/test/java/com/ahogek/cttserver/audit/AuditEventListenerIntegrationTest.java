@@ -212,7 +212,7 @@ class AuditEventListenerIntegrationTest {
             UUID[] createdUserId = new UUID[1];
 
             transactionTemplate.executeWithoutResult(
-                _ -> {
+                    _ -> {
                         User user = new User();
                         user.setEmail("race-test@example.com");
                         user.setDisplayName("RaceTestUser");
@@ -237,8 +237,7 @@ class AuditEventListenerIntegrationTest {
             await().atMost(3, TimeUnit.SECONDS)
                     .untilAsserted(
                             () -> {
-                                List<AuditLog> logs =
-                                        repository.findByUserId(createdUserId[0]);
+                                List<AuditLog> logs = repository.findByUserId(createdUserId[0]);
                                 assertThat(logs)
                                         .as(
                                                 "Audit log should be persisted AFTER transaction commit, "
@@ -282,8 +281,7 @@ class AuditEventListenerIntegrationTest {
                         status.setRollbackOnly();
                     });
 
-            await()
-                    .pollDelay(500, TimeUnit.MILLISECONDS)
+            await().pollDelay(500, TimeUnit.MILLISECONDS)
                     .atMost(2, TimeUnit.SECONDS)
                     .untilAsserted(
                             () -> {
@@ -303,7 +301,7 @@ class AuditEventListenerIntegrationTest {
             UUID[] userId = new UUID[1];
 
             transactionTemplate.executeWithoutResult(
-                _ -> {
+                    _ -> {
                         User user = new User();
                         user.setEmail("multi-tx@example.com");
                         user.setDisplayName("MultiTxUser");
@@ -332,7 +330,7 @@ class AuditEventListenerIntegrationTest {
                                             .hasSize(1));
 
             transactionTemplate.executeWithoutResult(
-                _ -> {
+                    _ -> {
                         SecurityAuditEvent event =
                                 new SecurityAuditEvent(
                                         userId[0],
