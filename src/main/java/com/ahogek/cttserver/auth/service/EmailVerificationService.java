@@ -12,7 +12,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.common.utils.TokenUtils;
-import com.ahogek.cttserver.common.utils.TokenUtils.TokenPair;
+import com.ahogek.cttserver.common.utils.TokenUtils.EmailVerificationTokenPair;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -114,7 +114,7 @@ public class EmailVerificationService {
 
         revokeExistingValidTokens(user.getId());
 
-        TokenPair tokenPair =
+        EmailVerificationTokenPair tokenPair =
                 TokenUtils.createVerificationToken(
                         user.getId(), user.getEmail(), TOKEN_TTL, tokenRepository);
 

@@ -1,7 +1,9 @@
 package com.ahogek.cttserver.common.utils;
 
 import com.ahogek.cttserver.auth.entity.EmailVerificationToken;
+import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
+import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -15,13 +17,13 @@ import java.util.UUID;
 /**
  * Token generation and hashing utility.
  *
- * <p>Provides cryptographically secure token operations for email verification and other
- * authentication flows.
+ * <p>Provides cryptographically secure token operations for email verification, refresh tokens, and
+ * other authentication flows.
  *
  * <p><strong>Security Design:</strong>
  *
  * <ul>
- *   <li>Raw tokens are sent to users via email (transient, not stored)
+ *   <li>Raw tokens are sent to users via email or HTTP response (transient, not stored)
  *   <li>Only SHA-256 hashes are stored in the database
  *   <li>This prevents token leakage from database compromise
  * </ul>
@@ -31,10 +33,8 @@ import java.util.UUID;
  */
 public final class TokenUtils {
 
-    /** SecureRandom instance for token generation. */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    /** Token byte length (32 bytes = 256 bits). */
     private static final int TOKEN_BYTES = 32;
 
     private TokenUtils() {}
@@ -71,12 +71,6 @@ public final class TokenUtils {
         }
     }
 
-    /**
-     * Converts byte array to hex string.
-     *
-     * @param bytes the byte array
-     * @return hex-encoded string
-     */
     private static String bytesToHex(byte[] bytes) {
         StringBuilder hexString = new StringBuilder();
         for (byte b : bytes) {
@@ -90,12 +84,12 @@ public final class TokenUtils {
     }
 
     /**
-     * Holds a verification token entity and its raw (unhashed) value.
+     * Holds an email verification token entity and its raw (unhashed) value.
      *
      * @param token the persisted token entity
      * @param rawToken the raw token string (transient, not stored)
      */
-    public record TokenPair(EmailVerificationToken token, String rawToken) {}
+    public record EmailVerificationTokenPair(EmailVerificationToken token, String rawToken) {}
 
     /**
      * Creates and persists a verification token for a user.
@@ -107,9 +101,9 @@ public final class TokenUtils {
      * @param email the user's email address
      * @param ttl time-to-live for the token
      * @param tokenRepository the repository for persisting tokens
-     * @return TokenPair containing the persisted token and raw token
+     * @return EmailVerificationTokenPair containing the persisted token and raw token
      */
-    public static TokenPair createVerificationToken(
+    public static EmailVerificationTokenPair createVerificationToken(
             UUID userId,
             String email,
             Duration ttl,
@@ -121,6 +115,47 @@ public final class TokenUtils {
         token.setTokenHash(hashToken(rawToken));
         token.setExpiresAt(Instant.now().plus(ttl));
         tokenRepository.save(token);
-        return new TokenPair(token, rawToken);
+        return new EmailVerificationTokenPair(token, rawToken);
+    }
+
+    /**
+     * Holds a refresh token entity and its raw (unhashed) value.
+     *
+     * @param token the persisted token entity
+     * @param rawToken the raw token string (transient, not stored)
+     */
+    public record RefreshTokenPair(RefreshToken token, String rawToken) {}
+
+    /**
+     * Creates and persists a refresh token for a user.
+     *
+     * <p>Generates a cryptographically secure token, hashes it, persists the hash, and returns both
+     * the persisted entity and the raw token for client delivery.
+     *
+     * @param userId the user ID
+     * @param issuedFor the token audience ("WEB" or "PLUGIN")
+     * @param ttl time-to-live for the token
+     * @param deviceId optional device ID for device binding
+     * @param repository the repository for persisting tokens
+     * @return RefreshTokenPair containing the persisted token and raw token
+     */
+    public static RefreshTokenPair createRefreshToken(
+            UUID userId,
+            String issuedFor,
+            Duration ttl,
+            UUID deviceId,
+            RefreshTokenRepository repository) {
+        String rawToken = generateRawToken();
+        String tokenHash = hashToken(rawToken);
+
+        RefreshToken token = new RefreshToken();
+        token.setUserId(userId);
+        token.setTokenHash(tokenHash);
+        token.setIssuedFor(issuedFor);
+        token.setExpiresAt(Instant.now().plus(ttl));
+        token.setDeviceId(deviceId);
+
+        repository.save(token);
+        return new RefreshTokenPair(token, rawToken);
     }
 }

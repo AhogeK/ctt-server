@@ -6,7 +6,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
 import com.ahogek.cttserver.common.utils.TokenUtils;
-import com.ahogek.cttserver.common.utils.TokenUtils.TokenPair;
+import com.ahogek.cttserver.common.utils.TokenUtils.EmailVerificationTokenPair;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -96,7 +96,7 @@ public class UserService {
         User savedUser = userRepository.save(newUser);
 
         // 4. Generate verification token
-        TokenPair tokenPair =
+        EmailVerificationTokenPair tokenPair =
                 TokenUtils.createVerificationToken(
                         savedUser.getId(),
                         savedUser.getEmail(),

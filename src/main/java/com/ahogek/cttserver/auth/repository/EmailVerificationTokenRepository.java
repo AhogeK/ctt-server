@@ -3,8 +3,10 @@ package com.ahogek.cttserver.auth.repository;
 import com.ahogek.cttserver.auth.entity.EmailVerificationToken;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -82,10 +84,15 @@ public interface EmailVerificationTokenRepository
      * @param now the current timestamp for expiration check
      * @return list of potentially valid tokens
      */
-    @org.springframework.data.jpa.repository.Query(
-            "SELECT t FROM EmailVerificationToken t WHERE t.userId = :userId "
-                    + "AND t.consumedAt IS NULL AND t.revokedAt IS NULL AND t.expiresAt > :now")
-    List<EmailVerificationToken> findValidTokensByUserId(UUID userId, java.time.Instant now);
+    @Query(
+            """
+            SELECT t FROM EmailVerificationToken t
+            WHERE t.userId = :userId
+              AND t.consumedAt IS NULL
+              AND t.revokedAt IS NULL
+              AND t.expiresAt > :now
+            """)
+    List<EmailVerificationToken> findValidTokensByUserId(UUID userId, Instant now);
 
     /**
      * Deletes all tokens for a user.

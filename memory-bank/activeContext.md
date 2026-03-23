@@ -1,3 +1,15 @@
+- [2026-03-23] - JWT 认证基础设施 Phase A (依赖与 Token 工具)
+    - 添加 `spring-security-oauth2-jose` 依赖 (libs.versions.toml + build.gradle.kts)
+    - `RefreshToken.java`: 补全 `issuedFor`, `lastUsedAt` 字段匹配数据库 schema
+    - `RefreshTokenRepository.java`: 创建仓储接口
+        - `findByTokenHash(String)`: 根据 hash 查找 token
+        - `revokeAllUserTokens(UUID, Instant)`: 批量吊销用户所有有效 token
+        - `revokeDeviceTokens(UUID, UUID, Instant)`: 吊销特定设备的 token
+    - `TokenUtils.java`: 扩展支持 Refresh Token
+        - 重命名 `TokenPair` → `EmailVerificationTokenPair`
+        - 新增 `RefreshTokenPair` record
+        - 新增 `createRefreshToken()` 方法
+
 - [2026-03-22] - EmailVerificationToken Entity 字段补全
     - 添加 `email`, `purpose`, `sentAt`, `requestIp`, `userAgent` 字段
     - 添加 `PURPOSE_REGISTER_VERIFY`, `PURPOSE_CHANGE_EMAIL` 常量
@@ -59,8 +71,8 @@
     - 修复：改用 `@PostConstruct` 确保在 Bean 初始化时填充 URL
 
 - [2026-03-23] - 版本号更新
-    - 0.1.0-SNAPSHOT → 0.1.1-SNAPSHOT
-    - 变更类型：Bug 修复 (3 个)
+    - 0.1.1-SNAPSHOT → 0.2.0-SNAPSHOT
+    - 变更类型：新增功能 (JWT 认证基础设施 Phase A)
 
 ## 架构决策 (保留)
 
@@ -72,4 +84,5 @@
 
 ## 下一步行动
 
-1. 监控指标暴露 (Prometheus) - 待开始
+1. JWT 认证基础设施 Phase B: 实现 `JwtService` (Access Token 签发/验签)
+2. JWT 认证基础设施 Phase C: 实现 `LoginService` (串联认证流程)

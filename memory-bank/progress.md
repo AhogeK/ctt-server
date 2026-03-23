@@ -30,6 +30,7 @@
 - [x] TokenUtils 重构消除重复代码
 - [x] EmailVerificationService 集成 UserValidator
 - [x] 邮件验证文档更新 (README.md, developer-handbook.md)
+- [x] JWT 认证基础设施 Phase A (依赖 + TokenUtils 扩展)
 
 ## 进行中 🔄
 

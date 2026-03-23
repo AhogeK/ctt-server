@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
@@ -177,8 +178,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void handleDataIntegrityViolationException_returns_409() {
-        org.springframework.dao.DataIntegrityViolationException ex =
-                new org.springframework.dao.DataIntegrityViolationException("Duplicate key");
+        DataIntegrityViolationException ex = new DataIntegrityViolationException("Duplicate key");
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
         var result = handler.handleDataIntegrityViolation(ex);

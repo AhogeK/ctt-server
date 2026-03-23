@@ -17,6 +17,8 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 /**
  * AOP aspect for enforcing rate limits declared via {@link RateLimit} annotations.
  *
@@ -98,7 +100,7 @@ public class RateLimitAspect {
      *
      * @return user ID or null if not authenticated
      */
-    private java.util.UUID getCurrentUserId() {
+    private UUID getCurrentUserId() {
         return currentUserProvider.getCurrentUser().map(CurrentUser::id).orElse(null);
     }
 }
