@@ -104,15 +104,20 @@ public final class TokenUtils {
      * the persisted entity and the raw token for email delivery.
      *
      * @param userId the user ID
+     * @param email the user's email address
      * @param ttl time-to-live for the token
      * @param tokenRepository the repository for persisting tokens
      * @return TokenPair containing the persisted token and raw token
      */
     public static TokenPair createVerificationToken(
-            UUID userId, Duration ttl, EmailVerificationTokenRepository tokenRepository) {
+            UUID userId,
+            String email,
+            Duration ttl,
+            EmailVerificationTokenRepository tokenRepository) {
         String rawToken = generateRawToken();
         EmailVerificationToken token = new EmailVerificationToken();
         token.setUserId(userId);
+        token.setEmail(email);
         token.setTokenHash(hashToken(rawToken));
         token.setExpiresAt(Instant.now().plus(ttl));
         tokenRepository.save(token);

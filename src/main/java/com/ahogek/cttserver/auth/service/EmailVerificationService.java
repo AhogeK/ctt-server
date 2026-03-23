@@ -115,7 +115,8 @@ public class EmailVerificationService {
         revokeExistingValidTokens(user.getId());
 
         TokenPair tokenPair =
-                TokenUtils.createVerificationToken(user.getId(), TOKEN_TTL, tokenRepository);
+                TokenUtils.createVerificationToken(
+                        user.getId(), user.getEmail(), TOKEN_TTL, tokenRepository);
 
         mailOutboxService.enqueueVerificationEmail(
                 user.getId(), user.getDisplayName(), user.getEmail(), tokenPair.rawToken());

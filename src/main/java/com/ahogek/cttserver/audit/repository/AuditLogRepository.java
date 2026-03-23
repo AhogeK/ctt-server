@@ -4,6 +4,9 @@ import com.ahogek.cttserver.audit.entity.AuditLog;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
+import java.util.UUID;
+
 /**
  * Repository for {@link AuditLog} entity.
  *
@@ -14,4 +17,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * @see com.ahogek.cttserver.audit.entity.AuditLog
  * @since 2026-03-16
  */
-public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {}
+public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
+
+    List<AuditLog> findByUserId(UUID userId);
+}

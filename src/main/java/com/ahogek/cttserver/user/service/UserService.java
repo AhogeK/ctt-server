@@ -98,7 +98,10 @@ public class UserService {
         // 4. Generate verification token
         TokenPair tokenPair =
                 TokenUtils.createVerificationToken(
-                        savedUser.getId(), VERIFICATION_TOKEN_TTL, tokenRepository);
+                        savedUser.getId(),
+                        savedUser.getEmail(),
+                        VERIFICATION_TOKEN_TTL,
+                        tokenRepository);
 
         // 5. Enqueue verification email
         mailOutboxService.enqueueVerificationEmail(

@@ -2,10 +2,10 @@ package com.ahogek.cttserver.auth.infrastructure.security;
 
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
 
+import jakarta.annotation.PostConstruct;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -28,14 +28,20 @@ import java.util.Set;
  * @since 2026-03-17
  */
 @Component
-public class PublicApiEndpointRegistry implements ApplicationListener<ApplicationReadyEvent> {
+public class PublicApiEndpointRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(PublicApiEndpointRegistry.class);
 
+    private final RequestMappingHandlerMapping requestMappingHandlerMapping;
+
     private final Set<String> publicUrls = new HashSet<>();
 
-    /** Base whitelist for system endpoints that should always be public. */
-    public PublicApiEndpointRegistry() {
+    public PublicApiEndpointRegistry(RequestMappingHandlerMapping requestMappingHandlerMapping) {
+        this.requestMappingHandlerMapping = requestMappingHandlerMapping;
+    }
+
+    @PostConstruct
+    public void init() {
         // System endpoints
         publicUrls.add("/error");
         publicUrls.add("/actuator/health");
@@ -45,15 +51,9 @@ public class PublicApiEndpointRegistry implements ApplicationListener<Applicatio
         publicUrls.add("/swagger-ui.html");
         publicUrls.add("/swagger-ui/**");
         publicUrls.add("/v3/api-docs/**");
-    }
 
-    @Override
-    public void onApplicationEvent(ApplicationReadyEvent event) {
-        RequestMappingHandlerMapping mapping =
-                event.getApplicationContext()
-                        .getBean(
-                                "requestMappingHandlerMapping", RequestMappingHandlerMapping.class);
-        Map<RequestMappingInfo, HandlerMethod> handlerMethods = mapping.getHandlerMethods();
+        Map<RequestMappingInfo, HandlerMethod> handlerMethods =
+                requestMappingHandlerMapping.getHandlerMethods();
 
         handlerMethods.forEach(
                 (info, method) -> {

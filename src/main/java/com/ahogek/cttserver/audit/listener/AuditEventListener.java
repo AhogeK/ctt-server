@@ -6,11 +6,12 @@ import com.ahogek.cttserver.audit.repository.AuditLogRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Optional;
 
@@ -23,6 +24,8 @@ import java.util.Optional;
  *   <li>Async: Uses {@code @Async} to prevent I/O blocking on the main request thread
  *   <li>Isolation: {@code Propagation.REQUIRES_NEW} ensures audit persistence is independent of the
  *       main business transaction
+ *   <li>Timing: {@code @TransactionalEventListener(AFTER_COMMIT)} ensures audit runs only after the
+ *       main transaction commits, avoiding FK constraint violations
  *   <li>Fault Tolerance: All exceptions are caught and logged - audit failure never impacts
  *       business operations
  * </ul>
@@ -52,11 +55,12 @@ public class AuditEventListener {
     }
 
     /**
-     * Handles security audit events asynchronously.
+     * Handles security audit events asynchronously after the main transaction commits.
      *
      * <p>Maps the event to an {@link AuditLog} entity and persists it. The operation is:
      *
      * <ul>
+     *   <li>Triggered after main transaction commits (via @TransactionalEventListener)
      *   <li>Asynchronous (via @Async)
      *   <li>In a new transaction (via REQUIRES_NEW)
      *   <li>Failure-tolerant (exceptions are caught, not propagated)
@@ -65,7 +69,7 @@ public class AuditEventListener {
      * @param event the security audit event to persist
      */
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleSecurityAudit(SecurityAuditEvent event) {
         try {
@@ -79,7 +83,6 @@ public class AuditEventListener {
                     .log("Audit log persisted asynchronously");
 
         } catch (Exception ex) {
-            // Critical: Never let audit failures break business logic
             log.atError()
                     .setCause(ex)
                     .addKeyValue("action", event.action())
