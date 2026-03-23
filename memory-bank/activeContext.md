@@ -1,3 +1,10 @@
+- [2026-03-23] - JWT 认证基础设施 Phase B (JWT Bean 注册)
+    - `build.gradle.kts`: 替换 `spring-security-oauth2-jose` → `spring-boot-starter-oauth2-resource-server`
+    - `JwtConfig.java`: 创建独立配置类 (auth/config/)
+        - `JwtEncoder` Bean: NimbusJwtEncoder (HMAC-SHA256)
+        - `JwtDecoder` Bean: NimbusJwtDecoder (HMAC-SHA256)
+    - `SecurityConfig.java`: 启用 `oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))`
+
 - [2026-03-23] - JWT 认证基础设施 Phase A (依赖与 Token 工具)
     - 添加 `spring-security-oauth2-jose` 依赖 (libs.versions.toml + build.gradle.kts)
     - `RefreshToken.java`: 补全 `issuedFor`, `lastUsedAt` 字段匹配数据库 schema
@@ -84,5 +91,5 @@
 
 ## 下一步行动
 
-1. JWT 认证基础设施 Phase B: 实现 `JwtService` (Access Token 签发/验签)
-2. JWT 认证基础设施 Phase C: 实现 `LoginService` (串联认证流程)
+1. JWT 认证基础设施 Phase C: 实现 `JwtService` (Access Token 签发/验签)
+2. JWT 认证基础设施 Phase D: 实现 `LoginService` (串联认证流程)
