@@ -9,6 +9,7 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -47,6 +48,18 @@ public class User {
 
     @Column(name = "email_verified")
     private Boolean emailVerified = false;
+
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
+
+    @Column(name = "last_login_ip", length = 45)
+    private String lastLoginIp;
+
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -88,6 +101,7 @@ public class User {
     public void verifyEmail() {
         transitionTo(UserStatus.ACTIVE);
         this.emailVerified = true;
+        this.emailVerifiedAt = Instant.now();
     }
 
     /**
@@ -96,13 +110,13 @@ public class User {
      * <p>Automatically locks the account if failed attempts reach the threshold.
      *
      * @param maxAttempts maximum allowed failed attempts before locking
+     * @param lockDuration duration to lock the account when threshold is reached
      */
-    public void recordFailedLogin(int maxAttempts) {
+    public void recordFailedLogin(int maxAttempts, Duration lockDuration) {
         if (this.status == UserStatus.DELETED) {
             return;
         }
 
-        // Defensive null check for database compatibility
         if (this.failedLoginAttempts == null) {
             this.failedLoginAttempts = 0;
         }
@@ -111,16 +125,19 @@ public class User {
 
         if (this.failedLoginAttempts >= maxAttempts && this.status == UserStatus.ACTIVE) {
             transitionTo(UserStatus.LOCKED);
+            this.lockedUntil = Instant.now().plus(lockDuration);
         }
     }
 
     /**
      * Records a successful login.
      *
-     * <p>Resets failed login counter and unlocks account if applicable.
+     * <p>Resets failed login counter, clears lock, and updates login timestamp.
      */
     public void recordSuccessfulLogin() {
         this.failedLoginAttempts = 0;
+        this.lockedUntil = null;
+        this.lastLoginAt = Instant.now();
 
         if (this.status == UserStatus.LOCKED) {
             transitionTo(UserStatus.ACTIVE);
@@ -246,5 +263,25 @@ public class User {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Instant getEmailVerifiedAt() {
+        return emailVerifiedAt;
+    }
+
+    public Instant getLastLoginAt() {
+        return lastLoginAt;
+    }
+
+    public String getLastLoginIp() {
+        return lastLoginIp;
+    }
+
+    public void setLastLoginIp(String lastLoginIp) {
+        this.lastLoginIp = lastLoginIp;
+    }
+
+    public Instant getLockedUntil() {
+        return lockedUntil;
     }
 }

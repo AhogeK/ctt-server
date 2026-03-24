@@ -5,6 +5,7 @@ import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,7 +66,7 @@ class UserTest {
         User user = createUser();
         user.verifyEmail();
 
-        user.recordFailedLogin(5);
+        user.recordFailedLogin(5, Duration.ofMinutes(30));
 
         assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
         assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
@@ -76,9 +77,9 @@ class UserTest {
         User user = createUser();
         user.verifyEmail();
 
-        user.recordFailedLogin(3);
-        user.recordFailedLogin(3);
-        user.recordFailedLogin(3);
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
 
         assertThat(user.getFailedLoginAttempts()).isEqualTo(3);
         assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
@@ -89,7 +90,7 @@ class UserTest {
         User user = createUser();
         user.markAsDeleted();
 
-        user.recordFailedLogin(5);
+        user.recordFailedLogin(5, Duration.ofMinutes(30));
 
         assertThat(user.getFailedLoginAttempts()).isZero();
         assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
@@ -99,9 +100,9 @@ class UserTest {
     void recordSuccessfulLoginResetsCounter() {
         User user = createUser();
         user.verifyEmail();
-        user.recordFailedLogin(3);
-        user.recordFailedLogin(3);
-        user.recordFailedLogin(3);
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
         assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
 
         user.recordSuccessfulLogin();
@@ -154,9 +155,9 @@ class UserTest {
     void reactivateFromLocked() {
         User user = createUser();
         user.verifyEmail();
-        user.recordFailedLogin(3);
-        user.recordFailedLogin(3);
-        user.recordFailedLogin(3);
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
 
         user.reactivate();
 
@@ -191,9 +192,9 @@ class UserTest {
     void transitionFromLockedToSuspended() {
         User user = createUser();
         user.verifyEmail();
-        user.recordFailedLogin(3);
-        user.recordFailedLogin(3);
-        user.recordFailedLogin(3);
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30));
 
         user.suspend();
 
@@ -206,7 +207,7 @@ class UserTest {
         user.verifyEmail();
 
         for (int i = 0; i < 10; i++) {
-            user.recordFailedLogin(3);
+            user.recordFailedLogin(3, Duration.ofMinutes(30));
         }
 
         assertThat(user.getFailedLoginAttempts()).isEqualTo(10);

@@ -33,6 +33,7 @@
 - [x] JWT 认证基础设施 Phase A (依赖 + TokenUtils 扩展)
 - [x] JWT 认证基础设施 Phase B (JwtEncoder/JwtDecoder Bean 注册)
 - [x] JWT 认证基础设施 Phase C (JwtTokenProvider 签发服务)
+- [x] JWT 认证基础设施 Phase D (UserLoginService 登录服务)
 
 ## 进行中 🔄
 

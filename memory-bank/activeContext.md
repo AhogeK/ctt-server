@@ -1,3 +1,18 @@
+- [2026-03-24] - JWT 认证基础设施 Phase D (UserLoginService)
+    - `LoginRequest.java`: 登录请求 DTO (email, password, deviceId)
+    - `LoginResponse.java`: 登录响应 DTO (userId, accessToken, refreshToken, expiresIn)
+    - `UserLoginService.java`: 登录服务
+        - 防枚举: 用户不存在返回与密码错误相同的提示
+        - 状态机屏障: 登录前验证用户状态
+        - 防爆破: 使用 UserValidator.assertLoginAttemptsNotExceeded()
+        - 成功后签发 Access Token + Refresh Token
+        - 审计日志: LOGIN_SUCCESS / LOGIN_FAILED
+    - `UserLoginServiceTest.java`: 11 个单元测试覆盖核心场景
+    - `User.java`: 补全字段匹配数据库 schema
+        - `emailVerifiedAt`, `lastLoginAt`, `lastLoginIp`, `lockedUntil`
+        - `recordFailedLogin(maxAttempts, lockDuration)`: 设置 `lockedUntil`
+        - `recordSuccessfulLogin()`: 设置 `lastLoginAt`, 清除 `lockedUntil`
+
 - [2026-03-23] - JWT 认证基础设施 Phase C (JwtTokenProvider)
     - `JwtTokenProvider.java`: 创建 JWT Access Token 签发服务
         - `generateAccessToken(User)`: 使用 JwtClaimsSet 构建 Claims
@@ -99,5 +114,5 @@
 
 ## 下一步行动
 
-1. JWT 认证基础设施 Phase D: 实现 `LoginService` (串联认证流程)
-2. JWT 认证基础设施 Phase E: Token 刷新机制
+1. JWT 认证基础设施 Phase E: Token 刷新机制
+2. JWT 认证基础设施 Phase F: Controller 端点暴露
