@@ -1,3 +1,8 @@
+- [2026-04-01] - 分支同步：develop → master (依赖版本更新)
+    - 操作: Cherry-pick commit 7b01f5e 到 master
+    - 文件: `gradle/libs.versions.toml`
+    - 影响: master 分支版本号同步为 0.2.1-SNAPSHOT
+
 - [2026-03-24] - JWT 认证基础设施 Phase D (UserLoginService)
     - `LoginRequest.java`: 登录请求 DTO (email, password, deviceId)
     - `LoginResponse.java`: 登录响应 DTO (userId, accessToken, refreshToken, expiresIn)
