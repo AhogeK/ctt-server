@@ -3,10 +3,11 @@ package com.ahogek.cttserver.auth.dto;
 import com.ahogek.cttserver.common.validation.ValidationConstants;
 import com.ahogek.cttserver.common.validation.annotation.StrongPassword;
 
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * User registration request DTO.
@@ -19,18 +20,21 @@ import jakarta.validation.constraints.Pattern;
 @Schema(description = "User registration request")
 public record UserRegisterRequest(
         @Schema(description = "User email address", example = "newuser@example.com")
-        @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
-        @Email(message = ValidationConstants.MSG_EMAIL_INVALID)
-        String email,
+                @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
+                @Email(message = ValidationConstants.MSG_EMAIL_INVALID)
+                String email,
         @Schema(description = "User display name", example = "John Doe")
-        @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
-        @Pattern(
-                regexp = ValidationConstants.REGEX_DISPLAY_NAME,
-                message = ValidationConstants.MSG_NAME_INVALID)
-        String displayName,
-        @Schema(description = "User password (min 8 chars, requires uppercase, lowercase, digit, and special char)", example = "SecurePass123!")
-        @StrongPassword
-        String password) {
+                @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
+                @Pattern(
+                        regexp = ValidationConstants.REGEX_DISPLAY_NAME,
+                        message = ValidationConstants.MSG_NAME_INVALID)
+                String displayName,
+        @Schema(
+                        description =
+                                "User password (min 8 chars, requires uppercase, lowercase, digit, and special char)",
+                        example = "SecurePass123!")
+                @StrongPassword
+                String password) {
 
     /**
      * Compact constructor for normalization.

@@ -2,9 +2,10 @@ package com.ahogek.cttserver.auth.dto;
 
 import com.ahogek.cttserver.common.validation.ValidationConstants;
 
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Resend verification email request DTO.
@@ -16,10 +17,12 @@ import jakarta.validation.constraints.NotBlank;
  */
 @Schema(description = "Resend verification email request")
 public record ResendVerificationRequest(
-        @Schema(description = "Email address to resend verification to", example = "unverified@example.com")
-        @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
-        @Email(message = ValidationConstants.MSG_EMAIL_INVALID)
-        String email) {
+        @Schema(
+                        description = "Email address to resend verification to",
+                        example = "unverified@example.com")
+                @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
+                @Email(message = ValidationConstants.MSG_EMAIL_INVALID)
+                String email) {
 
     /**
      * Compact constructor for normalization.

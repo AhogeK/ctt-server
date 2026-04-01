@@ -3,9 +3,10 @@ package com.ahogek.cttserver.auth.dto;
 import com.ahogek.cttserver.common.validation.ValidationConstants;
 import com.ahogek.cttserver.common.validation.annotation.StrongPassword;
 
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Login request DTO.
@@ -19,15 +20,18 @@ import jakarta.validation.constraints.NotBlank;
 @Schema(description = "Login request credentials")
 public record LoginRequest(
         @Schema(description = "User email address", example = "user@example.com")
-        @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
-        @Email(message = ValidationConstants.MSG_EMAIL_INVALID)
-        String email,
-        @Schema(description = "User password (min 8 chars, requires uppercase, lowercase, digit, and special char)", example = "StrongPass123!")
-        @StrongPassword
-        String password,
+                @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
+                @Email(message = ValidationConstants.MSG_EMAIL_INVALID)
+                String email,
+        @Schema(
+                        description =
+                                "User password (min 8 chars, requires uppercase, lowercase, digit, and special char)",
+                        example = "StrongPass123!")
+                @StrongPassword
+                String password,
         @Schema(description = "Device identifier for tracking", example = "device-123")
-        @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
-        String deviceId) {
+                @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
+                String deviceId) {
 
     public LoginRequest {
         email = (email == null) ? null : email.trim().toLowerCase();

@@ -10,16 +10,19 @@ import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
 import com.ahogek.cttserver.user.service.UserService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Authentication REST controller.
@@ -37,7 +40,9 @@ import org.springframework.web.bind.annotation.RestController;
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-16
  */
-@Tag(name = "Authentication", description = "User authentication endpoints for registration and login")
+@Tag(
+        name = "Authentication",
+        description = "User authentication endpoints for registration and login")
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
@@ -64,29 +69,30 @@ public class AuthController {
      * @return success response
      */
     @Operation(
-        summary = "Register new user",
-        description = "User registration endpoint with two-layer validation: "
-            + "syntax validation via @Valid on DTO, and semantic validation by UserService for domain rules")
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "User registered successfully"),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Validation error - COMMON_003: Invalid request parameters"),
-        @ApiResponse(
-            responseCode = "409",
-            description = "Email already exists - USER_001: Email already registered")
-    })
+            summary = "Register new user",
+            description =
+                    "User registration endpoint with two-layer validation: "
+                            + "syntax validation via @Valid on DTO, and semantic validation by UserService for domain rules")
+    @ApiResponses(
+            value = {
+                @ApiResponse(responseCode = "200", description = "User registered successfully"),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "Validation error - COMMON_003: Invalid request parameters"),
+                @ApiResponse(
+                        responseCode = "409",
+                        description = "Email already exists - USER_001: Email already registered")
+            })
     @PublicApi(reason = "User registration endpoint - Tier 1 public API")
     @RateLimit(type = RateLimitType.IP, limit = 60, windowSeconds = 3600)
     @PostMapping("/register")
     public ResponseEntity<RestApiResponse<EmptyResponse>> register(
-        @Valid @RequestBody UserRegisterRequest request) {
+            @Valid @RequestBody UserRegisterRequest request) {
 
         userService.registerUser(request);
 
-        return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok("User registered successfully")));
+        return ResponseEntity.ok(
+                RestApiResponse.ok(EmptyResponse.ok("User registered successfully")));
     }
 
     /**
@@ -107,26 +113,30 @@ public class AuthController {
      * @return response containing JWT access token and refresh token
      */
     @Operation(
-        summary = "User login",
-        description = "User login endpoint that authenticates credentials and returns JWT tokens for session management. "
-            + "Security mechanisms include rate limiting (30/hour per IP), input validation, audit logging, "
-            + "and automatic IP/User-Agent extraction")
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "Login successful - returns JWT access token and refresh token"),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Validation error - COMMON_003: Invalid request parameters"),
-        @ApiResponse(
-            responseCode = "401",
-            description = "Invalid credentials - AUTH_001: Authentication failed due to wrong email/password")
-    })
+            summary = "User login",
+            description =
+                    "User login endpoint that authenticates credentials and returns JWT tokens for session management. "
+                            + "Security mechanisms include rate limiting (30/hour per IP), input validation, audit logging, "
+                            + "and automatic IP/User-Agent extraction")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description =
+                                "Login successful - returns JWT access token and refresh token"),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "Validation error - COMMON_003: Invalid request parameters"),
+                @ApiResponse(
+                        responseCode = "401",
+                        description =
+                                "Invalid credentials - AUTH_001: Authentication failed due to wrong email/password")
+            })
     @PublicApi(reason = "User login endpoint - Tier 1 public API")
     @RateLimit(type = RateLimitType.IP, limit = 30, windowSeconds = 3600)
     @PostMapping("/login")
     public ResponseEntity<RestApiResponse<LoginResponse>> login(
-        @Valid @RequestBody LoginRequest request) {
+            @Valid @RequestBody LoginRequest request) {
 
         LoginResponse response = userLoginService.login(request);
 

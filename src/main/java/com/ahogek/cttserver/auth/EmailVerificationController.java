@@ -4,8 +4,8 @@ import com.ahogek.cttserver.auth.dto.ResendVerificationRequest;
 import com.ahogek.cttserver.auth.service.EmailVerificationService;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
-import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.response.EmptyResponse;
+import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
 
 import jakarta.validation.Valid;
@@ -69,7 +69,8 @@ public class EmailVerificationController {
 
         verificationService.verify(token);
 
-        return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok("Email verified successfully")));
+        return ResponseEntity.ok(
+                RestApiResponse.ok(EmptyResponse.ok("Email verified successfully")));
     }
 
     /**
