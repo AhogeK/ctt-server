@@ -3,7 +3,7 @@ package com.ahogek.cttserver.probe;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.InternalServerErrorException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
-import com.ahogek.cttserver.common.response.ApiResponse;
+import com.ahogek.cttserver.common.response.RestApiResponse;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -34,13 +34,13 @@ public class ProbeController {
     public record ValidRequest(@NotBlank @Size(max = 10) String value) {}
 
     @GetMapping("/ok")
-    public ResponseEntity<ApiResponse<Map<String, String>>> ok() {
-        return ResponseEntity.ok(ApiResponse.ok(Map.of("status", "alive")));
+    public ResponseEntity<RestApiResponse<Map<String, String>>> ok() {
+        return ResponseEntity.ok(RestApiResponse.ok(Map.of("status", "alive")));
     }
 
     @PostMapping("/validate")
-    public ResponseEntity<ApiResponse<Void>> validate(@Valid @RequestBody EchoRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok());
+    public ResponseEntity<RestApiResponse<Void>> validate(@Valid @RequestBody EchoRequest req) {
+        return ResponseEntity.ok(RestApiResponse.ok());
     }
 
     @GetMapping("/biz-error")
@@ -54,22 +54,22 @@ public class ProbeController {
     }
 
     @GetMapping("/missing-param")
-    public ResponseEntity<ApiResponse<Void>> missingParam(@RequestParam String param) {
-        return ResponseEntity.ok(ApiResponse.ok());
+    public ResponseEntity<RestApiResponse<Void>> missingParam(@RequestParam String param) {
+        return ResponseEntity.ok(RestApiResponse.ok());
     }
 
     @GetMapping("/illegal-arg")
-    public ResponseEntity<ApiResponse<Void>> illegalArg(
+    public ResponseEntity<RestApiResponse<Void>> illegalArg(
             @RequestParam(required = false) String value) {
         if (value == null) {
             throw new IllegalArgumentException("value cannot be null");
         }
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ResponseEntity.ok(RestApiResponse.ok());
     }
 
     @GetMapping("/constraint-violation")
-    public ResponseEntity<ApiResponse<Void>> constraintViolation(
+    public ResponseEntity<RestApiResponse<Void>> constraintViolation(
             @RequestParam @Pattern(regexp = "^[a-z]+$") String value) {
-        return ResponseEntity.ok(ApiResponse.ok());
+        return ResponseEntity.ok(RestApiResponse.ok());
     }
 }
