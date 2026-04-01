@@ -4,7 +4,7 @@ import com.ahogek.cttserver.auth.dto.ResendVerificationRequest;
 import com.ahogek.cttserver.auth.service.EmailVerificationService;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
-import com.ahogek.cttserver.common.response.ApiResponse;
+import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
 
@@ -64,12 +64,12 @@ public class EmailVerificationController {
      */
     @PublicApi(reason = "Email verification endpoint - Tier 1 public API")
     @GetMapping("/verify-email")
-    public ResponseEntity<ApiResponse<EmptyResponse>> verifyEmail(
+    public ResponseEntity<RestApiResponse<EmptyResponse>> verifyEmail(
             @RequestParam("token") String token) {
 
         verificationService.verify(token);
 
-        return ResponseEntity.ok(ApiResponse.ok(EmptyResponse.ok("Email verified successfully")));
+        return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok("Email verified successfully")));
     }
 
     /**
@@ -95,11 +95,11 @@ public class EmailVerificationController {
             limit = 3,
             windowSeconds = 60)
     @PostMapping("/resend-verification")
-    public ResponseEntity<ApiResponse<EmptyResponse>> resendVerification(
+    public ResponseEntity<RestApiResponse<EmptyResponse>> resendVerification(
             @Valid @RequestBody ResendVerificationRequest request) {
 
         verificationService.resendVerificationEmail(request.email());
 
-        return ResponseEntity.ok(ApiResponse.ok(EmptyResponse.ok("Verification email sent")));
+        return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok("Verification email sent")));
     }
 }

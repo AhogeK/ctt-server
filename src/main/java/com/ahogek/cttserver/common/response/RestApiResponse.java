@@ -22,25 +22,25 @@ import java.time.Instant;
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14
  */
-public record ApiResponse<T>(boolean success, String message, T data, Instant timestamp) {
+public record RestApiResponse<T>(boolean success, String message, T data, Instant timestamp) {
 
-    public static <T> ApiResponse<T> ok() {
+    public static <T> RestApiResponse<T> ok() {
         return ok(null, "Operation successful");
     }
 
-    public static <T> ApiResponse<T> ok(T data) {
+    public static <T> RestApiResponse<T> ok(T data) {
         return ok(data, "Operation successful");
     }
 
-    public static <T> ApiResponse<T> ok(T data, String message) {
-        return new ApiResponse<>(true, message, data, Instant.now());
+    public static <T> RestApiResponse<T> ok(T data, String message) {
+        return new RestApiResponse<>(true, message, data, Instant.now());
     }
 
-    public static <T> ApiResponse<T> error(String message) {
-        return new ApiResponse<>(false, message, null, Instant.now());
+    public static <T> RestApiResponse<T> error(String message) {
+        return new RestApiResponse<>(false, message, null, Instant.now());
     }
 
-    public static <T> ApiResponse<T> error(String message, T errorDetails) {
-        return new ApiResponse<>(false, message, errorDetails, Instant.now());
+    public static <T> RestApiResponse<T> error(String message, T errorDetails) {
+        return new RestApiResponse<>(false, message, errorDetails, Instant.now());
     }
 }
