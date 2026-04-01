@@ -243,11 +243,12 @@ railway variables set RESEND_API_KEY=re_xxx
 
 ### Authentication
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/auth/register` | POST | Register new user (rate limited: 60/hour per IP) |
-| `/api/v1/auth/verify-email` | GET | Verify email with token param (public, 24h token TTL) |
-| `/api/v1/auth/resend-verification` | POST | Resend verification email (rate limited: 3/1min per email) |
+| Endpoint                           | Method | Description                                                |
+|------------------------------------|--------|------------------------------------------------------------|
+| `/api/v1/auth/register`            | POST   | Register new user (rate limited: 60/hour per IP)           |
+| `/api/v1/auth/login`               | POST   | User login with JWT tokens (rate limited: 30/hour per IP)  |
+| `/api/v1/auth/verify-email`        | GET    | Verify email with token param (public, 24h token TTL)      |
+| `/api/v1/auth/resend-verification` | POST   | Resend verification email (rate limited: 3/1min per email) |
 
 ### Email Verification Flow
 
