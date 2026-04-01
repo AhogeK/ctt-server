@@ -21,14 +21,11 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 @DisplayName("AuthController Validation Tests")
 class AuthControllerValidationTest {
 
-    @Autowired
-    private MockMvcTester mvc;
+    @Autowired private MockMvcTester mvc;
 
-    @MockitoBean
-    private UserLoginService userLoginService;
+    @MockitoBean private UserLoginService userLoginService;
 
-    @MockitoBean
-    private UserService userService;
+    @MockitoBean private UserService userService;
 
     @Nested
     @DisplayName("POST /api/v1/auth/login - Parameter Validation")
@@ -38,7 +35,8 @@ class AuthControllerValidationTest {
         @WithMockUser
         @DisplayName("Should return 400 when email format is invalid")
         void shouldReturn400_whenInvalidEmailFormat() {
-            String request = """
+            String request =
+                    """
                 {
                     "email": "not-an-email",
                     "password": "Test@1234",
@@ -47,11 +45,11 @@ class AuthControllerValidationTest {
                 """;
 
             assertThat(
-                    mvc.post()
-                            .uri("/api/v1/auth/login")
-                            .with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            mvc.post()
+                                    .uri("/api/v1/auth/login")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
                     .hasStatus(400)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -62,7 +60,8 @@ class AuthControllerValidationTest {
         @WithMockUser
         @DisplayName("Should return 400 when password is weak")
         void shouldReturn400_whenWeakPassword() {
-            String request = """
+            String request =
+                    """
                 {
                     "email": "test@example.com",
                     "password": "weak",
@@ -71,11 +70,11 @@ class AuthControllerValidationTest {
                 """;
 
             assertThat(
-                    mvc.post()
-                            .uri("/api/v1/auth/login")
-                            .with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            mvc.post()
+                                    .uri("/api/v1/auth/login")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
                     .hasStatus(400)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -86,7 +85,8 @@ class AuthControllerValidationTest {
         @WithMockUser
         @DisplayName("Should return 400 when deviceId is blank")
         void shouldReturn400_whenBlankDeviceId() {
-            String request = """
+            String request =
+                    """
                 {
                     "email": "test@example.com",
                     "password": "Test@1234",
@@ -95,11 +95,11 @@ class AuthControllerValidationTest {
                 """;
 
             assertThat(
-                    mvc.post()
-                            .uri("/api/v1/auth/login")
-                            .with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            mvc.post()
+                                    .uri("/api/v1/auth/login")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
                     .hasStatus(400)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -113,11 +113,11 @@ class AuthControllerValidationTest {
             String request = "{}";
 
             assertThat(
-                    mvc.post()
-                            .uri("/api/v1/auth/login")
-                            .with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            mvc.post()
+                                    .uri("/api/v1/auth/login")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
                     .hasStatus(400)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -128,7 +128,8 @@ class AuthControllerValidationTest {
         @WithMockUser
         @DisplayName("Should return 400 when fields are null")
         void shouldReturn400_whenNullFields() {
-            String request = """
+            String request =
+                    """
                 {
                     "email": null,
                     "password": null,
@@ -137,11 +138,11 @@ class AuthControllerValidationTest {
                 """;
 
             assertThat(
-                    mvc.post()
-                            .uri("/api/v1/auth/login")
-                            .with(csrf())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            mvc.post()
+                                    .uri("/api/v1/auth/login")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
                     .hasStatus(400)
                     .bodyJson()
                     .extractingPath("$.code")

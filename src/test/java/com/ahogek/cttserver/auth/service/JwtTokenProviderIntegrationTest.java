@@ -20,9 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Integration test for JWT token encoding and decoding with HS256 algorithm.
  *
- * <p>Verifies that JwtTokenProvider and JwtDecoder work together correctly using
- * HMAC-SHA256 (HS256) algorithm. This test ensures the entire JWT pipeline from
- * token generation to validation operates with the expected algorithm and claims.
+ * <p>Verifies that JwtTokenProvider and JwtDecoder work together correctly using HMAC-SHA256
+ * (HS256) algorithm. This test ensures the entire JWT pipeline from token generation to validation
+ * operates with the expected algorithm and claims.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-04-02
@@ -32,11 +32,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class JwtTokenProviderIntegrationTest {
 
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
+    @Autowired private JwtTokenProvider jwtTokenProvider;
 
-    @Autowired
-    private JwtDecoder jwtDecoder;
+    @Autowired private JwtDecoder jwtDecoder;
 
     @Test
     @DisplayName("should encode and decode JWT token with HS256 algorithm")
@@ -76,8 +74,6 @@ class JwtTokenProviderIntegrationTest {
                 .as("Expiration time should be after issued time")
                 .isAfter(decoded.getIssuedAt());
 
-        assertThat(decoded.getIssuedAt())
-                .as("Issued time should not be null")
-                .isNotNull();
+        assertThat(decoded.getIssuedAt()).as("Issued time should not be null").isNotNull();
     }
 }

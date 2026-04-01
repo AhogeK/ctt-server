@@ -15,8 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("AuthController Integration Tests")
 class AuthControllerIntegrationTest {
 
-    @Autowired
-    private MockMvcTester mvc;
+    @Autowired private MockMvcTester mvc;
 
     @Nested
     @DisplayName("POST /api/v1/auth/login - Security Behavior Tests")
@@ -25,7 +24,8 @@ class AuthControllerIntegrationTest {
         @Test
         @DisplayName("Should return 400 when deviceId is blank (actual security, no @WithMockUser)")
         void shouldReturn400_whenBlankDeviceId_actualSecurity() {
-            String request = """
+            String request =
+                    """
                 {
                     "email": "test@example.com",
                     "password": "Test@1234",
@@ -34,10 +34,10 @@ class AuthControllerIntegrationTest {
                 """;
 
             assertThat(
-                    mvc.post()
-                            .uri("/api/v1/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            mvc.post()
+                                    .uri("/api/v1/auth/login")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
                     .hasStatus(400)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -47,7 +47,8 @@ class AuthControllerIntegrationTest {
         @Test
         @DisplayName("Should accept request without X-Device-ID header (header is optional)")
         void shouldAcceptRequest_withoutDeviceIdHeader() {
-            String request = """
+            String request =
+                    """
                 {
                     "email": "test@example.com",
                     "password": "Test@1234",
@@ -56,10 +57,10 @@ class AuthControllerIntegrationTest {
                 """;
 
             assertThat(
-                    mvc.post()
-                            .uri("/api/v1/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(request))
+                            mvc.post()
+                                    .uri("/api/v1/auth/login")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
                     .satisfies(
                             result -> {
                                 assertThat(result.getResponse().getStatus()).isNotEqualTo(403);
