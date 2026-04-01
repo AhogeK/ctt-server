@@ -1,17 +1,37 @@
-- [2026-04-01] - 分支同步：develop → master (依赖版本更新)
-    - 操作: Cherry-pick commit 7b01f5e 到 master
-    - 文件: `gradle/libs.versions.toml`
-    - 影响: master 分支版本号同步为 0.2.1-SNAPSHOT
+- [2026-04-02] - 登录接口实现完成 + 代码审查修复 (POST /api/v1/auth/login)
+    - 文件：`src/main/java/com/ahogek/cttserver/auth/AuthController.java` + `AuthControllerTest.java`
+    - 端点：POST /api/v1/auth/login (@PublicApi, @RateLimit: 30/小时/IP)
+    - 变更：
+        - 注入 UserLoginService 依赖到 AuthController
+        - 添加 login 端点方法，返回 ResponseEntity<ApiResponse<LoginResponse>>
+        - 添加 5 个 TDD 测试用例（成功场景 + 4 个验证失败场景）
+    - 代码审查修复（ultrabrain + code-reviewer skill）：
+        - 修复类级别 Javadoc：`{@link UserService}` → `application services`
+        - 修复 malformed JSON 测试：尾随逗号 → 真正无效 JSON（缺少闭合括号）
+    - 影响：暴露 UserLoginService.login() 用于 Web 认证，完整审计日志记录
+    - 验证：AuthControllerTest 11 个测试全部通过，编译成功，Spotless 通过
+    - 版本：0.2.1-SNAPSHOT → 0.3.0-SNAPSHOT (新增功能)
+    - 状态：✅ 审查通过，等待提交授权
+
+- [2026-04-01] - 分支同步：develop → master (依赖版本更新) ✅
+    - 操作：Cherry-pick commits 7b01f5e + 20ad578 到 master
+    - 文件：`gradle/libs.versions.toml`, `build.gradle.kts`
+    - 变更：
+        - 添加 ben-manes 依赖版本管理插件 (v0.53.0)
+        - 添加 jacoco 插件
+        - 添加依赖版本稳定性检查配置
+    - 影响：master 分支包含最新依赖配置，develop 分支保持不变
+    - 验证：编译成功，已推送到远程
 
 - [2026-03-24] - JWT 认证基础设施 Phase D (UserLoginService)
     - `LoginRequest.java`: 登录请求 DTO (email, password, deviceId)
     - `LoginResponse.java`: 登录响应 DTO (userId, accessToken, refreshToken, expiresIn)
     - `UserLoginService.java`: 登录服务
-        - 防枚举: 用户不存在返回与密码错误相同的提示
-        - 状态机屏障: 登录前验证用户状态
-        - 防爆破: 使用 UserValidator.assertLoginAttemptsNotExceeded()
+        - 防枚举：用户不存在返回与密码错误相同的提示
+        - 状态机屏障：登录前验证用户状态
+        - 防爆破：使用 UserValidator.assertLoginAttemptsNotExceeded()
         - 成功后签发 Access Token + Refresh Token
-        - 审计日志: LOGIN_SUCCESS / LOGIN_FAILED
+        - 审计日志：LOGIN_SUCCESS / LOGIN_FAILED
     - `UserLoginServiceTest.java`: 11 个单元测试覆盖核心场景
     - `User.java`: 补全字段匹配数据库 schema
         - `emailVerifiedAt`, `lastLoginAt`, `lastLoginIp`, `lockedUntil`
@@ -24,7 +44,7 @@
         - 标准 Claims: iss, sub, iat, exp
         - 自定义 Claims: email
     - `JwtTokenProviderTest.java`: 6 个单元测试覆盖核心功能
-    - 安全设计: Payload 不加密，禁止放入敏感数据
+    - 安全设计：Payload 不加密，禁止放入敏感数据
 
 - [2026-03-23] - JWT 认证基础设施 Phase B (JWT Bean 注册)
     - `build.gradle.kts`: 替换 `spring-security-oauth2-jose` → `spring-boot-starter-oauth2-resource-server`
@@ -60,7 +80,7 @@
 - [2026-03-22] - TokenUtils 重构消除重复代码
     - 将 `createVerificationToken()` 从 UserService/EmailVerificationService 移至 TokenUtils
     - `TokenPair` record 移至 TokenUtils 作为 public static record
-    - 方法签名: `static TokenPair createVerificationToken(userId, email, ttl, tokenRepository)`
+    - 方法签名：`static TokenPair createVerificationToken(userId, email, ttl, tokenRepository)`
 
 - [2026-03-22] - EmailVerificationService 改进
     - 注入 `UserValidator` 依赖
@@ -77,10 +97,10 @@
     - `docs/developer-handbook.md`: 添加"邮件验证实现"章节
 
 - [2026-03-22] - AGENTS.md 规则优化
-    - R2 增强: 添加详细更新流程和格式规范
-    - R13 新增: 记忆文件维护规则 (行数限制 + 修剪规则)
-    - R14 新增: AGENTS.md 自更新机制
-    - R15 新增: 版本号管理规则 (代码变更必须同步版本号)
+    - R2 增强：添加详细更新流程和格式规范
+    - R13 新增：记忆文件维护规则 (行数限制 + 修剪规则)
+    - R14 新增：AGENTS.md 自更新机制
+    - R15 新增：版本号管理规则 (代码变更必须同步版本号)
 
 - [2026-03-22] - MailOutboxService 集成测试完成
     - `MailOutboxServiceIntegrationTest.java`: 4 个集成测试用例
@@ -111,10 +131,10 @@
 
 ## 架构决策 (保留)
 
-- [2026-03-21] - 邮件生命周期审计完整覆盖: ENQUEUED → SENT/FAILED/EXHAUSTED
+- [2026-03-21] - 邮件生命周期审计完整覆盖：ENQUEUED → SENT/FAILED/EXHAUSTED
 - [2026-03-21] - Audit Details 标准化 (GDPR 合规): `recipientMasked` 字段脱敏
-- [2026-03-21] - 指数退避重试策略: `delay = min(base * multiplier^attempt, maxDelay) ± jitter`
-- [2026-03-21] - 僵尸记录恢复机制: `resetStuckSendingJobs()` 批量更新 SENDING → PENDING
+- [2026-03-21] - 指数退避重试策略：`delay = min(base * multiplier^attempt, maxDelay) ± jitter`
+- [2026-03-21] - 僵尸记录恢复机制：`resetStuckSendingJobs()` 批量更新 SENDING → PENDING
 - [2026-03-20] - MailOutboxPoller + MailOutboxProcessor: @Scheduled 轮询 + REQUIRES_NEW 事务隔离
 
 ## 下一步行动

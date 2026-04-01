@@ -34,6 +34,8 @@
 - [x] JWT 认证基础设施 Phase B (JwtEncoder/JwtDecoder Bean 注册)
 - [x] JWT 认证基础设施 Phase C (JwtTokenProvider 签发服务)
 - [x] JWT 认证基础设施 Phase D (UserLoginService 登录服务)
+- [x] 分支同步：develop → master (依赖版本更新 - ben-manes 插件 + jacoco 配置)
+- [x] 登录接口实现 (POST /api/v1/auth/login - @PublicApi, @RateLimit)
 
 ## 进行中 🔄
 
