@@ -1,3 +1,18 @@
+- [2026-04-03] - 修复 master 分支违规提交（782f1e0 style 提交） ✅ 完成
+    - 违规事实：master 上创建了单独的 style 提交 `782f1e0`，违反 R17（master 保持干净）和 R6.5（功能优先，版本其次）
+    - 根因：develop 上的 spotless 问题应该在合并前解决，而不是在 master 上创建额外提交
+    - 修复方案：
+        1. develop 上 amend 功能提交包含 spotless 修复：`3cf1421 feat(audit): add traceId`
+        2. master 重置到 `64890f4`（logout 完成后的提交）
+        3. 重新 cherry-pick 功能和版本提交：`3028f71` + `d678290`
+        4. 强制推送 master 覆盖违规历史：`+ 782f1e0...d678290 master -> master`
+    - 验证：
+        - ✅ master 无 `782f1e0` style 提交
+        - ✅ master 无 AI 文件
+        - ✅ 构建通过
+        - ✅ 双分支已推送
+    - 教训：spotless 问题必须在 develop 解决后再合并到 master，严禁在 master 上创建单独 style 提交
+
 - [2026-04-03] - 版本号更新：traceId observability feature
     - 文件：`gradle/libs.versions.toml`
     - 变更：`0.4.0-SNAPSHOT` → `0.4.1-SNAPSHOT` (MINOR increment)
