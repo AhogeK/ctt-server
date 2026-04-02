@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.common.config;
 
+import com.ahogek.cttserver.auth.infrastructure.security.JwtAuthenticationEntryPoint;
 import com.ahogek.cttserver.auth.infrastructure.security.PublicApiEndpointRegistry;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 
@@ -36,11 +37,15 @@ public class SecurityConfig {
 
     private final PublicApiEndpointRegistry publicApiRegistry;
     private final SecurityProperties securityProperties;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     public SecurityConfig(
-            PublicApiEndpointRegistry publicApiRegistry, SecurityProperties securityProperties) {
+            PublicApiEndpointRegistry publicApiRegistry,
+            SecurityProperties securityProperties,
+            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint) {
         this.publicApiRegistry = publicApiRegistry;
         this.securityProperties = securityProperties;
+        this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
     }
 
     /**
@@ -90,7 +95,13 @@ public class SecurityConfig {
                                                                 .maxAgeInSeconds(31536000))
                                         .contentSecurityPolicy(
                                                 csp -> csp.policyDirectives("default-src 'self'")))
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(
+                        oauth2 ->
+                                oauth2.jwt(Customizer.withDefaults())
+                                        .authenticationEntryPoint(jwtAuthenticationEntryPoint))
+                .exceptionHandling(
+                        exceptions ->
+                                exceptions.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers(publicApiRegistry.getPublicUrls())
