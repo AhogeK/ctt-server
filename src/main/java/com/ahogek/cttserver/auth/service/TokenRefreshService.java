@@ -2,6 +2,7 @@ package com.ahogek.cttserver.auth.service;
 
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * Token refresh service with rotation and reuse detection.
@@ -53,7 +55,10 @@ public class TokenRefreshService {
      * Includes reuse detection for security.
      */
     @Transactional
-    public com.ahogek.cttserver.auth.dto.LoginResponse refresh(String rawRefreshToken) {
+    public com.ahogek.cttserver.auth.dto.LoginResponse refresh(
+            String rawRefreshToken,
+            String ip,
+            String userAgent) {
         String tokenHash = TokenUtils.hashToken(rawRefreshToken);
 
         RefreshToken oldToken = refreshTokenRepository.findByTokenHash(tokenHash)
@@ -105,11 +110,13 @@ public class TokenRefreshService {
                 refreshTokenRepository
         );
 
-        auditLogService.logSuccess(
+        auditLogService.log(
                 user.getId(),
                 AuditAction.REFRESH_TOKEN_ROTATED,
                 ResourceType.REFRESH_TOKEN,
-                oldToken.getId().toString()
+                oldToken.getId().toString(),
+                SecuritySeverity.INFO,
+                AuditDetails.extension(Map.of("ip", ip, "userAgent", userAgent))
         );
 
         return new com.ahogek.cttserver.auth.dto.LoginResponse(

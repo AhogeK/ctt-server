@@ -2,8 +2,13 @@ package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
+import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.common.utils.IpUtils;
+
+import jakarta.servlet.http.HttpServletRequest;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
@@ -13,6 +18,7 @@ import com.ahogek.cttserver.user.service.UserService;
 
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,10 +55,15 @@ public class AuthController {
 
     private final UserService userService;
     private final UserLoginService userLoginService;
+    private final TokenRefreshService tokenRefreshService;
 
-    public AuthController(UserService userService, UserLoginService userLoginService) {
+    public AuthController(
+            UserService userService,
+            UserLoginService userLoginService,
+            TokenRefreshService tokenRefreshService) {
         this.userService = userService;
         this.userLoginService = userLoginService;
+        this.tokenRefreshService = tokenRefreshService;
     }
 
     /**
@@ -139,6 +150,64 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request) {
 
         LoginResponse response = userLoginService.login(request);
+
+        return ResponseEntity.ok(RestApiResponse.ok(response));
+    }
+
+    /**
+     * Token refresh endpoint.
+     *
+     * <p>Refreshes access token using refresh token with rotation mechanism.
+     *
+     * <p>Security mechanisms:
+     *
+     * <ul>
+     *   <li>Rate limiting: 120 requests per hour per IP address
+     *   <li>Input validation: {@code @Valid} triggers JSR-380 validation on DTO
+     *   <li>Token rotation: Old refresh token invalidated, new one issued
+     *   <li>IP/User-Agent extraction: Passed to service for audit logging
+     * </ul>
+     *
+     * @param request the refresh token request (validated)
+     * @param httpRequest the HTTP request for IP/User-Agent extraction
+     * @return response containing new JWT access token and refresh token
+     */
+    @Operation(
+            summary = "Refresh access token",
+            description =
+                    "Token refresh endpoint that rotates refresh tokens and issues new access tokens. "
+                            + "Security mechanisms include rate limiting (120/hour per IP), input validation, "
+                            + "token rotation, and automatic IP/User-Agent extraction for audit logging")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description =
+                                "Token refresh successful - returns new JWT access token and refresh token"),
+                @ApiResponse(
+                        responseCode = "400",
+                        description =
+                                "Syntax validation error - COMMON_003: Blank/null refresh token (checked before business logic)"),
+                @ApiResponse(
+                        responseCode = "401",
+                        description =
+                                "Business validation error - AUTH_003: Token invalid/expired/revoked (checked in service layer)")
+            })
+    @PublicApi(reason = "Token refresh endpoint - Tier 1 public API")
+    @RateLimit(type = RateLimitType.IP, limit = 120, windowSeconds = 3600)
+    @PostMapping("/refresh")
+    public ResponseEntity<RestApiResponse<LoginResponse>> refresh(
+            @Valid @RequestBody RefreshTokenRequest request,
+            HttpServletRequest httpRequest) {
+
+        String ip = IpUtils.getRealIp(httpRequest);
+        String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
+
+        LoginResponse response = tokenRefreshService.refresh(
+                request.refreshToken(),
+                ip,
+                userAgent
+        );
 
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
