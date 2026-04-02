@@ -407,9 +407,52 @@ MAJOR.MINOR.PATCH[-SUFFIX]
 - ❌ 跳过版本号（如 0.1.0 直接到 0.1.5）
 - ❌ 未经用户确认升级 MAJOR 版本
 
-### R16: 审查与验证（强制）
+### R17: 分支管理（强制 - 防止生产事故）
 
-**核心原则：验证优于假设，搜索优于猜测。**
+**核心原则：master 是生产分支，永远保持干净（无 AI 文件）。**
+
+#### 分支职责
+
+| 分支     | 用途                  | 允许内容                          | 禁止内容                  |
+|----------|-----------------------|-----------------------------------|---------------------------|
+| `master` | 生产环境（production） | 业务代码、测试、文档、版本号       | AI 文件（memory-bank/, .agents/, .opencode/, AGENTS.md） |
+| `develop`| 开发环境（development）| 业务代码 + AI 文件                 | 无                        |
+
+#### master 分支同步规则
+
+1. **起点**：从固定日期提交开始（例如 `02b83bd` - 2026-03-24）
+2. **AI 文件清理**：在起点后立即添加删除 AI 文件的提交
+   - `git rm -rf .agents/ .opencode/ AGENTS.md memory-bank/`
+   - 提交信息：`chore: remove all AI-related files from production branch`
+3. **同步 develop**：按顺序 cherry-pick develop 的所有非 AI 提交
+   - 排除：`docs(memory-bank)` 提交
+   - 命令：`git log --oneline 7b01f5e..develop --reverse \| grep -v "docs(memory-bank)"`
+4. **冲突处理**：
+   - memory-bank 文件冲突 → `git rm -f memory-bank/*`
+   - 版本号冲突 → `git checkout --theirs gradle/libs.versions.toml`
+5. **验证**：推送前必须验证
+   - `git ls-files master -- \| grep -E "^(\.agents/|\.opencode/|AGENTS\.md|memory-bank/)"` → 必须无输出
+   - `./gradlew build --quiet` → 必须通过
+
+#### 禁止操作
+
+- ❌ 直接 `git merge develop` 到 master（会带入 AI 文件）
+- ❌ 在 master 上创建 AI 文件
+- ❌ 在 master 上提交 `docs(memory-bank)` 类型提交
+- ❌ 使用 `git reset --hard develop` 同步 master（会带入 AI 文件）
+- ❌ 未经 cherry-pick 过滤直接同步
+
+#### 事故恢复流程
+
+如果 master 被污染（带入了 AI 文件）：
+
+1. **立即停止**：停止所有推送操作
+2. **确认污染**：`git ls-files master -- \| grep -E "^(\.agents/|\.opencode/|AGENTS\.md|memory-bank/)"`
+3. **重置到安全点**：`git reset --hard <安全提交 hash>`
+4. **重新构建**：按上述同步规则重新 cherry-pick
+5. **强制推送**：`git push origin master --force-with-lease`
+6. **记录事故**：在 activeContext.md 记录事故原因和修复方案
+
 
 #### 代码审查清单（提交前必须检查）
 

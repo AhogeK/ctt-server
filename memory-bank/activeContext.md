@@ -1,3 +1,28 @@
+- [2026-04-02] - 生产分支管理事故与修复（新增 R17 规则）
+    - 事故原因：
+        1. master 分支被强制与 develop 同步，导致 AI 文件（memory-bank/, .agents/, .opencode/, AGENTS.md）被带入生产分支
+        2. 未遵循 master 分支清理规则，直接使用 `git reset --hard develop` 导致污染
+        3. 多次 cherry-pick 操作冲突处理不当，导致提交历史混乱
+    - 修复方案：
+        1. master 重置到安全起点 `02b83bd`（2026-03-24）
+        2. 添加删除 AI 文件的提交：`chore: remove all AI-related files from production branch`
+        3. 从 develop 的 `7b01f5e` 开始按顺序 cherry-pick 所有非 AI 提交（排除 `docs(memory-bank)`）
+        4. 冲突处理：memory-bank 文件 → `git rm -f`，版本号 → `git checkout --theirs`
+        5. 验证：`git ls-files master -- | grep -E "^(\.agents/|\.opencode/|AGENTS\.md|memory-bank/)"` 必须无输出
+    - 新增规则（AGENTS.md R17）：
+        - master 是生产分支，永远保持干净（无 AI 文件）
+        - develop 是开发分支，允许包含 AI 文件
+        - 同步 master 必须使用 cherry-pick 过滤，禁止直接 merge 或 reset
+        - 事故恢复流程：停止 → 确认污染 → 重置到安全点 → 重新构建 → 强制推送 → 记录事故
+    - 验证结果：
+        - master 无任何 AI 文件：✅
+        - master 包含所有非 AI 提交（23 个）：✅
+        - develop 保持完整（含 AI 文件）：✅
+        - 双分支已推送到远程：✅
+    - 文件：
+        - `AGENTS.md` (修改) - 添加 R17: 分支管理（强制 - 防止生产事故）
+        - `memory-bank/activeContext.md` (修改) - 记录事故与修复方案
+
         - `1b98081` docs(memory-bank): record refresh token implementation and AGENTS.md rules
         - `42d3119` chore: bump version to 0.3.3 for refresh token rotation feature
         - `938f5d3` feat(auth): implement refresh token rotation with reuse detection
