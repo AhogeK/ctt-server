@@ -2,6 +2,8 @@ package com.ahogek.cttserver.auth.service;
 
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
@@ -27,6 +29,7 @@ import org.mockito.quality.Strictness;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -50,6 +53,8 @@ class TokenRefreshServiceTest {
     private static final String NEW_ACCESS_TOKEN = "new.access.token";
     private static final Duration ACCESS_TOKEN_TTL = Duration.ofMinutes(15);
     private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(7);
+    private static final String TEST_IP = "192.168.1.100";
+    private static final String TEST_USER_AGENT = "Mozilla/5.0 Test Browser";
 
     @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private UserRepository userRepository;
@@ -90,7 +95,7 @@ class TokenRefreshServiceTest {
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(NEW_ACCESS_TOKEN);
             when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-            LoginResponse response = tokenRefreshService.refresh(RAW_TOKEN);
+            LoginResponse response = tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT);
 
             assertThat(response.userId()).isEqualTo(USER_ID);
             assertThat(response.accessToken()).isEqualTo(NEW_ACCESS_TOKEN);
@@ -98,11 +103,13 @@ class TokenRefreshServiceTest {
             assertThat(response.expiresIn()).isEqualTo(ACCESS_TOKEN_TTL.getSeconds());
             assertThat(refreshToken.getRevokedAt()).isNotNull();
 
-            verify(auditLogService).logSuccess(
+            verify(auditLogService).log(
                     eq(USER_ID),
                     eq(AuditAction.REFRESH_TOKEN_ROTATED),
                     eq(ResourceType.REFRESH_TOKEN),
-                    eq(TOKEN_ID.toString())
+                    eq(TOKEN_ID.toString()),
+                    eq(SecuritySeverity.INFO),
+                    eq(AuditDetails.extension(Map.of("ip", TEST_IP, "userAgent", TEST_USER_AGENT)))
             );
         }
     }
@@ -116,9 +123,24 @@ class TokenRefreshServiceTest {
         void shouldThrowAuth003_whenTokenNotFound() {
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN))
+            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
                     .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_003);
+
+            verify(auditLogService, never()).log(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("should throw AUTH_007 when refresh token expired")
+        void shouldThrowAuth007_whenRefreshTokenExpired() {
+            RefreshToken expiredToken = createExpiredRefreshToken();
+
+            when(refreshTokenRepository.findByTokenHash(TOKEN_HASH))
+                    .thenReturn(Optional.of(expiredToken));
+
+            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
+                    .isInstanceOf(UnauthorizedException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_007);
 
             verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
             verify(auditLogService, never()).logCritical(any(), any(), any(), any(), any());
@@ -131,7 +153,7 @@ class TokenRefreshServiceTest {
 
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(revokedToken));
 
-            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN))
+            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_009);
 
@@ -159,7 +181,7 @@ class TokenRefreshServiceTest {
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(refreshToken));
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
-            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN))
+            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_006);
         }
@@ -173,7 +195,7 @@ class TokenRefreshServiceTest {
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(refreshToken));
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
-            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN))
+            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_004);
         }
@@ -187,7 +209,7 @@ class TokenRefreshServiceTest {
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(refreshToken));
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
-            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN))
+            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_005);
         }
@@ -200,7 +222,7 @@ class TokenRefreshServiceTest {
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(refreshToken));
             when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN))
+            assertThatThrownBy(() -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
                     .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_001);
         }

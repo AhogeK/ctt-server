@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.user.service.UserService;
@@ -37,6 +38,8 @@ class AuthControllerTest {
     @MockitoBean private UserService userService;
 
     @MockitoBean private UserLoginService userLoginService;
+
+    @MockitoBean private TokenRefreshService tokenRefreshService;
 
     @Nested
     @DisplayName("POST /api/v1/auth/register - User Registration")
