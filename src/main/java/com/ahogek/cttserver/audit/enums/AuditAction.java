@@ -84,6 +84,12 @@ public enum AuditAction {
     /** Device forcefully unlinked from account. */
     DEVICE_UNLINKED("Device forcefully unlinked"),
 
+    /** Refresh token rotated during refresh flow. */
+    REFRESH_TOKEN_ROTATED("Refresh token rotated during refresh flow"),
+
+    /** Refresh token reuse detected - potential token theft attack. */
+    REFRESH_TOKEN_REUSE_DETECTED("Refresh token reuse detected - potential token theft attack"),
+
     // ==========================================
     // Security and Defense
     // ==========================================

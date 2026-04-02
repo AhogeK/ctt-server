@@ -36,7 +36,7 @@ public enum ErrorCode {
     AUTH_006("Email not verified", HttpStatus.FORBIDDEN),
     AUTH_007("Refresh token expired", HttpStatus.UNAUTHORIZED),
     AUTH_008("Refresh token revoked", HttpStatus.UNAUTHORIZED),
-    AUTH_009("Insufficient permissions", HttpStatus.FORBIDDEN),
+    AUTH_009("Refresh token reuse detected", HttpStatus.FORBIDDEN),
     AUTH_010("API key invalid", HttpStatus.UNAUTHORIZED),
     AUTH_011("API key expired", HttpStatus.UNAUTHORIZED),
     AUTH_012("API key revoked", HttpStatus.FORBIDDEN),

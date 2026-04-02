@@ -109,4 +109,8 @@ public class RefreshToken extends AbstractToken {
     public Instant getLastUsedAt() {
         return lastUsedAt;
     }
+
+    public void setLastUsedAt(Instant lastUsedAt) {
+        this.lastUsedAt = lastUsedAt;
+    }
 }
