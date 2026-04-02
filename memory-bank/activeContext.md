@@ -1,4 +1,4 @@
-- [2026-04-02] - LoginResponse 添加 tokenType 字段（OAuth2 RFC 6750 合规）✅ 已提交
+- [2026-04-02] - LoginResponse 添加 tokenType 字段（OAuth2 RFC 6750 合规）✅ 已完成
     - 文件：`src/main/java/com/ahogek/cttserver/auth/dto/LoginResponse.java` (修改)
     - 变更：
         - 新增 `String tokenType` 字段（最后位置）
@@ -12,7 +12,11 @@
         - 编译通过：`./gradlew compileJava`
         - 测试通过：`./gradlew test`（无回归）
         - 向后兼容：现有 `new LoginResponse(userId, at, rt, exp)` 调用仍有效
-    - 提交：`559983e` feat(auth): add tokenType field to LoginResponse for OAuth2 RFC 6750 compliance
+    - 提交历史 (develop):
+        - `559983e` feat(auth): add tokenType field to LoginResponse
+        - `afc46d6` docs(memory-bank): update implementation record
+        - `944540f` chore: bump version to 0.3.2
+    - 版本：0.3.1-SNAPSHOT → 0.3.2-SNAPSHOT
 
 - [2026-04-02] - JwtAuthenticationEntryPoint 实现 + 5 原子提交完成
     - 文件：
