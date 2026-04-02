@@ -1,63 +1,40 @@
-- [2026-04-03] - LogoutService 登出功能完整实现 + 测试覆盖 + 文档更新 ✅ 完成
-    - 业务代码：
-        - `src/main/java/com/ahogek/cttserver/auth/service/LogoutService.java` (新建 89 行)
-        - `src/main/java/com/ahogek/cttserver/auth/controller/LogoutController.java` (新建 62 行)
-        - `src/main/java/com/ahogek/cttserver/auth/dto/LogoutRequest.java` (新建 11 行)
-        - `src/main/java/com/ahogek/cttserver/audit/enums/AuditAction.java` (修改，新增 SECURITY_ALERT 枚举)
-    - 测试代码：
-        - `src/test/java/com/ahogek/cttserver/auth/service/LogoutServiceTest.java` (新建 145 行，10 个测试)
-        - `src/test/java/com/ahogek/cttserver/auth/controller/LogoutControllerTest.java` (新建，6 个 Web MVC 测试)
-    - 文档更新：
-        - `README.md` (添加 `/api/v1/auth/logout` 端点到 API 表格)
-    - 核心功能：
-        1. sha256(rawRefreshToken) 哈希查库
-        2. BOLA 防御：校验 token 所有权，越权时记录 SECURITY_ALERT 审计
-        3. 幂等性：token 不存在时静默返回
-        4. 正常流程：VALID 状态 token 吊销 + LOGOUT_SUCCESS 审计
+- [2026-04-03] - 版本号更新：traceId observability feature
+    - 文件：`gradle/libs.versions.toml`
+    - 变更：`0.4.0-SNAPSHOT` → `0.4.1-SNAPSHOT` (MINOR increment)
+    - 提交：`ecc0ce0` chore: bump version to 0.4.1-SNAPSHOT for traceId observability feature
+    - 状态：✅ 已提交，等待推送授权
+
+- [2026-04-03] - Audit Logs traceId 全链路追踪修复 ✅ 完成
+    - 架构决策（全部按推荐选项 A）：
+        1. 创建共享 TraceIdUtils 工具类（DRY 原则）
+        2. 遵循 W3C Trace Context 规范（VARCHAR(32)）
+        3. 最小化实现（仅添加 trace_id，span_id/trace_flags 延期）
+    - 实体层：
+        - `src/main/java/com/ahogek/cttserver/audit/entity/AuditLog.java` (修改)
+        - 添加 `traceId` 字段 + Javadoc + Fluent Setter
+    - 事件层：
+        - `src/main/java/com/ahogek/cttserver/audit/SecurityAuditEvent.java` (修改)
+        - 添加 `traceId` 字段 + 修复语义错误（便捷构造函数误用 traceId 作为 resourceId）
+    - 服务层：
+        - `src/main/java/com/ahogek/cttserver/audit/service/AuditLogService.java` (修改)
+        - 从 RequestContext 提取 traceId
+    - 监听器层：
+        - `src/main/java/com/ahogek/cttserver/audit/listener/AuditEventListener.java` (修改)
+        - 映射 traceId 到实体
+    - 测试工具：
+        - `src/test/java/com/ahogek/cttserver/fixtures/AuditLogFixtures.java` (新建)
+        - Object Mother + Builder 模式 + W3C 格式 traceId 常量
+    - 测试覆盖：
+        - 单元测试：SecurityAuditEventTest, AuditLogServiceTest, AuditEventListenerTest
+        - 集成测试：AuditEventListenerIntegrationTest (验证 end-to-end 持久化)
     - 验证：
         - 编译通过：`./gradlew compileJava` ✅
-        - 全量测试通过：`./gradlew test` ✅
-        - 项目一致性：命名模式、Clean Code、测试覆盖均符合规范
+        - 全量测试通过：`./gradlew build` ✅
+        - Spotless 格式化：`./gradlew spotlessApply` ✅
+        - 覆盖率验证：`./gradlew jacocoTestCoverageVerification` ✅
     - 状态：✅ 等待提交授权（需要用户明确说"提交"）
 
-- [2026-04-03] - LogoutControllerTest Web MVC 集成测试实现完成
-    - 文件：`src/test/java/com/ahogek/cttserver/auth/controller/LogoutControllerTest.java` (新建)
-    - 测试场景（6 个测试）：
-        1. Happy Path: shouldLogoutSuccessfully_withValidToken - 200 OK 响应
-        2. Validation Tests: shouldReturn400_whenRefreshTokenIsBlank, shouldReturn400_whenRefreshTokenIsNull
-        3. Security Tests: shouldRequireAuthentication, shouldNotHaveRateLimiting
-        4. Swagger Documentation: shouldHaveSwaggerAnnotations
-    - 技术要点：
-        - 使用 `@BaseControllerSliceTest(LogoutController.class)` 进行 Web MVC 切片测试
-        - 使用 `jwt().jwt(jwt -> jwt.subject(userId))` 模拟 JWT 认证主体
-        - 使用 MockMvcTester + AssertJ 进行断言
-        - 验证 @Operation, @ApiResponses Swagger 注解存在
-        - 验证无 @RateLimit 注解（logout 端点无速率限制）
-    - 发现的设计问题：
-        - LogoutController 同时使用 @PublicApi 和 @AuthenticationPrincipal Jwt，存在矛盾
-        - @PublicApi 允许未认证访问，但 @AuthenticationPrincipal 需要认证
-        - 测试验证了实际行为：未认证请求返回 401
-    - 验证：
-        - 编译通过：`./gradlew compileTestJava` ✅
-        - 测试通过：6/6 tests passed ✅
-        - 项目标准遵循：@BaseControllerSliceTest, MockMvcTester, AssertJ, shouldX_whenY naming ✅
-    - 状态：✅ 等待提交授权
-
-- [2026-04-03] - LogoutServiceTest 单元测试实现完成
-    - 文件：`src/test/java/com/ahogek/cttserver/auth/service/LogoutServiceTest.java` (新建)
-    - 测试场景（10 个测试）：
-        1. Happy Path: shouldRevokeValidToken_andLogAudit
-        2. Idempotency: shouldSilentlyReturn_whenTokenNotFound, shouldReturnImmediately_whenTokenIsNull, shouldReturnImmediately_whenTokenIsBlank
-        3. BOLA Defense: shouldLogSecurityAlert_whenUserAttemptsToRevokeAnotherUsersToken, shouldNotRevokeToken_whenOwnershipMismatch
-        4. Token Status Handling: shouldNotRevokeAlreadyRevokedToken, shouldNotRevokeExpiredToken
-        5. Audit Logging: shouldLogLOGOUT_SUCCESS_auditEvent, shouldLogSECURITY_ALERT_auditEvent
-    - 验证：
-        - 编译通过：`./gradlew compileTestJava` ✅
-        - 测试通过：10/10 tests passed ✅
-        - 项目标准遵循：@ExtendWith(MockitoExtension.class), AssertJ chained assertions, shouldX_whenY naming ✅
-    - 状态：✅ 等待提交授权
-
-- [2026-04-02] - 生产分支管理事故与修复（新增 R17 规则）
+- [2026-04-03] - LogoutService 登出功能完整实现 + 测试覆盖 + 文档更新 ✅ 完成
     - 事故原因：
         1. master 分支被强制与 develop 同步，导致 AI 文件（memory-bank/, .agents/, .opencode/, AGENTS.md）被带入生产分支
         2. 未遵循 master 分支清理规则，直接使用 `git reset --hard develop` 导致污染
@@ -152,11 +129,6 @@
     - 影响：master 分支包含最新依赖配置，develop 分支保持不变
     - 验证：编译成功，已推送到远程
 
-
-        - 新增 `createRefreshToken()` 方法
-
-
-
 ## 架构决策 (保留)
 
 - [2026-03-21] - 邮件生命周期审计完整覆盖：ENQUEUED → SENT/FAILED/EXHAUSTED
@@ -169,22 +141,3 @@
 
 1. JWT 认证基础设施 Phase E: Token 刷新机制
 2. JWT 认证基础设施 Phase F: Controller 端点暴露
-
-- [2026-04-02] - LogoutService 登出功能实现
-    - 文件：
-        - `src/main/java/com/ahogek/cttserver/audit/enums/AuditAction.java` (修改) - 添加 SECURITY_ALERT 枚举
-        - `src/main/java/com/ahogek/cttserver/auth/service/LogoutService.java` (新建) - 登出服务
-        - `src/main/java/com/ahogek/cttserver/auth/dto/LogoutRequest.java` (新建) - 登出请求 DTO
-        - `src/main/java/com/ahogek/cttserver/auth/controller/LogoutController.java` (新建) - POST /api/v1/auth/logout 端点
-    - 核心功能：
-        - 吊销当前设备 Refresh Token（status = REVOKED）
-        - 越权防御（BOLA）：校验 userId 与 token 所有权
-        - 幂等性：token 不存在时不报错
-        - 审计事件：LOGOUT_SUCCESS / SECURITY_ALERT
-    - 验证：
-        - 编译通过：`./gradlew compileJava`
-        - LSP diagnostics：无错误
-- 待处理：
-        - ✅ 创建 LogoutServiceTest 单元测试（已完成 2026-04-03）
-        - ✅ 创建 LogoutControllerTest 集成测试（已完成 2026-04-03）
-        - 端到端 QA 测试
