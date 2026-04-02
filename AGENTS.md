@@ -130,7 +130,7 @@
 | **功能 + Bug 修复** | 分开提交                 | 先 `feat: X` → 再 `fix: Y`                     |
 | **功能 + 重构**     | 分开提交                 | 先 `feat: X` → 再 `refactor: Y`                |
 | **AI 记忆记录**     | 独立提交                 | `docs(memory-bank): record X implementation` |
-| **版本号更新**       | 独立提交                 | `chore: bump version to 0.3.0`               |
+| **版本号更新**       | 独立提交                 | `chore: bump version to X.Y.Z`               |
 
 #### 提交信息规范
 
