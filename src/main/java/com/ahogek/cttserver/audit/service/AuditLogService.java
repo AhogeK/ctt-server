@@ -78,12 +78,14 @@ public class AuditLogService {
 
         String ipAddress = SYSTEM_IP;
         String userAgent = INTERNAL_UA;
+        String traceId = null;
 
         var requestOpt = RequestContext.current();
         if (requestOpt.isPresent()) {
             RequestInfo req = requestOpt.get();
             ipAddress = req.clientIp();
             userAgent = req.userAgent();
+            traceId = req.traceId();
         }
 
         SecurityAuditEvent event =
@@ -95,6 +97,7 @@ public class AuditLogService {
                         severity,
                         ipAddress,
                         userAgent,
+                        traceId,
                         details);
 
         eventPublisher.publishEvent(event);

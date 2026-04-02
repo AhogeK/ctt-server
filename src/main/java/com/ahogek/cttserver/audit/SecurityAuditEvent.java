@@ -38,6 +38,7 @@ public record SecurityAuditEvent(
         SecuritySeverity severity,
         String ipAddress,
         String userAgent,
+        String traceId,
         AuditDetails details,
         Instant timestamp) {
 
@@ -51,6 +52,7 @@ public record SecurityAuditEvent(
      * @param severity the risk severity level
      * @param ipAddress the client IP address
      * @param userAgent the client user agent
+     * @param traceId the request trace ID for distributed tracing
      * @param details additional contextual details for JSONB storage
      */
     public SecurityAuditEvent(
@@ -61,6 +63,7 @@ public record SecurityAuditEvent(
             SecuritySeverity severity,
             String ipAddress,
             String userAgent,
+            String traceId,
             AuditDetails details) {
         this(
                 userId,
@@ -70,6 +73,7 @@ public record SecurityAuditEvent(
                 severity,
                 ipAddress,
                 userAgent,
+                traceId,
                 details,
                 Instant.now());
     }
@@ -93,10 +97,11 @@ public record SecurityAuditEvent(
                 null,
                 action,
                 resourceType,
-                requestInfo != null ? requestInfo.traceId() : null,
+                null,
                 severity,
                 requestInfo != null ? requestInfo.clientIp() : null,
                 requestInfo != null ? requestInfo.userAgent() : null,
+                requestInfo != null ? requestInfo.traceId() : null,
                 details,
                 Instant.now());
     }

@@ -5,6 +5,9 @@ import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
+import com.ahogek.cttserver.common.context.ClientIdentity;
+import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.RequestInfo;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -148,5 +151,46 @@ class AuditLogServiceTest {
         assertThat(captured.severity()).isEqualTo(SecuritySeverity.INFO);
         assertThat(captured.details().stateBefore()).isEqualTo("old-hash-value");
         assertThat(captured.details().stateAfter()).isEqualTo("new-hash-value");
+    }
+
+    @Test
+    void log_extracts_traceId_from_RequestContext() {
+        String expectedTraceId = "test-trace-id-12345678901234567890";
+        RequestInfo requestInfo =
+                new RequestInfo(
+                        expectedTraceId,
+                        "192.168.1.1",
+                        "TestAgent",
+                        "/api/test",
+                        "POST",
+                        ClientIdentity.empty());
+
+        ScopedValue.where(RequestContext.CONTEXT, requestInfo)
+                .run(
+                        () ->
+                                auditLogService.log(
+                                        UUID.randomUUID(),
+                                        AuditAction.LOGIN_SUCCESS,
+                                        ResourceType.USER,
+                                        "user-123",
+                                        SecuritySeverity.INFO,
+                                        AuditDetails.empty()));
+
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().traceId()).isEqualTo(expectedTraceId);
+    }
+
+    @Test
+    void log_uses_null_when_context_missing() {
+        auditLogService.log(
+                null,
+                AuditAction.LOGIN_SUCCESS,
+                ResourceType.USER,
+                "user-456",
+                SecuritySeverity.INFO,
+                AuditDetails.empty());
+
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().traceId()).isNull();
     }
 }

@@ -74,6 +74,15 @@ public class AuditLog {
     @Column(name = "user_agent", columnDefinition = "text")
     private String userAgent;
 
+    /**
+     * W3C Trace Context trace-id for distributed tracing correlation. Format: 32 lowercase
+     * hexadecimal characters.
+     *
+     * @see <a href="https://www.w3.org/TR/trace-context/">W3C Trace Context</a>
+     */
+    @Column(name = "trace_id", length = 32)
+    private String traceId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -156,6 +165,15 @@ public class AuditLog {
 
     public AuditLog setUserAgent(String userAgent) {
         this.userAgent = userAgent;
+        return this;
+    }
+
+    public String getTraceId() {
+        return traceId;
+    }
+
+    public AuditLog setTraceId(String traceId) {
+        this.traceId = traceId;
         return this;
     }
 
