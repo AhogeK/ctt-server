@@ -105,6 +105,7 @@ public class AuditEventListener {
                 .setSeverity(event.severity())
                 .setDetails(event.details())
                 .setIpAddress(Optional.ofNullable(event.ipAddress()).orElse(UNKNOWN))
-                .setUserAgent(Optional.ofNullable(event.userAgent()).orElse(UNKNOWN));
+                .setUserAgent(Optional.ofNullable(event.userAgent()).orElse(UNKNOWN))
+                .setTraceId(event.traceId());
     }
 }

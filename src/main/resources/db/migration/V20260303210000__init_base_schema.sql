@@ -399,6 +399,7 @@ CREATE TABLE audit_logs
     details       JSONB        NOT NULL DEFAULT '{}'::jsonb,
     ip_address    VARCHAR(45),
     user_agent    TEXT,
+    trace_id      VARCHAR(32),
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT audit_logs_user_id_fkey
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
@@ -425,6 +426,7 @@ COMMENT ON COLUMN audit_logs.severity IS 'Security severity level: INFO, WARNING
 COMMENT ON COLUMN audit_logs.details IS 'Additional structured audit payload stored as JSONB';
 COMMENT ON COLUMN audit_logs.ip_address IS 'Client IP address (IPv4/IPv6)';
 COMMENT ON COLUMN audit_logs.user_agent IS 'Client user agent';
+COMMENT ON COLUMN audit_logs.trace_id IS 'W3C Trace Context trace-id (32 lowercase hex chars) for distributed tracing correlation';
 COMMENT ON COLUMN audit_logs.created_at IS 'Timestamp when the action occurred';
 COMMENT ON CONSTRAINT chk_audit_resource_type ON audit_logs IS 'Validates audit log resource types - includes MAIL_OUTBOX for email delivery tracking';
 COMMENT ON CONSTRAINT audit_logs_user_id_fkey ON audit_logs IS 'Optional reference to user who triggered the action (null for system events)';
@@ -435,6 +437,8 @@ CREATE INDEX idx_audit_logs_action
     ON audit_logs (action);
 CREATE INDEX idx_audit_logs_severity
     ON audit_logs (severity);
+CREATE INDEX idx_audit_logs_trace_id
+    ON audit_logs(trace_id);
 CREATE INDEX idx_audit_logs_created_at
     ON audit_logs (created_at);
 CREATE INDEX idx_audit_logs_details

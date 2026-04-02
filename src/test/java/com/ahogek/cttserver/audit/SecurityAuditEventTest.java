@@ -29,6 +29,7 @@ class SecurityAuditEventTest {
                         SecuritySeverity.INFO,
                         "192.168.1.1",
                         "Mozilla/5.0",
+                        null,
                         details,
                         now);
 
@@ -57,6 +58,7 @@ class SecurityAuditEventTest {
                         SecuritySeverity.WARNING,
                         "10.0.0.1",
                         "TestAgent",
+                        null,
                         details);
 
         Instant after = Instant.now();
@@ -92,7 +94,8 @@ class SecurityAuditEventTest {
         assertThat(event.severity()).isEqualTo(SecuritySeverity.CRITICAL);
         assertThat(event.ipAddress()).isEqualTo("10.0.0.1");
         assertThat(event.userAgent()).isEqualTo("PostmanRuntime/7.0");
-        assertThat(event.resourceId()).isEqualTo("trace-789");
+        assertThat(event.traceId()).isEqualTo("trace-789");
+        assertThat(event.resourceId()).isNull();
         assertThat(event.details()).isEqualTo(details);
     }
 
@@ -111,6 +114,44 @@ class SecurityAuditEventTest {
         assertThat(event.action()).isEqualTo(AuditAction.RATE_LIMIT_EXCEEDED);
         assertThat(event.ipAddress()).isNull();
         assertThat(event.userAgent()).isNull();
+        assertThat(event.traceId()).isNull();
+        assertThat(event.resourceId()).isNull();
+    }
+
+    @Test
+    void shouldIncludeTraceId_fromRequestInfo() {
+        com.ahogek.cttserver.common.context.RequestInfo requestInfo =
+                new com.ahogek.cttserver.common.context.RequestInfo(
+                        "trace-123-abc-456-def-789-ghi-012-jkl",
+                        "192.168.1.1",
+                        "TestAgent",
+                        "/api/test",
+                        "POST",
+                        com.ahogek.cttserver.common.context.ClientIdentity.empty());
+
+        SecurityAuditEvent event =
+                new SecurityAuditEvent(
+                        AuditAction.UNAUTHORIZED_ACCESS,
+                        ResourceType.USER,
+                        SecuritySeverity.WARNING,
+                        requestInfo,
+                        AuditDetails.empty());
+
+        assertThat(event.traceId()).isEqualTo("trace-123-abc-456-def-789-ghi-012-jkl");
+        assertThat(event.resourceId()).isNull();
+    }
+
+    @Test
+    void shouldHandleNullRequestInfo() {
+        SecurityAuditEvent event =
+                new SecurityAuditEvent(
+                        AuditAction.UNAUTHORIZED_ACCESS,
+                        ResourceType.USER,
+                        SecuritySeverity.WARNING,
+                        null,
+                        AuditDetails.empty());
+
+        assertThat(event.traceId()).isNull();
         assertThat(event.resourceId()).isNull();
     }
 }

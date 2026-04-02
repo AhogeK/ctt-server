@@ -7,6 +7,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.repository.AuditLogRepository;
+import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
@@ -22,6 +23,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +72,7 @@ class AuditEventListenerIntegrationTest {
                 SecuritySeverity.WARNING,
                 "192.168.1.100",
                 "Mozilla/5.0 (Test)",
+                null,
                 details);
     }
 
@@ -122,6 +125,7 @@ class AuditEventListenerIntegrationTest {
                         SecuritySeverity.CRITICAL,
                         null,
                         null,
+                        null,
                         details);
 
         eventPublisher.publishEvent(event);
@@ -163,6 +167,7 @@ class AuditEventListenerIntegrationTest {
                             SecuritySeverity.INFO,
                             "10.0.0." + i,
                             "Agent" + i,
+                            null,
                             details);
             eventPublisher.publishEvent(event);
         }
@@ -182,6 +187,43 @@ class AuditEventListenerIntegrationTest {
                                             "api-key-2",
                                             "api-key-3",
                                             "api-key-4");
+                        });
+    }
+
+    @Test
+    void shouldPersistTraceId_inAuditLog() {
+        // Arrange - W3C format traceId (32 hex characters)
+        String traceId = "0123456789abcdef0123456789abcdef";
+        RequestInfo requestInfo =
+                new RequestInfo(
+                        traceId, "192.168.1.1", "IntegrationTestAgent", "/api/test", "POST", null);
+
+        SecurityAuditEvent event =
+                new SecurityAuditEvent(
+                        UUID.randomUUID(),
+                        AuditAction.LOGIN_SUCCESS,
+                        ResourceType.USER,
+                        "user-123",
+                        SecuritySeverity.INFO,
+                        "192.168.1.1",
+                        "IntegrationTestAgent",
+                        traceId,
+                        AuditDetails.empty(),
+                        Instant.now());
+
+        // Act
+        eventPublisher.publishEvent(event);
+
+        // Assert
+        await().atMost(3, TimeUnit.SECONDS)
+                .untilAsserted(
+                        () -> {
+                            List<AuditLog> logs = repository.findAll();
+                            assertThat(logs).isNotEmpty();
+
+                            AuditLog latestLog = logs.getLast();
+                            assertThat(latestLog.getTraceId()).isEqualTo(traceId);
+                            assertThat(latestLog.getAction()).isEqualTo(AuditAction.LOGIN_SUCCESS);
                         });
     }
 
@@ -230,6 +272,7 @@ class AuditEventListenerIntegrationTest {
                                         SecuritySeverity.INFO,
                                         "192.168.1.1",
                                         "TestAgent/1.0",
+                                        null,
                                         details);
                         eventPublisher.publishEvent(event);
                     });
@@ -275,6 +318,7 @@ class AuditEventListenerIntegrationTest {
                                         SecuritySeverity.INFO,
                                         "192.168.1.1",
                                         "TestAgent/1.0",
+                                        null,
                                         details);
                         eventPublisher.publishEvent(event);
 
@@ -318,6 +362,7 @@ class AuditEventListenerIntegrationTest {
                                         SecuritySeverity.INFO,
                                         "192.168.1.1",
                                         "TestAgent/1.0",
+                                        null,
                                         AuditDetails.reason("First event"));
                         eventPublisher.publishEvent(event);
                     });
@@ -340,6 +385,7 @@ class AuditEventListenerIntegrationTest {
                                         SecuritySeverity.INFO,
                                         "192.168.1.1",
                                         "TestAgent/1.0",
+                                        null,
                                         AuditDetails.reason("Second event"));
                         eventPublisher.publishEvent(event);
                     });
