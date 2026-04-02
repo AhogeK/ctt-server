@@ -1,19 +1,34 @@
-- [2026-04-02] - JwtAuthenticationEntryPoint 实现 - JWT 认证失败统一响应
+- [2026-04-02] - JwtAuthenticationEntryPoint 实现 + 5 原子提交完成
     - 文件：
         - `src/main/java/com/ahogek/cttserver/auth/infrastructure/security/JwtAuthenticationEntryPoint.java` (新建)
+        - `src/main/java/com/ahogek/cttserver/common/config/jackson/JacksonConfig.java` (新建)
         - `src/main/java/com/ahogek/cttserver/common/config/SecurityConfig.java` (修改)
-        - `src/test/java/com/ahogek/cttserver/common/TestConfig.java` (修改 - 添加 ObjectMapper Bean)
+        - `src/test/java/com/ahogek/cttserver/auth/infrastructure/security/JwtAuthenticationEntryPointTest.java` (新建)
     - 变更：
         - 实现 AuthenticationEntryPoint 接口，处理 JWT 认证失败（token 无效/过期）
         - 返回统一 RestApiResponse 格式，错误码 AUTH_003
         - 配置 SecurityConfig：OAuth2 + 全局异常处理双入口点
-        - 添加 ObjectMapper Bean 到 TestConfig 修复测试上下文
+        - 新建 JacksonConfig 提供全局 ObjectMapper Bean
     - 影响：JWT 认证失败现在返回标准 JSON 响应而非默认 401 空白响应
     - 验证：
         - JwtAuthenticationEntryPointTest: 3/3 通过
         - 完整构建：`./gradlew build` 通过
         - 代码审查：逻辑 PASS + 风格 PASS（修复导入顺序）
+        - 全量测试：524/524 通过
+        - 覆盖率：Instructions 93%, Lines 93%, Branches 84%, Methods 91%
     - 版本：0.3.0-SNAPSHOT → 0.3.1-SNAPSHOT (Bug 修复)
+    - 提交历史 (develop):
+        - `7c36769` feat(auth): add JWT authentication entry point with unified error response
+        - `b520761` feat(config): add Jackson configuration for global ObjectMapper bean
+        - `af55d7d` feat(security): integrate JWT authentication entry point into security filter chain
+        - `0e9a2ef` chore: bump version to 0.3.1 for JWT auth failure response fix
+        - `af888a0` docs(memory-bank): record JwtAuthenticationEntryPoint implementation (AI only)
+    - 合并到 master: ✅ (排除 AI commit，只合并前 4 个)
+        - `649ccab` feat(auth): add JWT authentication entry point with unified error response
+        - `566dfe0` feat(config): add Jackson configuration for global ObjectMapper bean
+        - `3bc26f5` feat(security): integrate JWT authentication entry point into security filter chain
+        - `54a55cd` chore: bump version to 0.3.1 for JWT auth failure response fix
+    - 状态：✅ develop + master 均已推送到远程
 
 - [2026-04-02] - 登录接口实现完成 + 代码审查修复 (POST /api/v1/auth/login)
     - 文件：`src/main/java/com/ahogek/cttserver/auth/AuthController.java` + `AuthControllerTest.java`

@@ -36,6 +36,7 @@
 - [x] JWT 认证基础设施 Phase D (UserLoginService 登录服务)
 - [x] 分支同步：develop → master (依赖版本更新 - ben-manes 插件 + jacoco 配置)
 - [x] 登录接口实现 (POST /api/v1/auth/login - @PublicApi, @RateLimit)
+- [x] JWT 认证失败统一响应 (JwtAuthenticationEntryPoint + 5 原子提交)
 
 ## 进行中 🔄
 
