@@ -39,6 +39,9 @@ public enum AuditAction {
     /** User logged out successfully. */
     LOGOUT_SUCCESS("User logged out successfully"),
 
+    /** Security alert triggered (e.g., unauthorized access attempt). */
+    SECURITY_ALERT("Security alert triggered"),
+
     /** Account automatically locked due to security violations. */
     ACCOUNT_LOCKED("Account automatically locked due to violations"),
 
