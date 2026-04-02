@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param accessToken the JWT access token
  * @param refreshToken the refresh token
  * @param expiresIn access token expiration time in seconds
+ * @param tokenType the token type (e.g., "Bearer")
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-23
  */
@@ -29,4 +30,15 @@ public record LoginResponse(
                         example = "d4f5e6a7b8c9d0e1f2a3b4c5d6e7f8a9")
                 String refreshToken,
         @Schema(description = "Access token expiration time in seconds", example = "3600")
-                long expiresIn) {}
+                long expiresIn,
+        @Schema(description = "Token type per OAuth2 RFC 6750", example = "Bearer")
+                String tokenType) {
+
+    /**
+     * Business-layer convenience constructor.
+     * Automatically defaults tokenType to "Bearer" per OAuth2 RFC 6750.
+     */
+    public LoginResponse(UUID userId, String accessToken, String refreshToken, long expiresIn) {
+        this(userId, accessToken, refreshToken, expiresIn, "Bearer");
+    }
+}
