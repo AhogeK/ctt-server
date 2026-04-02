@@ -6,16 +6,15 @@ import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
-import com.ahogek.cttserver.common.utils.IpUtils;
-
-import jakarta.servlet.http.HttpServletRequest;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
+import com.ahogek.cttserver.common.utils.IpUtils;
 import com.ahogek.cttserver.user.service.UserService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpHeaders;
@@ -197,17 +196,12 @@ public class AuthController {
     @RateLimit(type = RateLimitType.IP, limit = 120, windowSeconds = 3600)
     @PostMapping("/refresh")
     public ResponseEntity<RestApiResponse<LoginResponse>> refresh(
-            @Valid @RequestBody RefreshTokenRequest request,
-            HttpServletRequest httpRequest) {
+            @Valid @RequestBody RefreshTokenRequest request, HttpServletRequest httpRequest) {
 
         String ip = IpUtils.getRealIp(httpRequest);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 
-        LoginResponse response = tokenRefreshService.refresh(
-                request.refreshToken(),
-                ip,
-                userAgent
-        );
+        LoginResponse response = tokenRefreshService.refresh(request.refreshToken(), ip, userAgent);
 
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }

@@ -28,9 +28,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 /**
  * Token refresh endpoint tests for AuthController.
  *
- * <p>Tests the POST /api/v1/auth/refresh endpoint with various scenarios
- * including valid tokens, invalid tokens, expired tokens, reuse detection,
- * and validation errors.
+ * <p>Tests the POST /api/v1/auth/refresh endpoint with various scenarios including valid tokens,
+ * invalid tokens, expired tokens, reuse detection, and validation errors.
  *
  * @author AhogeK
  * @since 2026-04-02
@@ -39,32 +38,23 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 @DisplayName("AuthController Token Refresh Tests")
 class AuthControllerRefreshTest {
 
-    @Autowired
-    private MockMvcTester mvc;
+    @Autowired private MockMvcTester mvc;
 
-    @MockitoBean
-    private UserService userService;
+    @MockitoBean private UserService userService;
 
-    @MockitoBean
-    private UserLoginService userLoginService;
+    @MockitoBean private UserLoginService userLoginService;
 
-    @MockitoBean
-    private TokenRefreshService tokenRefreshService;
+    @MockitoBean private TokenRefreshService tokenRefreshService;
 
     @Test
     @WithMockUser
     @DisplayName("Should return new tokens when refresh token is valid")
     void shouldReturnNewTokens_whenRefreshTokenIsValid() {
         UUID userId = UUID.randomUUID();
-        LoginResponse mockResponse = new LoginResponse(
-                userId,
-                "new-access-token",
-                "new-refresh-token",
-                3600L
-        );
+        LoginResponse mockResponse =
+                new LoginResponse(userId, "new-access-token", "new-refresh-token", 3600L);
 
-        given(tokenRefreshService.refresh(any(), any(), any()))
-                .willReturn(mockResponse);
+        given(tokenRefreshService.refresh(any(), any(), any())).willReturn(mockResponse);
 
         String request =
                 """
@@ -73,17 +63,24 @@ class AuthControllerRefreshTest {
             }
             """;
 
-        var result = mvc.post()
-                .uri("/api/v1/auth/refresh")
-                .with(csrf())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(request)
-                .exchange();
+        var result =
+                mvc.post()
+                        .uri("/api/v1/auth/refresh")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request)
+                        .exchange();
 
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.data.userId").isEqualTo(userId.toString());
-        assertThat(result).bodyJson().extractingPath("$.data.accessToken").isEqualTo("new-access-token");
-        assertThat(result).bodyJson().extractingPath("$.data.refreshToken").isEqualTo("new-refresh-token");
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.data.accessToken")
+                .isEqualTo("new-access-token");
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.data.refreshToken")
+                .isEqualTo("new-refresh-token");
         assertThat(result).bodyJson().extractingPath("$.data.expiresIn").isEqualTo(3600);
     }
 
@@ -118,7 +115,8 @@ class AuthControllerRefreshTest {
     @DisplayName("Should return 401 when refresh token expired")
     void shouldReturn401_whenRefreshTokenExpired() {
         given(tokenRefreshService.refresh(any(), any(), any()))
-                .willThrow(new UnauthorizedException(ErrorCode.AUTH_007, "Refresh token has expired"));
+                .willThrow(
+                        new UnauthorizedException(ErrorCode.AUTH_007, "Refresh token has expired"));
 
         String request =
                 """
@@ -144,7 +142,10 @@ class AuthControllerRefreshTest {
     @DisplayName("Should return 403 when refresh token reuse detected")
     void shouldReturn403_whenRefreshTokenReuseDetected() {
         given(tokenRefreshService.refresh(any(), any(), any()))
-                .willThrow(new ForbiddenException(ErrorCode.AUTH_009, "Security breach: Refresh token reuse detected"));
+                .willThrow(
+                        new ForbiddenException(
+                                ErrorCode.AUTH_009,
+                                "Security breach: Refresh token reuse detected"));
 
         String request =
                 """

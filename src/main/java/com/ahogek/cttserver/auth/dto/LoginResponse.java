@@ -35,8 +35,8 @@ public record LoginResponse(
                 String tokenType) {
 
     /**
-     * Business-layer convenience constructor.
-     * Automatically defaults tokenType to "Bearer" per OAuth2 RFC 6750.
+     * Business-layer convenience constructor. Automatically defaults tokenType to "Bearer" per
+     * OAuth2 RFC 6750.
      */
     public LoginResponse(UUID userId, String accessToken, String refreshToken, long expiresIn) {
         this(userId, accessToken, refreshToken, expiresIn, "Bearer");
