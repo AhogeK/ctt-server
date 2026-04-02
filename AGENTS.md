@@ -467,6 +467,7 @@ MAJOR.MINOR.PATCH[-SUFFIX]
 5. **项目一致性优先于任务需求**（R8.5）
 6. **编辑前必须验证**（R9）
 7. **提交前必须审查**（R16）
+8. 如果需要截图请保存在`/Users/ahogek/Pictures/screenshots`目录下
 
 ## 记忆库结构
 

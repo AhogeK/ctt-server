@@ -1,3 +1,13 @@
+        - `1b98081` docs(memory-bank): record refresh token implementation and AGENTS.md rules
+        - `42d3119` chore: bump version to 0.3.3 for refresh token rotation feature
+        - `938f5d3` feat(auth): implement refresh token rotation with reuse detection
+    - 提交历史 (master - 2 commits, 排除 AI):
+        - `c16ebf2` chore: bump version to 0.3.3 for refresh token rotation feature
+        - `37b08ee` feat(auth): implement refresh token rotation with reuse detection
+    - 版本号：0.3.2-SNAPSHOT → 0.3.3-SNAPSHOT (新功能 MINOR)
+    - 状态：✅ develop + master 均已推送到远程
+    - 工作区：干净
+
     - 版本：0.3.1-SNAPSHOT → 0.3.2-SNAPSHOT
     - 状态：✅ develop + master 均已推送到远程
 
