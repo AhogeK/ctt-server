@@ -1,4 +1,4 @@
-- [2026-04-03] - 全面修复代码规范违规（22 个违规） ✅ 完成
+- [2026-04-03] - 全面修复代码规范违规（22 个违规） ✅ 完成并提交
     - 问题严重性：违反 R9（代码/注释/日志强制英文）+ Clean Code（冗余注释）
     - 审计报告：22 个违规（13 高危 + 9 中危）
         - Emoji 违规：1 个（LogoutService.java:53 🚨）
@@ -23,8 +23,11 @@
         - ✅ Spotless 格式化：`./gradlew spotlessApply`
         - ✅ 无代码逻辑修改（仅注释变更）
         - ✅ Sonar S1602 已修复
-    - 最终状态：✅ 全部合规（A+ 评分）
-    - 待处理：⏳ 等待用户授权提交
+    - 提交历史（3 个原子化提交，符合 R6.5）：
+        1. `f278107` fix(style): resolve 22 code style violations
+        2. `7b69364` chore: bump version to 0.4.2-SNAPSHOT
+        3. `ddc4d70` docs(memory-bank): record code style violation fix completion
+    - 最终状态：✅ 全部合规（A+ 评分）+ ✅ 已推送到远程 develop
 
 - [2026-04-03] - 修复 master 分支违规提交（782f1e0 style 提交） ✅ 完成
     - 违规事实：master 上创建了单独的 style 提交 `782f1e0`，违反 R17（master 保持干净）和 R6.5（功能优先，版本其次）
