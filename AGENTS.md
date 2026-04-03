@@ -118,6 +118,7 @@
 ```
 
 **禁止事项**：
+
 - ❌ 版本号更新早于功能代码提交
 - ❌ AI 记忆记录与功能代码混合提交
 - ❌ 多个功能合并到一个提交
@@ -135,6 +136,7 @@
 #### 提交信息规范
 
 **功能提交**：
+
 ```
 feat(scope): 功能描述
 
@@ -146,6 +148,7 @@ Refs: #issue-number (如有)
 ```
 
 **Bug 修复提交**：
+
 ```
 fix(scope): 修复问题描述
 
@@ -157,6 +160,7 @@ Fixes: #issue-number (如有)
 ```
 
 **版本号提交**：
+
 ```
 chore: bump version to X.Y.Z
 
@@ -166,6 +170,7 @@ Change type: [Bug fix | New feature | Breaking change]
 ```
 
 **AI 记忆记录提交**：
+
 ```
 docs(memory-bank): record [feature/bugfix] implementation
 
@@ -177,6 +182,7 @@ docs(memory-bank): record [feature/bugfix] implementation
 #### 最终工作区清理
 
 **用户说"提交"后的完整流程**：
+
 ```
 1. 功能代码 commit
     ↓
@@ -190,6 +196,7 @@ docs(memory-bank): record [feature/bugfix] implementation
 ```
 
 **最终状态要求**：
+
 - ✅ 工作区干净（`git status` 无输出）
 - ✅ 所有变更已提交
 - ✅ 版本号已更新
@@ -233,6 +240,7 @@ docs(memory-bank): record [feature/bugfix] implementation
 | **注释风格**         | 添加解释"代码做了什么"的注释            | 遵循 Clean Code（R9），删除冗余注释                                      |
 
 **执行前强制检查**：
+
 ```
 □ 任务需求是否与项目现有模式冲突？
 □ 是否有更好的项目内解决方案？
@@ -241,12 +249,14 @@ docs(memory-bank): record [feature/bugfix] implementation
 ```
 
 **项目名称一致性检查**：
+
 - ErrorCode → 搜索现有错误码，不要新建同义码
 - DTO 命名 → 遵循项目现有模式（`*Request`, `*Response`）
 - Service 命名 → 遵循项目现有模式（`*Service`）
 - 测试命名 → 遵循项目现有模式（`*Test`, `shouldX_whenY`）
 
 **发现冲突时的处理**：
+
 1. 暂停实现
 2. 搜索项目现有模式（grep/ast-grep）
 3. 向用户确认是否遵循项目模式
@@ -334,20 +344,20 @@ docs(memory-bank): record [feature/bugfix] implementation
 
 #### 行数限制
 
-| 文件                  | 最大行数  | 超限处理           |
-|---------------------|-------|----------------|
-| `activeContext.md`  | 150 行 | 保留最近 30 天记录    |
-| `progress.md`       | 100 行 | 已完成项归档，保留关键里程碑 |
-| `systemPatterns.md` | 80 行  | 合并相似模式         |
-| `techContext.md`    | 80 行  | 删除过时配置         |
-| `projectbrief.md`   | 50 行  | 保持精简           |
+| 文件                  | 超限处理           |
+|---------------------|----------------|
+| `activeContext.md`  | 保留最近 30 天记录    |
+| `progress.md`       | 已完成项归档，保留关键里程碑 |
+| `systemPatterns.md` | 合并相似模式         |
+| `techContext.md`    | 删除过时配置         |
+| `projectbrief.md`   | 保持精简           |
 
 #### 修剪规则
 
-1. **activeContext.md**：删除 30 天前的记录，保留架构决策
-2. **progress.md**：已完成项移至"已完成"区块，超过 20 条时移除最旧
+1. **activeContext.md**：保留架构决策,重要记录，删除旧记录至少>90天前
+2. **progress.md**：已完成项移至"已完成"区块
 3. **systemPatterns.md**：合并重复模式，删除废弃模式
-4. **自动触发**：每次更新后检查行数，超限立即修剪
+4. **自动触发**
 
 ### R14: AGENTS.md 自更新（强制）
 
@@ -413,26 +423,26 @@ MAJOR.MINOR.PATCH[-SUFFIX]
 
 #### 分支职责
 
-| 分支     | 用途                  | 允许内容                          | 禁止内容                  |
-|----------|-----------------------|-----------------------------------|---------------------------|
-| `master` | 生产环境（production） | 业务代码、测试、文档、版本号       | AI 文件（memory-bank/, .agents/, .opencode/, AGENTS.md） |
-| `develop`| 开发环境（development）| 业务代码 + AI 文件                 | 无                        |
+| 分支        | 用途                | 允许内容           | 禁止内容                                                 |
+|-----------|-------------------|----------------|------------------------------------------------------|
+| `master`  | 生产环境（production）  | 业务代码、测试、文档、版本号 | AI 文件（memory-bank/, .agents/, .opencode/, AGENTS.md） |
+| `develop` | 开发环境（development） | 业务代码 + AI 文件   | 无                                                    |
 
 #### master 分支同步规则
 
 1. **起点**：从固定日期提交开始（例如 `02b83bd` - 2026-03-24）
 2. **AI 文件清理**：在起点后立即添加删除 AI 文件的提交
-   - `git rm -rf .agents/ .opencode/ AGENTS.md memory-bank/`
-   - 提交信息：`chore: remove all AI-related files from production branch`
+    - `git rm -rf .agents/ .opencode/ AGENTS.md memory-bank/`
+    - 提交信息：`chore: remove all AI-related files from production branch`
 3. **同步 develop**：按顺序 cherry-pick develop 的所有非 AI 提交
-   - 排除：`docs(memory-bank)` 提交
-   - 命令：`git log --oneline 7b01f5e..develop --reverse \| grep -v "docs(memory-bank)"`
+    - 排除：`docs(memory-bank)` 提交
+    - 命令：`git log --oneline 7b01f5e..develop --reverse \| grep -v "docs(memory-bank)"`
 4. **冲突处理**：
-   - memory-bank 文件冲突 → `git rm -f memory-bank/*`
-   - 版本号冲突 → `git checkout --theirs gradle/libs.versions.toml`
+    - memory-bank 文件冲突 → `git rm -f memory-bank/*`
+    - 版本号冲突 → `git checkout --theirs gradle/libs.versions.toml`
 5. **验证**：推送前必须验证
-   - `git ls-files master -- \| grep -E "^(\.agents/|\.opencode/|AGENTS\.md|memory-bank/)"` → 必须无输出
-   - `./gradlew build --quiet` → 必须通过
+    - `git ls-files master -- \| grep -E "^(\.agents/|\.opencode/|AGENTS\.md|memory-bank/)"` → 必须无输出
+    - `./gradlew build --quiet` → 必须通过
 
 #### 禁止操作
 
@@ -452,7 +462,6 @@ MAJOR.MINOR.PATCH[-SUFFIX]
 4. **重新构建**：按上述同步规则重新 cherry-pick
 5. **强制推送**：`git push origin master --force-with-lease`
 6. **记录事故**：在 activeContext.md 记录事故原因和修复方案
-
 
 #### 代码审查清单（提交前必须检查）
 
@@ -516,8 +525,8 @@ MAJOR.MINOR.PATCH[-SUFFIX]
 
 `memory-bank/` 目录：
 
-- `projectbrief.md` - 项目核心目标（≤50行）
-- `techContext.md` - 技术栈与架构（≤80行）
-- `systemPatterns.md` - 设计模式与规范（≤80行）
-- `activeContext.md` - 当前工作焦点（≤150行）
-- `progress.md` - 任务进度（≤100行）
+- `projectbrief.md` - 项目核心目标
+- `techContext.md` - 技术栈与架构
+- `systemPatterns.md` - 设计模式与规范
+- `activeContext.md` - 当前工作焦点
+- `progress.md` - 任务进度
