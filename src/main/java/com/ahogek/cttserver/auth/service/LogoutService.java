@@ -39,7 +39,7 @@ public class LogoutService {
     @Transactional
     public void logout(UUID userId, String rawRefreshToken) {
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
-            return; // Tolerance: no token视为已登出
+            return; // Tolerance: no token is considered as logged out
         }
 
         // 1. Calculate one-way hash
