@@ -25,6 +25,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * Email verification service handling user email verification workflow.
+ *
+ * <p>This service manages verification token generation, validation, and email verification
+ * completion. It ensures only valid, unexpired tokens can verify user email addresses.
+ *
+ * @author Auto-generated
+ * @since 0.1.0
+ */
 @Service
 public class EmailVerificationService {
 

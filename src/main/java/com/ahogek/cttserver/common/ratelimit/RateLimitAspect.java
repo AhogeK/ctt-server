@@ -74,10 +74,8 @@ public class RateLimitAspect {
         // Parse SpEL expression for dynamic key extraction
         String spElValue = spelResolver.resolve(joinPoint, signature, rateLimit.keyExpression());
 
-        // Generate Redis key
         String cacheKey = keyFactory.generateKey(rateLimit.type(), apiPath, spElValue);
 
-        // Check rate limit
         if (!redisRateLimiter.isAllowed(cacheKey, rateLimit.limit(), rateLimit.windowSeconds())) {
 
             // Log security audit event

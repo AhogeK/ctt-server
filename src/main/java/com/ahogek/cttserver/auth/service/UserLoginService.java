@@ -23,6 +23,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.util.UUID;
 
+/**
+ * User login service handling authentication and JWT token generation.
+ *
+ * <p>This service validates user credentials, generates access and refresh tokens, and records
+ * audit events for login attempts (success/failure).
+ *
+ * @author Auto-generated
+ * @since 0.1.0
+ */
 @Service
 public class UserLoginService {
 

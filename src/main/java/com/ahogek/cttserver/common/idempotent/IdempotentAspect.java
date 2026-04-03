@@ -58,7 +58,6 @@ public class IdempotentAspect {
     public Object intercept(ProceedingJoinPoint joinPoint, Idempotent idempotent) throws Throwable {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
 
-        // Build base business identifier
         String prefix =
                 StringUtils.hasText(idempotent.prefix())
                         ? idempotent.prefix()
@@ -79,7 +78,6 @@ public class IdempotentAspect {
                             .orElse("ANONYMOUS");
         }
 
-        // Build final Redis Key: idempotent:prefix:userId:dynamicKey
         String lockKey =
                 String.format(
                         "idempotent:%s:%s:%s",

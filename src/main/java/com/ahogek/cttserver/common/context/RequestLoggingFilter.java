@@ -86,7 +86,6 @@ public final class RequestLoggingFilter extends OncePerRequestFilter {
             long durationMillis = durationNanos / 1_000_000L;
             int status = response.getStatus();
 
-            // Build structured log entry using Fluent API
             var logBuilder =
                     ACCESS_LOG
                             .atInfo()

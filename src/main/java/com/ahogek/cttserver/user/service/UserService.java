@@ -83,19 +83,15 @@ public class UserService {
      */
     @Transactional
     public void registerUser(UserRegisterRequest request) {
-        // 1. Domain rule validation (Fail-Fast)
         userValidator.assertEmailUnique(request.email());
 
-        // 2. Build domain entity
         User newUser = new User();
         newUser.setEmail(request.email());
         newUser.setDisplayName(request.displayName());
         newUser.setPasswordHash(passwordEncoder.encode(request.password()));
 
-        // 3. Persist to database
         User savedUser = userRepository.save(newUser);
 
-        // 4. Generate verification token
         EmailVerificationTokenPair tokenPair =
                 TokenUtils.createVerificationToken(
                         savedUser.getId(),
@@ -103,14 +99,12 @@ public class UserService {
                         VERIFICATION_TOKEN_TTL,
                         tokenRepository);
 
-        // 5. Enqueue verification email
         mailOutboxService.enqueueVerificationEmail(
                 savedUser.getId(),
                 savedUser.getDisplayName(),
                 savedUser.getEmail(),
                 tokenPair.rawToken());
 
-        // 6. Publish audit event
         auditLogService.logSuccess(
                 savedUser.getId(),
                 AuditAction.REGISTER_REQUESTED,

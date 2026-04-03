@@ -23,6 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+/**
+ * Health check and readiness probe endpoints for local and test environments.
+ *
+ * <p>This controller provides endpoints for Kubernetes health checks and local testing. Not active
+ * in production environments (restricted by {@code @Profile} annotation).
+ *
+ * @author Auto-generated
+ * @since 0.1.0
+ */
 @RestController
 @RequestMapping("/probe")
 @Profile({"local", "test"})

@@ -42,21 +42,18 @@ public class LogoutService {
             return; // Tolerance: no token is considered as logged out
         }
 
-        // 1. Calculate one-way hash
         String tokenHash = TokenUtils.hashToken(rawRefreshToken);
 
-        // 2. Query and defensive check
         refreshTokenRepository
                 .findByTokenHash(tokenHash)
                 .ifPresentOrElse(
                         token -> {
-                            // 🚨 Core defense: Ownership Check
+                            // Core defense: Ownership Check
                             // Absolutely cannot allow user A to revoke user B's token
                             if (!token.getUserId().equals(userId)) {
                                 log.warn(
                                         "Security Alert: User {} attempted to revoke a refresh token belonging to another user.",
                                         userId);
-                                // Record unauthorized access alert audit
                                 auditLogService.logCritical(
                                         userId,
                                         AuditAction.SECURITY_ALERT,
@@ -67,12 +64,10 @@ public class LogoutService {
                                 return; // Intercept and silently return
                             }
 
-                            // 3. Status check and revoke
                             if (token.determineStatus() == TokenStatus.VALID) {
                                 token.revoke();
                                 refreshTokenRepository.save(token);
 
-                                // 4. Record successful logout audit
                                 auditLogService.logSuccess(
                                         userId,
                                         AuditAction.LOGOUT_SUCCESS,
@@ -82,13 +77,12 @@ public class LogoutService {
                                         "User {} successfully logged out device session.", userId);
                             }
                         },
-                        () -> {
-                            // Token does not exist, may have been revoked or forged.
-                            // Logout operation should be idempotent, so return directly without
-                            // exception.
-                            log.debug(
-                                    "Logout requested for non-existent token hash by user {}.",
-                                    userId);
-                        });
+                        () ->
+                                // Token does not exist, may have been revoked or forged.
+                                // Logout operation should be idempotent, so return directly without
+                                // exception.
+                                log.debug(
+                                        "Logout requested for non-existent token hash by user {}.",
+                                        userId));
     }
 }
