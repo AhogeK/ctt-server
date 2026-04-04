@@ -251,6 +251,7 @@ railway variables set RESEND_API_KEY=re_xxx
 | `/api/v1/auth/verify-email`        | GET    | Verify email with token param (public, 24h token TTL)             |
 | `/api/v1/auth/resend-verification` | POST   | Resend verification email (rate limited: 3/1min per email)        |
 | `/api/v1/auth/logout`              | POST   | Logout user and revoke refresh token (idempotent, BOLA-protected) |
+| `/api/v1/auth/logout-all`          | POST   | **Kill Switch**: Revoke all active sessions (requires JWT, 5/min per user) |
 
 ### Email Verification Flow
 
