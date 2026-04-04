@@ -47,11 +47,20 @@ public class RefreshToken extends AbstractToken {
     }
 
     /**
-     * Determines current token status through dynamic derivation.
+     * Determines current token status based on current time.
      *
-     * <p>Checks revocation before expiration to prioritize security events.
+     * <p><strong>Important:</strong> This method computes status dynamically at call time using
+     * {@code Instant.now()}. The status is not stored in the database and may change between
+     * consecutive calls if the token approaches its expiration boundary.
      *
-     * @return current token status
+     * <p><strong>Concurrency Note:</strong> In concurrent scenarios, multiple calls to this method
+     * within a short time window may return different results when the token is near expiration.
+     * Callers performing time-sensitive operations should be aware of potential race conditions and
+     * may need additional time-based validation at the call site to capture boundary cases.
+     *
+     * <p>Priority order: null check → revocation → expiration → valid.
+     *
+     * @return TokenStatus based on current time comparison with expiresAt and revocation state
      */
     @Override
     public TokenStatus determineStatus() {
