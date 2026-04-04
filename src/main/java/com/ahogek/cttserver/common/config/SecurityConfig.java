@@ -1,12 +1,12 @@
 package com.ahogek.cttserver.common.config;
 
 import com.ahogek.cttserver.auth.infrastructure.security.JwtAuthenticationEntryPoint;
+import com.ahogek.cttserver.auth.infrastructure.security.JwtToCurrentUserConverter;
 import com.ahogek.cttserver.auth.infrastructure.security.PublicApiEndpointRegistry;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -38,14 +38,17 @@ public class SecurityConfig {
     private final PublicApiEndpointRegistry publicApiRegistry;
     private final SecurityProperties securityProperties;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final JwtToCurrentUserConverter jwtToCurrentUserConverter;
 
     public SecurityConfig(
             PublicApiEndpointRegistry publicApiRegistry,
             SecurityProperties securityProperties,
-            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint) {
+            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
+            JwtToCurrentUserConverter jwtToCurrentUserConverter) {
         this.publicApiRegistry = publicApiRegistry;
         this.securityProperties = securityProperties;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
+        this.jwtToCurrentUserConverter = jwtToCurrentUserConverter;
     }
 
     /**
@@ -97,7 +100,10 @@ public class SecurityConfig {
                                                 csp -> csp.policyDirectives("default-src 'self'")))
                 .oauth2ResourceServer(
                         oauth2 ->
-                                oauth2.jwt(Customizer.withDefaults())
+                                oauth2.jwt(
+                                                jwt ->
+                                                        jwt.jwtAuthenticationConverter(
+                                                                jwtToCurrentUserConverter))
                                         .authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .exceptionHandling(
                         exceptions ->

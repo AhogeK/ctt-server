@@ -19,6 +19,7 @@ import java.util.UUID;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** Logout controller for session termination. */
@@ -48,6 +49,7 @@ public class LogoutController {
                 @ApiResponse(responseCode = "400", description = "Invalid request - AUTH_003"),
                 @ApiResponse(responseCode = "401", description = "Unauthorized - AUTH_001")
             })
+    @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/logout")
     public ResponseEntity<RestApiResponse<Void>> logout(
             @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody LogoutRequest request) {
