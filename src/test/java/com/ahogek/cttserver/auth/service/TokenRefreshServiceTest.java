@@ -108,14 +108,13 @@ class TokenRefreshServiceTest {
 
             verify(auditLogService)
                     .log(
-                            eq(USER_ID),
-                            eq(AuditAction.REFRESH_TOKEN_ROTATED),
-                            eq(ResourceType.REFRESH_TOKEN),
-                            eq(TOKEN_ID.toString()),
-                            eq(SecuritySeverity.INFO),
-                            eq(
-                                    AuditDetails.extension(
-                                            Map.of("ip", TEST_IP, "userAgent", TEST_USER_AGENT))));
+                            USER_ID,
+                            AuditAction.REFRESH_TOKEN_ROTATED,
+                            ResourceType.REFRESH_TOKEN,
+                            TOKEN_ID.toString(),
+                            SecuritySeverity.INFO,
+                            AuditDetails.extension(
+                                    Map.of("ip", TEST_IP, "userAgent", TEST_USER_AGENT)));
         }
     }
 

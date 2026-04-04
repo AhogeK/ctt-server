@@ -53,9 +53,9 @@ class JwtTokenProviderIntegrationTest {
         Jwt decoded = jwtDecoder.decode(token);
 
         // Then: Verify algorithm is HS256
-        assertThat(decoded.getHeaders().get("alg"))
+        assertThat(decoded.getHeaders())
                 .as("JWT header algorithm must be HS256")
-                .isEqualTo("HS256");
+                .containsEntry("alg", "HS256");
 
         // And: Verify claims are preserved
         assertThat(decoded.getSubject())

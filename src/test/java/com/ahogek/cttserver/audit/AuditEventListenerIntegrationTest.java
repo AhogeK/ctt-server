@@ -7,7 +7,6 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.repository.AuditLogRepository;
-import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
@@ -194,9 +193,6 @@ class AuditEventListenerIntegrationTest {
     void shouldPersistTraceId_inAuditLog() {
         // Arrange - W3C format traceId (32 hex characters)
         String traceId = "0123456789abcdef0123456789abcdef";
-        RequestInfo requestInfo =
-                new RequestInfo(
-                        traceId, "192.168.1.1", "IntegrationTestAgent", "/api/test", "POST", null);
 
         SecurityAuditEvent event =
                 new SecurityAuditEvent(

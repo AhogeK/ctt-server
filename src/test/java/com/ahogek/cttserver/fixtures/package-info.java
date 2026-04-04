@@ -8,7 +8,7 @@
  *       UserFixtures.regularUser()})
  *   <li><b>Builder</b>: Chain methods for custom test data (e.g., {@code
  *       UserFixtures.builder().email("custom@test.com").build()})
- *   <li><b>Persisted</b>: Use {@link PersistedFixtures} for database operations in Repository and
+ *   <li><b>Persisted</b>: Use {@link com.ahogek.cttserver.fixtures.PersistedFixtures} for database operations in Repository and
  *       Integration tests
  * </ul>
  *

@@ -26,7 +26,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -75,10 +74,10 @@ class LogoutServiceTest {
             verify(refreshTokenRepository).save(refreshToken);
             verify(auditLogService)
                     .logSuccess(
-                            eq(USER_ID),
-                            eq(AuditAction.LOGOUT_SUCCESS),
-                            eq(ResourceType.REFRESH_TOKEN),
-                            eq(TOKEN_ID.toString()));
+                            USER_ID,
+                            AuditAction.LOGOUT_SUCCESS,
+                            ResourceType.REFRESH_TOKEN,
+                            TOKEN_ID.toString());
         }
     }
 
@@ -135,13 +134,12 @@ class LogoutServiceTest {
 
             verify(auditLogService)
                     .logCritical(
-                            eq(USER_ID),
-                            eq(AuditAction.SECURITY_ALERT),
-                            eq(ResourceType.REFRESH_TOKEN),
-                            eq(TOKEN_ID.toString()),
-                            eq(
-                                    AuditDetails.reason(
-                                            "BOLA attack: attempted to revoke another user's token")));
+                            USER_ID,
+                            AuditAction.SECURITY_ALERT,
+                            ResourceType.REFRESH_TOKEN,
+                            TOKEN_ID.toString(),
+                            AuditDetails.reason(
+                                    "BOLA attack: attempted to revoke another user's token"));
         }
 
         @Test
@@ -218,10 +216,10 @@ class LogoutServiceTest {
 
             verify(auditLogService)
                     .logSuccess(
-                            eq(USER_ID),
-                            eq(AuditAction.LOGOUT_SUCCESS),
-                            eq(ResourceType.REFRESH_TOKEN),
-                            eq(TOKEN_ID.toString()));
+                            USER_ID,
+                            AuditAction.LOGOUT_SUCCESS,
+                            ResourceType.REFRESH_TOKEN,
+                            TOKEN_ID.toString());
         }
 
         @Test
@@ -236,13 +234,12 @@ class LogoutServiceTest {
 
             verify(auditLogService)
                     .logCritical(
-                            eq(USER_ID),
-                            eq(AuditAction.SECURITY_ALERT),
-                            eq(ResourceType.REFRESH_TOKEN),
-                            eq(TOKEN_ID.toString()),
-                            eq(
-                                    AuditDetails.reason(
-                                            "BOLA attack: attempted to revoke another user's token")));
+                            USER_ID,
+                            AuditAction.SECURITY_ALERT,
+                            ResourceType.REFRESH_TOKEN,
+                            TOKEN_ID.toString(),
+                            AuditDetails.reason(
+                                    "BOLA attack: attempted to revoke another user's token"));
         }
     }
 
