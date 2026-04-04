@@ -1,3 +1,44 @@
+- [2026-04-04] - ExponentialBackoffRetryStrategy 重复代码重构 ✅ 完成
+    - SonarQube 警告：2 个弱警告（重复代码：52-58 行和 92-98 行）
+    - 修复方案：提取 calculateCappedDelay 私有方法
+    - 文件：ExponentialBackoffRetryStrategy.java
+    - 变更：
+        - 提取 calculateCappedDelay(int) 私有方法（计算带上限的指数延迟）
+        - calculateDelaySeconds() 调用新方法 + 添加 jitter
+        - getDelayRange() 调用新方法 + 计算范围
+    - 影响：
+        - 消除重复代码警告
+        - 提高代码可维护性（配置读取逻辑集中在一处）
+        - 代码行数：105 → 104 行
+    - 验证结果：
+        - ✅ 编译通过：`./gradlew compileJava`
+        - ✅ 测试通过：`./gradlew test --tests "*ExponentialBackoffRetryStrategy*"`
+        - ✅ 格式化通过：`./gradlew spotlessApply`
+    - 状态：✅ 重构完成，等待提交授权
+
+- [2026-04-04] - SonarQube 代码质量警告修复 ✅ 完成
+    - 修复范围：17 个警告（8 个文件）
+    - 高优先级（功能风险）：
+        - RequestContextInitializerFilter.java:65 - 使用 Optional 避免 deviceId() NPE 风险 ✅
+        - TokenRefreshService.java:98 - 添加注释说明空代码块意图（等待用户输入） ✅
+    - 中优先级（代码质量）：
+        - AuditEventListenerIntegrationTest.java:197 - 删除未使用的 requestInfo 变量 ✅
+        - LogoutServiceLogoutAllTest.java:53 - 删除未使用的 now 变量 ✅
+        - LogoutServiceLogoutAllTest.java:70,95,116,140 - 删除冗余 eq() 调用（保留必要的） ✅
+        - LogoutServiceTest.java:78,138,221,239 - 删除冗余 eq() 调用 ✅
+        - TokenRefreshServiceTest.java:111 - 删除冗余 eq() 调用 ✅
+    - 低优先级（重构）：
+        - JwtTokenProviderIntegrationTest.java:58 - 使用 containsEntry() 断言 ✅
+        - AuthControllerValidationTest.java:43 - 合并 5 个测试为参数化测试 ✅
+    - 注意事项：
+        - LogoutServiceLogoutAllTest 保留部分 eq() 调用（Mockito matcher 混用规则要求）
+    - 验证结果：
+        - ✅ Spotless 格式化通过
+        - ✅ 所有测试通过（580 tests）
+        - ✅ 构建成功
+    - 修改文件：8 个（2 个业务代码 + 6 个测试代码）
+    - 状态：✅ 完成（已合并到重复代码重构记录）
+
 - [2026-04-04] - Swagger UI 完整用户旅程浏览器测试 ✅ 完成
     - 测试目标：验证 Swagger UI 完整功能 + 安全配置 + 多语言支持
     - 测试方法：browser-use 自动化 + curl API 测试
