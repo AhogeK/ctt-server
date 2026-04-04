@@ -101,7 +101,7 @@ public class AuthController {
                         description = "Email already exists - USER_001: Email already registered")
             })
     @PublicApi(reason = "User registration endpoint - Tier 1 public API")
-    @RateLimit(type = RateLimitType.IP, limit = 60, windowSeconds = 3600)
+    @RateLimit(limit = 60, windowSeconds = 3600)
     @PostMapping("/register")
     public ResponseEntity<RestApiResponse<EmptyResponse>> register(
             @Valid @RequestBody UserRegisterRequest request) {
@@ -150,7 +150,7 @@ public class AuthController {
                                 "Invalid credentials - AUTH_001: Authentication failed due to wrong email/password")
             })
     @PublicApi(reason = "User login endpoint - Tier 1 public API")
-    @RateLimit(type = RateLimitType.IP, limit = 30, windowSeconds = 3600)
+    @RateLimit(limit = 30, windowSeconds = 3600)
     @PostMapping("/login")
     public ResponseEntity<RestApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request) {
@@ -200,7 +200,7 @@ public class AuthController {
                                 "Business validation error - AUTH_003: Token invalid/expired/revoked (checked in service layer)")
             })
     @PublicApi(reason = "Token refresh endpoint - Tier 1 public API")
-    @RateLimit(type = RateLimitType.IP, limit = 120, windowSeconds = 3600)
+    @RateLimit(limit = 120, windowSeconds = 3600)
     @PostMapping("/refresh")
     public ResponseEntity<RestApiResponse<LoginResponse>> refresh(
             @Valid @RequestBody RefreshTokenRequest request, HttpServletRequest httpRequest) {
