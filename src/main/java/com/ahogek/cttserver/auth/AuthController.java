@@ -4,6 +4,8 @@ import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
+import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
@@ -19,6 +21,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
@@ -55,14 +59,17 @@ public class AuthController {
     private final UserService userService;
     private final UserLoginService userLoginService;
     private final TokenRefreshService tokenRefreshService;
+    private final LogoutService logoutService;
 
     public AuthController(
             UserService userService,
             UserLoginService userLoginService,
-            TokenRefreshService tokenRefreshService) {
+            TokenRefreshService tokenRefreshService,
+            LogoutService logoutService) {
         this.userService = userService;
         this.userLoginService = userLoginService;
         this.tokenRefreshService = tokenRefreshService;
+        this.logoutService = logoutService;
     }
 
     /**
@@ -204,5 +211,42 @@ public class AuthController {
         LoginResponse response = tokenRefreshService.refresh(request.refreshToken(), ip, userAgent);
 
         return ResponseEntity.ok(RestApiResponse.ok(response));
+    }
+
+    /**
+     * Global logout (Kill Switch). Revokes all active sessions for current user.
+     *
+     * <p>Protected endpoint: requires valid JWT. Uses USER_ID rate limiting to prevent abuse.
+     *
+     * @param currentUser current authenticated user (auto-injected by Spring Security)
+     * @return success response
+     */
+    @Operation(
+            summary = "Global logout (Kill Switch)",
+            description =
+                    "Revokes all active sessions for the current authenticated user. "
+                            + "Protected endpoint requiring valid JWT authentication. "
+                            + "Uses USER_ID rate limiting (5/minute) to prevent abuse.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "All sessions revoked successfully"),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - AUTH_002: Invalid or expired JWT token"),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "Rate limit exceeded - COMMON_002: Too many logout requests")
+            })
+    @SecurityRequirement(name = "bearerAuth")
+    @RateLimit(type = RateLimitType.USER, keyExpression = "", limit = 5, windowSeconds = 60)
+    @PostMapping("/logout-all")
+    public ResponseEntity<RestApiResponse<EmptyResponse>> logoutAll(
+            @AuthenticationPrincipal CurrentUser currentUser) {
+
+        logoutService.logoutAll(currentUser.id());
+
+        return ResponseEntity.ok(RestApiResponse.ok());
     }
 }
