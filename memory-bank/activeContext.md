@@ -1,3 +1,19 @@
+- [2026-04-04] - 版本号补交：0.5.0-SNAPSHOT → 0.6.0-SNAPSHOT ✅ 完成
+    - 问题根因：最近两轮更新（12 个提交）未更新版本号，违反 R15
+    - 第 1 轮 - SonarQube 修复（6 个提交：42337e6 → 3bcbab9）：
+        - 变更类型：refactor + fix + test
+        - 版本变更：0.5.0-SNAPSHOT → 0.5.1-SNAPSHOT (PATCH +1)
+    - 第 2 轮 - Swagger UI 文档（6 个提交：dec34d1 → 27363c0）：
+        - 变更类型：feat + docs + fix + test
+        - 版本变更：0.5.1-SNAPSHOT → 0.6.0-SNAPSHOT (MINOR +1，因为有 feat)
+    - 最终版本号：0.6.0-SNAPSHOT（合并两轮变更）
+    - 提交：814ed47 chore: bump version to 0.6.0-SNAPSHOT
+    - 验证结果：
+        - ✅ 构建通过：./gradlew build --quiet
+        - ✅ 工作区干净：git status
+        - ✅ 当前分支：develop
+    - 状态：✅ 已提交，等待推送授权
+
 - [2026-04-04] - Swagger UI 文档完善：ProbeController + EmailVerificationController ✅ 完成
     - 问题根因：两个 Controller 缺少 OpenAPI 注解，Swagger UI 显示无描述
     - 修复方案：
