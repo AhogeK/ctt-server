@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /** Logout and session termination service. */
@@ -84,5 +85,34 @@ public class LogoutService {
                                 log.debug(
                                         "Logout requested for non-existent token hash by user {}.",
                                         userId));
+    }
+
+    /**
+     * Global logout (Kill Switch). Revokes all active refresh tokens for the user.
+     *
+     * <p>Used when user reports lost device, password compromise, or detects suspicious activity.
+     * All active sessions across all devices will be terminated immediately.
+     *
+     * <p><strong>Security implications:</strong>
+     *
+     * <ul>
+     *   <li>All refresh tokens for this user become invalid
+     *   <li>All active sessions must re-authenticate
+     *   <li>Access tokens remain valid until expiration (short-lived by design)
+     * </ul>
+     *
+     * @param userId the user ID initiating the global logout
+     */
+    @Transactional
+    public void logoutAll(UUID userId) {
+        int revokedCount = refreshTokenRepository.revokeAllUserTokens(userId, Instant.now());
+
+        log.info(
+                "User {} initiated global logout. Revoked {} active sessions.",
+                userId,
+                revokedCount);
+
+        auditLogService.logSuccess(
+                userId, AuditAction.LOGOUT_ALL_DEVICES, ResourceType.USER, userId.toString());
     }
 }

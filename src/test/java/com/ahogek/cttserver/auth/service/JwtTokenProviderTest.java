@@ -2,6 +2,7 @@ package com.ahogek.cttserver.auth.service;
 
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.user.entity.User;
+import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -183,6 +184,34 @@ class JwtTokenProviderTest {
         assertThat(claims.getExpiresAt()).isNotNull();
         assertThat(claims.getSubject()).isNotNull();
         assertThat((Object) claims.getClaim("email")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("should include status and authorities claims in access token")
+    void shouldIncludeStatusAndAuthoritiesClaims_inAccessToken() {
+        // Given
+        User user = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", UUID.randomUUID());
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                user, "email", "test@example.com");
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                user, "status", UserStatus.ACTIVE);
+
+        Jwt mockJwt = mock(Jwt.class);
+        when(mockJwt.getTokenValue()).thenReturn(TEST_TOKEN_VALUE);
+        when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
+
+        // When
+        provider.generateAccessToken(user);
+
+        // Then
+        ArgumentCaptor<JwtEncoderParameters> captor =
+                ArgumentCaptor.forClass(JwtEncoderParameters.class);
+        verify(jwtEncoder).encode(captor.capture());
+
+        JwtClaimsSet claims = captor.getValue().getClaims();
+        assertThat((String) claims.getClaim("status")).isEqualTo("ACTIVE");
+        assertThat((String) claims.getClaim("authorities")).isEqualTo("ROLE_USER");
     }
 
     private User createTestUser() {

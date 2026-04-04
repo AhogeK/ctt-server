@@ -32,6 +32,8 @@ import java.time.Instant;
 @Service
 public class JwtTokenProvider {
 
+    private static final String DEFAULT_ROLE = "ROLE_USER";
+
     private final JwtEncoder jwtEncoder;
     private final SecurityProperties.JwtProperties jwtProps;
 
@@ -57,6 +59,8 @@ public class JwtTokenProvider {
                         .expiresAt(expiresAt)
                         .subject(user.getId().toString())
                         .claim("email", user.getEmail())
+                        .claim("status", user.getStatus().name())
+                        .claim("authorities", DEFAULT_ROLE)
                         .build();
 
         JwsHeader jwsHeader = JwsHeader.with(MacAlgorithm.HS256).build();
