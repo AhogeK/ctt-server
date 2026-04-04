@@ -39,6 +39,9 @@ public enum AuditAction {
     /** User logged out successfully. */
     LOGOUT_SUCCESS("User logged out successfully"),
 
+    /** User logged out from all devices successfully (Kill Switch). */
+    LOGOUT_ALL_DEVICES("User logged out from all devices successfully"),
+
     /** Security alert triggered (e.g., unauthorized access attempt). */
     SECURITY_ALERT("Security alert triggered"),
 
