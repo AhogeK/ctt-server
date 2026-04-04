@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth.infrastructure.security;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -30,10 +31,7 @@ public class JwtToCurrentUserConverter
         implements Converter<Jwt, UsernamePasswordAuthenticationToken> {
 
     @Override
-    public UsernamePasswordAuthenticationToken convert(Jwt jwt) {
-        if (jwt == null) {
-            throw new IllegalArgumentException("JWT token cannot be null");
-        }
+    public UsernamePasswordAuthenticationToken convert(@NonNull Jwt jwt) {
         if (jwt.getSubject() == null) {
             throw new IllegalArgumentException("JWT subject (user ID) cannot be null");
         }
