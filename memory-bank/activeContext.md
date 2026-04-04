@@ -1,3 +1,9 @@
+- [2026-04-04] - 补充 RefreshToken.determineStatus() Javadoc ✅ 完成
+    - 文件：RefreshToken.java 第 52-64 行
+    - 内容：说明动态计算特性、并发边界、双重校验必要性
+    - 原因：防止维护者误删 TokenRefreshService 中的双重校验逻辑
+    - 验证：编译 ✅ / 格式化 ✅
+
 - [2026-04-04] - 版本号补交：0.5.0-SNAPSHOT → 0.6.0-SNAPSHOT ✅ 完成
     - 问题根因：最近两轮更新（12 个提交）未更新版本号，违反 R15
     - 第 1 轮 - SonarQube 修复（6 个提交：42337e6 → 3bcbab9）：
