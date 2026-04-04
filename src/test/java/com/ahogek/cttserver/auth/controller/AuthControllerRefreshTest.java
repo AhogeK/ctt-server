@@ -2,6 +2,7 @@ package com.ahogek.cttserver.auth.controller;
 
 import com.ahogek.cttserver.auth.AuthController;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
@@ -45,6 +46,8 @@ class AuthControllerRefreshTest {
     @MockitoBean private UserLoginService userLoginService;
 
     @MockitoBean private TokenRefreshService tokenRefreshService;
+
+    @MockitoBean private LogoutService logoutService;
 
     @Test
     @WithMockUser

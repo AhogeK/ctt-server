@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.auth.controller;
 
 import com.ahogek.cttserver.auth.AuthController;
+import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
@@ -37,6 +38,8 @@ class AuthControllerMalformedInputTest {
     @MockitoBean private UserLoginService userLoginService;
 
     @MockitoBean private TokenRefreshService tokenRefreshService;
+
+    @MockitoBean private LogoutService logoutService;
 
     @Nested
     @DisplayName("POST /api/v1/auth/login - Malformed Input Handling")
