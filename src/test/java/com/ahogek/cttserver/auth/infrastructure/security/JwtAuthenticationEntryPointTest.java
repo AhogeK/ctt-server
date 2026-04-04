@@ -9,6 +9,7 @@ import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -130,17 +131,17 @@ class JwtAuthenticationEntryPointTest {
         }
 
         @Override
-        public void write(int b) throws IOException {
+        public void write(int b) {
             outputStream.write(b);
         }
 
         @Override
-        public void write(byte[] b) throws IOException {
+        public void write(byte @NonNull [] b) throws IOException {
             outputStream.write(b);
         }
 
         @Override
-        public void write(byte[] b, int off, int len) throws IOException {
+        public void write(byte @NonNull [] b, int off, int len) {
             outputStream.write(b, off, len);
         }
 

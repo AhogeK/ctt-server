@@ -62,9 +62,7 @@ class AuthControllerIntegrationTest {
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(request))
                     .satisfies(
-                            result -> {
-                                assertThat(result.getResponse().getStatus()).isNotEqualTo(403);
-                            });
+                            result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
         }
     }
 }

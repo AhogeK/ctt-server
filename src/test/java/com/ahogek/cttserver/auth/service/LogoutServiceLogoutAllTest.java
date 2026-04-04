@@ -50,7 +50,6 @@ class LogoutServiceLogoutAllTest {
         void shouldRevokeAllActiveTokens_andLogAudit() {
             // Given
             int revokedCount = 5;
-            Instant now = Instant.now();
 
             when(refreshTokenRepository.revokeAllUserTokens(eq(USER_ID), any(Instant.class)))
                     .thenReturn(revokedCount);
@@ -67,10 +66,10 @@ class LogoutServiceLogoutAllTest {
 
             verify(auditLogService)
                     .logSuccess(
-                            eq(USER_ID),
-                            eq(AuditAction.LOGOUT_ALL_DEVICES),
-                            eq(ResourceType.USER),
-                            eq(USER_ID.toString()));
+                            USER_ID,
+                            AuditAction.LOGOUT_ALL_DEVICES,
+                            ResourceType.USER,
+                            USER_ID.toString());
         }
     }
 
@@ -92,10 +91,10 @@ class LogoutServiceLogoutAllTest {
             verify(refreshTokenRepository).revokeAllUserTokens(eq(USER_ID), any(Instant.class));
             verify(auditLogService)
                     .logSuccess(
-                            eq(USER_ID),
-                            eq(AuditAction.LOGOUT_ALL_DEVICES),
-                            eq(ResourceType.USER),
-                            eq(USER_ID.toString()));
+                            USER_ID,
+                            AuditAction.LOGOUT_ALL_DEVICES,
+                            ResourceType.USER,
+                            USER_ID.toString());
         }
 
         @Test
@@ -113,10 +112,10 @@ class LogoutServiceLogoutAllTest {
             verify(refreshTokenRepository).revokeAllUserTokens(eq(USER_ID), any(Instant.class));
             verify(auditLogService)
                     .logSuccess(
-                            eq(USER_ID),
-                            eq(AuditAction.LOGOUT_ALL_DEVICES),
-                            eq(ResourceType.USER),
-                            eq(USER_ID.toString()));
+                            USER_ID,
+                            AuditAction.LOGOUT_ALL_DEVICES,
+                            ResourceType.USER,
+                            USER_ID.toString());
         }
     }
 
@@ -137,10 +136,10 @@ class LogoutServiceLogoutAllTest {
             // Then
             verify(auditLogService)
                     .logSuccess(
-                            eq(USER_ID),
-                            eq(AuditAction.LOGOUT_ALL_DEVICES),
-                            eq(ResourceType.USER),
-                            eq(USER_ID.toString()));
+                            USER_ID,
+                            AuditAction.LOGOUT_ALL_DEVICES,
+                            ResourceType.USER,
+                            USER_ID.toString());
         }
     }
 }
