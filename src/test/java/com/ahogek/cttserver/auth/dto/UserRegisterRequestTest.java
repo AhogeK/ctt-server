@@ -99,7 +99,7 @@ class UserRegisterRequestTest {
         assertThat(violations)
                 .extracting(ConstraintViolation::getMessage)
                 .contains(
-                        "Display name must be 2-50 characters and contain only letters, numbers, underscores, or hyphens");
+                        "Display name must be 2-50 characters and contain only Chinese, Japanese, Korean, English letters, numbers, underscores, or hyphens");
     }
 
     @Test
@@ -111,7 +111,7 @@ class UserRegisterRequestTest {
         assertThat(violations)
                 .extracting(ConstraintViolation::getMessage)
                 .contains(
-                        "Display name must be 2-50 characters and contain only letters, numbers, underscores, or hyphens");
+                        "Display name must be 2-50 characters and contain only Chinese, Japanese, Korean, English letters, numbers, underscores, or hyphens");
     }
 
     @Test
@@ -119,7 +119,12 @@ class UserRegisterRequestTest {
         assertValidDisplayName("john_doe");
         assertValidDisplayName("John-Doe");
         assertValidDisplayName("User123");
-        assertValidDisplayName("张三");
+        assertValidDisplayName("张三"); // Chinese
+        assertValidDisplayName("田中太郎"); // Japanese (Hiragana + Kanji)
+        assertValidDisplayName("やまだ"); // Japanese (Hiragana only)
+        assertValidDisplayName("タナカ"); // Japanese (Katakana only)
+        assertValidDisplayName("김철수"); // Korean (Hangul)
+        assertValidDisplayName("田中-san"); // Mixed: Japanese + English
     }
 
     private void assertValidDisplayName(String displayName) {
