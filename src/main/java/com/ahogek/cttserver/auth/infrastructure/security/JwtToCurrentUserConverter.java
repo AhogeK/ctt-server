@@ -32,6 +32,10 @@ public class JwtToCurrentUserConverter
 
     @Override
     public UsernamePasswordAuthenticationToken convert(@NonNull Jwt jwt) {
+        if (jwt == null) {
+            throw new IllegalArgumentException("JWT token cannot be null");
+        }
+
         if (jwt.getSubject() == null) {
             throw new IllegalArgumentException("JWT subject (user ID) cannot be null");
         }
