@@ -40,6 +40,15 @@ public class ExponentialBackoffRetryStrategy {
         return Instant.now().plusSeconds(delaySeconds);
     }
 
+    private double calculateCappedDelay(int currentRetryCount) {
+        double baseDelay = retryConfig.baseDelaySeconds();
+        double multiplier = retryConfig.multiplier();
+        double maxDelay = retryConfig.maxDelaySeconds();
+
+        double calculatedDelay = baseDelay * Math.pow(multiplier, currentRetryCount);
+        return Math.min(calculatedDelay, maxDelay);
+    }
+
     /**
      * Calculates the delay in seconds using exponential backoff with jitter.
      *
@@ -49,13 +58,8 @@ public class ExponentialBackoffRetryStrategy {
      * @return delay in seconds with jitter applied
      */
     long calculateDelaySeconds(int currentRetryCount) {
-        double baseDelay = retryConfig.baseDelaySeconds();
-        double multiplier = retryConfig.multiplier();
-        double maxDelay = retryConfig.maxDelaySeconds();
+        double cappedDelay = calculateCappedDelay(currentRetryCount);
         double jitterFactor = retryConfig.jitterFactor();
-
-        double calculatedDelay = baseDelay * Math.pow(multiplier, currentRetryCount);
-        double cappedDelay = Math.min(calculatedDelay, maxDelay);
 
         double jitter =
                 cappedDelay * jitterFactor * (ThreadLocalRandom.current().nextDouble(2) - 1.0);
@@ -89,13 +93,8 @@ public class ExponentialBackoffRetryStrategy {
      * @return array of [minDelay, maxDelay] in seconds
      */
     public long[] getDelayRange(int currentRetryCount) {
-        double baseDelay = retryConfig.baseDelaySeconds();
-        double multiplier = retryConfig.multiplier();
-        double maxDelay = retryConfig.maxDelaySeconds();
+        double cappedDelay = calculateCappedDelay(currentRetryCount);
         double jitterFactor = retryConfig.jitterFactor();
-
-        double calculatedDelay = baseDelay * Math.pow(multiplier, currentRetryCount);
-        double cappedDelay = Math.min(calculatedDelay, maxDelay);
         double jitterAmount = cappedDelay * jitterFactor;
 
         return new long[] {
