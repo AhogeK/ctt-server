@@ -1,3 +1,39 @@
+- [2026-04-04] - Swagger UI 文档完善：ProbeController + EmailVerificationController ✅ 完成
+    - 问题根因：两个 Controller 缺少 OpenAPI 注解，Swagger UI 显示无描述
+    - 修复方案：
+        1. ProbeController - 添加 @Tag, @Operation, @Parameter, @ApiResponses 注解
+        2. EmailVerificationController - 添加 @Tag, @Operation, @Parameter, @ApiResponses 注解
+    - ProbeController 注解详情：
+        - 类级别：@Tag(name = "Probe Controller", description = "Health check and readiness probe endpoints...")
+        - 方法级别：
+            - GET /probe/ok - Health check for Kubernetes liveness probes
+            - POST /probe/validate - Validate request body with Jakarta Validation
+            - GET /probe/biz-error - Trigger NotFoundException (COMMON_002) for testing
+            - GET /probe/sys-error - Trigger InternalServerErrorException for testing
+            - GET /probe/missing-param - Test missing mandatory parameter
+            - GET /probe/illegal-arg - Test IllegalArgumentException handling
+            - GET /probe/constraint-violation - Test pattern constraint violation
+        - 参数级别：所有 @RequestParam 和 @RequestBody 添加 @Parameter 注解
+    - EmailVerificationController 注解详情：
+        - 类级别：@Tag(name = "Email Verification Controller", description = "User email verification endpoints...")
+        - 方法级别：
+            - GET /api/v1/auth/verify-email - Verify email with token (24h TTL, one-time use)
+            - POST /api/v1/auth/resend-verification - Resend verification email (rate limited: 3/min/email)
+        - 参数级别：@RequestParam("token") 和 @RequestBody 添加 @Parameter 注解
+    - 修改文件：
+        - ProbeController.java - 添加 OpenAPI 注解 + 导入
+        - EmailVerificationController.java - 添加 OpenAPI 注解 + 导入
+    - 验证结果：
+        - ✅ 编译通过：`./gradlew compileJava`
+        - ✅ 格式化通过：`./gradlew spotlessApply`
+        - ⚠️ 测试失败：JwtToCurrentUserConverterTest（与本次修改无关，之前就存在）
+    - 测试失败详情：
+        - 测试：JwtToCurrentUserConverterTest.convert_shouldThrowException_whenJwtIsNull
+        - 期望：IllegalArgumentException with message "JWT token cannot be null"
+        - 实际：实现使用 @NonNull 注解，可能抛出不同异常
+        - 状态：需要单独修复（不在本次任务范围）
+    - 状态：✅ OpenAPI 注解添加完成，等待提交授权
+
 - [2026-04-04] - ExponentialBackoffRetryStrategy 重复代码重构 ✅ 完成
     - SonarQube 警告：2 个弱警告（重复代码：52-58 行和 92-98 行）
     - 修复方案：提取 calculateCappedDelay 私有方法
