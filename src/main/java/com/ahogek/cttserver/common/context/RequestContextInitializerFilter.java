@@ -61,9 +61,8 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
         MDC.put(MdcKey.CLIENT_IP, requestInfo.clientIp());
         MDC.put(MdcKey.HTTP_METHOD, requestInfo.method());
         MDC.put(MdcKey.REQUEST_URI, requestInfo.requestUri());
-        if (clientIdentity.deviceId() != null) {
-            MDC.put(MdcKey.DEVICE_ID, clientIdentity.deviceId().toString());
-        }
+        Optional.ofNullable(clientIdentity.deviceId())
+                .ifPresent(id -> MDC.put(MdcKey.DEVICE_ID, id.toString()));
         if (clientIdentity.platform() != null) {
             MDC.put(MdcKey.PLATFORM, clientIdentity.platform());
         }
