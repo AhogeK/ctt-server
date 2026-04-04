@@ -95,7 +95,9 @@ public class TokenRefreshService {
             case LOCKED -> throw new ForbiddenException(ErrorCode.AUTH_004, "Account is locked");
             case SUSPENDED, DELETED ->
                     throw new ForbiddenException(ErrorCode.AUTH_005, "Account is disabled");
-            case ACTIVE -> {}
+            case ACTIVE -> {
+                // No restrictions for active users, proceed with token refresh
+            }
         }
 
         Instant now = Instant.now();
