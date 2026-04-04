@@ -19,6 +19,18 @@ java {
     }
 }
 
+// Process resources to replace version placeholders
+tasks.processResources {
+    val appVersion = libs.versions.appVersion.get()
+    filteringCharset = "UTF-8"
+    inputs.property("appVersion", appVersion)
+    filesMatching("**/application.yaml") {
+        filter { line ->
+            line.replace("@appVersion@", appVersion)
+        }
+    }
+}
+
 repositories {
     mavenCentral()
 }
