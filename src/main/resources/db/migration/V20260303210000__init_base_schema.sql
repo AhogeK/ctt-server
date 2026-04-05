@@ -188,6 +188,7 @@ CREATE TABLE password_reset_tokens
     token_hash  VARCHAR(64)  NOT NULL,
     expires_at  TIMESTAMPTZ  NOT NULL,
     consumed_at TIMESTAMPTZ,
+    revoked_at  TIMESTAMPTZ,
     request_ip  VARCHAR(45),
     user_agent  TEXT,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -198,6 +199,7 @@ COMMENT ON COLUMN password_reset_tokens.email IS 'Target email address for passw
 COMMENT ON COLUMN password_reset_tokens.token_hash IS 'SHA-256 hex digest of the raw reset token';
 COMMENT ON COLUMN password_reset_tokens.expires_at IS 'Token expiration timestamp';
 COMMENT ON COLUMN password_reset_tokens.consumed_at IS 'Timestamp when the token was consumed';
+COMMENT ON COLUMN password_reset_tokens.revoked_at IS 'Timestamp when the token was revoked (null = not revoked)';
 COMMENT ON COLUMN password_reset_tokens.request_ip IS 'IP address from which the request originated (IPv4/IPv6)';
 
 CREATE UNIQUE INDEX uk_password_reset_token_hash
@@ -206,6 +208,8 @@ CREATE INDEX idx_password_reset_lookup
     ON password_reset_tokens (user_id, expires_at, consumed_at);
 CREATE INDEX idx_password_reset_email
     ON password_reset_tokens ((LOWER(email)));
+CREATE INDEX idx_password_reset_revoked
+    ON password_reset_tokens (revoked_at);
 
 -- ------------------------------------------------------------------------------
 -- 6. Refresh tokens table
