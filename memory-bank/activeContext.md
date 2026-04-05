@@ -1,3 +1,13 @@
+- [2026-04-06] - Flyway 迁移脚本：添加 revoked_at 字段到 password_reset_tokens 表 ✅ 完成
+    - 文件：src/main/resources/db/migration/V20260406043828__add_revoked_at_to_password_reset_tokens.sql
+    - 变更：
+        - 添加 `revoked_at TIMESTAMPTZ` 字段（与 EmailVerificationToken 一致）
+        - 添加 COMMENT 说明字段用途
+        - 添加 INDEX `idx_password_reset_revoked` 优化查询性能
+    - 原因：password_reset_tokens 表缺少 revoked_at 字段，无法支持 token 撤销功能
+    - 影响：数据库表结构补全，支持完整的 token 生命周期管理
+    - 验证：文件创建 ✅ / Flyway 命名规则 ✅ / SQL 语法 ✅
+
 - [2026-04-04] - 补充 RefreshToken.determineStatus() Javadoc ✅ 完成
     - 文件：RefreshToken.java 第 52-64 行
     - 内容：说明动态计算特性、并发边界、双重校验必要性
