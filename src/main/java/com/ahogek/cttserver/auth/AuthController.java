@@ -2,10 +2,12 @@ package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.dto.PasswordResetRequest;
 import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
+import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
@@ -60,16 +62,19 @@ public class AuthController {
     private final UserLoginService userLoginService;
     private final TokenRefreshService tokenRefreshService;
     private final LogoutService logoutService;
+    private final PasswordResetService passwordResetService;
 
     public AuthController(
             UserService userService,
             UserLoginService userLoginService,
             TokenRefreshService tokenRefreshService,
-            LogoutService logoutService) {
+            LogoutService logoutService,
+            PasswordResetService passwordResetService) {
         this.userService = userService;
         this.userLoginService = userLoginService;
         this.tokenRefreshService = tokenRefreshService;
         this.logoutService = logoutService;
+        this.passwordResetService = passwordResetService;
     }
 
     /**
@@ -240,7 +245,7 @@ public class AuthController {
                         description = "Rate limit exceeded - COMMON_002: Too many logout requests")
             })
     @SecurityRequirement(name = "bearerAuth")
-    @RateLimit(type = RateLimitType.USER, keyExpression = "", limit = 5, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 5, windowSeconds = 60)
     @PostMapping("/logout-all")
     public ResponseEntity<RestApiResponse<EmptyResponse>> logoutAll(
             @AuthenticationPrincipal CurrentUser currentUser) {
@@ -248,5 +253,63 @@ public class AuthController {
         logoutService.logoutAll(currentUser.id());
 
         return ResponseEntity.ok(RestApiResponse.ok());
+    }
+
+    /**
+     * Password reset request endpoint.
+     *
+     * <p>Anti-enumeration protection: Always returns 200 OK regardless of whether the email exists
+     * or the user is active. This prevents attackers from determining which emails are registered.
+     *
+     * <p>Security mechanisms:
+     *
+     * <ul>
+     *   <li>Rate limiting: 3 requests per 10 minutes per email address
+     *   <li>Input validation: {@code @Valid} triggers JSR-380 validation on DTO
+     *   <li>Audit logging: All requests logged (PASSWORD_RESET_REQUESTED or
+     *       PASSWORD_RESET_EMAIL_NOT_FOUND)
+     *   <li>IP/User-Agent extraction: Automatically handled by RequestContext
+     * </ul>
+     *
+     * @param request the password reset request containing email (validated)
+     * @param httpRequest the HTTP request for IP/User-Agent extraction
+     * @return success response (always 200 OK for anti-enumeration)
+     */
+    @Operation(
+            summary = "Request password reset",
+            description =
+                    "Password reset request endpoint with anti-enumeration protection. "
+                            + "Always returns 200 OK regardless of email existence to prevent email enumeration attacks. "
+                            + "Security mechanisms include rate limiting (3/10min per email), input validation, audit logging, "
+                            + "and automatic IP/User-Agent extraction")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description =
+                                "Password reset request processed - if email exists and user is active, a reset link will be sent"),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "Validation error - COMMON_003: Invalid email format")
+            })
+    @PublicApi(reason = "Password reset request endpoint - Tier 1 public API")
+    @RateLimit(
+            type = RateLimitType.EMAIL,
+            keyExpression = "#request.email",
+            limit = 3,
+            windowSeconds = 600)
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<RestApiResponse<EmptyResponse>> requestPasswordReset(
+            @Valid @RequestBody PasswordResetRequest request, HttpServletRequest httpRequest) {
+
+        String ip = IpUtils.getRealIp(httpRequest);
+        String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
+
+        passwordResetService.requestReset(request.email(), ip, userAgent);
+
+        return ResponseEntity.ok(
+                RestApiResponse.ok(
+                        EmptyResponse.ok(
+                                "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes.")));
     }
 }

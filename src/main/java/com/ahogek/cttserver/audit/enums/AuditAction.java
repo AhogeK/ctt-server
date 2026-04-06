@@ -65,6 +65,9 @@ public enum AuditAction {
     // Credential Management
     // ==========================================
 
+    /** Password reset requested for non-existent or inactive email (anti-enumeration). */
+    PASSWORD_RESET_EMAIL_NOT_FOUND("Password reset requested for non-existent or inactive email"),
+
     /** Password reset token generated and dispatched. */
     PASSWORD_RESET_REQUESTED("Password reset token generated and requested"),
 
