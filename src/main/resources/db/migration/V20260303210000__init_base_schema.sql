@@ -191,6 +191,7 @@ CREATE TABLE password_reset_tokens
     revoked_at  TIMESTAMPTZ,
     request_ip  VARCHAR(45),
     user_agent  TEXT,
+    version     BIGINT       NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -201,6 +202,7 @@ COMMENT ON COLUMN password_reset_tokens.expires_at IS 'Token expiration timestam
 COMMENT ON COLUMN password_reset_tokens.consumed_at IS 'Timestamp when the token was consumed';
 COMMENT ON COLUMN password_reset_tokens.revoked_at IS 'Timestamp when the token was revoked (null = not revoked)';
 COMMENT ON COLUMN password_reset_tokens.request_ip IS 'IP address from which the request originated (IPv4/IPv6)';
+COMMENT ON COLUMN password_reset_tokens.version IS 'Optimistic locking version (JPA @Version)';
 
 CREATE UNIQUE INDEX uk_password_reset_token_hash
     ON password_reset_tokens (token_hash);
