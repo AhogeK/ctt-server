@@ -1,3 +1,33 @@
+- [2026-04-06] - PasswordResetServiceTest 警告修复 ✅ 完成
+    - 修复范围：4 个警告（测试代码质量）
+    - 修复内容：
+        1. 第 199-200 行 - 合并断言为链式调用：`assertThat(rawToken).isNotBlank().matches("[A-Za-z0-9_-]+")`
+        2. 第 207-208 行 - 合并断言为链式调用：`assertThat(tokenHash).hasSize(64).matches("[0-9a-f]{64}")`
+        3. 第 133-137 行 - 移除冗余 `eq()` 调用（2 处）
+    - 文件：PasswordResetServiceTest.java
+    - 验证结果：
+        - ✅ 编译通过：`./gradlew compileJava`
+        - ✅ 测试通过：`./gradlew test --tests "*PasswordResetServiceTest*"`
+        - ✅ Spotless 格式化通过：`./gradlew spotlessApply`
+    - 影响：测试代码符合 Clean Code 规范（链式断言 + 简洁 matcher）
+
+- [2026-04-06] - 密码重置功能实现 ✅ 完成
+    - 功能：POST /api/v1/auth/password-reset/request
+    - 安全特性：
+        - 防枚举攻击（统一响应消息）
+        - 限流保护（3 次/10 分钟 per email）
+        - Token 1 小时过期
+        - 乐观锁防止并发消费
+    - 文件：
+        - PasswordResetService.java - 核心业务逻辑
+        - PasswordResetToken.java - Entity（带 @Version 乐观锁）
+        - PasswordResetTokenRepository.java - Repository
+        - PasswordResetRequest.java - DTO
+        - PasswordResetServiceTest.java - 单元测试（5 个用例）
+        - AuthController.java - 添加端点
+    - 审查结果：PASS（添加乐观锁后）
+    - 测试：5/5 通过，覆盖率验证通过
+
 - [2026-04-06] - Flyway 迁移脚本：添加 revoked_at 字段到 password_reset_tokens 表 ✅ 完成
     - 文件：src/main/resources/db/migration/V20260406043828__add_revoked_at_to_password_reset_tokens.sql
     - 变更：
