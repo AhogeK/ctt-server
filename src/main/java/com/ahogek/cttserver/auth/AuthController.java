@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.auth;
 
+import com.ahogek.cttserver.auth.dto.ForgotPasswordRequest;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.dto.PasswordResetRequest;
@@ -301,6 +302,58 @@ public class AuthController {
     @PostMapping("/password-reset/request")
     public ResponseEntity<RestApiResponse<EmptyResponse>> requestPasswordReset(
             @Valid @RequestBody PasswordResetRequest request, HttpServletRequest httpRequest) {
+
+        String ip = IpUtils.getRealIp(httpRequest);
+        String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
+
+        passwordResetService.requestReset(request.email(), ip, userAgent);
+
+        return ResponseEntity.ok(
+                RestApiResponse.ok(
+                        EmptyResponse.ok(
+                                "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes.")));
+    }
+
+    /**
+     * Forgot password request endpoint.
+     *
+     * <p>Security features:
+     *
+     * <ul>
+     *   <li>Anti-enumeration: Same response for existing/non-existing emails
+     *   <li>IP-based rate limiting: 30 requests per hour per IP
+     * </ul>
+     *
+     * @param request the forgot password request containing email (validated)
+     * @param httpRequest the HTTP request for IP/User-Agent extraction
+     * @return success response (always 200 OK for anti-enumeration)
+     */
+    @Operation(
+            summary = "Forgot password",
+            description =
+                    "Forgot password request endpoint with anti-enumeration protection. "
+                            + "Always returns 200 OK regardless of email existence to prevent email enumeration attacks. "
+                            + "Security mechanisms include IP-based rate limiting (30/hour per IP), input validation, audit logging, "
+                            + "and automatic IP/User-Agent extraction")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description =
+                                "Forgot password request processed - if email exists and user is active, a reset link will be sent"),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "Validation error - COMMON_003: Invalid email format"),
+                @ApiResponse(
+                        responseCode = "429",
+                        description =
+                                "Rate limit exceeded - COMMON_002: Too many requests from this IP (30/hour)")
+            })
+    @PublicApi(reason = "Forgot password request endpoint - Tier 1 public API")
+    @RateLimit(type = RateLimitType.IP, limit = 30, windowSeconds = 3600)
+    @PostMapping("/forgot-password")
+    public ResponseEntity<RestApiResponse<EmptyResponse>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
 
         String ip = IpUtils.getRealIp(httpRequest);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
