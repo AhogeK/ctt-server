@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth.controller;
 import com.ahogek.cttserver.auth.AuthController;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
+import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
@@ -47,6 +48,21 @@ class LogoutAllControllerTest {
 
     @MockitoBean private LogoutService logoutService;
 
+    @MockitoBean private PasswordResetService passwordResetService;
+
+    private Authentication createAuth(
+            UUID userId, String email, UserStatus status, Set<String> authorities) {
+        CurrentUser currentUser =
+                new CurrentUser(
+                        userId,
+                        email,
+                        status,
+                        authorities,
+                        CurrentUser.AuthenticationType.WEB_SESSION);
+        return new UsernamePasswordAuthenticationToken(
+                currentUser, null, authorities.stream().map(SimpleGrantedAuthority::new).toList());
+    }
+
     @Nested
     @DisplayName("POST /api/v1/auth/logout-all - Happy Path")
     class HappyPathTests {
@@ -55,17 +71,8 @@ class LogoutAllControllerTest {
         @DisplayName("Should logout all devices successfully with valid JWT")
         void shouldLogoutAllDevicesSuccessfully_withValidJwt() {
             UUID userId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-            CurrentUser currentUser =
-                    new CurrentUser(
-                            userId,
-                            "test@example.com",
-                            UserStatus.ACTIVE,
-                            Set.of("ROLE_USER"),
-                            CurrentUser.AuthenticationType.WEB_SESSION);
-
             Authentication auth =
-                    new UsernamePasswordAuthenticationToken(
-                            currentUser, null, Set.of(new SimpleGrantedAuthority("ROLE_USER")));
+                    createAuth(userId, "test@example.com", UserStatus.ACTIVE, Set.of("ROLE_USER"));
 
             assertThat(
                             mvc.post()
