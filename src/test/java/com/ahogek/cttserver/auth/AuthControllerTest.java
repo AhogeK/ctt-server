@@ -2,6 +2,7 @@ package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.service.LogoutService;
+import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
@@ -43,6 +44,8 @@ class AuthControllerTest {
     @MockitoBean private TokenRefreshService tokenRefreshService;
 
     @MockitoBean private LogoutService logoutService;
+
+    @MockitoBean private PasswordResetService passwordResetService;
 
     @Nested
     @DisplayName("POST /api/v1/auth/register - User Registration")
