@@ -1,3 +1,23 @@
+- [2026-04-07] - forgot-password 端点实现 ✅ 完成
+    - 功能：POST /api/v1/auth/forgot-password
+    - 安全特性：
+        - 防枚举攻击（统一响应消息）
+        - IP 限流保护（30 次/小时 per IP）
+        - 输入验证（@NotBlank, @Email）
+        - 审计日志（PASSWORD_RESET_REQUESTED, PASSWORD_RESET_EMAIL_NOT_FOUND）
+    - 文件：
+        - ForgotPasswordRequest.java - DTO（@NotBlank, @Email 验证）
+        - AuthController.java - 添加 forgotPassword 端点 + 429 响应码文档
+        - AuthControllerForgotPasswordTest.java - Web MVC 测试（3 个用例）
+        - AuthControllerForgotPasswordIntegrationTest.java - 集成测试（5 个用例）
+    - 提交历史（3 个原子化提交）：
+        - cc975ea feat(auth): implement forgot-password endpoint with anti-enumeration protection
+        - bcb1bc5 chore: bump version to 0.7.0-SNAPSHOT
+        - [待提交] docs(memory-bank): record forgot-password endpoint implementation
+    - 测试结果：8/8 通过（Web MVC 3 + Integration 5）
+    - 代码审查：PASS（无 Critical/High/Medium/Low 问题）
+    - 版本号：0.6.1-SNAPSHOT → 0.7.0-SNAPSHOT (新功能 MINOR)
+
 - [2026-04-06] - PasswordResetServiceTest 警告修复 ✅ 完成
     - 修复范围：4 个警告（测试代码质量）
     - 修复内容：
