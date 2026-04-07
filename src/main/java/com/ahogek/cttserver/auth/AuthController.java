@@ -12,6 +12,8 @@ import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
@@ -375,6 +377,8 @@ public class AuthController {
      * @param request the reset password request containing token and new password (validated)
      * @param httpRequest the HTTP request for IP/User-Agent extraction
      * @return success response
+     * @throws UnauthorizedException if token is invalid or expired
+     * @throws ConflictException if new password is the same as current password
      */
     @Operation(
             summary = "Confirm password reset",
