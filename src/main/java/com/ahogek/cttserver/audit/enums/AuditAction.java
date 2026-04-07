@@ -74,6 +74,9 @@ public enum AuditAction {
     /** Password successfully reset via valid token. */
     PASSWORD_RESET_SUCCESS("Password successfully reset via token"),
 
+    /** Password reset completed successfully. */
+    PASSWORD_RESET_COMPLETED("Password reset completed successfully"),
+
     /** Password updated via user profile settings. */
     PASSWORD_CHANGED("Password updated via user profile"),
 

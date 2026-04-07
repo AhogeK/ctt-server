@@ -5,6 +5,7 @@ import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.dto.PasswordResetRequest;
 import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
+import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
@@ -364,5 +365,60 @@ public class AuthController {
                 RestApiResponse.ok(
                         EmptyResponse.ok(
                                 "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes.")));
+    }
+
+    /**
+     * Confirm and execute password reset.
+     *
+     * <p>Security: IP-based rate limiting to prevent CPU exhaustion attacks (BCrypt is expensive).
+     *
+     * @param request the reset password request containing token and new password (validated)
+     * @param httpRequest the HTTP request for IP/User-Agent extraction
+     * @return success response
+     */
+    @Operation(
+            summary = "Confirm password reset",
+            description =
+                    "Password reset confirmation endpoint that validates token and updates password. "
+                            + "Security mechanisms include IP-based rate limiting (15/10min per IP), input validation, "
+                            + "token validation, password strength validation, and automatic account unlock.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description =
+                                "Password reset successful - all existing sessions have been terminated"),
+                @ApiResponse(
+                        responseCode = "400",
+                        description =
+                                "Validation error - COMMON_003: Invalid token or weak password"),
+                @ApiResponse(
+                        responseCode = "401",
+                        description =
+                                "Invalid or expired token - AUTH_003: Token validation failed"),
+                @ApiResponse(
+                        responseCode = "409",
+                        description =
+                                "Password conflict - PASSWORD_SAME_AS_OLD: New password cannot be the same as current password"),
+                @ApiResponse(
+                        responseCode = "429",
+                        description =
+                                "Rate limit exceeded - RATE_LIMIT_001: Too many requests from this IP (15/10min)")
+            })
+    @PublicApi(reason = "Password reset confirmation endpoint - Tier 1 public API")
+    @RateLimit(type = RateLimitType.IP, limit = 15, windowSeconds = 600)
+    @PostMapping("/password-reset/confirm")
+    public ResponseEntity<RestApiResponse<EmptyResponse>> confirmPasswordReset(
+            @Valid @RequestBody ResetPasswordRequest request, HttpServletRequest httpRequest) {
+
+        String ip = IpUtils.getRealIp(httpRequest);
+        String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
+
+        passwordResetService.resetPassword(request, ip, userAgent);
+
+        return ResponseEntity.ok(
+                RestApiResponse.ok(
+                        EmptyResponse.ok(
+                                "Password has been reset successfully. All existing sessions have been terminated.")));
     }
 }
