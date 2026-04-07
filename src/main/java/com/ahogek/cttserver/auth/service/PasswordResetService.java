@@ -3,14 +3,23 @@ package com.ahogek.cttserver.auth.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
 import com.ahogek.cttserver.auth.entity.PasswordResetToken;
+import com.ahogek.cttserver.auth.enums.TokenStatus;
 import com.ahogek.cttserver.auth.repository.PasswordResetTokenRepository;
+import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
+import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,22 +40,29 @@ import java.util.Optional;
 @Service
 public class PasswordResetService {
 
+    private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
     private static final Duration TOKEN_TTL = Duration.ofHours(1);
 
     private final UserRepository userRepository;
     private final PasswordResetTokenRepository tokenRepository;
     private final MailOutboxService mailOutboxService;
     private final AuditLogService auditLogService;
+    private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public PasswordResetService(
             UserRepository userRepository,
             PasswordResetTokenRepository tokenRepository,
             MailOutboxService mailOutboxService,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            PasswordEncoder passwordEncoder,
+            RefreshTokenRepository refreshTokenRepository) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.mailOutboxService = mailOutboxService;
         this.auditLogService = auditLogService;
+        this.passwordEncoder = passwordEncoder;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     /**
@@ -110,5 +126,75 @@ public class PasswordResetService {
                 AuditAction.PASSWORD_RESET_REQUESTED,
                 ResourceType.USER,
                 user.getId().toString());
+    }
+
+    /**
+     * Validates token and executes password reset.
+     *
+     * <p>Security features:
+     *
+     * <ul>
+     *   <li>Optimistic locking prevents concurrent token consumption (TOCTOU attack)
+     *   <li>New password cannot match current password
+     *   <li>Revokes all active refresh tokens (force re-login)
+     *   <li>Auto-unlocks account if locked due to brute-force
+     * </ul>
+     *
+     * @param request reset password request
+     * @param ip client IP address
+     * @param userAgent client User-Agent
+     * @throws UnauthorizedException if token is invalid, expired, or already consumed
+     * @throws ConflictException if new password is same as current password
+     */
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request, String ip, String userAgent) {
+        String tokenHash = TokenUtils.hashToken(request.token());
+        PasswordResetToken token =
+                tokenRepository
+                        .findByTokenHash(tokenHash)
+                        .orElseThrow(
+                                () ->
+                                        new UnauthorizedException(
+                                                ErrorCode.AUTH_003,
+                                                "Invalid or expired reset token"));
+
+        TokenStatus status = token.determineStatus();
+        if (status == TokenStatus.EXPIRED) {
+            throw new UnauthorizedException(ErrorCode.AUTH_002, "Reset token has expired");
+        }
+        if (status != TokenStatus.VALID) {
+            throw new UnauthorizedException(ErrorCode.AUTH_003, "Token is no longer valid");
+        }
+
+        User user =
+                userRepository
+                        .findById(token.getUserId())
+                        .orElseThrow(
+                                () ->
+                                        new UnauthorizedException(
+                                                ErrorCode.AUTH_003, "User not found"));
+
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new ConflictException(
+                    ErrorCode.PASSWORD_SAME_AS_OLD,
+                    "New password cannot be the same as the current password");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        if (user.getStatus() == UserStatus.LOCKED) {
+            user.recordSuccessfulLogin();
+        }
+
+        token.setConsumedAt(Instant.now());
+        tokenRepository.save(token);
+
+        refreshTokenRepository.revokeAllUserTokens(user.getId(), Instant.now());
+
+        auditLogService.logSuccess(
+                user.getId(),
+                AuditAction.PASSWORD_RESET_COMPLETED,
+                ResourceType.USER,
+                user.getId().toString());
+        log.info("User {} successfully reset their password via email token.", user.getId());
     }
 }
