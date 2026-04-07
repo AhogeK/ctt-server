@@ -14,6 +14,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -112,7 +115,7 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
                     .hasStatusOk();
 
             List<RefreshToken> tokens = refreshTokenRepository.findAll();
-            assertThat(tokens).allMatch(rt -> rt.getRevokedAt() != null);
+            assertThat(tokens).isNotEmpty().allMatch(rt -> rt.getRevokedAt() != null);
         }
 
         @Test
@@ -151,69 +154,45 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
     @DisplayName("Validation errors")
     class ValidationErrors {
 
-        @Test
-        @DisplayName("Should return 400 when token is blank")
-        void shouldReturn400WhenTokenBlank() {
-            String request =
-                    """
-                    {
-                        "token": "",
-                        "newPassword": "NewSecure@Pass123"
-                    }
-                    """;
+        @ParameterizedTest
+        @MethodSource("validationErrorCases")
+        @DisplayName("Should return 400 for validation errors")
+        void shouldReturn400ForValidationErrors(
+                String token, String newPassword, String expectedCode) {
+            StringBuilder requestBuilder = new StringBuilder("{");
+            boolean needsComma = false;
+
+            if (token != null && !token.isEmpty()) {
+                requestBuilder.append("\"token\": \"").append(token).append("\"");
+                needsComma = true;
+            }
+
+            if (newPassword != null) {
+                if (needsComma) {
+                    requestBuilder.append(",");
+                }
+                requestBuilder.append("\"newPassword\": \"").append(newPassword).append("\"");
+            }
+
+            requestBuilder.append("}");
 
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/password-reset/confirm")
                                     .contentType(MediaType.APPLICATION_JSON)
-                                    .content(request))
+                                    .content(requestBuilder.toString()))
                     .hasStatus(400)
                     .bodyJson()
                     .extractingPath("$.code")
-                    .isEqualTo("COMMON_003");
+                    .isEqualTo(expectedCode);
         }
 
-        @Test
-        @DisplayName("Should return 400 when new password is invalid")
-        void shouldReturn400WhenNewPasswordInvalid() {
-            String request =
-                    """
-                    {
-                        "token": "valid-token",
-                        "newPassword": "weak"
-                    }
-                    """;
-
-            assertThat(
-                            mvc.post()
-                                    .uri("/api/v1/auth/password-reset/confirm")
-                                    .contentType(MediaType.APPLICATION_JSON)
-                                    .content(request))
-                    .hasStatus(400)
-                    .bodyJson()
-                    .extractingPath("$.code")
-                    .isEqualTo("COMMON_003");
-        }
-
-        @Test
-        @DisplayName("Should return 400 when new password is missing")
-        void shouldReturn400WhenNewPasswordMissing() {
-            String request =
-                    """
-                    {
-                        "token": "valid-token"
-                    }
-                    """;
-
-            assertThat(
-                            mvc.post()
-                                    .uri("/api/v1/auth/password-reset/confirm")
-                                    .contentType(MediaType.APPLICATION_JSON)
-                                    .content(request))
-                    .hasStatus(400)
-                    .bodyJson()
-                    .extractingPath("$.code")
-                    .isEqualTo("COMMON_003");
+        private static java.util.stream.Stream<Arguments> validationErrorCases() {
+            return java.util.stream.Stream.of(
+                    Arguments.of("", "NewSecure@Pass123", "COMMON_003"), // blank token
+                    Arguments.of("valid-token", "weak", "COMMON_003"), // invalid password
+                    Arguments.of("valid-token", null, "COMMON_003") // missing password
+                    );
         }
     }
 
