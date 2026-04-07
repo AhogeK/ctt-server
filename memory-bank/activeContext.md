@@ -1,3 +1,22 @@
+- [2026-04-07] - reset-password 端点实现 ✅ 完成
+    - 功能：POST /api/v1/auth/reset-password
+    - 安全特性：
+        - IP 限流保护（15 次/10 分钟 per IP）防止 BCrypt CPU exhaustion
+        - Token 验证（SHA-256 hash lookup, status/expiration check）
+        - BCrypt 密码比对（防止重复使用相同密码）
+        - 密码哈希更新 + 自动解锁锁定账户
+        - 撤销所有 ACTIVE refresh tokens（强制所有设备重新登录）
+        - 审计日志（PASSWORD_RESET_COMPLETED event）
+        - 乐观锁（@Version）防止 TOCTOU 攻击
+    - 文件：
+        - AuthController.java - 添加 resetPassword 端点方法
+    - 提交历史（3 个原子化提交）：
+        - e6234e3 feat(auth): add POST /api/v1/auth/reset-password endpoint
+        - daf8e9d chore: bump version to 0.9.0-SNAPSHOT
+        - [待提交] docs(memory-bank): record reset-password endpoint implementation
+    - 测试结果：20 个测试用例通过（AuthControllerPasswordResetConfirmIntegrationTest）
+    - 版本号：0.8.1-SNAPSHOT → 0.9.0-SNAPSHOT (新功能 MINOR)
+
 - [2026-04-07] - 参数化测试 JSON 构建逻辑修复 ✅ 完成
     - 问题：当 newPassword 为 null 时，JSON 构建产生无效 JSON（尾部逗号）
     - 测试失败：shouldReturn400ForValidationErrors > [3] token = "valid-token", newPassword = null
