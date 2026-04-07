@@ -90,8 +90,8 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
             User user = createActiveUser("test@example.com", "OldPassword123!");
             userRepository.save(user);
 
-            RefreshToken refreshToken1 = createActiveRefreshToken(user.getId());
-            RefreshToken refreshToken2 = createActiveRefreshToken(user.getId());
+            RefreshToken refreshToken1 = createActiveRefreshToken(user.getId(), TokenUtils.generateRawToken());
+            RefreshToken refreshToken2 = createActiveRefreshToken(user.getId(), TokenUtils.generateRawToken());
             refreshTokenRepository.saveAll(List.of(refreshToken1, refreshToken2));
 
             String rawToken = TokenUtils.generateRawToken();
@@ -148,6 +148,60 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
             User updatedUser = userRepository.findById(user.getId()).orElseThrow();
             assertThat(updatedUser.getStatus()).isEqualTo(UserStatus.ACTIVE);
         }
+
+        @Test
+        @DisplayName("should invalidate all refresh tokens after password reset (Kill Switch)")
+        void shouldInvalidateAllRefreshTokensAfterPasswordReset() {
+            User user = createActiveUser("test@example.com", "OldPassword123!");
+            userRepository.save(user);
+
+            String rawRefreshToken = TokenUtils.generateRawToken();
+            RefreshToken refreshToken = createActiveRefreshToken(user.getId(), rawRefreshToken);
+            refreshTokenRepository.save(refreshToken);
+
+            String rawToken = TokenUtils.generateRawToken();
+            PasswordResetToken resetToken =
+                    createValidToken(user.getId(), "test@example.com", rawToken);
+            tokenRepository.save(resetToken);
+
+            String request =
+                    """
+                    {
+                        "token": "%s",
+                        "newPassword": "NewSecure@Pass123"
+                    }
+                    """
+                            .formatted(rawToken);
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/password-reset/confirm")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
+                    .hasStatusOk();
+
+            RefreshToken revokedToken =
+                    refreshTokenRepository.findById(refreshToken.getId()).orElseThrow();
+            assertThat(revokedToken.getRevokedAt()).isNotNull();
+
+            String refreshRequest =
+                    """
+                    {
+                        "refreshToken": "%s"
+                    }
+                    """
+                            .formatted(rawRefreshToken);
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/refresh")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(refreshRequest))
+                    .hasStatus(403)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_009");
+        }
     }
 
     @Nested
@@ -193,6 +247,39 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
                     Arguments.of("valid-token", "weak", "COMMON_003"), // invalid password
                     Arguments.of("valid-token", null, "COMMON_003") // missing password
                     );
+        }
+
+        @Test
+        @DisplayName("should reject extremely long password to prevent CPU exhaustion")
+        void shouldRejectExtremelyLongPassword() {
+            User user = createActiveUser("test@example.com", "OldPassword123!");
+            userRepository.save(user);
+
+            String extremelyLongPassword = "A".repeat(100000) + "1!";
+
+            String rawToken = TokenUtils.generateRawToken();
+            PasswordResetToken token =
+                    createValidToken(user.getId(), "test@example.com", rawToken);
+            tokenRepository.save(token);
+
+            String request =
+                    """
+                    {
+                        "token": "%s",
+                        "newPassword": "%s"
+                    }
+                    """
+                            .formatted(rawToken, extremelyLongPassword);
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/password-reset/confirm")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
+                    .hasStatus(400)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("COMMON_003");
         }
     }
 
@@ -418,10 +505,10 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
         return token;
     }
 
-    private RefreshToken createActiveRefreshToken(java.util.UUID userId) {
+    private RefreshToken createActiveRefreshToken(java.util.UUID userId, String rawToken) {
         RefreshToken token = new RefreshToken();
         token.setUserId(userId);
-        token.setTokenHash(TokenUtils.generateRawToken());
+        token.setTokenHash(TokenUtils.hashToken(rawToken));
         token.setIssuedFor("WEB");
         token.setExpiresAt(Instant.now().plus(Duration.ofDays(30)));
         return token;

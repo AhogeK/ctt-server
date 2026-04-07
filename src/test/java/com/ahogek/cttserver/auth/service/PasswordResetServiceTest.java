@@ -515,6 +515,41 @@ class PasswordResetServiceTest {
                             userId.toString());
         }
 
+        @Test
+        @DisplayName("should prevent TOCTOU attack - only first concurrent request succeeds")
+        void shouldPreventTOCTOUAttack() {
+            UUID userId = UUID.randomUUID();
+            String email = "user@example.com";
+            String rawToken = TokenUtils.generateRawToken();
+            String tokenHash = TokenUtils.hashToken(rawToken);
+            String newPassword = "NewSecure@Pass123";
+            String ip = "192.168.1.1";
+            String userAgent = "Mozilla/5.0";
+
+            User user = createActiveUser(userId, email, "Test User");
+            user.setPasswordHash("oldHash");
+
+            PasswordResetToken token = createValidToken(userId, email, tokenHash);
+
+            when(tokenRepository.findByTokenHash(tokenHash))
+                    .thenReturn(Optional.of(token))
+                    .thenReturn(Optional.of(token));
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(newPassword, "oldHash")).thenReturn(false);
+            when(passwordEncoder.encode(newPassword)).thenReturn("newHash");
+
+            ResetPasswordRequest request1 = new ResetPasswordRequest(rawToken, newPassword);
+            service.resetPassword(request1, ip, userAgent);
+            assertThat(token.getConsumedAt()).isNotNull();
+
+            ResetPasswordRequest request2 = new ResetPasswordRequest(rawToken, newPassword);
+            assertThatThrownBy(() -> service.resetPassword(request2, ip, userAgent))
+                    .isInstanceOf(UnauthorizedException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.AUTH_003);
+        }
+
         private PasswordResetToken createValidToken(UUID userId, String email, String tokenHash) {
             PasswordResetToken token = new PasswordResetToken();
             token.setUserId(userId);
