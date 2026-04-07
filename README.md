@@ -253,6 +253,7 @@ railway variables set RESEND_API_KEY=re_xxx
 | `/api/v1/auth/logout`                 | POST   | Logout user and revoke refresh token (idempotent, BOLA-protected)          |
 | `/api/v1/auth/logout-all`             | POST   | **Kill Switch**: Revoke all active sessions (requires JWT, 5/min per user) |
 | `/api/v1/auth/password-reset/request` | POST   | Request password reset (rate limited: 3/10min per email)                   |
+| `/api/v1/auth/password-reset/confirm` | POST   | Confirm password reset (rate limited: 15/10min per IP)                    |
 
 ### Email Verification Flow
 
