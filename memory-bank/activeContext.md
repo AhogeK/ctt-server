@@ -1,3 +1,14 @@
+- [2026-04-07] - 参数化测试 JSON 构建逻辑修复 ✅ 完成
+    - 问题：当 newPassword 为 null 时，JSON 构建产生无效 JSON（尾部逗号）
+    - 测试失败：shouldReturn400ForValidationErrors > [3] token = "valid-token", newPassword = null
+    - 修复方案：使用 needsComma 标志跟踪是否需要添加逗号
+    - 文件：AuthControllerPasswordResetConfirmIntegrationTest.java 第 162-169 行
+    - 验证结果：
+        - ✅ 编译通过：`./gradlew compileJava`
+        - ✅ 测试通过：`./gradlew test --tests "*AuthControllerPasswordResetConfirmIntegrationTest*"`
+        - ✅ Spotless 格式化通过：`./gradlew spotlessCheck`
+    - 影响：参数化测试所有 11 个测试用例通过
+
 - [2026-04-07] - forgot-password 端点实现 ✅ 完成
     - 功能：POST /api/v1/auth/forgot-password
     - 安全特性：
