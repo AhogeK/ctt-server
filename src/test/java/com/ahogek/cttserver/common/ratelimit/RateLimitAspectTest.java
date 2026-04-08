@@ -67,7 +67,7 @@ class RateLimitAspectTest {
         when(mockRateLimiter.isAllowed(anyString(), anyInt(), anyInt())).thenReturn(true);
         when(mockJoinPoint.proceed()).thenReturn("success");
 
-        Object result = aspect.intercept(mockJoinPoint, rateLimit);
+        Object result = aspect.interceptSingle(mockJoinPoint, rateLimit);
 
         assertThat(result).isEqualTo("success");
         verify(mockJoinPoint).proceed();
@@ -91,7 +91,7 @@ class RateLimitAspectTest {
         when(mockRateLimiter.isAllowed(anyString(), anyInt(), anyInt())).thenReturn(false);
         when(mockUserProvider.getCurrentUser()).thenReturn(Optional.of(user));
 
-        assertThatThrownBy(() -> aspect.intercept(mockJoinPoint, rateLimit))
+        assertThatThrownBy(() -> aspect.interceptSingle(mockJoinPoint, rateLimit))
                 .isInstanceOf(TooManyRequestsException.class)
                 .hasMessageContaining("Too many requests");
 

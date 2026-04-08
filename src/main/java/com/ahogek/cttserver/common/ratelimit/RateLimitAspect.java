@@ -22,12 +22,15 @@ import java.util.UUID;
 /**
  * AOP aspect for enforcing rate limits declared via {@link RateLimit} annotations.
  *
- * <p>Intercepts methods annotated with {@link RateLimit}, extracts the appropriate key based on the
- * dimension type (IP, USER, EMAIL, API), and checks against Redis rate limiter. Throws
- * TooManyRequestsException if limit exceeded and logs security audit event.
+ * <p>Intercepts methods annotated with {@link RateLimit} or {@link RateLimits}, extracts the
+ * appropriate key based on the dimension type (IP, USER, EMAIL, API), and checks against Redis rate
+ * limiter. Throws TooManyRequestsException if limit exceeded and logs security audit event.
  *
  * <p>Supports SpEL expressions for dynamic key extraction (e.g., extracting email from request
  * body).
+ *
+ * <p>Handles both single {@link RateLimit} and multiple {@link RateLimit} annotations via {@link
+ * RateLimits} container.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-17
@@ -56,7 +59,7 @@ public class RateLimitAspect {
     }
 
     /**
-     * Intercepts methods annotated with {@link RateLimit} and enforces rate limiting.
+     * Intercepts methods annotated with a single {@link RateLimit} and enforces rate limiting.
      *
      * @param joinPoint the proceeding join point
      * @param rateLimit the rate limit annotation
@@ -64,21 +67,52 @@ public class RateLimitAspect {
      * @throws Throwable if rate limit exceeded or method execution fails
      */
     @Around("@annotation(rateLimit)")
-    public Object intercept(ProceedingJoinPoint joinPoint, RateLimit rateLimit) throws Throwable {
+    public Object interceptSingle(ProceedingJoinPoint joinPoint, RateLimit rateLimit)
+            throws Throwable {
+        enforceRateLimit(joinPoint, rateLimit);
+        return joinPoint.proceed();
+    }
+
+    /**
+     * Intercepts methods annotated with {@link RateLimits} container and enforces all rate limits.
+     *
+     * <p>Checks each rate limit in order. If any limit is exceeded, throws
+     * TooManyRequestsException.
+     *
+     * @param joinPoint the proceeding join point
+     * @param rateLimits the rate limits container annotation
+     * @return the method result if all limits allowed
+     * @throws Throwable if any rate limit exceeded or method execution fails
+     */
+    @Around("@annotation(rateLimits)")
+    public Object interceptMultiple(ProceedingJoinPoint joinPoint, RateLimits rateLimits)
+            throws Throwable {
+        for (RateLimit rateLimit : rateLimits.value()) {
+            enforceRateLimit(joinPoint, rateLimit);
+        }
+        return joinPoint.proceed();
+    }
+
+    /**
+     * Enforces a single rate limit constraint.
+     *
+     * @param joinPoint the proceeding join point
+     * @param rateLimit the rate limit to enforce
+     * @throws TooManyRequestsException if rate limit exceeded
+     */
+    private void enforceRateLimit(ProceedingJoinPoint joinPoint, RateLimit rateLimit) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         String apiPath =
                 signature.getDeclaringType().getSimpleName()
                         + "."
                         + signature.getMethod().getName();
 
-        // Parse SpEL expression for dynamic key extraction
         String spElValue = spelResolver.resolve(joinPoint, signature, rateLimit.keyExpression());
 
         String cacheKey = keyFactory.generateKey(rateLimit.type(), apiPath, spElValue);
 
         if (!redisRateLimiter.isAllowed(cacheKey, rateLimit.limit(), rateLimit.windowSeconds())) {
 
-            // Log security audit event
             auditLog.logFailure(
                     getCurrentUserId(),
                     AuditAction.RATE_LIMIT_EXCEEDED,
@@ -89,8 +123,6 @@ public class RateLimitAspect {
             throw new TooManyRequestsException(
                     ErrorCode.RATE_LIMIT_001, "Too many requests, please try again later.");
         }
-
-        return joinPoint.proceed();
     }
 
     /**

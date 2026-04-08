@@ -353,6 +353,11 @@ public class AuthController {
                                 "Rate limit exceeded - COMMON_002: Too many requests from this IP (30/hour)")
             })
     @PublicApi(reason = "Forgot password request endpoint - Tier 1 public API")
+    @RateLimit(
+            type = RateLimitType.EMAIL,
+            keyExpression = "#request.email",
+            limit = 3,
+            windowSeconds = 600)
     @RateLimit(type = RateLimitType.IP, limit = 30, windowSeconds = 3600)
     @PostMapping("/forgot-password")
     public ResponseEntity<RestApiResponse<EmptyResponse>> forgotPassword(
