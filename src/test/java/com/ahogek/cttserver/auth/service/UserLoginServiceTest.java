@@ -5,6 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.lockout.LockoutStrategyPort;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
@@ -33,7 +34,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +62,7 @@ class UserLoginServiceTest {
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.PasswordProperties passwordProps;
     @Mock private SecurityProperties.JwtProperties jwtProps;
+    @Mock private LockoutStrategyPort lockoutStrategy;
 
     private UserLoginService loginService;
 
@@ -79,7 +83,23 @@ class UserLoginServiceTest {
                         jwtTokenProvider,
                         refreshTokenRepository,
                         auditLogService,
+                        lockoutStrategy,
                         securityProperties);
+
+        doAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.recordSuccessfulLogin();
+            return null;
+        }).when(lockoutStrategy).recordSuccess(any(User.class));
+
+        doAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            int maxAttempts = invocation.getArgument(1);
+            Duration lockDuration = invocation.getArgument(2);
+            int windowSeconds = invocation.getArgument(3);
+            user.recordFailedLogin(maxAttempts, lockDuration, windowSeconds);
+            return null;
+        }).when(lockoutStrategy).recordFailure(any(User.class), anyInt(), any(Duration.class), anyInt());
     }
 
     @Nested

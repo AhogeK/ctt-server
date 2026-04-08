@@ -38,6 +38,7 @@ CREATE TABLE users
     last_login_at         TIMESTAMPTZ,
     last_login_ip         VARCHAR(45),
     failed_login_attempts INTEGER      NOT NULL DEFAULT 0,
+    last_failure_time     TIMESTAMPTZ,
     locked_until          TIMESTAMPTZ,
     created_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -57,6 +58,7 @@ COMMENT ON COLUMN users.email_verified_at IS 'Timestamp when email verification 
 COMMENT ON COLUMN users.last_login_at IS 'Last successful login timestamp';
 COMMENT ON COLUMN users.last_login_ip IS 'Last successful login IP address (IPv4/IPv6)';
 COMMENT ON COLUMN users.failed_login_attempts IS 'Consecutive failed login attempts';
+COMMENT ON COLUMN users.last_failure_time IS 'Timestamp of the most recent failed login attempt (used for time window calculation)';
 COMMENT ON COLUMN users.locked_until IS 'Temporary account lock expiration time';
 COMMENT ON COLUMN users.created_at IS 'Record creation timestamp';
 COMMENT ON COLUMN users.updated_at IS 'Record last update timestamp';

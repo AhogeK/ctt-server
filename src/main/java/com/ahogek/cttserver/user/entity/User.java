@@ -61,6 +61,9 @@ public class User {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
+    @Column(name = "last_failure_time")
+    private Instant lastFailureTime;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -105,14 +108,16 @@ public class User {
     }
 
     /**
-     * Records a failed login attempt.
+     * Records a failed login attempt with sliding window logic.
      *
      * <p>Automatically locks the account if failed attempts reach the threshold.
+     * The sliding window resets the counter if the last failure occurred outside the window.
      *
      * @param maxAttempts maximum allowed failed attempts before locking
      * @param lockDuration duration to lock the account when threshold is reached
+     * @param windowSeconds sliding window duration in seconds (0 disables window logic)
      */
-    public void recordFailedLogin(int maxAttempts, Duration lockDuration) {
+    public void recordFailedLogin(int maxAttempts, Duration lockDuration, int windowSeconds) {
         if (this.status == UserStatus.DELETED) {
             return;
         }
@@ -121,7 +126,15 @@ public class User {
             this.failedLoginAttempts = 0;
         }
 
+        if (windowSeconds > 0 && this.lastFailureTime != null) {
+            Instant windowStart = Instant.now().minusSeconds(windowSeconds);
+            if (this.lastFailureTime.isBefore(windowStart)) {
+                this.failedLoginAttempts = 0;
+            }
+        }
+
         this.failedLoginAttempts++;
+        this.lastFailureTime = Instant.now();
 
         if (this.failedLoginAttempts >= maxAttempts && this.status == UserStatus.ACTIVE) {
             transitionTo(UserStatus.LOCKED);
@@ -132,11 +145,12 @@ public class User {
     /**
      * Records a successful login.
      *
-     * <p>Resets failed login counter, clears lock, and updates login timestamp.
+     * <p>Resets failed login counter, clears lock and failure time, and updates login timestamp.
      */
     public void recordSuccessfulLogin() {
         this.failedLoginAttempts = 0;
         this.lockedUntil = null;
+        this.lastFailureTime = null;
         this.lastLoginAt = Instant.now();
 
         if (this.status == UserStatus.LOCKED) {
@@ -283,5 +297,9 @@ public class User {
 
     public Instant getLockedUntil() {
         return lockedUntil;
+    }
+
+    public Instant getLastFailureTime() {
+        return lastFailureTime;
     }
 }

@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.user.validator;
 
 import com.ahogek.cttserver.common.BaseRepositoryTest;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
@@ -14,6 +15,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -41,7 +44,19 @@ class UserValidatorTest {
 
     @BeforeEach
     void setUp() {
-        userValidator = new UserValidator(userRepository);
+        SecurityProperties.PasswordProperties passwordProps =
+                new SecurityProperties.PasswordProperties(12, 5, Duration.ofMinutes(30), 900, "DB");
+        SecurityProperties securityProperties = new SecurityProperties(
+                new SecurityProperties.JwtProperties(
+                        "test-secret-key-for-testing-purposes-only",
+                        "test-issuer",
+                        Duration.ofMinutes(15),
+                        Duration.ofDays(14),
+                        Duration.ofDays(30)),
+                passwordProps,
+                new SecurityProperties.RateLimitProperties(true, 200),
+                new SecurityProperties.AuditProperties(true, null));
+        userValidator = new UserValidator(userRepository, securityProperties);
     }
 
     @Nested

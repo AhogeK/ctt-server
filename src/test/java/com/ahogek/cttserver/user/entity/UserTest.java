@@ -6,6 +6,7 @@ import com.ahogek.cttserver.user.enums.UserStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,7 +67,7 @@ class UserTest {
         User user = createUser();
         user.verifyEmail();
 
-        user.recordFailedLogin(5, Duration.ofMinutes(30));
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 900);
 
         assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
         assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
@@ -77,9 +78,9 @@ class UserTest {
         User user = createUser();
         user.verifyEmail();
 
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
 
         assertThat(user.getFailedLoginAttempts()).isEqualTo(3);
         assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
@@ -90,7 +91,7 @@ class UserTest {
         User user = createUser();
         user.markAsDeleted();
 
-        user.recordFailedLogin(5, Duration.ofMinutes(30));
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 900);
 
         assertThat(user.getFailedLoginAttempts()).isZero();
         assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
@@ -100,9 +101,9 @@ class UserTest {
     void recordSuccessfulLoginResetsCounter() {
         User user = createUser();
         user.verifyEmail();
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
         assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
 
         user.recordSuccessfulLogin();
@@ -155,9 +156,9 @@ class UserTest {
     void reactivateFromLocked() {
         User user = createUser();
         user.verifyEmail();
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
 
         user.reactivate();
 
@@ -192,9 +193,9 @@ class UserTest {
     void transitionFromLockedToSuspended() {
         User user = createUser();
         user.verifyEmail();
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
-        user.recordFailedLogin(3, Duration.ofMinutes(30));
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
 
         user.suspend();
 
@@ -207,10 +208,99 @@ class UserTest {
         user.verifyEmail();
 
         for (int i = 0; i < 10; i++) {
-            user.recordFailedLogin(3, Duration.ofMinutes(30));
+            user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
         }
 
         assertThat(user.getFailedLoginAttempts()).isEqualTo(10);
         assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+    }
+
+    @Test
+    void shouldLockAccount_whenReachingMaxAttemptsExactly() {
+        User user = createUser();
+        user.verifyEmail();
+
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(3);
+        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+        assertThat(user.getLockedUntil()).isNotNull();
+    }
+
+    @Test
+    void shouldKeepLocked_whenWithinLockoutPeriod() {
+        User user = createUser();
+        user.verifyEmail();
+
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+
+        Instant lockedUntil = user.getLockedUntil();
+        assertThat(lockedUntil).isNotNull();
+        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(4);
+        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+        assertThat(user.getLockedUntil()).isEqualTo(lockedUntil);
+    }
+
+    @Test
+    void shouldUnlock_whenLockoutPeriodExpired() {
+        User user = createUser();
+        user.verifyEmail();
+
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+        user.recordFailedLogin(3, Duration.ofMinutes(30), 900);
+
+        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+
+        user.recordSuccessfulLogin();
+
+        assertThat(user.getFailedLoginAttempts()).isZero();
+        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(user.getLockedUntil()).isNull();
+        assertThat(user.getLastFailureTime()).isNull();
+    }
+
+    @Test
+    void shouldAccumulateFailedAttempts_whenWithinWindow() {
+        User user = createUser();
+        user.verifyEmail();
+
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 900);
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 900);
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(2);
+
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 900);
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(3);
+
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 900);
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(4);
+
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 900);
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(5);
+        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+    }
+
+    @Test
+    void shouldResetFailedAttempts_whenWindowDisabled() {
+        User user = createUser();
+        user.verifyEmail();
+
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 0);
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
+
+        user.recordFailedLogin(5, Duration.ofMinutes(30), 0);
+        assertThat(user.getFailedLoginAttempts()).isEqualTo(2);
+
+        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
     }
 }

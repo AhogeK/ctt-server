@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.user.validator;
 
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
@@ -30,12 +31,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class UserValidator {
 
-    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
-
     private final UserRepository userRepository;
+    private final SecurityProperties.PasswordProperties passwordProps;
 
-    public UserValidator(UserRepository userRepository) {
+    public UserValidator(
+            UserRepository userRepository,
+            SecurityProperties securityProperties) {
         this.userRepository = userRepository;
+        this.passwordProps = securityProperties.password();
     }
 
     /**
@@ -60,7 +63,7 @@ public class UserValidator {
      */
     public void assertLoginAttemptsNotExceeded(User user) {
         if (user.getFailedLoginAttempts() != null
-                && user.getFailedLoginAttempts() >= MAX_FAILED_LOGIN_ATTEMPTS) {
+                && user.getFailedLoginAttempts() >= passwordProps.maxFailedAttempts()) {
             throw new UnauthorizedException(
                     ErrorCode.AUTH_004, "Account is locked due to too many failed attempts");
         }
