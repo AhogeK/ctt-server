@@ -5,6 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.lockout.LockoutStrategyPort;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
@@ -29,8 +30,8 @@ import java.util.UUID;
  * <p>This service validates user credentials, generates access and refresh tokens, and records
  * audit events for login attempts (success/failure).
  *
- * @author Auto-generated
- * @since 0.1.0
+ * @author AhogeK [ahogek@gmail.com]
+ * @since 2026-04-03
  */
 @Service
 public class UserLoginService {
@@ -43,6 +44,7 @@ public class UserLoginService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
     private final AuditLogService auditLogService;
+    private final LockoutStrategyPort lockoutStrategy;
     private final SecurityProperties.PasswordProperties passwordProps;
     private final SecurityProperties.JwtProperties jwtProps;
 
@@ -53,6 +55,7 @@ public class UserLoginService {
             JwtTokenProvider jwtTokenProvider,
             RefreshTokenRepository refreshTokenRepository,
             AuditLogService auditLogService,
+            LockoutStrategyPort lockoutStrategy,
             SecurityProperties securityProperties) {
         this.userRepository = userRepository;
         this.userValidator = userValidator;
@@ -60,6 +63,7 @@ public class UserLoginService {
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenRepository = refreshTokenRepository;
         this.auditLogService = auditLogService;
+        this.lockoutStrategy = lockoutStrategy;
         this.passwordProps = securityProperties.password();
         this.jwtProps = securityProperties.jwt();
     }
@@ -82,7 +86,8 @@ public class UserLoginService {
             handleFailedLogin(user);
         }
 
-        user.recordSuccessfulLogin();
+        lockoutStrategy.recordSuccess(user);
+        userRepository.save(user); // Save cleared failed attempts after successful login
 
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = createRefreshToken(user.getId(), request.deviceId());
@@ -98,6 +103,11 @@ public class UserLoginService {
     }
 
     private void validateUserStatus(User user) {
+        if (lockoutStrategy.shouldAutoUnlock(user)) {
+            user.recordSuccessfulLogin();
+            userRepository.save(user);
+        }
+
         if (user.getStatus() == UserStatus.ACTIVE) {
             return;
         }
@@ -112,7 +122,11 @@ public class UserLoginService {
     }
 
     private void handleFailedLogin(User user) {
-        user.recordFailedLogin(passwordProps.maxFailedAttempts(), passwordProps.lockDuration());
+        lockoutStrategy.recordFailure(
+                user,
+                passwordProps.maxFailedAttempts(),
+                passwordProps.lockDuration(),
+                passwordProps.failureWindowSeconds());
         userRepository.save(user);
 
         auditLogService.logFailure(

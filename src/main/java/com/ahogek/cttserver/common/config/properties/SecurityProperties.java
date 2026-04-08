@@ -49,7 +49,9 @@ public record SecurityProperties(
     public record PasswordProperties(
             @Min(10) @DefaultValue("12") int bcryptRounds,
             @Min(3) @DefaultValue("5") int maxFailedAttempts,
-            @DefaultValue("30m") Duration lockDuration) {}
+            @DefaultValue("30m") Duration lockDuration,
+            @DefaultValue("900") int failureWindowSeconds,
+            @DefaultValue("DB") String storage) {}
 
     /**
      * Global rate limiting fallback strategy.
