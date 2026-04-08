@@ -159,6 +159,71 @@ class AuthControllerForgotPasswordIntegrationTest {
                 .isEqualTo("COMMON_003");
     }
 
+    @Test
+    @DisplayName("Should rate limit after 3 requests with same email")
+    void shouldRateLimitAfterThreeRequestsWithSameEmail() {
+        String request =
+                """
+                {
+                    "email": "ratelimit@example.com"
+                }
+                """;
+
+        for (int i = 0; i < 3; i++) {
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/forgot-password")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
+                    .hasStatusOk();
+        }
+
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/auth/forgot-password")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(request))
+                .hasStatus(429)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("RATE_LIMIT_001");
+    }
+
+    @Test
+    @DisplayName("Should not rate limit different emails (separate buckets)")
+    void shouldNotRateLimitDifferentEmails() {
+        String requestA =
+                """
+                {
+                    "email": "email-a@example.com"
+                }
+                """;
+        String requestB =
+                """
+                {
+                    "email": "email-b@example.com"
+                }
+                """;
+
+        for (int i = 0; i < 3; i++) {
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/forgot-password")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestA))
+                    .hasStatusOk();
+        }
+
+        for (int i = 0; i < 3; i++) {
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/forgot-password")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestB))
+                    .hasStatusOk();
+        }
+    }
+
     private User createActiveUser(String email) {
         User user = new User();
         user.setEmail(email);

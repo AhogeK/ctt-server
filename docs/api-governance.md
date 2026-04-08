@@ -61,6 +61,69 @@ Endpoints accessed by JetBrains IDE plugins or automated scripts.
         large bucket size but slow refill rate).
 *   **Idempotency**: Mandatory for Push syncs (`server_version` or `change_id` as SpEL key).
 
+## Rate Limiting Dimensions
+
+The `@RateLimit` annotation supports four isolation dimensions via `RateLimitType`:
+
+| Type      | Description                                                                 | Use Case                                    |
+|:----------|:----------------------------------------------------------------------------|:--------------------------------------------|
+| `IP`      | Limits by client IP address. No authentication required.                    | Public endpoints (login, registration)      |
+| `USER`    | Limits by authenticated user ID. Requires valid JWT.                        | Business APIs (sync, profile update)        |
+| `EMAIL`   | Limits by email extracted via SpEL `keyExpression`.                         | Email verification bombing prevention       |
+| `API`     | Global limit for the endpoint regardless of caller.                         | Expensive operations, 3rd party API proxies |
+
+**Note**: `EMAIL` type requires `keyExpression` parameter to extract email from request (e.g., `#request.email`).
+
+## Multi-Dimensional Rate Limiting
+
+The `@RateLimit` annotation is repeatable (`@Repeatable(RateLimits.class)`), allowing multiple rate limits on the same endpoint for defense in depth.
+
+### Why Multi-Dimensional Limiting?
+
+Single-dimension rate limiting has inherent vulnerabilities:
+
+- **IP-only**: NAT/proxy aggregation causes collateral throttling (multiple users share one IP)
+- **User-only**: Attackers can create multiple accounts to bypass limits
+- **Email-only**: Attackers can target multiple emails from one IP
+
+Multi-dimensional limiting applies independent constraints on different axes, forcing attackers to overcome multiple barriers simultaneously.
+
+### Example: Password Reset Endpoint
+
+The `/forgot-password` endpoint uses both IP and EMAIL limits:
+
+```java
+@PostMapping("/forgot-password")
+@RateLimit(
+    type = RateLimitType.EMAIL,
+    keyExpression = "#request.email",
+    limit = 3,
+    windowSeconds = 600)  // 3 requests per 10 minutes per email
+@RateLimit(
+    type = RateLimitType.IP,
+    limit = 30,
+    windowSeconds = 3600)  // 30 requests per hour per IP
+public ResponseEntity<RestApiResponse<EmptyResponse>> forgotPassword(
+    @Valid @RequestBody ForgotPasswordRequest request) {
+    // ...
+}
+```
+
+**Attack scenarios this prevents**:
+
+1. **Single attacker, single email**: EMAIL limit (3/10min) stops repeated requests
+2. **Single attacker, multiple emails**: IP limit (30/hour) caps total requests across all emails
+3. **Distributed attack (multiple IPs)**: Each email still has its own 3/10min limit
+
+### When to Use Multi-Dimensional Limiting
+
+| Endpoint Type              | Recommended Limits                                    | Rationale                                    |
+|:---------------------------|:------------------------------------------------------|:---------------------------------------------|
+| Password reset             | EMAIL + IP                                            | Prevent bombing + distributed attacks        |
+| Email verification resend  | EMAIL + IP                                            | Same as password reset                       |
+| Login                      | IP only                                               | User ID not available before authentication  |
+| API key creation           | USER only                                             | Authenticated context, no email involved     |
+
 ## Implementation Matrix
 
 When adding a new controller method, consult this matrix to apply the correct annotations:
@@ -72,14 +135,18 @@ When adding a new controller method, consult this matrix to apply the correct an
 | Tier 3 (High Priv) | `getActiveUserRequired()`  | `RateLimitType.USER`   | Yes                     |
 | Tier 4 (Device)    | `getCurrentUserRequired()` | `RateLimitType.USER`   | Yes (for data sync)     |
 
+**Note**: For Tier 1 endpoints involving email operations (password reset, verification resend), consider adding EMAIL-based limits alongside IP limits for multi-dimensional protection.
+
 ## Example: Applying Governance
+
+### Single-Dimension Rate Limiting (Tier 4)
 
 ```java
 @RestController
 @RequestMapping("/api/v1/sync")
 public class SyncController {
 
-    // Tier 4: Device API
+    // Tier 4: Device API - USER-based limiting
     @PostMapping("/push")
     @RateLimit(type = RateLimitType.USER, limit = 100, windowSeconds = 60)
     @Idempotent(
@@ -90,6 +157,31 @@ public class SyncController {
         message = "Sync request is being processed")
     public ApiResponse<Void> pushData(@RequestBody SyncPayload request) {
         CurrentUser user = currentUserProvider.getActiveUserRequired();
+        // business logic...
+    }
+}
+```
+
+### Multi-Dimensional Rate Limiting (Tier 1 - Email Operations)
+
+```java
+@RestController
+@RequestMapping("/api/v1/auth")
+public class AuthController {
+
+    // Tier 1: Public API - Multi-dimensional limiting
+    @PostMapping("/forgot-password")
+    @RateLimit(
+        type = RateLimitType.EMAIL,
+        keyExpression = "#request.email",
+        limit = 3,
+        windowSeconds = 600)  // Prevent email bombing
+    @RateLimit(
+        type = RateLimitType.IP,
+        limit = 30,
+        windowSeconds = 3600)  // Prevent distributed attacks
+    public ResponseEntity<RestApiResponse<EmptyResponse>> forgotPassword(
+        @Valid @RequestBody ForgotPasswordRequest request) {
         // business logic...
     }
 }

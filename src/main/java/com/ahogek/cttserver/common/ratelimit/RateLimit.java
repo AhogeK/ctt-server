@@ -2,6 +2,7 @@ package com.ahogek.cttserver.common.ratelimit;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -14,6 +15,8 @@ import java.lang.annotation.Target;
  *
  * <p>Supports four dimensions: IP, USER, EMAIL (with SpEL), and API (global).
  *
+ * <p>Can be repeated to apply multiple rate limits on different dimensions simultaneously.
+ *
  * <p>Example usage:
  *
  * <pre>{@code
@@ -24,6 +27,11 @@ import java.lang.annotation.Target;
  * @PostMapping("/send-verification")
  * @RateLimit(type = RateLimitType.EMAIL, keyExpression = "#request.email", limit = 3, windowSeconds = 60)
  * public void sendVerificationEmail(...) { ... }
+ *
+ * @PostMapping("/forgot-password")
+ * @RateLimit(type = RateLimitType.EMAIL, keyExpression = "#request.email", limit = 3, windowSeconds = 600)
+ * @RateLimit(type = RateLimitType.IP, limit = 30, windowSeconds = 3600)
+ * public ApiResponse<EmptyResponse> forgotPassword(...) { ... }
  * }</pre>
  *
  * @author AhogeK [ahogek@gmail.com]
@@ -32,6 +40,7 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
+@Repeatable(RateLimits.class)
 public @interface RateLimit {
 
     /**
