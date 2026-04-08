@@ -1,3 +1,54 @@
+- [2026-04-08] - 账号锁定策略完整实现 ✅ 完成
+    - 功能：防止暴力破解，失败计数超阈值自动临时锁定，锁定到期自动解锁
+    - 配置项落位：
+        - `ctt.security.password.max-failed-attempts` (默认 5)
+        - `ctt.security.password.failure-window-seconds` (默认 900, 15分钟滑动窗口)
+        - `ctt.security.password.lock-duration` (默认 30m)
+        - `ctt.security.password.storage` (DB/Redis, 默认 DB)
+    - 架构设计：
+        - Strategy Pattern (LockoutStrategyPort 接口 + DB/Redis 双实现)
+        - 条件注入 (@ConditionalOnProperty)
+        - 滑动窗口逻辑 (User.recordFailedLogin 检查 lastFailureTime)
+        - 自动解锁 (DbLockoutStrategy.shouldAutoUnlock 检查 lockedUntil)
+    - 新建文件：
+        - auth/enums/LockoutStorageType.java
+        - auth/lockout/LockoutStrategyPort.java
+        - auth/lockout/DbLockoutStrategy.java
+        - auth/lockout/RedisLockoutStrategy.java
+        - auth/lockout/LockoutConfig.java
+        - db/migration/V20260408100000__add_last_failure_time.sql
+        - DbLockoutStrategyTest.java (16个测试)
+        - SecurityPropertiesTest.java (27个测试)
+    - 修改文件：
+        - User.java - 添加 lastFailureTime 字段，更新 recordFailedLogin/recordSuccessfulLogin
+        - SecurityProperties.java - 添加 failureWindowSeconds 和 storage 字段
+        - UserLoginService.java - 注入 LockoutStrategyPort，添加 auto-unlock
+        - UserValidator.java - 注入 SecurityProperties
+        - UserTest.java - 添加 5 个边界测试
+        - UserValidatorTest.java - 更新构造函数
+        - application.yaml - 显式配置 failure-window-seconds 和 storage
+    - 文档更新：
+        - README.md - 添加 Account Lockout Strategy 章节
+        - developer-handbook.md - 添加配置表格和行为说明
+    - 测试覆盖：
+        - 单元测试：DbLockoutStrategyTest (16个), UserTest (边界5个), SecurityPropertiesTest (27个)
+        - 集成测试：UserLoginServiceTest (mock LockoutStrategyPort)
+        - 全量测试：通过 (0个失败)
+    - 代码质量：符合国际规范
+        - 注释全英文、无emoji、Javadoc格式正确
+        - Clean Code (无冗余注释)
+        - 项目一致性 (ErrorCode复用、命名模式符合)
+    - 验证结果：
+        - ✅ 编译通过
+        - ✅ 全量测试通过 (0个失败)
+        - ✅ 所有 LSP 警告已解决
+    - 提交计划（4个原子化提交）：
+        1. 功能代码提交（代码 + 测试）
+        2. 文档更新提交
+        3. 版本号更新提交 (MINOR +1)
+        4. AI记忆记录提交
+    - 版本号：待更新 (0.9.0-SNAPSHOT → 0.10.0-SNAPSHOT)
+
 - [2026-04-08] - 修复偏差 2：/forgot-password 多维度限流实现 ✅ 完成
     - 修改文件：
         - AuthController.java - 添加@RateLimit(type=EMAIL) 注解
