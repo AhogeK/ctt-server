@@ -56,13 +56,18 @@ public enum ErrorCode {
 
 ### Audit Event Categories
 
-| Category | Description                    | Examples                                 |
-|----------|--------------------------------|------------------------------------------|
-| IAM      | Identity and Access Management | LOGIN_SUCCESS, ACCOUNT_LOCKED            |
-| EMAIL    | Email Verification             | EMAIL_VERIFICATION_SENT                  |
-| CRED     | Credential Management          | PASSWORD_CHANGED, API_KEY_REVOKED        |
-| DEVICE   | Device Management              | DEVICE_LINKED, DEVICE_UNLINKED           |
-| SECURITY | Security and Defense           | RATE_LIMIT_EXCEEDED, UNAUTHORIZED_ACCESS |
+| Category | Description                    | Examples                                                                                    |
+|----------|--------------------------------|---------------------------------------------------------------------------------------------|
+| IAM      | Identity and Access Management | LOGIN_SUCCESS, ACCOUNT_LOCKED                                                               |
+| EMAIL    | Email Verification             | EMAIL_VERIFICATION_SENT                                                                     |
+| CRED     | Credential Management          | PASSWORD_CHANGED, API_KEY_REVOKED, PASSWORD_RESET_REQUESTED, PASSWORD_RESET_EMAIL_NOT_FOUND |
+| DEVICE   | Device Management              | DEVICE_LINKED, DEVICE_UNLINKED                                                              |
+| SECURITY | Security and Defense           | RATE_LIMIT_EXCEEDED, UNAUTHORIZED_ACCESS                                                    |
+
+### Password Reset Audit Events
+
+- `PASSWORD_RESET_REQUESTED` - Password reset token generated and requested
+- `PASSWORD_RESET_EMAIL_NOT_FOUND` - Password reset requested for non-existent or inactive email (anti-enumeration)
 
 ### Standard Steps
 
@@ -370,23 +375,23 @@ var data = new EmailVerificationTemplateData(
 public class AuthService {
     private final MailTemplateRenderer templateRenderer;
     private final JavaMailSender mailSender;
-    
+
     public void sendVerificationEmail(User user, String token) {
         var data = new EmailVerificationTemplateData(
             user.getEmail(),
             buildVerificationLink(token),
             Duration.ofMinutes(15)
         );
-        
+
         String html = templateRenderer.renderHtml(data);
         String text = templateRenderer.renderText(data);
-        
+
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
         helper.setTo(user.getEmail());
         helper.setSubject("Verify Your Email");
         helper.setText(html, text);
-        
+
         mailSender.send(message);
     }
 }
@@ -415,12 +420,12 @@ public record WelcomeEmailTemplateData(String username, String welcomeLink) impl
         Objects.requireNonNull(username);
         Objects.requireNonNull(welcomeLink);
     }
-    
+
     @Override
     public String getTemplateName() {
         return "welcome-email";
     }
-    
+
     @Override
     public Map<String, Object> getVariables() {
         return Map.of("username", username, "welcomeLink", welcomeLink);
@@ -445,12 +450,12 @@ String html = templateRenderer.renderHtml(data);
 @SpringBootTest(classes = {MailTemplateConfig.class, ThymeleafMailTemplateRenderer.class})
 class MailTemplateRendererTest {
     @Autowired private MailTemplateRenderer renderer;
-    
+
     @Test
     void shouldRenderEmail() {
         var data = new EmailVerificationTemplateData("user", "https://example.com", Duration.ofMinutes(15));
         String html = renderer.renderHtml(data);
-        
+
         assertThat(html).contains("user").contains("https://example.com");
     }
 }
@@ -503,13 +508,13 @@ return VALID;
 
 ### Error Handling
 
-| Scenario | Error Code | HTTP Status |
-|----------|------------|-------------|
-| Token not found | `MAIL_006` | 401 |
-| Token expired | `MAIL_005` | 401 |
-| Token already used | `MAIL_006` | 401 |
-| Token revoked | `MAIL_006` | 401 |
-| User already verified | `USER_001` | 400 |
+| Scenario              | Error Code | HTTP Status |
+|-----------------------|------------|-------------|
+| Token not found       | `MAIL_006` | 401         |
+| Token expired         | `MAIL_005` | 401         |
+| Token already used    | `MAIL_006` | 401         |
+| Token revoked         | `MAIL_006` | 401         |
+| User already verified | `USER_001` | 400         |
 
 ### Testing
 
@@ -557,13 +562,13 @@ class EmailVerificationTokenRepositoryTest {
 
 ### Operation Entry Points
 
-| Operation       | Entry Point        | Checklist                                                                  |
-|-----------------|--------------------|----------------------------------------------------------------------------|
-| Add Error Code  | `ErrorCode.java`   | 1. Add to enum 2. Update CONVENTIONS.md                                    |
-| Add Audit Event | `AuditAction.java` | 1. Add to enum 2. Publish in Service 3. Add to Fixtures                    |
-| Add Exception   | Module package     | 1. Verify ErrorCode 2. Extend BusinessException 3. Write tests             |
-| Add Interface   | Controller class   | 1. Use @PublicApi for public 2. No annotation for protected 3. Write tests |
-| Email Verify    | `EmailVerificationService` | 1. Token hash lookup 2. Status validation 3. User activation      |
+| Operation       | Entry Point                | Checklist                                                                  |
+|-----------------|----------------------------|----------------------------------------------------------------------------|
+| Add Error Code  | `ErrorCode.java`           | 1. Add to enum 2. Update CONVENTIONS.md                                    |
+| Add Audit Event | `AuditAction.java`         | 1. Add to enum 2. Publish in Service 3. Add to Fixtures                    |
+| Add Exception   | Module package             | 1. Verify ErrorCode 2. Extend BusinessException 3. Write tests             |
+| Add Interface   | Controller class           | 1. Use @PublicApi for public 2. No annotation for protected 3. Write tests |
+| Email Verify    | `EmailVerificationService` | 1. Token hash lookup 2. Status validation 3. User activation               |
 
 ### File Locations
 
