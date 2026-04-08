@@ -90,8 +90,10 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
             User user = createActiveUser("test@example.com", "OldPassword123!");
             userRepository.save(user);
 
-            RefreshToken refreshToken1 = createActiveRefreshToken(user.getId(), TokenUtils.generateRawToken());
-            RefreshToken refreshToken2 = createActiveRefreshToken(user.getId(), TokenUtils.generateRawToken());
+            RefreshToken refreshToken1 =
+                    createActiveRefreshToken(user.getId(), TokenUtils.generateRawToken());
+            RefreshToken refreshToken2 =
+                    createActiveRefreshToken(user.getId(), TokenUtils.generateRawToken());
             refreshTokenRepository.saveAll(List.of(refreshToken1, refreshToken2));
 
             String rawToken = TokenUtils.generateRawToken();
@@ -258,8 +260,7 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
             String extremelyLongPassword = "A".repeat(100000) + "1!";
 
             String rawToken = TokenUtils.generateRawToken();
-            PasswordResetToken token =
-                    createValidToken(user.getId(), "test@example.com", rawToken);
+            PasswordResetToken token = createValidToken(user.getId(), "test@example.com", rawToken);
             tokenRepository.save(token);
 
             String request =
