@@ -15,6 +15,7 @@ CTT Server provides:
 - **Global Leaderboard**: Redis-powered real-time ranking system
 - **Soft Delete Architecture**: Safe data handling with `is_deleted` flags for sync integrity
 - **OWASP Security Headers**: X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP
+- **Account Lockout Strategy**: Brute-force attack protection with automatic temporary lockout
 
 ## Tech Stack
 
@@ -253,7 +254,7 @@ railway variables set RESEND_API_KEY=re_xxx
 | `/api/v1/auth/logout`                 | POST   | Logout user and revoke refresh token (idempotent, BOLA-protected)          |
 | `/api/v1/auth/logout-all`             | POST   | **Kill Switch**: Revoke all active sessions (requires JWT, 5/min per user) |
 | `/api/v1/auth/password-reset/request` | POST   | Request password reset (rate limited: 3/10min per email)                   |
-| `/api/v1/auth/password-reset/confirm` | POST   | Confirm password reset (rate limited: 15/10min per IP)                    |
+| `/api/v1/auth/password-reset/confirm` | POST   | Confirm password reset (rate limited: 15/10min per IP)                     |
 
 ### Email Verification Flow
 
@@ -266,6 +267,17 @@ GET /verify-email?token=xxx → User status: ACTIVE
 ```
 
 **Security**: Tokens are SHA-256 hashed before storage. Raw tokens never stored in database.
+
+### Account Lockout Strategy
+
+Protects against brute-force attacks with automatic temporary lockout:
+
+- **Max Failed Attempts**: 5 (configurable)
+- **Sliding Window**: 15 minutes (configurable)
+- **Lockout Duration**: 30 minutes (configurable)
+- **Storage**: DB (default) or Redis (for distributed systems)
+
+Locked accounts are automatically unlocked after lockout period expires.
 
 ## API Documentation
 

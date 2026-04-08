@@ -10,6 +10,7 @@ This handbook provides step-by-step instructions for five common development tas
 4. [Adding Protected Interfaces](#adding-protected-interfaces)
 5. [Using Mail Template Renderer](#using-mail-template-renderer)
 6. [Implementing Email Verification](#implementing-email-verification)
+7. [Account Lockout Configuration](#account-lockout-configuration)
 
 ---
 
@@ -533,6 +534,27 @@ class EmailVerificationTokenRepositoryTest {
     }
 }
 ```
+
+---
+
+## Account Lockout Configuration
+
+### Configuration Properties
+
+| Property                                       | Default | Description                                             |
+|------------------------------------------------|---------|---------------------------------------------------------|
+| `ctt.security.password.max-failed-attempts`    | 5       | Maximum failed login attempts before lockout            |
+| `ctt.security.password.lock-duration`          | 30m     | Lockout duration after max attempts reached             |
+| `ctt.security.password.failure-window-seconds` | 900     | Sliding window for failed attempt counting (15 minutes) |
+| `ctt.security.password.storage`                | DB      | Storage strategy (DB or REDIS)                          |
+
+### Behavior
+
+- Failed login attempts are tracked per user
+- Attempts within the sliding window are accumulated
+- Account is locked when max attempts reached
+- Locked accounts are automatically unlocked after lockout period
+- Successful login clears failed attempt counter
 
 ---
 
