@@ -1,3 +1,38 @@
+- [2026-04-08] - 修复偏差 2：/forgot-password 多维度限流实现 ✅ 完成
+    - 修改文件：
+        - AuthController.java - 添加@RateLimit(type=EMAIL) 注解
+        - RateLimit.java - 添加@Repeatable(RateLimits.class)
+        - RateLimitAspect.java - 添加 interceptMultiple 方法
+        - RateLimits.java - 新建容器注解
+        - AuthControllerForgotPasswordIntegrationTest.java - 新增 2 个集成测试
+        - docs/api-governance.md - 新增多维度限流文档
+    - 限流策略：
+        - 邮箱维度：3 次/10 分钟（新增强化）
+        - IP 维度：30 次/小时（原有保护）
+    - 文档更新：
+        - Rate Limiting Dimensions 章节（4 种维度说明）
+        - Multi-Dimensional Rate Limiting 章节（纵深防御）
+        - Attack scenarios（攻击场景示例）
+        - When to Use 指南
+    - 测试覆盖：
+        - shouldRateLimitAfterThreeRequestsWithSameEmail() - 验证邮箱维度限流
+        - shouldNotRateLimitDifferentEmails() - 验证独立限流桶
+    - 验证结果：编译 ✅ / 测试 ✅ / 格式化 ✅ / 覆盖率 ✅
+    - 状态：⏳ 等待提交授权
+
+- [2026-04-08] - 修复偏差 2：/forgot-password 缺少邮箱维度限流 ✅ 完成
+    - 修改文件：
+        - AuthController.java - 添加邮箱维度限流注解
+        - RateLimit.java - 添加 @Repeatable(RateLimits.class)
+        - RateLimitAspect.java - 添加 interceptMultiple 方法
+        - RateLimits.java - 新建容器注解
+        - RateLimitAspectTest.java - 更新测试
+    - 限流策略：
+        - 邮箱维度：3 次/10 分钟（符合验收标准）
+        - IP 维度：30 次/小时（原有保护）
+    - 验证结果：编译 ✅ / 测试 ✅
+    - 状态：⏳ 等待提交授权
+
 - [2026-04-07] - reset-password 端点实现 ✅ 完成
     - 功能：POST /api/v1/auth/reset-password
     - 安全特性：
