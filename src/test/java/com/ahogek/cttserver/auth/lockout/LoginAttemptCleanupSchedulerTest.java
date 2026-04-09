@@ -21,14 +21,11 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class LoginAttemptCleanupSchedulerTest {
 
-    @Mock
-    private LoginAttemptRepository loginAttemptRepository;
+    @Mock private LoginAttemptRepository loginAttemptRepository;
 
-    @Mock
-    private PasswordProperties passwordProps;
+    @Mock private PasswordProperties passwordProps;
 
-    @Mock
-    private SecurityProperties securityProperties;
+    @Mock private SecurityProperties securityProperties;
 
     private LoginAttemptCleanupScheduler scheduler;
 

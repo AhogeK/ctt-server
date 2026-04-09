@@ -26,7 +26,12 @@ public interface LockoutStrategyPort {
      * @param lockDuration duration of the lockout period
      * @param windowSeconds sliding window size in seconds for counting failures
      */
-    void recordFailure(String emailHash, String ipHash, int maxAttempts, Duration lockDuration, int windowSeconds);
+    void recordFailure(
+            String emailHash,
+            String ipHash,
+            int maxAttempts,
+            Duration lockDuration,
+            int windowSeconds);
 
     /**
      * Records a successful authentication — clears failure state.
@@ -44,5 +49,6 @@ public interface LockoutStrategyPort {
      * @param windowSeconds sliding window size in seconds
      * @return true if the account should be auto-unlocked, false otherwise
      */
-    boolean shouldAutoUnlock(String emailHash, UserStatus status, Duration lockDuration, int windowSeconds);
+    boolean shouldAutoUnlock(
+            String emailHash, UserStatus status, Duration lockDuration, int windowSeconds);
 }

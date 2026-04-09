@@ -27,8 +27,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DbLockoutStrategyTest {
 
-    @Mock
-    private LoginAttemptRepository loginAttemptRepository;
+    @Mock private LoginAttemptRepository loginAttemptRepository;
 
     private DbLockoutStrategy strategy;
 
@@ -77,47 +76,75 @@ class DbLockoutStrategyTest {
         @Test
         @DisplayName("should return false when user not locked")
         void shouldReturnFalse_whenNotLocked() {
-            assertThat(strategy.shouldAutoUnlock(
-                    TEST_EMAIL_HASH, UserStatus.ACTIVE, Duration.ofMinutes(30), 900)).isFalse();
+            assertThat(
+                            strategy.shouldAutoUnlock(
+                                    TEST_EMAIL_HASH,
+                                    UserStatus.ACTIVE,
+                                    Duration.ofMinutes(30),
+                                    900))
+                    .isFalse();
         }
 
         @Test
         @DisplayName("should return false when suspended")
         void shouldReturnFalse_whenSuspended() {
-            assertThat(strategy.shouldAutoUnlock(
-                    TEST_EMAIL_HASH, UserStatus.SUSPENDED, Duration.ofMinutes(30), 900)).isFalse();
+            assertThat(
+                            strategy.shouldAutoUnlock(
+                                    TEST_EMAIL_HASH,
+                                    UserStatus.SUSPENDED,
+                                    Duration.ofMinutes(30),
+                                    900))
+                    .isFalse();
         }
 
         @Test
         @DisplayName("should return true when no attempts in window (lockout expired)")
         void shouldReturnTrue_whenNoAttempts() {
-            when(loginAttemptRepository.findEarliestAttemptInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+            when(loginAttemptRepository.findEarliestAttemptInWindow(
+                            eq(TEST_EMAIL_HASH), any(Instant.class)))
                     .thenReturn(Optional.empty());
 
-            assertThat(strategy.shouldAutoUnlock(
-                    TEST_EMAIL_HASH, UserStatus.LOCKED, Duration.ofMinutes(30), 900)).isTrue();
+            assertThat(
+                            strategy.shouldAutoUnlock(
+                                    TEST_EMAIL_HASH,
+                                    UserStatus.LOCKED,
+                                    Duration.ofMinutes(30),
+                                    900))
+                    .isTrue();
         }
 
         @Test
         @DisplayName("should return false when lock not expired")
         void shouldReturnFalse_whenLockNotExpired() {
             Instant firstAttempt = Instant.now().minus(Duration.ofMinutes(10));
-            when(loginAttemptRepository.findEarliestAttemptInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+            when(loginAttemptRepository.findEarliestAttemptInWindow(
+                            eq(TEST_EMAIL_HASH), any(Instant.class)))
                     .thenReturn(Optional.of(firstAttempt));
 
-            assertThat(strategy.shouldAutoUnlock(
-                    TEST_EMAIL_HASH, UserStatus.LOCKED, Duration.ofMinutes(30), 900)).isFalse();
+            assertThat(
+                            strategy.shouldAutoUnlock(
+                                    TEST_EMAIL_HASH,
+                                    UserStatus.LOCKED,
+                                    Duration.ofMinutes(30),
+                                    900))
+                    .isFalse();
         }
 
         @Test
         @DisplayName("should return true when lock expired")
         void shouldReturnTrue_whenLockExpired() {
             Instant firstAttempt = Instant.now().minus(Duration.ofMinutes(31));
-            when(loginAttemptRepository.findEarliestAttemptInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+            when(loginAttemptRepository.findEarliestAttemptInWindow(
+                            eq(TEST_EMAIL_HASH), any(Instant.class)))
                     .thenReturn(Optional.of(firstAttempt));
 
-            assertThat(strategy.shouldAutoUnlock(
-                    TEST_EMAIL_HASH, UserStatus.LOCKED, Duration.ofMinutes(30), 900)).isTrue();
+            assertThat(
+                            strategy.shouldAutoUnlock(
+                                    TEST_EMAIL_HASH,
+                                    UserStatus.LOCKED,
+                                    Duration.ofMinutes(30),
+                                    900))
+                    .isTrue();
         }
     }
 }

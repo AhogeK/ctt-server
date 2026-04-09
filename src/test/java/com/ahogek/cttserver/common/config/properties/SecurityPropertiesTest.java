@@ -14,9 +14,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Integration tests for SecurityProperties configuration binding.
  *
- * <p>Validates that all configuration properties are correctly bound from application.yaml
- * and that validation constraints are enforced. This test prevents configuration binding
- * issues like missing fields or incorrect default values.
+ * <p>Validates that all configuration properties are correctly bound from application.yaml and that
+ * validation constraints are enforced. This test prevents configuration binding issues like missing
+ * fields or incorrect default values.
  *
  * @author AhogeK
  * @since 2026-04-08
@@ -25,8 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("SecurityProperties Configuration Binding Tests")
 class SecurityPropertiesTest {
 
-    @Autowired
-    private SecurityProperties securityProperties;
+    @Autowired private SecurityProperties securityProperties;
 
     @Nested
     @DisplayName("JwtProperties Binding Tests")
