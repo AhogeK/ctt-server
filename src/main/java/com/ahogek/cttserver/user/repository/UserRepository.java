@@ -1,10 +1,14 @@
 package com.ahogek.cttserver.user.repository;
 
 import com.ahogek.cttserver.user.entity.User;
+import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,4 +48,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * @return true if email exists
      */
     boolean existsByEmailIgnoreCase(String email);
+
+    /**
+     * Finds all users with LOCKED status.
+     *
+     * <p>Used by the account unlock scheduler to identify candidates for automatic reactivation.
+     *
+     * @return list of locked users
+     */
+    @Query("SELECT u FROM User u WHERE u.status = :status")
+    List<User> findAllByStatus(@Param("status") UserStatus status);
 }
