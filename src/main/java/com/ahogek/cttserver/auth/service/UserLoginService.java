@@ -97,13 +97,13 @@ public class UserLoginService {
     }
 
     private void validateUserStatus(User user) {
-        loginAttemptService.checkLockStatus(user);
+        User checkedUser = loginAttemptService.checkLockStatus(user);
 
         // Check non-locked status issues (not handled by LoginAttemptService)
-        if (user.getStatus() == UserStatus.ACTIVE) {
+        if (checkedUser.getStatus() == UserStatus.ACTIVE) {
             return;
         }
-        throw switch (user.getStatus()) {
+        throw switch (checkedUser.getStatus()) {
             case PENDING_VERIFICATION ->
                     new ForbiddenException(ErrorCode.AUTH_006, "Email not verified");
             case SUSPENDED, DELETED ->

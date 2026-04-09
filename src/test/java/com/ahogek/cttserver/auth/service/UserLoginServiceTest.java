@@ -81,6 +81,10 @@ class UserLoginServiceTest {
         doAnswer(_ -> null).when(loginAttemptService).recordSuccess(anyString());
 
         doAnswer(_ -> null).when(loginAttemptService).recordFailure(anyString(), any());
+
+        doAnswer(invocation -> invocation.getArgument(0))
+                .when(loginAttemptService)
+                .checkLockStatus(any(User.class));
     }
 
     @Nested
@@ -228,7 +232,8 @@ class UserLoginServiceTest {
             User user = createUserWithStatus(UserStatus.LOCKED);
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
             doThrow(new ForbiddenException(ErrorCode.AUTH_004, "Account is locked"))
-                    .when(loginAttemptService).checkLockStatus(any(User.class));
+                    .when(loginAttemptService)
+                    .checkLockStatus(any(User.class));
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
 

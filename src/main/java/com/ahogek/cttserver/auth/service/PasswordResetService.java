@@ -187,6 +187,7 @@ public class PasswordResetService {
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         if (user.getStatus() == UserStatus.LOCKED) {
             loginAttemptService.recordSuccess(user.getEmail());
+            user.reactivate();
         }
 
         token.setConsumedAt(Instant.now());
