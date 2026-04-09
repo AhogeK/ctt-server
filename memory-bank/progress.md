@@ -45,6 +45,10 @@
 - [x] LoginAttemptCleanupScheduler 定时清理任务
     - 定期清理过期 login_attempts 记录，防止表无限增长
     - 可配置 retention-duration (默认 30 天) 和 cleanup-interval (默认 1 小时)
+- [x] Login lockout 集成到 UserLoginService + 事务传播修复
+    - REQUIRES_NEW 传播确保失败记录不被外层事务回滚
+    - checkLockStatus 返回刷新后的 User 实体
+    - PasswordResetService 密码重置后自动解锁账户
 
 ## 进行中 🔄
 

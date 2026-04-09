@@ -1,3 +1,16 @@
+- [2026-04-09] - Login lockout integration in UserLoginService + transaction fix
+    - 问题: @Transactional 回滚导致 recordFailure 写入的 login_attempts 记录被回滚，暴力破解防护失效
+    - 修复: LoginAttemptService.checkLockStatus/recordFailure/recordSuccess 改为 REQUIRES_NEW 传播
+    - checkLockStatus 返回 User 实体（auto-unlock 后外层使用刷新后的状态）
+    - UserLoginService.validateUserStatus 使用返回的 checkedUser 进行状态检查
+    - PasswordResetService.resetPassword 添加 user.reactivate() 确保外层事务感知状态变更
+    - LockoutIntegrationTest 移除类级 @Transactional（与 REQUIRES_NEW 不兼容），改用 @AfterEach 清理
+    - PasswordResetServiceTest 修正断言（LOCKED → ACTIVE，符合"should unlock"语义）
+    - 文件: LoginAttemptService.java, UserLoginService.java, PasswordResetService.java
+    - 测试: LockoutIntegrationTest.java, UserLoginServiceTest.java, PasswordResetServiceTest.java
+    - 影响: 安全记录独立于外层事务，密码错误不会回滚失败计数
+    - 验证: 全量测试 662 tests 通过
+
 - [2026-04-09] - LoginAttemptCleanupScheduler scheduled task
     - 文件: 新建 LoginAttemptCleanupScheduler.java (@Component, @Scheduled, @Transactional)
     - 修改: SecurityProperties.java - PasswordProperties 添加 retentionDuration 字段 (默认 PT720H/30天)
