@@ -563,25 +563,30 @@ The lockout system uses a **Facade Pattern** to decouple failure counting from t
 ```
 AuthController → UserLoginService → LoginAttemptService → LockoutStrategyPort
                                             ↓
-                                      UserRepository
+                                  LoginAttemptRepository
+                                  UserRepository
 ```
 
 **Entry Points:**
 
 | Method                     | Purpose                            | Caller                                             |
 |----------------------------|------------------------------------|----------------------------------------------------|
-| `checkLockStatus(email)`   | Pre-login lock check + auto-unlock | `UserLoginService.validateUserStatus()`            |
+| `checkLockStatus(user)`    | Pre-login lock check + auto-unlock | `UserLoginService.validateUserStatus()`            |
 | `recordFailure(email, ip)` | Record failed attempt              | `UserLoginService.handleFailedLogin()`             |
 | `recordSuccess(email)`     | Clear failure state on success     | `UserLoginService.login()`, `PasswordResetService` |
 | `isLocked(email)`          | Check lock status (predicate)      | Future use / admin tools                           |
 
 **Storage Strategy:**
-- Default: `DbLockoutStrategy` (User entity fields)
-- Future: `RedisLockoutStrategy` (distributed systems)
+- `DbLockoutStrategy` uses `login_attempts` table (SHA-256 hashed email/IP) for sliding window counting
+- `RedisLockoutStrategy` stub exists for future distributed deployment
 - Switch via `ctt.security.password.lockout.storage` property
 
-**Auto-Unlock:**
-When `checkLockStatus()` detects an expired lock (`lockedUntil < now`), it automatically clears the failure state and transitions the user back to ACTIVE status.
+**Auto-Unlock (Hybrid Model):**
+1. **Lazy unlock** (precise): `checkLockStatus()` checks if earliest attempt + lockDuration < now, then reactivates user
+2. **Scheduled sweep** (safety-net): `LoginAttemptCleanupScheduler.unlockExpiredAccounts()` runs hourly, unlocks accounts with no recent attempts in the failure window
+
+**Transaction Boundary:**
+`LoginAttemptService` methods use `REQUIRES_NEW` propagation to ensure security records are not rolled back by outer transaction failures (e.g., bad password).
 
 ---
 
