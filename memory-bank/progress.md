@@ -42,6 +42,9 @@
     - 消除 UserValidator 中的重复检查
     - 客户端 IP 从 RequestContext 获取 (审计日志完善)
     - 15个单元测试 + 集成测试覆盖完整锁流程
+- [x] LoginAttemptCleanupScheduler 定时清理任务
+    - 定期清理过期 login_attempts 记录，防止表无限增长
+    - 可配置 retention-duration (默认 30 天) 和 cleanup-interval (默认 1 小时)
 
 ## 进行中 🔄
 

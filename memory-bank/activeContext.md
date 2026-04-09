@@ -1,3 +1,11 @@
+- [2026-04-09] - LoginAttemptCleanupScheduler scheduled task
+    - 文件: 新建 LoginAttemptCleanupScheduler.java (@Component, @Scheduled, @Transactional)
+    - 修改: SecurityProperties.java - PasswordProperties 添加 retentionDuration 字段 (默认 PT720H/30天)
+    - 修改: application.yaml - 添加 retention-duration 配置
+    - 影响: login_attempts 表定期清理过期记录，防止无限增长
+    - 架构: 固定延迟调度 (默认 1h), 使用 LoginAttemptRepository.deleteOlderThan()
+    - 验证: ./gradlew compileJava 通过
+
 - [2026-04-09] - LoginAttemptService facade extraction
     - 文件: 新建 LoginAttemptService.java (门面服务), LoginAttemptServiceTest.java (15个单元测试)
     - 修改: UserLoginService.java (用 LoginAttemptService 替换直接调用 LockoutStrategyPort)
