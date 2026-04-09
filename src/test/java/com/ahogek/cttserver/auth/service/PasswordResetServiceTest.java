@@ -514,6 +514,12 @@ class PasswordResetServiceTest {
             verify(auditLogService)
                     .logSuccess(
                             userId,
+                            AuditAction.ACCOUNT_UNLOCKED,
+                            ResourceType.USER,
+                            userId.toString());
+            verify(auditLogService)
+                    .logSuccess(
+                            userId,
                             AuditAction.PASSWORD_RESET_COMPLETED,
                             ResourceType.USER,
                             userId.toString());

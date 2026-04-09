@@ -1,5 +1,8 @@
 package com.ahogek.cttserver.auth.lockout;
 
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties.PasswordProperties;
@@ -40,16 +43,19 @@ public class LoginAttemptService {
     private final LoginAttemptRepository loginAttemptRepository;
     private final UserRepository userRepository;
     private final PasswordProperties passwordProps;
+    private final AuditLogService auditLogService;
 
     public LoginAttemptService(
             LockoutStrategyPort lockoutStrategy,
             LoginAttemptRepository loginAttemptRepository,
             UserRepository userRepository,
-            SecurityProperties securityProperties) {
+            SecurityProperties securityProperties,
+            AuditLogService auditLogService) {
         this.lockoutStrategy = lockoutStrategy;
         this.loginAttemptRepository = loginAttemptRepository;
         this.userRepository = userRepository;
         this.passwordProps = securityProperties.password();
+        this.auditLogService = auditLogService;
     }
 
     /**
@@ -80,6 +86,11 @@ public class LoginAttemptService {
                     lockoutStrategy.recordSuccess(emailHash);
                     user.reactivate();
                     userRepository.save(user);
+                    auditLogService.logSuccess(
+                            user.getId(),
+                            AuditAction.ACCOUNT_UNLOCKED,
+                            ResourceType.USER,
+                            user.getId().toString());
                 }
 
                 if (user.getStatus() == UserStatus.LOCKED) {
@@ -148,8 +159,19 @@ public class LoginAttemptService {
                             if (recentAttempts >= passwordProps.maxFailedAttempts()
                                     && user.getStatus() == UserStatus.ACTIVE) {
                                 user.lockAccount();
+                                userRepository.save(user);
+                                auditLogService.logFailure(
+                                        user.getId(),
+                                        AuditAction.ACCOUNT_LOCKED,
+                                        ResourceType.USER,
+                                        user.getId().toString(),
+                                        "Brute-force threshold reached: %d failed attempts within %ds"
+                                                .formatted(
+                                                        passwordProps.maxFailedAttempts(),
+                                                        passwordProps.failureWindowSeconds()));
+                            } else {
+                                userRepository.save(user);
                             }
-                            userRepository.save(user);
 
                             log.warn(
                                     "Failed login attempt for user {} from IP {}. Total failures in window: {}",
@@ -172,16 +194,6 @@ public class LoginAttemptService {
         String emailHash = TokenUtils.hashToken(email.toLowerCase());
 
         lockoutStrategy.recordSuccess(emailHash);
-
-        userRepository
-                .findByEmailIgnoreCase(email)
-                .ifPresent(
-                        user -> {
-                            if (user.getStatus() == UserStatus.LOCKED) {
-                                user.reactivate();
-                                userRepository.save(user);
-                            }
-                        });
     }
 
     /**

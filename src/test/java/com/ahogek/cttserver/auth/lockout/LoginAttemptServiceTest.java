@@ -1,5 +1,8 @@
 package com.ahogek.cttserver.auth.lockout;
 
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties.PasswordProperties;
@@ -46,6 +49,8 @@ class LoginAttemptServiceTest {
 
     @Mock private SecurityProperties securityProperties;
 
+    @Mock private AuditLogService auditLogService;
+
     private LoginAttemptService loginAttemptService;
 
     private User activeUser;
@@ -65,7 +70,8 @@ class LoginAttemptServiceTest {
                         lockoutStrategy,
                         loginAttemptRepository,
                         userRepository,
-                        securityProperties);
+                        securityProperties,
+                        auditLogService);
         activeUser = createActiveUser();
     }
 
@@ -136,6 +142,12 @@ class LoginAttemptServiceTest {
 
             verify(lockoutStrategy).recordSuccess(anyString());
             verify(userRepository).save(lockedUser);
+            verify(auditLogService)
+                    .logSuccess(
+                            lockedUser.getId(),
+                            AuditAction.ACCOUNT_UNLOCKED,
+                            ResourceType.USER,
+                            lockedUser.getId().toString());
         }
 
         @Test
@@ -263,6 +275,30 @@ class LoginAttemptServiceTest {
             // But user is not saved
             verify(userRepository, never()).save(any());
         }
+
+        @Test
+        @DisplayName("should log audit when account gets locked")
+        void shouldLogAudit_whenAccountGetsLocked() {
+            given(passwordProps.maxFailedAttempts()).willReturn(TEST_MAX_ATTEMPTS);
+            given(passwordProps.lockDuration()).willReturn(TEST_LOCK_DURATION);
+            given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
+            given(loginAttemptRepository.countAttemptsInWindow(anyString(), any(Instant.class)))
+                    .willReturn((long) TEST_MAX_ATTEMPTS);
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .willReturn(Optional.of(activeUser));
+
+            loginAttemptService.recordFailure(TEST_EMAIL, "192.168.1.1");
+
+            assertThat(activeUser.getStatus()).isEqualTo(UserStatus.LOCKED);
+            verify(auditLogService)
+                    .logFailure(
+                            activeUser.getId(),
+                            AuditAction.ACCOUNT_LOCKED,
+                            ResourceType.USER,
+                            activeUser.getId().toString(),
+                            "Brute-force threshold reached: %d failed attempts within %ds"
+                                    .formatted(TEST_MAX_ATTEMPTS, TEST_WINDOW_SECONDS));
+        }
     }
 
     @Nested
@@ -272,53 +308,18 @@ class LoginAttemptServiceTest {
         @Test
         @DisplayName("should delegate to lockout strategy")
         void shouldDelegateToLockoutStrategy() {
-            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
-                    .willReturn(Optional.of(activeUser));
-
             loginAttemptService.recordSuccess(TEST_EMAIL);
 
             verify(lockoutStrategy).recordSuccess(TEST_EMAIL_HASH);
         }
 
         @Test
-        @DisplayName("should not save user when active")
-        void shouldNotSaveUser_whenActive() {
-            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
-                    .willReturn(Optional.of(activeUser));
-
+        @DisplayName("should not query user repository")
+        void shouldNotQueryUserRepository() {
             loginAttemptService.recordSuccess(TEST_EMAIL);
 
-            verify(userRepository, never()).save(activeUser);
-        }
-
-        @Test
-        @DisplayName("should not throw when user not found")
-        void shouldNotThrow_whenUserNotFound() {
-            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).willReturn(Optional.empty());
-
-            loginAttemptService.recordSuccess(TEST_EMAIL);
-
-            // Strategy is still called (it deletes the attempt records)
-            verify(lockoutStrategy).recordSuccess(TEST_EMAIL_HASH);
-            // But user is not saved
+            verify(userRepository, never()).findByEmailIgnoreCase(anyString());
             verify(userRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("should reactivate user when locked")
-        void shouldReactivateUser_whenLocked() {
-            // Given
-            User lockedUser = createActiveUser();
-            lockedUser.lockAccount();
-            given(userRepository.findByEmailIgnoreCase("test@example.com"))
-                    .willReturn(Optional.of(lockedUser));
-
-            // When
-            loginAttemptService.recordSuccess("test@example.com");
-
-            // Then
-            assertThat(lockedUser.getStatus()).isEqualTo(UserStatus.ACTIVE);
-            verify(userRepository).save(lockedUser);
         }
     }
 
