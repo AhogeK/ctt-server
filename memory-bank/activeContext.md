@@ -1,3 +1,13 @@
+- [2026-04-09] - LoginAttemptService facade extraction
+    - 文件: 新建 LoginAttemptService.java (门面服务), LoginAttemptServiceTest.java (15个单元测试)
+    - 修改: UserLoginService.java (用 LoginAttemptService 替换直接调用 LockoutStrategyPort)
+    - 修改: UserValidator.java (删除 assertLoginAttemptsNotExceeded 重复逻辑)
+    - 修改: UserLoginServiceTest.java, UserValidatorTest.java (更新测试适配新架构)
+    - 修改: handleFailedLogin 从 RequestContext 获取客户端 IP (替代 null)
+    - 影响: 登录失败计数逻辑与主流程解耦，统一异常处理，消除重复检查
+    - 架构: Facade Pattern + Strategy Pattern (LockoutStrategyPort)
+    - 测试: 全量测试通过，新增 LockoutIntegrationTest 集成测试
+
 - [2026-04-08] - 账号锁定策略完整实现 ✅ 完成
     - 功能：防止暴力破解，失败计数超阈值自动临时锁定，锁定到期自动解锁
     - 配置项落位：

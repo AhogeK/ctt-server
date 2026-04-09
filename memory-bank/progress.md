@@ -37,6 +37,11 @@
 - [x] 分支同步：develop → master (依赖版本更新 - ben-manes 插件 + jacoco 配置)
 - [x] 登录接口实现 (POST /api/v1/auth/login - @PublicApi, @RateLimit)
 - [x] JWT 认证失败统一响应 (JwtAuthenticationEntryPoint + 5 原子提交)
+- [x] LoginAttemptService 门面提取
+    - 解耦失败计数逻辑，统一异常处理 (AUTH_004)
+    - 消除 UserValidator 中的重复检查
+    - 客户端 IP 从 RequestContext 获取 (审计日志完善)
+    - 15个单元测试 + 集成测试覆盖完整锁流程
 
 ## 进行中 🔄
 
