@@ -6,8 +6,8 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties.PasswordProperties;
+import com.ahogek.cttserver.common.exception.AccountLockedException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
-import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
@@ -23,11 +23,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -151,9 +153,10 @@ class LoginAttemptServiceTest {
         }
 
         @Test
-        @DisplayName("should throw ForbiddenException when account is locked")
-        void shouldThrowForbiddenException_whenAccountIsLocked() {
+        @DisplayName("should throw AccountLockedException when account is locked")
+        void shouldThrowAccountLockedException_whenAccountIsLocked() {
             User lockedUser = createLockedUser();
+            Instant expectedRetryAfter = Instant.now().plus(TEST_LOCK_DURATION);
 
             given(
                             lockoutStrategy.shouldAutoUnlock(
@@ -162,15 +165,26 @@ class LoginAttemptServiceTest {
                                     eq(TEST_LOCK_DURATION),
                                     eq(TEST_WINDOW_SECONDS)))
                     .willReturn(false);
+            given(
+                            lockoutStrategy.getRetryAfter(
+                                    anyString(), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+                    .willReturn(expectedRetryAfter);
 
             assertThatThrownBy(() -> loginAttemptService.checkLockStatus(lockedUser))
-                    .isInstanceOf(ForbiddenException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_004);
+                    .isInstanceOf(AccountLockedException.class)
+                    .satisfies(
+                            thrown -> {
+                                AccountLockedException ex = (AccountLockedException) thrown;
+                                assertThat(ex.errorCode()).isEqualTo(ErrorCode.AUTH_004);
+                                assertThat(ex.retryAfter())
+                                        .isCloseTo(
+                                                expectedRetryAfter, within(1, ChronoUnit.SECONDS));
+                            });
         }
 
         @Test
-        @DisplayName("should throw ForbiddenException when attempts exceeded in DB")
-        void shouldThrowForbiddenException_whenAttemptsExceeded() {
+        @DisplayName("should throw AccountLockedException when attempts exceeded in DB")
+        void shouldThrowAccountLockedException_whenAttemptsExceeded() {
             given(
                             lockoutStrategy.shouldAutoUnlock(
                                     TEST_EMAIL_HASH,
@@ -184,7 +198,7 @@ class LoginAttemptServiceTest {
                     .willReturn((long) TEST_MAX_ATTEMPTS);
 
             assertThatThrownBy(() -> loginAttemptService.checkLockStatus(activeUser))
-                    .isInstanceOf(ForbiddenException.class)
+                    .isInstanceOf(AccountLockedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_004);
         }
 
@@ -207,6 +221,34 @@ class LoginAttemptServiceTest {
             loginAttemptService.checkLockStatus(upperCaseUser);
 
             assertThat(upperCaseUser.getEmail()).isEqualTo("TEST@EXAMPLE.COM");
+        }
+
+        @Test
+        @DisplayName(
+                "should use fallback retryAfter when getRetryAfter returns null for locked user")
+        void shouldUseFallbackRetryAfter_whenGetRetryAfterReturnsNull() {
+            User lockedUser = createLockedUser();
+
+            given(
+                            lockoutStrategy.shouldAutoUnlock(
+                                    anyString(),
+                                    eq(UserStatus.LOCKED),
+                                    eq(TEST_LOCK_DURATION),
+                                    eq(TEST_WINDOW_SECONDS)))
+                    .willReturn(false);
+            given(
+                            lockoutStrategy.getRetryAfter(
+                                    anyString(), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+                    .willReturn(null);
+
+            assertThatThrownBy(() -> loginAttemptService.checkLockStatus(lockedUser))
+                    .isInstanceOf(AccountLockedException.class)
+                    .satisfies(
+                            thrown -> {
+                                AccountLockedException ex = (AccountLockedException) thrown;
+                                assertThat(ex.errorCode()).isEqualTo(ErrorCode.AUTH_004);
+                                assertThat(ex.retryAfter()).isAfterOrEqualTo(Instant.now());
+                            });
         }
     }
 

@@ -19,10 +19,11 @@ import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class DbLockoutStrategyTest {
@@ -100,9 +101,10 @@ class DbLockoutStrategyTest {
         @Test
         @DisplayName("should return true when no attempts in window (lockout expired)")
         void shouldReturnTrue_whenNoAttempts() {
-            when(loginAttemptRepository.findEarliestAttemptInWindow(
-                            eq(TEST_EMAIL_HASH), any(Instant.class)))
-                    .thenReturn(Optional.empty());
+            given(
+                            loginAttemptRepository.findEarliestAttemptInWindow(
+                                    eq(TEST_EMAIL_HASH), any(Instant.class)))
+                    .willReturn(Optional.empty());
 
             assertThat(
                             strategy.shouldAutoUnlock(
@@ -117,9 +119,10 @@ class DbLockoutStrategyTest {
         @DisplayName("should return false when lock not expired")
         void shouldReturnFalse_whenLockNotExpired() {
             Instant firstAttempt = Instant.now().minus(Duration.ofMinutes(10));
-            when(loginAttemptRepository.findEarliestAttemptInWindow(
-                            eq(TEST_EMAIL_HASH), any(Instant.class)))
-                    .thenReturn(Optional.of(firstAttempt));
+            given(
+                            loginAttemptRepository.findEarliestAttemptInWindow(
+                                    eq(TEST_EMAIL_HASH), any(Instant.class)))
+                    .willReturn(Optional.of(firstAttempt));
 
             assertThat(
                             strategy.shouldAutoUnlock(
@@ -134,9 +137,10 @@ class DbLockoutStrategyTest {
         @DisplayName("should return true when lock expired")
         void shouldReturnTrue_whenLockExpired() {
             Instant firstAttempt = Instant.now().minus(Duration.ofMinutes(31));
-            when(loginAttemptRepository.findEarliestAttemptInWindow(
-                            eq(TEST_EMAIL_HASH), any(Instant.class)))
-                    .thenReturn(Optional.of(firstAttempt));
+            given(
+                            loginAttemptRepository.findEarliestAttemptInWindow(
+                                    eq(TEST_EMAIL_HASH), any(Instant.class)))
+                    .willReturn(Optional.of(firstAttempt));
 
             assertThat(
                             strategy.shouldAutoUnlock(
@@ -145,6 +149,41 @@ class DbLockoutStrategyTest {
                                     Duration.ofMinutes(30),
                                     900))
                     .isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("getRetryAfter")
+    class GetRetryAfter {
+
+        @Test
+        @DisplayName("should return earliest attempt plus lock duration")
+        void shouldReturnRetryAfter_whenAttemptsExist() {
+            String emailHash = "test-hash";
+            Instant earliestAttempt = Instant.now().minusSeconds(600);
+            Duration lockDuration = Duration.ofMinutes(30);
+            given(loginAttemptRepository.findEarliestAttemptInWindow(eq(emailHash), any()))
+                    .willReturn(Optional.of(earliestAttempt));
+
+            Instant retryAfter = strategy.getRetryAfter(emailHash, lockDuration, 900);
+
+            assertThat(retryAfter)
+                    .isCloseTo(
+                            earliestAttempt.plus(lockDuration),
+                            within(1, java.time.temporal.ChronoUnit.SECONDS));
+        }
+
+        @Test
+        @DisplayName("should return null when no attempts in window")
+        void shouldReturnNull_whenNoAttemptsInWindow() {
+            String emailHash = "test-hash";
+            Duration lockDuration = Duration.ofMinutes(30);
+            given(loginAttemptRepository.findEarliestAttemptInWindow(eq(emailHash), any()))
+                    .willReturn(Optional.empty());
+
+            Instant retryAfter = strategy.getRetryAfter(emailHash, lockDuration, 900);
+
+            assertThat(retryAfter).isNull();
         }
     }
 }
