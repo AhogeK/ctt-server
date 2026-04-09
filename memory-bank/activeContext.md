@@ -2,6 +2,19 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - Login lockout response includes retryAfter timestamp
+    - 新增: AccountLockedException extends BusinessException with retryAfter field
+    - 新增: ErrorResponse.retryAfter 字段（nullable Instant）+ withRetryAfter() 方法
+    - 新增: LockoutStrategyPort.getRetryAfter() + DbLockoutStrategy 实现
+    - 修改: LoginAttemptService 抛出 AccountLockedException 替代 ForbiddenException
+    - 修改: GlobalExceptionHandler 处理 AccountLockedException，设置 Retry-After HTTP Header
+    - 文件: ErrorResponse.java, AccountLockedException.java, BusinessException.java,
+      LockoutStrategyPort.java, DbLockoutStrategy.java, LoginAttemptService.java,
+      GlobalExceptionHandler.java, LoginAttemptServiceTest.java, GlobalExceptionHandlerTest.java
+    - 测试: 全量通过，新增 2 个 GlobalExceptionHandler 测试
+    - 影响: 前端可渲染倒计时 UI，网关层可通过 Retry-After header 拦截高频重试
+    - 版本: 0.14.0-SNAPSHOT → 0.15.0-SNAPSHOT
+
 - [2026-04-09] - Audit logging for account lock/unlock events
     - 新增: ACCOUNT_UNLOCKED 到 AuditAction enum
     - 注入: AuditLogService 到 LoginAttemptService, LoginAttemptCleanupScheduler

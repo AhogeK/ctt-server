@@ -58,6 +58,11 @@
     - 3 条解锁路径均落 ACCOUNT_UNLOCKED 审计（懒解锁/密码重置/定时扫表）
     - 清理 recordSuccess() 中冗余的 reactivate（调用方已处理）
     - 39 个测试通过，覆盖全部审计调用点
+- [x] 锁定登录响应包含 retryAfter 时间戳
+    - 新增 AccountLockedException 携带 retryAfter 字段
+    - ErrorResponse 新增 retryAfter 字段，GlobalExceptionHandler 设置 Retry-After HTTP Header
+    - LockoutStrategyPort.getRetryAfter() 基于最早尝试时间 + lockDuration 计算
+    - 前端可渲染倒计时 UI，网关层可通过 Retry-After header 拦截高频重试
 
 ## 进行中 🔄
 
