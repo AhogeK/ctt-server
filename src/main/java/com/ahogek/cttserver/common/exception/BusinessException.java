@@ -17,7 +17,8 @@ public abstract sealed class BusinessException extends RuntimeException
                 ForbiddenException,
                 ConflictException,
                 TooManyRequestsException,
-                NotFoundException {
+                NotFoundException,
+                AccountLockedException {
 
     private final ErrorCode errorCode;
     private final String customMessage;

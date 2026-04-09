@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -24,6 +25,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -222,6 +225,53 @@ public final class GlobalExceptionHandler {
 
         ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
         return ResponseEntity.status(ex.errorCode().httpStatus()).body(response);
+    }
+
+    /**
+     * [LEVEL 2] Account Lockout - WARN level with Retry-After header.
+     *
+     * <p>Handles account lockout exceptions from brute-force protection. Sets a {@code Retry-After}
+     * HTTP header indicating seconds until the account can retry login.
+     *
+     * <p><strong>Log Strategy:</strong>
+     *
+     * <ul>
+     *   <li>Level: WARN
+     *   <li>Stack Trace: None (expected business exception)
+     *   <li>Context: Includes retry-after seconds for monitoring
+     * </ul>
+     */
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountLockedException(AccountLockedException ex) {
+        String traceId = currentTraceId();
+        RequestInfo requestInfo = RequestContext.current().orElse(null);
+
+        log.atWarn()
+                .addKeyValue(ERROR_CODE_KEY, ex.errorCode().name())
+                .addKeyValue(ERROR_TYPE_KEY, "ACCOUNT_LOCKED")
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("Account locked: {}", ex.getMessage());
+
+        if (requestInfo != null) {
+            eventPublisher.publishEvent(
+                    new SecurityAuditEvent(
+                            AuditAction.ACCOUNT_LOCKED,
+                            ResourceType.USER,
+                            SecuritySeverity.WARNING,
+                            requestInfo,
+                            AuditDetails.error(ex.errorCode().name(), ex.getMessage())));
+        }
+
+        ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
+
+        HttpHeaders headers = new HttpHeaders();
+        if (ex.retryAfter() != null) {
+            long seconds =
+                    Math.max(0, Duration.between(Instant.now(), ex.retryAfter()).getSeconds());
+            headers.add(HttpHeaders.RETRY_AFTER, String.valueOf(seconds));
+        }
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).headers(headers).body(response);
     }
 
     /**

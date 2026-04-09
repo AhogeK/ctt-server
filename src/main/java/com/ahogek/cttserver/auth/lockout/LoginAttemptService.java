@@ -6,8 +6,8 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties.PasswordProperties;
+import com.ahogek.cttserver.common.exception.AccountLockedException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
-import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.user.entity.User;
@@ -59,7 +59,7 @@ public class LoginAttemptService {
     }
 
     /**
-     * Checks if account is locked and throws ForbiddenException if so.
+     * Checks if account is locked and throws AccountLockedException if so.
      *
      * <p>Also handles auto-unlock: if lock expired, unlocks and clears failure state. Uses
      * optimistic locking with retry to prevent TOCTOU race conditions when concurrent requests
@@ -68,7 +68,7 @@ public class LoginAttemptService {
      * @param user the user entity to check (already loaded by caller)
      * @return the (potentially reactivated) user entity after lock status check
      * @throws NotFoundException if user not found during retry refresh
-     * @throws ForbiddenException with AUTH_004 if account is locked and not expired
+     * @throws AccountLockedException with AUTH_004 if account is locked and not expired
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public User checkLockStatus(User user) {
@@ -94,9 +94,18 @@ public class LoginAttemptService {
                 }
 
                 if (user.getStatus() == UserStatus.LOCKED) {
-                    throw new ForbiddenException(
+                    Instant retryAfter =
+                            lockoutStrategy.getRetryAfter(
+                                    emailHash,
+                                    passwordProps.lockDuration(),
+                                    passwordProps.failureWindowSeconds());
+                    if (retryAfter == null) {
+                        retryAfter = Instant.now().plus(passwordProps.lockDuration());
+                    }
+                    throw new AccountLockedException(
                             ErrorCode.AUTH_004,
-                            "Account is locked due to too many failed attempts");
+                            "Account is locked due to too many failed attempts",
+                            retryAfter);
                 }
 
                 Instant windowStart =
@@ -104,17 +113,21 @@ public class LoginAttemptService {
                 long recentAttempts =
                         loginAttemptRepository.countAttemptsInWindow(emailHash, windowStart);
                 if (recentAttempts >= passwordProps.maxFailedAttempts()) {
-                    throw new ForbiddenException(
+                    Instant retryAfter = Instant.now().plus(passwordProps.lockDuration());
+                    throw new AccountLockedException(
                             ErrorCode.AUTH_004,
-                            "Account is locked due to too many failed attempts");
+                            "Account is locked due to too many failed attempts",
+                            retryAfter);
                 }
 
                 return user;
             } catch (ObjectOptimisticLockingFailureException _) {
                 if (retries >= 2) {
-                    throw new ForbiddenException(
+                    Instant retryAfter = Instant.now().plus(passwordProps.lockDuration());
+                    throw new AccountLockedException(
                             ErrorCode.AUTH_004,
-                            "Account lockout check failed due to concurrent access");
+                            "Account lockout check failed due to concurrent access",
+                            retryAfter);
                 }
                 retries++;
                 user =

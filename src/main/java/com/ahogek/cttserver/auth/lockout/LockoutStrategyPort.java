@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth.lockout;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
 import java.time.Duration;
+import java.time.Instant;
 
 /**
  * Port interface for account lockout tracking strategies.
@@ -51,4 +52,16 @@ public interface LockoutStrategyPort {
      */
     boolean shouldAutoUnlock(
             String emailHash, UserStatus status, Duration lockDuration, int windowSeconds);
+
+    /**
+     * Returns the earliest time the user can retry login, or null if not currently locked.
+     *
+     * @param emailHash SHA-256 hash of the email
+     * @param lockDuration duration of the lockout period
+     * @param windowSeconds sliding window size in seconds
+     * @return retry-after Instant, or null if not locked
+     */
+    default Instant getRetryAfter(String emailHash, Duration lockDuration, int windowSeconds) {
+        return null;
+    }
 }

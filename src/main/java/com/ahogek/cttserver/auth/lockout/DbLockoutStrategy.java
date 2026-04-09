@@ -47,6 +47,15 @@ public class DbLockoutStrategy implements LockoutStrategyPort {
         return loginAttemptRepository
                 .findEarliestAttemptInWindow(emailHash, windowStart)
                 .map(earliest -> Instant.now().isAfter(earliest.plus(lockDuration)))
-                .orElse(true); // No attempts in window → lockout expired
+                .orElse(true);
+    }
+
+    @Override
+    public Instant getRetryAfter(String emailHash, Duration lockDuration, int windowSeconds) {
+        Instant windowStart = Instant.now().minusSeconds(windowSeconds);
+        return loginAttemptRepository
+                .findEarliestAttemptInWindow(emailHash, windowStart)
+                .map(earliest -> earliest.plus(lockDuration))
+                .orElse(null);
     }
 }
