@@ -58,7 +58,7 @@ public enum ErrorCode {
 
 | Category | Description                    | Examples                                                                                    |
 |----------|--------------------------------|---------------------------------------------------------------------------------------------|
-| IAM      | Identity and Access Management | LOGIN_SUCCESS, ACCOUNT_LOCKED, ACCOUNT_UNLOCKED                                               |
+| IAM      | Identity and Access Management | LOGIN_SUCCESS, ACCOUNT_LOCKED, ACCOUNT_UNLOCKED                                             |
 | EMAIL    | Email Verification             | EMAIL_VERIFICATION_SENT                                                                     |
 | CRED     | Credential Management          | PASSWORD_CHANGED, API_KEY_REVOKED, PASSWORD_RESET_REQUESTED, PASSWORD_RESET_EMAIL_NOT_FOUND |
 | DEVICE   | Device Management              | DEVICE_LINKED, DEVICE_UNLINKED                                                              |
@@ -590,12 +590,36 @@ AuthController → UserLoginService → LoginAttemptService → LockoutStrategyP
 
 **Audit Events:**
 
-| Operation | Audit Action | Trigger Point |
-|-----------|-------------|---------------|
-| Brute-force lock | `ACCOUNT_LOCKED` | `recordFailure()` when threshold reached |
-| Lazy unlock | `ACCOUNT_UNLOCKED` | `checkLockStatus()` when lockout expired |
-| Password reset unlock | `ACCOUNT_UNLOCKED` | `PasswordResetService.resetPassword()` when locked user resets |
-| Scheduled sweep unlock | `ACCOUNT_UNLOCKED` | `unlockExpiredAccounts()` per unlocked user |
+| Operation              | Audit Action       | Trigger Point                                                  |
+|------------------------|--------------------|----------------------------------------------------------------|
+| Brute-force lock       | `ACCOUNT_LOCKED`   | `recordFailure()` when threshold reached                       |
+| Lazy unlock            | `ACCOUNT_UNLOCKED` | `checkLockStatus()` when lockout expired                       |
+| Password reset unlock  | `ACCOUNT_UNLOCKED` | `PasswordResetService.resetPassword()` when locked user resets |
+| Scheduled sweep unlock | `ACCOUNT_UNLOCKED` | `unlockExpiredAccounts()` per unlocked user                    |
+
+**Locked Response Format:**
+
+When a locked user attempts login, the response includes:
+
+| Component      | Value                                         |
+|----------------|-----------------------------------------------|
+| HTTP Status    | 403 Forbidden                                 |
+| HTTP Header    | `Retry-After: <seconds>` (RFC 7231 compliant) |
+| Error Code     | `AUTH_004`                                    |
+| Response Field | `retryAfter` (ISO-8601 timestamp)             |
+
+Example response:
+```json
+{
+  "code": "AUTH_004",
+  "message": "Account locked",
+  "details": [],
+  "traceId": "...",
+  "httpStatus": 403,
+  "timestamp": "2026-04-10T...",
+  "retryAfter": "2026-04-10T06:30:00Z"
+}
+```
 
 ---
 
