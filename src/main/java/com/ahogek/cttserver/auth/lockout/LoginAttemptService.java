@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -54,16 +55,17 @@ public class LoginAttemptService {
     /**
      * Checks if account is locked and throws ForbiddenException if so.
      *
-     * <p>Also handles auto-unlock: if lock expired, unlocks and clears failure state.
-     * Uses optimistic locking with retry to prevent TOCTOU race conditions when
-     * concurrent requests attempt to lock/unlock the same account.
+     * <p>Also handles auto-unlock: if lock expired, unlocks and clears failure state. Uses
+     * optimistic locking with retry to prevent TOCTOU race conditions when concurrent requests
+     * attempt to lock/unlock the same account.
      *
      * @param user the user entity to check (already loaded by caller)
+     * @return the (potentially reactivated) user entity after lock status check
      * @throws NotFoundException if user not found during retry refresh
      * @throws ForbiddenException with AUTH_004 if account is locked and not expired
      */
-    @Transactional
-    public void checkLockStatus(User user) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public User checkLockStatus(User user) {
         // Retry loop for optimistic locking to prevent TOCTOU race condition
         int retries = 0;
         while (true) {
@@ -71,7 +73,10 @@ public class LoginAttemptService {
                 String emailHash = TokenUtils.hashToken(user.getEmail().toLowerCase());
 
                 if (lockoutStrategy.shouldAutoUnlock(
-                        emailHash, user.getStatus(), passwordProps.lockDuration(), passwordProps.failureWindowSeconds())) {
+                        emailHash,
+                        user.getStatus(),
+                        passwordProps.lockDuration(),
+                        passwordProps.failureWindowSeconds())) {
                     lockoutStrategy.recordSuccess(emailHash);
                     user.reactivate();
                     userRepository.save(user);
@@ -83,22 +88,31 @@ public class LoginAttemptService {
                             "Account is locked due to too many failed attempts");
                 }
 
-                Instant windowStart = Instant.now().minusSeconds(passwordProps.failureWindowSeconds());
-                long recentAttempts = loginAttemptRepository.countAttemptsInWindow(emailHash, windowStart);
+                Instant windowStart =
+                        Instant.now().minusSeconds(passwordProps.failureWindowSeconds());
+                long recentAttempts =
+                        loginAttemptRepository.countAttemptsInWindow(emailHash, windowStart);
                 if (recentAttempts >= passwordProps.maxFailedAttempts()) {
                     throw new ForbiddenException(
                             ErrorCode.AUTH_004,
                             "Account is locked due to too many failed attempts");
                 }
 
-                return;
+                return user;
             } catch (ObjectOptimisticLockingFailureException _) {
                 if (retries >= 2) {
-                    throw new ForbiddenException(ErrorCode.AUTH_004, "Account lockout check failed due to concurrent access");
+                    throw new ForbiddenException(
+                            ErrorCode.AUTH_004,
+                            "Account lockout check failed due to concurrent access");
                 }
                 retries++;
-                user = userRepository.findById(user.getId()).orElseThrow(
-                        () -> new NotFoundException(ErrorCode.AUTH_001, "User not found"));
+                user =
+                        userRepository
+                                .findById(user.getId())
+                                .orElseThrow(
+                                        () ->
+                                                new NotFoundException(
+                                                        ErrorCode.AUTH_001, "User not found"));
             }
         }
     }
@@ -106,13 +120,13 @@ public class LoginAttemptService {
     /**
      * Records a failed login attempt.
      *
-     * <p>Creates a hashed LoginAttempt record and persists it. Also updates User entity fields
-     * for backward compatibility with the existing lockout strategy.
+     * <p>Creates a hashed LoginAttempt record and persists it. Also updates User entity fields for
+     * backward compatibility with the existing lockout strategy.
      *
      * @param email the email address of the login attempt
      * @param ip the IP address of the login attempt (logged for audit purposes)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(String email, String ip) {
         String emailHash = TokenUtils.hashToken(email.toLowerCase());
         String ipHash = TokenUtils.hashToken(ip != null ? ip : UNKNOWN_IP);
@@ -127,40 +141,47 @@ public class LoginAttemptService {
         Instant windowStart = Instant.now().minusSeconds(passwordProps.failureWindowSeconds());
         long recentAttempts = loginAttemptRepository.countAttemptsInWindow(emailHash, windowStart);
 
-        userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
-            if (recentAttempts >= passwordProps.maxFailedAttempts() && user.getStatus() == UserStatus.ACTIVE) {
-                user.lockAccount();
-            }
-            userRepository.save(user);
+        userRepository
+                .findByEmailIgnoreCase(email)
+                .ifPresent(
+                        user -> {
+                            if (recentAttempts >= passwordProps.maxFailedAttempts()
+                                    && user.getStatus() == UserStatus.ACTIVE) {
+                                user.lockAccount();
+                            }
+                            userRepository.save(user);
 
-            log.warn(
-                    "Failed login attempt for user {} from IP {}. Total failures in window: {}",
-                    user.getEmail(),
-                    ip,
-                    recentAttempts);
-        });
+                            log.warn(
+                                    "Failed login attempt for user {} from IP {}. Total failures in window: {}",
+                                    user.getEmail(),
+                                    ip,
+                                    recentAttempts);
+                        });
     }
 
     /**
      * Records successful login - clears all failure state.
      *
-     * <p>Deletes all login attempt records for the email and clears User entity lockout fields
-     * for backward compatibility.
+     * <p>Deletes all login attempt records for the email and clears User entity lockout fields for
+     * backward compatibility.
      *
      * @param email the email address of the successful login
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordSuccess(String email) {
         String emailHash = TokenUtils.hashToken(email.toLowerCase());
 
         lockoutStrategy.recordSuccess(emailHash);
 
-        userRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
-            if (user.getStatus() == UserStatus.LOCKED) {
-                user.reactivate();
-                userRepository.save(user);
-            }
-        });
+        userRepository
+                .findByEmailIgnoreCase(email)
+                .ifPresent(
+                        user -> {
+                            if (user.getStatus() == UserStatus.LOCKED) {
+                                user.reactivate();
+                                userRepository.save(user);
+                            }
+                        });
     }
 
     /**
@@ -170,12 +191,18 @@ public class LoginAttemptService {
      * @return true if locked and not auto-unlockable
      */
     public boolean isLocked(String email) {
-        return userRepository.findByEmailIgnoreCase(email)
-                .map(user -> {
-                    String emailHash = TokenUtils.hashToken(email.toLowerCase());
-                    return user.getStatus() == UserStatus.LOCKED
-                            && !lockoutStrategy.shouldAutoUnlock(emailHash, user.getStatus(), passwordProps.lockDuration(), passwordProps.failureWindowSeconds());
-                })
+        return userRepository
+                .findByEmailIgnoreCase(email)
+                .map(
+                        user -> {
+                            String emailHash = TokenUtils.hashToken(email.toLowerCase());
+                            return user.getStatus() == UserStatus.LOCKED
+                                    && !lockoutStrategy.shouldAutoUnlock(
+                                            emailHash,
+                                            user.getStatus(),
+                                            passwordProps.lockDuration(),
+                                            passwordProps.failureWindowSeconds());
+                        })
                 .orElse(false);
     }
 }

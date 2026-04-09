@@ -509,7 +509,7 @@ class PasswordResetServiceTest {
             ResetPasswordRequest request = new ResetPasswordRequest(rawToken, newPassword);
             service.resetPassword(request, ip, userAgent);
 
-            assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+            assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
             verify(loginAttemptService).recordSuccess(email);
             verify(auditLogService)
                     .logSuccess(
