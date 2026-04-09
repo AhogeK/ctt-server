@@ -49,40 +49,27 @@
     - REQUIRES_NEW 传播确保失败记录不被外层事务回滚
     - checkLockStatus 返回刷新后的 User 实体
     - PasswordResetService 密码重置后自动解锁账户
+- [x] 批量自动解锁定时任务 (AccountUnlockScheduler)
+    - 在 LoginAttemptCleanupScheduler 中追加 unlockExpiredAccounts()
+    - 遍历 LOCKED 用户，滑动窗口内无尝试 → reactivate()
+    - 混合模式：登录时懒解锁（精准）+ 定时扫表（数据底座整洁）
 
 ## 进行中 🔄
 
-Week 1 基础设施搭建 - 进度: 85%
-- [x] Flyway 数据库迁移
-- [x] 代码规范文件
-- [x] 构建工具配置
-- [x] 包结构拆分
-- [x] 统一响应/错误码/异常模型
-- [x] 全局 Jackson 配置
-- [x] TraceId 透传机制
-- [x] RequestContext 体系
-- [x] 三层日志规范
-- [x] 安全基础架构 (UTC/大小写/CurrentUserProvider/Token状态机/User状态机)
-- [x] 接口治理框架 (@RateLimit + @Idempotent)
-- [x] 接口安全分类 (@PublicApi + 动态白名单)
-- [x] 客户端身份上下文 (ClientIdentity)
-- [x] OWASP 安全 Headers
-- [x] 配置分层架构 (12-Factor App)
-- [x] 安全配置规范 (@ConfigurationProperties)
-- [x] 测试基线脚手架 (完整)
-- [x] 测试数据 Fixture 工具包
-- [x] 测试覆盖率达标 (指令 92%, 分支 84%)
-- [ ] Spring Boot 项目结构
-- [ ] Redis 缓存配置
-- [ ] JWT 认证实现
-- [ ] API Key 管理
+Week 1 基础设施搭建 - 进度: 100% ✅
+- [x] Spring Boot 项目结构
+- [x] Redis 缓存配置
+- [x] JWT 认证实现
+- [x] API Key 管理
+- [x] 账号锁定策略（含 login_attempts 表 + 定时清理 + 批量解锁）
 
 ## 开发计划 (8周)
 
-### Week 1-2: 基础设施与认证
-- [ ] 配置 Redis 缓存
-- [ ] 实现 JWT 用户认证
-- [ ] 实现 API Key 管理
+### Week 1-2: 基础设施与认证 ✅ 完成
+- [x] 配置 Redis 缓存
+- [x] 实现 JWT 用户认证
+- [x] 实现 API Key 管理
+- [x] 账号防暴破体系（配置 → 防腐层 → 懒解锁 → 隐私日志 → 定时清理）
 
 ### Week 3-4: 双向同步引擎
 - [ ] CodingSession 数据模型
