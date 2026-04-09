@@ -568,12 +568,12 @@ AuthController → UserLoginService → LoginAttemptService → LockoutStrategyP
 
 **Entry Points:**
 
-| Method                    | Purpose                            | Caller                                  |
-|---------------------------|------------------------------------|-----------------------------------------|
-| `checkLockStatus(email)`  | Pre-login lock check + auto-unlock | `UserLoginService.validateUserStatus()` |
-| `recordFailure(user, ip)` | Record failed attempt              | `UserLoginService.handleFailedLogin()`  |
-| `recordSuccess(user)`     | Clear failure state on success     | `UserLoginService.login()`              |
-| `isLocked(user)`          | Check lock status (predicate)      | Future use / admin tools                |
+| Method                     | Purpose                            | Caller                                             |
+|----------------------------|------------------------------------|----------------------------------------------------|
+| `checkLockStatus(email)`   | Pre-login lock check + auto-unlock | `UserLoginService.validateUserStatus()`            |
+| `recordFailure(email, ip)` | Record failed attempt              | `UserLoginService.handleFailedLogin()`             |
+| `recordSuccess(email)`     | Clear failure state on success     | `UserLoginService.login()`, `PasswordResetService` |
+| `isLocked(email)`          | Check lock status (predicate)      | Future use / admin tools                           |
 
 **Storage Strategy:**
 - Default: `DbLockoutStrategy` (User entity fields)

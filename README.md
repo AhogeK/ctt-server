@@ -82,6 +82,7 @@ CTT Server provides:
 | `sync_cursors`    | Per-device sync state              | `last_pulled_change_id`, `last_push_at`                    |
 | `audit_logs`      | Security audit trail               | `action`, `resource_type`, `details (JSONB)`, `ip_address` |
 | `mail_outbox`     | Transactional email queue          | `id`, `recipient`, `status`, `retry_count`, `trace_id`     |
+| `login_attempts`  | Brute-force protection audit trail | `id`, `email_hash` (SHA-256), `ip_hash`, `attempt_at`      |
 
 **Key Design Features**:
 
