@@ -280,6 +280,7 @@ Protects against brute-force attacks with automatic temporary lockout:
 - **Hybrid Unlock**:
   - **Lazy unlock**: On next login attempt, precise sliding window check unlocks if lockout expired
   - **Scheduled sweep**: Hourly background task unlocks abandoned locked accounts (no recent attempts in window)
+- **Audit Trail**: All lock/unlock events emit `ACCOUNT_LOCKED` / `ACCOUNT_UNLOCKED` audit actions
 
 Locked accounts are automatically unlocked after lockout period expires, either on next login or via scheduled cleanup.
 

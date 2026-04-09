@@ -58,7 +58,7 @@ public enum ErrorCode {
 
 | Category | Description                    | Examples                                                                                    |
 |----------|--------------------------------|---------------------------------------------------------------------------------------------|
-| IAM      | Identity and Access Management | LOGIN_SUCCESS, ACCOUNT_LOCKED                                                               |
+| IAM      | Identity and Access Management | LOGIN_SUCCESS, ACCOUNT_LOCKED, ACCOUNT_UNLOCKED                                               |
 | EMAIL    | Email Verification             | EMAIL_VERIFICATION_SENT                                                                     |
 | CRED     | Credential Management          | PASSWORD_CHANGED, API_KEY_REVOKED, PASSWORD_RESET_REQUESTED, PASSWORD_RESET_EMAIL_NOT_FOUND |
 | DEVICE   | Device Management              | DEVICE_LINKED, DEVICE_UNLINKED                                                              |
@@ -587,6 +587,15 @@ AuthController → UserLoginService → LoginAttemptService → LockoutStrategyP
 
 **Transaction Boundary:**
 `LoginAttemptService` methods use `REQUIRES_NEW` propagation to ensure security records are not rolled back by outer transaction failures (e.g., bad password).
+
+**Audit Events:**
+
+| Operation | Audit Action | Trigger Point |
+|-----------|-------------|---------------|
+| Brute-force lock | `ACCOUNT_LOCKED` | `recordFailure()` when threshold reached |
+| Lazy unlock | `ACCOUNT_UNLOCKED` | `checkLockStatus()` when lockout expired |
+| Password reset unlock | `ACCOUNT_UNLOCKED` | `PasswordResetService.resetPassword()` when locked user resets |
+| Scheduled sweep unlock | `ACCOUNT_UNLOCKED` | `unlockExpiredAccounts()` per unlocked user |
 
 ---
 
