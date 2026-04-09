@@ -8,10 +8,9 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Configuration class for lockout strategy selection.
- * <p>
- * Provides conditional bean definitions based on the {@code ctt.security.password.storage} property.
- * Defaults to database storage if the property is not specified.
- * </p>
+ *
+ * <p>Provides conditional bean definitions based on the {@code ctt.security.password.storage}
+ * property. Defaults to database storage if the property is not specified.
  *
  * @author AhogeK
  * @since 1.0.0
@@ -20,8 +19,8 @@ import org.springframework.context.annotation.Configuration;
 public class LockoutConfig {
 
     /**
-     * Database-backed lockout strategy.
-     * Active when {@code ctt.security.password.lockout.storage} is "DB" or missing (default).
+     * Database-backed lockout strategy. Active when {@code ctt.security.password.lockout.storage}
+     * is "DB" or missing (default).
      */
     @Bean
     @ConditionalOnProperty(

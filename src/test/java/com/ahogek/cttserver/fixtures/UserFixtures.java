@@ -43,9 +43,9 @@ import java.util.UUID;
  * }</pre>
  *
  * <p><b>Note:</b> User entity uses state machine pattern. The status field is set via
- * ReflectionTestUtils to bypass state transition validation for test data creation.
- * Lockout state (failedLoginAttempts, lockedUntil, lastFailureTime) should be set
- * via LoginAttemptRepository or directly on the entity for lockout-specific tests.
+ * ReflectionTestUtils to bypass state transition validation for test data creation. Lockout state
+ * (failedLoginAttempts, lockedUntil, lastFailureTime) should be set via LoginAttemptRepository or
+ * directly on the entity for lockout-specific tests.
  *
  * @author AhogeK
  * @since 2026-03-18
@@ -106,8 +106,8 @@ public final class UserFixtures {
     /**
      * Creates a locked user (status LOCKED).
      *
-     * <p>For lockout-specific tests, set lockedUntil and failedLoginAttempts directly on the
-     * built entity or via LoginAttemptRepository.
+     * <p>For lockout-specific tests, set lockedUntil and failedLoginAttempts directly on the built
+     * entity or via LoginAttemptRepository.
      *
      * @return builder for further customization
      */

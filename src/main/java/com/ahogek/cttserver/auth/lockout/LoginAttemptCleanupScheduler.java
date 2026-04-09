@@ -15,8 +15,8 @@ import java.time.Instant;
 /**
  * Scheduled cleanup of expired login attempt records.
  *
- * <p>Periodically deletes {@code login_attempts} rows older than the configured retention period
- * to prevent unbounded table growth. Uses the {@code idx_login_attempts_attempt_at} index for
+ * <p>Periodically deletes {@code login_attempts} rows older than the configured retention period to
+ * prevent unbounded table growth. Uses the {@code idx_login_attempts_attempt_at} index for
  * efficient time-based deletion.
  *
  * <p>Design characteristics:
@@ -41,8 +41,7 @@ public class LoginAttemptCleanupScheduler {
     private final Duration retentionDuration;
 
     public LoginAttemptCleanupScheduler(
-            LoginAttemptRepository loginAttemptRepository,
-            SecurityProperties securityProperties) {
+            LoginAttemptRepository loginAttemptRepository, SecurityProperties securityProperties) {
         this.loginAttemptRepository = loginAttemptRepository;
         this.retentionDuration = securityProperties.password().retentionDuration();
     }
@@ -50,8 +49,8 @@ public class LoginAttemptCleanupScheduler {
     /**
      * Deletes login attempt records older than the configured retention period.
      *
-     * <p>Runs at a fixed delay to prevent unbounded growth of the login_attempts table.
-     * Only logs when records are actually deleted to reduce noise.
+     * <p>Runs at a fixed delay to prevent unbounded growth of the login_attempts table. Only logs
+     * when records are actually deleted to reduce noise.
      */
     @Scheduled(fixedDelayString = "${ctt.security.lockout.cleanup-interval-ms:3600000}")
     @Transactional
@@ -59,7 +58,10 @@ public class LoginAttemptCleanupScheduler {
         Instant cutoff = Instant.now().minus(retentionDuration);
         int deleted = loginAttemptRepository.deleteOlderThan(cutoff);
         if (deleted > 0) {
-            log.info("Cleaned up {} expired login attempts (older than {})", deleted, retentionDuration);
+            log.info(
+                    "Cleaned up {} expired login attempts (older than {})",
+                    deleted,
+                    retentionDuration);
         }
     }
 }

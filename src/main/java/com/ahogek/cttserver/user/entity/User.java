@@ -239,5 +239,4 @@ public class User {
     public void setLastLoginIp(String lastLoginIp) {
         this.lastLoginIp = lastLoginIp;
     }
-
 }

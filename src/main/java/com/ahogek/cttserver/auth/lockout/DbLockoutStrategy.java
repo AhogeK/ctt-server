@@ -10,9 +10,9 @@ import java.time.Instant;
 /**
  * Database-based lockout strategy.
  *
- * <p>Registered via {@code LockoutConfig} with conditional property support.
- * Do NOT add {@code @Repository} or {@code @Component} - it would conflict
- * with the {@code @Bean} definition in {@code LockoutConfig}.
+ * <p>Registered via {@code LockoutConfig} with conditional property support. Do NOT add
+ * {@code @Repository} or {@code @Component} - it would conflict with the {@code @Bean} definition
+ * in {@code LockoutConfig}.
  */
 public class DbLockoutStrategy implements LockoutStrategyPort {
 
@@ -23,7 +23,12 @@ public class DbLockoutStrategy implements LockoutStrategyPort {
     }
 
     @Override
-    public void recordFailure(String emailHash, String ipHash, int maxAttempts, Duration lockDuration, int windowSeconds) {
+    public void recordFailure(
+            String emailHash,
+            String ipHash,
+            int maxAttempts,
+            Duration lockDuration,
+            int windowSeconds) {
         loginAttemptRepository.save(new LoginAttempt(emailHash, ipHash));
     }
 
@@ -33,12 +38,14 @@ public class DbLockoutStrategy implements LockoutStrategyPort {
     }
 
     @Override
-    public boolean shouldAutoUnlock(String emailHash, UserStatus status, Duration lockDuration, int windowSeconds) {
+    public boolean shouldAutoUnlock(
+            String emailHash, UserStatus status, Duration lockDuration, int windowSeconds) {
         if (status != UserStatus.LOCKED) {
             return false;
         }
         Instant windowStart = Instant.now().minusSeconds(windowSeconds);
-        return loginAttemptRepository.findEarliestAttemptInWindow(emailHash, windowStart)
+        return loginAttemptRepository
+                .findEarliestAttemptInWindow(emailHash, windowStart)
                 .map(earliest -> Instant.now().isAfter(earliest.plus(lockDuration)))
                 .orElse(true); // No attempts in window → lockout expired
     }

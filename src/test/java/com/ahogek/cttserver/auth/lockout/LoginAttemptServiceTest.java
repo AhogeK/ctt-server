@@ -30,26 +30,21 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class LoginAttemptServiceTest {
 
-    @Mock
-    private LockoutStrategyPort lockoutStrategy;
+    @Mock private LockoutStrategyPort lockoutStrategy;
 
-    @Mock
-    private LoginAttemptRepository loginAttemptRepository;
+    @Mock private LoginAttemptRepository loginAttemptRepository;
 
-    @Mock
-    private UserRepository userRepository;
+    @Mock private UserRepository userRepository;
 
-    @Mock
-    private PasswordProperties passwordProps;
+    @Mock private PasswordProperties passwordProps;
 
-    @Mock
-    private SecurityProperties securityProperties;
+    @Mock private SecurityProperties securityProperties;
 
     private LoginAttemptService loginAttemptService;
 
@@ -65,8 +60,12 @@ class LoginAttemptServiceTest {
     @BeforeEach
     void setUp() {
         given(securityProperties.password()).willReturn(passwordProps);
-        loginAttemptService = new LoginAttemptService(
-                lockoutStrategy, loginAttemptRepository, userRepository, securityProperties);
+        loginAttemptService =
+                new LoginAttemptService(
+                        lockoutStrategy,
+                        loginAttemptRepository,
+                        userRepository,
+                        securityProperties);
         activeUser = createActiveUser();
     }
 
@@ -105,10 +104,16 @@ class LoginAttemptServiceTest {
         @Test
         @DisplayName("should return normally when user is active")
         void shouldReturnNormally_whenUserIsActive() {
-            given(lockoutStrategy.shouldAutoUnlock(
-                    TEST_EMAIL_HASH, UserStatus.ACTIVE, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS))
+            given(
+                            lockoutStrategy.shouldAutoUnlock(
+                                    TEST_EMAIL_HASH,
+                                    UserStatus.ACTIVE,
+                                    TEST_LOCK_DURATION,
+                                    TEST_WINDOW_SECONDS))
                     .willReturn(false);
-            given(loginAttemptRepository.countAttemptsInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+            given(
+                            loginAttemptRepository.countAttemptsInWindow(
+                                    eq(TEST_EMAIL_HASH), any(Instant.class)))
                     .willReturn(0L);
 
             loginAttemptService.checkLockStatus(activeUser);
@@ -119,8 +124,12 @@ class LoginAttemptServiceTest {
         void shouldAutoUnlockAndReturn_whenLockExpired() {
             User lockedUser = createLockedUser();
 
-            given(lockoutStrategy.shouldAutoUnlock(
-                    anyString(), eq(UserStatus.LOCKED), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+            given(
+                            lockoutStrategy.shouldAutoUnlock(
+                                    anyString(),
+                                    eq(UserStatus.LOCKED),
+                                    eq(TEST_LOCK_DURATION),
+                                    eq(TEST_WINDOW_SECONDS)))
                     .willReturn(true);
 
             loginAttemptService.checkLockStatus(lockedUser);
@@ -134,8 +143,12 @@ class LoginAttemptServiceTest {
         void shouldThrowForbiddenException_whenAccountIsLocked() {
             User lockedUser = createLockedUser();
 
-            given(lockoutStrategy.shouldAutoUnlock(
-                    anyString(), eq(UserStatus.LOCKED), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+            given(
+                            lockoutStrategy.shouldAutoUnlock(
+                                    anyString(),
+                                    eq(UserStatus.LOCKED),
+                                    eq(TEST_LOCK_DURATION),
+                                    eq(TEST_WINDOW_SECONDS)))
                     .willReturn(false);
 
             assertThatThrownBy(() -> loginAttemptService.checkLockStatus(lockedUser))
@@ -146,10 +159,16 @@ class LoginAttemptServiceTest {
         @Test
         @DisplayName("should throw ForbiddenException when attempts exceeded in DB")
         void shouldThrowForbiddenException_whenAttemptsExceeded() {
-            given(lockoutStrategy.shouldAutoUnlock(
-                    TEST_EMAIL_HASH, UserStatus.ACTIVE, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS))
+            given(
+                            lockoutStrategy.shouldAutoUnlock(
+                                    TEST_EMAIL_HASH,
+                                    UserStatus.ACTIVE,
+                                    TEST_LOCK_DURATION,
+                                    TEST_WINDOW_SECONDS))
                     .willReturn(false);
-            given(loginAttemptRepository.countAttemptsInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+            given(
+                            loginAttemptRepository.countAttemptsInWindow(
+                                    eq(TEST_EMAIL_HASH), any(Instant.class)))
                     .willReturn((long) TEST_MAX_ATTEMPTS);
 
             assertThatThrownBy(() -> loginAttemptService.checkLockStatus(activeUser))
@@ -163,8 +182,12 @@ class LoginAttemptServiceTest {
             User upperCaseUser = createActiveUser();
             upperCaseUser.setEmail("TEST@EXAMPLE.COM");
 
-            given(lockoutStrategy.shouldAutoUnlock(
-                    anyString(), eq(UserStatus.ACTIVE), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+            given(
+                            lockoutStrategy.shouldAutoUnlock(
+                                    anyString(),
+                                    eq(UserStatus.ACTIVE),
+                                    eq(TEST_LOCK_DURATION),
+                                    eq(TEST_WINDOW_SECONDS)))
                     .willReturn(false);
             given(loginAttemptRepository.countAttemptsInWindow(anyString(), any(Instant.class)))
                     .willReturn(0L);
@@ -192,8 +215,13 @@ class LoginAttemptServiceTest {
 
             loginAttemptService.recordFailure(TEST_EMAIL, "192.168.1.1");
 
-            verify(lockoutStrategy).recordFailure(
-                    TEST_EMAIL_HASH, TEST_IP_HASH, TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
+            verify(lockoutStrategy)
+                    .recordFailure(
+                            TEST_EMAIL_HASH,
+                            TEST_IP_HASH,
+                            TEST_MAX_ATTEMPTS,
+                            TEST_LOCK_DURATION,
+                            TEST_WINDOW_SECONDS);
         }
 
         @Test
@@ -220,14 +248,18 @@ class LoginAttemptServiceTest {
             given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
             given(loginAttemptRepository.countAttemptsInWindow(anyString(), any(Instant.class)))
                     .willReturn(1L);
-            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
-                    .willReturn(Optional.empty());
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).willReturn(Optional.empty());
 
             loginAttemptService.recordFailure(TEST_EMAIL, "192.168.1.1");
 
             // Strategy is still called (it saves the attempt record)
-            verify(lockoutStrategy).recordFailure(
-                    TEST_EMAIL_HASH, TEST_IP_HASH, TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
+            verify(lockoutStrategy)
+                    .recordFailure(
+                            TEST_EMAIL_HASH,
+                            TEST_IP_HASH,
+                            TEST_MAX_ATTEMPTS,
+                            TEST_LOCK_DURATION,
+                            TEST_WINDOW_SECONDS);
             // But user is not saved
             verify(userRepository, never()).save(any());
         }
@@ -262,8 +294,7 @@ class LoginAttemptServiceTest {
         @Test
         @DisplayName("should not throw when user not found")
         void shouldNotThrow_whenUserNotFound() {
-            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
-                    .willReturn(Optional.empty());
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).willReturn(Optional.empty());
 
             loginAttemptService.recordSuccess(TEST_EMAIL);
 
@@ -303,8 +334,12 @@ class LoginAttemptServiceTest {
                     .willReturn(Optional.of(lockedUser));
             given(passwordProps.lockDuration()).willReturn(TEST_LOCK_DURATION);
             given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
-            given(lockoutStrategy.shouldAutoUnlock(
-                    anyString(), eq(UserStatus.LOCKED), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+            given(
+                            lockoutStrategy.shouldAutoUnlock(
+                                    anyString(),
+                                    eq(UserStatus.LOCKED),
+                                    eq(TEST_LOCK_DURATION),
+                                    eq(TEST_WINDOW_SECONDS)))
                     .willReturn(false);
 
             boolean result = loginAttemptService.isLocked("locked@example.com");
@@ -331,8 +366,12 @@ class LoginAttemptServiceTest {
                     .willReturn(Optional.of(lockedUser));
             given(passwordProps.lockDuration()).willReturn(TEST_LOCK_DURATION);
             given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
-            given(lockoutStrategy.shouldAutoUnlock(
-                    anyString(), eq(UserStatus.LOCKED), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+            given(
+                            lockoutStrategy.shouldAutoUnlock(
+                                    anyString(),
+                                    eq(UserStatus.LOCKED),
+                                    eq(TEST_LOCK_DURATION),
+                                    eq(TEST_WINDOW_SECONDS)))
                     .willReturn(true);
 
             boolean result = loginAttemptService.isLocked("locked@example.com");
