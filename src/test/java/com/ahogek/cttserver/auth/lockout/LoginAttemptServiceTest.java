@@ -1,10 +1,11 @@
 package com.ahogek.cttserver.auth.lockout;
 
+import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties.PasswordProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
-import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -18,22 +19,28 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class LoginAttemptServiceTest {
 
     @Mock
     private LockoutStrategyPort lockoutStrategy;
+
+    @Mock
+    private LoginAttemptRepository loginAttemptRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -44,25 +51,29 @@ class LoginAttemptServiceTest {
     @Mock
     private SecurityProperties securityProperties;
 
-    private static final int TEST_MAX_ATTEMPTS = 5;
-    private static final Duration TEST_LOCK_DURATION = Duration.ofMinutes(30);
-    private static final int TEST_WINDOW_SECONDS = 900;
-
     private LoginAttemptService loginAttemptService;
 
     private User activeUser;
 
+    private static final String TEST_EMAIL = "test@example.com";
+    private static final String TEST_EMAIL_HASH = TokenUtils.hashToken(TEST_EMAIL);
+    private static final String TEST_IP_HASH = TokenUtils.hashToken("192.168.1.1");
+    private static final int TEST_MAX_ATTEMPTS = 5;
+    private static final Duration TEST_LOCK_DURATION = Duration.ofMinutes(30);
+    private static final int TEST_WINDOW_SECONDS = 900;
+
     @BeforeEach
     void setUp() {
         given(securityProperties.password()).willReturn(passwordProps);
-        loginAttemptService = new LoginAttemptService(lockoutStrategy, userRepository, securityProperties);
+        loginAttemptService = new LoginAttemptService(
+                lockoutStrategy, loginAttemptRepository, userRepository, securityProperties);
         activeUser = createActiveUser();
     }
 
     private User createActiveUser() {
         User user = new User();
         user.setId(UUID.randomUUID());
-        user.setEmail("test@example.com");
+        user.setEmail(TEST_EMAIL);
         user.setDisplayName("Test User");
         user.setPasswordHash("hashedPassword");
         user.verifyEmail();
@@ -76,10 +87,7 @@ class LoginAttemptServiceTest {
         user.setDisplayName("Locked User");
         user.setPasswordHash("hashedPassword");
         user.verifyEmail();
-        for (int i = 0; i < TEST_MAX_ATTEMPTS; i++) {
-            user.recordFailedLogin(TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
-        }
-        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+        user.lockAccount();
         return user;
     }
 
@@ -87,108 +95,83 @@ class LoginAttemptServiceTest {
     @DisplayName("checkLockStatus")
     class CheckLockStatus {
 
+        @BeforeEach
+        void setUpCheckLockStatus() {
+            lenient().when(passwordProps.lockDuration()).thenReturn(TEST_LOCK_DURATION);
+            lenient().when(passwordProps.failureWindowSeconds()).thenReturn(TEST_WINDOW_SECONDS);
+            lenient().when(passwordProps.maxFailedAttempts()).thenReturn(TEST_MAX_ATTEMPTS);
+        }
+
         @Test
         @DisplayName("should return normally when user is active")
         void shouldReturnNormally_whenUserIsActive() {
-            // Given
-            given(userRepository.findByEmailIgnoreCase("test@example.com"))
-                    .willReturn(Optional.of(activeUser));
-            given(lockoutStrategy.shouldAutoUnlock(activeUser)).willReturn(false);
-            given(passwordProps.maxFailedAttempts()).willReturn(TEST_MAX_ATTEMPTS);
+            given(lockoutStrategy.shouldAutoUnlock(
+                    TEST_EMAIL_HASH, UserStatus.ACTIVE, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS))
+                    .willReturn(false);
+            given(loginAttemptRepository.countAttemptsInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+                    .willReturn(0L);
 
-            // When
-            loginAttemptService.checkLockStatus("test@example.com");
-
-            // Then - no exception thrown
-            assertThat(activeUser.getStatus()).isEqualTo(UserStatus.ACTIVE);
+            loginAttemptService.checkLockStatus(activeUser);
         }
 
         @Test
         @DisplayName("should auto-unlock and return when lock expired")
         void shouldAutoUnlockAndReturn_whenLockExpired() {
-            // Given
             User lockedUser = createLockedUser();
 
-            given(userRepository.findByEmailIgnoreCase("locked@example.com"))
-                    .willReturn(Optional.of(lockedUser));
-            given(lockoutStrategy.shouldAutoUnlock(lockedUser)).willReturn(true);
+            given(lockoutStrategy.shouldAutoUnlock(
+                    anyString(), eq(UserStatus.LOCKED), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+                    .willReturn(true);
 
-            // When
-            loginAttemptService.checkLockStatus("locked@example.com");
+            loginAttemptService.checkLockStatus(lockedUser);
 
-            // Then
-            verify(lockoutStrategy).recordSuccess(lockedUser);
+            verify(lockoutStrategy).recordSuccess(anyString());
             verify(userRepository).save(lockedUser);
         }
 
         @Test
         @DisplayName("should throw ForbiddenException when account is locked")
         void shouldThrowForbiddenException_whenAccountIsLocked() {
-            // Given
             User lockedUser = createLockedUser();
 
-            given(userRepository.findByEmailIgnoreCase("locked@example.com"))
-                    .willReturn(Optional.of(lockedUser));
-            given(lockoutStrategy.shouldAutoUnlock(lockedUser)).willReturn(false);
+            given(lockoutStrategy.shouldAutoUnlock(
+                    anyString(), eq(UserStatus.LOCKED), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+                    .willReturn(false);
 
-            // When / Then
-            assertThatThrownBy(
-                            () ->
-                                    loginAttemptService.checkLockStatus(
-                                            "locked@example.com"))
+            assertThatThrownBy(() -> loginAttemptService.checkLockStatus(lockedUser))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_004);
         }
 
         @Test
-        @DisplayName("should throw ForbiddenException when attempts exceeded")
+        @DisplayName("should throw ForbiddenException when attempts exceeded in DB")
         void shouldThrowForbiddenException_whenAttemptsExceeded() {
-            // Given
-            User user = createActiveUser();
-            user.setFailedLoginAttempts(5);
+            given(lockoutStrategy.shouldAutoUnlock(
+                    TEST_EMAIL_HASH, UserStatus.ACTIVE, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS))
+                    .willReturn(false);
+            given(loginAttemptRepository.countAttemptsInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+                    .willReturn((long) TEST_MAX_ATTEMPTS);
 
-            given(userRepository.findByEmailIgnoreCase("test@example.com"))
-                    .willReturn(Optional.of(user));
-            given(lockoutStrategy.shouldAutoUnlock(user)).willReturn(false);
-            given(passwordProps.maxFailedAttempts()).willReturn(TEST_MAX_ATTEMPTS);
-
-            // When / Then
-            assertThatThrownBy(
-                            () -> loginAttemptService.checkLockStatus("test@example.com"))
+            assertThatThrownBy(() -> loginAttemptService.checkLockStatus(activeUser))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_004);
-        }
-
-        @Test
-        @DisplayName("should throw NotFoundException when user not found")
-        void shouldThrowNotFoundException_whenUserNotFound() {
-            // Given
-            given(userRepository.findByEmailIgnoreCase("nonexistent@example.com"))
-                    .willReturn(Optional.empty());
-
-            // When / Then
-            assertThatThrownBy(
-                            () ->
-                                    loginAttemptService.checkLockStatus(
-                                            "nonexistent@example.com"))
-                    .isInstanceOf(NotFoundException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_001);
         }
 
         @Test
         @DisplayName("should find user with case-insensitive email")
         void shouldFindUser_whenEmailCaseDiffers() {
-            // Given
-            given(userRepository.findByEmailIgnoreCase("TEST@EXAMPLE.COM"))
-                    .willReturn(Optional.of(activeUser));
-            given(lockoutStrategy.shouldAutoUnlock(activeUser)).willReturn(false);
-            given(passwordProps.maxFailedAttempts()).willReturn(TEST_MAX_ATTEMPTS);
+            User upperCaseUser = createActiveUser();
+            upperCaseUser.setEmail("TEST@EXAMPLE.COM");
 
-            // When
-            loginAttemptService.checkLockStatus("TEST@EXAMPLE.COM");
+            given(lockoutStrategy.shouldAutoUnlock(
+                    anyString(), eq(UserStatus.ACTIVE), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+                    .willReturn(false);
+            given(loginAttemptRepository.countAttemptsInWindow(anyString(), any(Instant.class)))
+                    .willReturn(0L);
 
-            // Then
-            verify(userRepository).findByEmailIgnoreCase("TEST@EXAMPLE.COM");
+            loginAttemptService.checkLockStatus(upperCaseUser);
+
+            assertThat(upperCaseUser.getEmail()).isEqualTo("TEST@EXAMPLE.COM");
         }
     }
 
@@ -197,63 +180,56 @@ class LoginAttemptServiceTest {
     class RecordFailure {
 
         @Test
-        @DisplayName("should increment failure count")
-        void shouldIncrementFailureCount() {
-            // Given
+        @DisplayName("should delegate to lockout strategy")
+        void shouldDelegateToLockoutStrategy() {
             given(passwordProps.maxFailedAttempts()).willReturn(TEST_MAX_ATTEMPTS);
             given(passwordProps.lockDuration()).willReturn(TEST_LOCK_DURATION);
             given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
+            given(loginAttemptRepository.countAttemptsInWindow(anyString(), any(Instant.class)))
+                    .willReturn(1L);
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .willReturn(Optional.of(activeUser));
 
-            // When
-            loginAttemptService.recordFailure(activeUser, "192.168.1.1");
+            loginAttemptService.recordFailure(TEST_EMAIL, "192.168.1.1");
 
-            // Then
-            verify(lockoutStrategy)
-                    .recordFailure(
-                            activeUser,
-                            TEST_MAX_ATTEMPTS,
-                            TEST_LOCK_DURATION,
-                            TEST_WINDOW_SECONDS);
+            verify(lockoutStrategy).recordFailure(
+                    TEST_EMAIL_HASH, TEST_IP_HASH, TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
         }
 
         @Test
         @DisplayName("should save user after recording failure")
         void shouldSaveUserAfterRecordingFailure() {
-            // Given
             given(passwordProps.maxFailedAttempts()).willReturn(TEST_MAX_ATTEMPTS);
             given(passwordProps.lockDuration()).willReturn(TEST_LOCK_DURATION);
             given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
+            given(loginAttemptRepository.countAttemptsInWindow(anyString(), any(Instant.class)))
+                    .willReturn(1L);
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .willReturn(Optional.of(activeUser));
 
-            // When
-            loginAttemptService.recordFailure(activeUser, "192.168.1.1");
+            loginAttemptService.recordFailure(TEST_EMAIL, "192.168.1.1");
 
-            // Then
             verify(userRepository).save(activeUser);
         }
 
         @Test
-        @DisplayName("should increment user failure count after recording")
-        void shouldIncrementUserFailureCount_afterRecording() {
-            // Given
+        @DisplayName("should not throw when user not found")
+        void shouldNotThrow_whenUserNotFound() {
             given(passwordProps.maxFailedAttempts()).willReturn(TEST_MAX_ATTEMPTS);
             given(passwordProps.lockDuration()).willReturn(TEST_LOCK_DURATION);
             given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
-            willAnswer(invocation -> {
-                User u = invocation.getArgument(0);
-                int maxAttempts = invocation.getArgument(1);
-                Duration lockDuration = invocation.getArgument(2);
-                int windowSeconds = invocation.getArgument(3);
-                u.recordFailedLogin(maxAttempts, lockDuration, windowSeconds);
-                return null;
-            }).given(lockoutStrategy).recordFailure(any(User.class), anyInt(), any(Duration.class), anyInt());
-            assertThat(activeUser.getFailedLoginAttempts()).isZero();
+            given(loginAttemptRepository.countAttemptsInWindow(anyString(), any(Instant.class)))
+                    .willReturn(1L);
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .willReturn(Optional.empty());
 
-            // When
-            loginAttemptService.recordFailure(activeUser, "192.168.1.1");
+            loginAttemptService.recordFailure(TEST_EMAIL, "192.168.1.1");
 
-            // Then
-            assertThat(activeUser.getFailedLoginAttempts()).isEqualTo(1);
-            assertThat(activeUser.getLastFailureTime()).isNotNull();
+            // Strategy is still called (it saves the attempt record)
+            verify(lockoutStrategy).recordFailure(
+                    TEST_EMAIL_HASH, TEST_IP_HASH, TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
+            // But user is not saved
+            verify(userRepository, never()).save(any());
         }
     }
 
@@ -262,36 +238,56 @@ class LoginAttemptServiceTest {
     class RecordSuccess {
 
         @Test
-        @DisplayName("should clear failure state")
-        void shouldClearFailureState() {
-            // Given
-            activeUser.recordFailedLogin(TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
-            activeUser.recordFailedLogin(TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
-            activeUser.recordFailedLogin(TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
-            assertThat(activeUser.getFailedLoginAttempts()).isEqualTo(3);
-            willAnswer(invocation -> {
-                User u = invocation.getArgument(0);
-                u.recordSuccessfulLogin();
-                return null;
-            }).given(lockoutStrategy).recordSuccess(activeUser);
+        @DisplayName("should delegate to lockout strategy")
+        void shouldDelegateToLockoutStrategy() {
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .willReturn(Optional.of(activeUser));
 
-            // When
-            loginAttemptService.recordSuccess(activeUser);
+            loginAttemptService.recordSuccess(TEST_EMAIL);
 
-            // Then
-            verify(lockoutStrategy).recordSuccess(activeUser);
-            assertThat(activeUser.getFailedLoginAttempts()).isZero();
-            assertThat(activeUser.getLastFailureTime()).isNull();
+            verify(lockoutStrategy).recordSuccess(TEST_EMAIL_HASH);
         }
 
         @Test
-        @DisplayName("should save user after success")
-        void shouldSaveUserAfterSuccess() {
+        @DisplayName("should not save user when active")
+        void shouldNotSaveUser_whenActive() {
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .willReturn(Optional.of(activeUser));
+
+            loginAttemptService.recordSuccess(TEST_EMAIL);
+
+            verify(userRepository, never()).save(activeUser);
+        }
+
+        @Test
+        @DisplayName("should not throw when user not found")
+        void shouldNotThrow_whenUserNotFound() {
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .willReturn(Optional.empty());
+
+            loginAttemptService.recordSuccess(TEST_EMAIL);
+
+            // Strategy is still called (it deletes the attempt records)
+            verify(lockoutStrategy).recordSuccess(TEST_EMAIL_HASH);
+            // But user is not saved
+            verify(userRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should reactivate user when locked")
+        void shouldReactivateUser_whenLocked() {
+            // Given
+            User lockedUser = createActiveUser();
+            lockedUser.lockAccount();
+            given(userRepository.findByEmailIgnoreCase("test@example.com"))
+                    .willReturn(Optional.of(lockedUser));
+
             // When
-            loginAttemptService.recordSuccess(activeUser);
+            loginAttemptService.recordSuccess("test@example.com");
 
             // Then
-            verify(userRepository).save(activeUser);
+            assertThat(lockedUser.getStatus()).isEqualTo(UserStatus.ACTIVE);
+            verify(userRepository).save(lockedUser);
         }
     }
 
@@ -302,46 +298,56 @@ class LoginAttemptServiceTest {
         @Test
         @DisplayName("should return true when locked and not expired")
         void shouldReturnTrue_whenLockedAndNotExpired() {
-            // Given
-            User lockedUser = createActiveUser();
-            for (int i = 0; i < TEST_MAX_ATTEMPTS; i++) {
-                lockedUser.recordFailedLogin(TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
-            }
-            assertThat(lockedUser.getStatus()).isEqualTo(UserStatus.LOCKED);
-            given(lockoutStrategy.shouldAutoUnlock(lockedUser)).willReturn(false);
+            User lockedUser = createLockedUser();
+            given(userRepository.findByEmailIgnoreCase("locked@example.com"))
+                    .willReturn(Optional.of(lockedUser));
+            given(passwordProps.lockDuration()).willReturn(TEST_LOCK_DURATION);
+            given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
+            given(lockoutStrategy.shouldAutoUnlock(
+                    anyString(), eq(UserStatus.LOCKED), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+                    .willReturn(false);
 
-            // When
-            boolean result = loginAttemptService.isLocked(lockedUser);
+            boolean result = loginAttemptService.isLocked("locked@example.com");
 
-            // Then
             assertThat(result).isTrue();
         }
 
         @Test
         @DisplayName("should return false when not locked")
         void shouldReturnFalse_whenNotLocked() {
-            // When
-            boolean result = loginAttemptService.isLocked(activeUser);
+            given(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .willReturn(Optional.of(activeUser));
 
-            // Then
+            boolean result = loginAttemptService.isLocked(TEST_EMAIL);
+
             assertThat(result).isFalse();
         }
 
         @Test
         @DisplayName("should return false when lock expired")
         void shouldReturnFalse_whenLockExpired() {
-            // Given
-            User lockedUser = createActiveUser();
-            for (int i = 0; i < TEST_MAX_ATTEMPTS; i++) {
-                lockedUser.recordFailedLogin(TEST_MAX_ATTEMPTS, TEST_LOCK_DURATION, TEST_WINDOW_SECONDS);
-            }
-            assertThat(lockedUser.getStatus()).isEqualTo(UserStatus.LOCKED);
-            given(lockoutStrategy.shouldAutoUnlock(lockedUser)).willReturn(true);
+            User lockedUser = createLockedUser();
+            given(userRepository.findByEmailIgnoreCase("locked@example.com"))
+                    .willReturn(Optional.of(lockedUser));
+            given(passwordProps.lockDuration()).willReturn(TEST_LOCK_DURATION);
+            given(passwordProps.failureWindowSeconds()).willReturn(TEST_WINDOW_SECONDS);
+            given(lockoutStrategy.shouldAutoUnlock(
+                    anyString(), eq(UserStatus.LOCKED), eq(TEST_LOCK_DURATION), eq(TEST_WINDOW_SECONDS)))
+                    .willReturn(true);
 
-            // When
-            boolean result = loginAttemptService.isLocked(lockedUser);
+            boolean result = loginAttemptService.isLocked("locked@example.com");
 
-            // Then
+            assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return false when user not found")
+        void shouldReturnFalse_whenUserNotFound() {
+            given(userRepository.findByEmailIgnoreCase("nonexistent@example.com"))
+                    .willReturn(Optional.empty());
+
+            boolean result = loginAttemptService.isLocked("nonexistent@example.com");
+
             assertThat(result).isFalse();
         }
     }

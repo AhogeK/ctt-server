@@ -5,6 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
 import com.ahogek.cttserver.auth.entity.PasswordResetToken;
+import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.PasswordResetTokenRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
@@ -50,6 +51,7 @@ class PasswordResetServiceTest {
     @Mock private AuditLogService auditLogService;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Mock private LoginAttemptService loginAttemptService;
 
     private PasswordResetService service;
 
@@ -62,7 +64,8 @@ class PasswordResetServiceTest {
                         mailOutboxService,
                         auditLogService,
                         passwordEncoder,
-                        refreshTokenRepository);
+                        refreshTokenRepository,
+                        loginAttemptService);
     }
 
     private User createActiveUser(UUID userId, String email, String displayName) {
@@ -506,7 +509,8 @@ class PasswordResetServiceTest {
             ResetPasswordRequest request = new ResetPasswordRequest(rawToken, newPassword);
             service.resetPassword(request, ip, userAgent);
 
-            assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+            assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+            verify(loginAttemptService).recordSuccess(email);
             verify(auditLogService)
                     .logSuccess(
                             userId,

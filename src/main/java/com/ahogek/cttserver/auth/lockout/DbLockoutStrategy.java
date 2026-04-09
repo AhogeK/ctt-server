@@ -1,50 +1,45 @@
 package com.ahogek.cttserver.auth.lockout;
 
-import com.ahogek.cttserver.user.entity.User;
+import com.ahogek.cttserver.auth.entity.LoginAttempt;
+import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
 import java.time.Duration;
 import java.time.Instant;
 
 /**
- * Database-backed lockout strategy using User entity fields.
+ * Database-based lockout strategy.
  *
- * <p>Stores lockout tracking data in PostgreSQL via User entity fields:
- *
- * <ul>
- *   <li>{@code failedLoginAttempts}: counter for consecutive failures
- *   <li>{@code lastFailureTime}: timestamp of most recent failure (for sliding window)
- *   <li>{@code lockedUntil}: lockout expiration timestamp
- * </ul>
- *
- * <p><strong>Deployment:</strong> Suitable for single-instance deployments. For distributed systems, use
- * {@link RedisLockoutStrategy}.
- *
- * @author AhogeK [ahogek@gmail.com]
- * @since 2026-04-08
+ * <p>Registered via {@code LockoutConfig} with conditional property support.
+ * Do NOT add {@code @Repository} or {@code @Component} - it would conflict
+ * with the {@code @Bean} definition in {@code LockoutConfig}.
  */
 public class DbLockoutStrategy implements LockoutStrategyPort {
 
-    @Override
-    public void recordFailure(User user, int maxAttempts, Duration lockDuration, int windowSeconds) {
-        user.recordFailedLogin(maxAttempts, lockDuration, windowSeconds);
+    private final LoginAttemptRepository loginAttemptRepository;
+
+    public DbLockoutStrategy(LoginAttemptRepository loginAttemptRepository) {
+        this.loginAttemptRepository = loginAttemptRepository;
     }
 
     @Override
-    public void recordSuccess(User user) {
-        user.recordSuccessfulLogin();
+    public void recordFailure(String emailHash, String ipHash, int maxAttempts, Duration lockDuration, int windowSeconds) {
+        loginAttemptRepository.save(new LoginAttempt(emailHash, ipHash));
     }
 
     @Override
-    public boolean shouldAutoUnlock(User user) {
-        if (user.getStatus() != UserStatus.LOCKED) {
+    public void recordSuccess(String emailHash) {
+        loginAttemptRepository.deleteByEmailHash(emailHash);
+    }
+
+    @Override
+    public boolean shouldAutoUnlock(String emailHash, UserStatus status, Duration lockDuration, int windowSeconds) {
+        if (status != UserStatus.LOCKED) {
             return false;
         }
-
-        if (user.getLockedUntil() == null) {
-            return false;
-        }
-
-        return Instant.now().isAfter(user.getLockedUntil());
+        Instant windowStart = Instant.now().minusSeconds(windowSeconds);
+        return loginAttemptRepository.findEarliestAttemptInWindow(emailHash, windowStart)
+                .map(earliest -> Instant.now().isAfter(earliest.plus(lockDuration)))
+                .orElse(true); // No attempts in window → lockout expired
     }
 }

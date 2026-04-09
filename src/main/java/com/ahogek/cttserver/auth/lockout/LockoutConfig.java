@@ -1,5 +1,7 @@
 package com.ahogek.cttserver.auth.lockout;
 
+import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,38 +20,16 @@ import org.springframework.context.annotation.Configuration;
 public class LockoutConfig {
 
     /**
-     * Creates a database-based lockout strategy.
-     * <p>
-     * This bean is activated when {@code ctt.security.password.storage} is set to "DB"
-     * or when the property is missing (default behavior).
-     * </p>
-     *
-     * @return a database-backed lockout strategy implementation
+     * Database-backed lockout strategy.
+     * Active when {@code ctt.security.password.lockout.storage} is "DB" or missing (default).
      */
     @Bean
     @ConditionalOnProperty(
-        prefix = "ctt.security.password",
-        name = "storage",
-        havingValue = "DB",
-        matchIfMissing = true)
-    public LockoutStrategyPort dbLockoutStrategy() {
-        return new DbLockoutStrategy();
-    }
-
-    /**
-     * Creates a Redis-based lockout strategy.
-     * <p>
-     * This bean is activated when {@code ctt.security.password.storage} is set to "REDIS".
-     * </p>
-     *
-     * @return a Redis-backed lockout strategy implementation
-     */
-    @Bean
-    @ConditionalOnProperty(
-        prefix = "ctt.security.password",
-        name = "storage",
-        havingValue = "REDIS")
-    public LockoutStrategyPort redisLockoutStrategy() {
-        return new RedisLockoutStrategy();
+            prefix = "ctt.security.password.lockout",
+            name = "storage",
+            havingValue = "DB",
+            matchIfMissing = true)
+    public LockoutStrategyPort dbLockoutStrategy(LoginAttemptRepository loginAttemptRepository) {
+        return new DbLockoutStrategy(loginAttemptRepository);
     }
 }

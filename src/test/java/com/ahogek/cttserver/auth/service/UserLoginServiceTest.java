@@ -33,6 +33,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -47,8 +48,6 @@ class UserLoginServiceTest {
     private static final String TEST_PASSWORD = "password123";
     private static final String TEST_PASSWORD_HASH = "hashed_password";
     private static final String TEST_ACCESS_TOKEN = "test.access.token";
-    private static final int MAX_FAILED_ATTEMPTS = 5;
-    private static final Duration LOCK_DURATION = Duration.ofMinutes(30);
     private static final Duration ACCESS_TOKEN_TTL = Duration.ofMinutes(15);
     private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(30);
 
@@ -79,17 +78,9 @@ class UserLoginServiceTest {
                         loginAttemptService,
                         securityProperties);
 
-        doAnswer(invocation -> {
-            User user = invocation.getArgument(0);
-            user.recordSuccessfulLogin();
-            return null;
-        }).when(loginAttemptService).recordSuccess(any(User.class));
+        doAnswer(_ -> null).when(loginAttemptService).recordSuccess(anyString());
 
-        doAnswer(invocation -> {
-            User user = invocation.getArgument(0);
-            user.recordFailedLogin(MAX_FAILED_ATTEMPTS, LOCK_DURATION, 900);
-            return null;
-        }).when(loginAttemptService).recordFailure(any(User.class), any());
+        doAnswer(_ -> null).when(loginAttemptService).recordFailure(anyString(), any());
     }
 
     @Nested
@@ -117,15 +108,13 @@ class UserLoginServiceTest {
         @DisplayName("should record successful login and clear failed attempts")
         void shouldRecordSuccessfulLogin_andClearFailedAttempts() {
             User user = createActiveUser();
-            user.setFailedLoginAttempts(3);
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
 
             loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null));
 
-            assertThat(user.getFailedLoginAttempts()).isZero();
-            assertThat(user.getLastLoginAt()).isNotNull();
+            verify(loginAttemptService).recordSuccess(TEST_EMAIL);
         }
 
         @Test
@@ -190,8 +179,7 @@ class UserLoginServiceTest {
                 // expected
             }
 
-            assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
-            verify(loginAttemptService).recordFailure(user, null);
+            verify(loginAttemptService).recordFailure(TEST_EMAIL, null);
         }
 
         @Test
@@ -240,7 +228,7 @@ class UserLoginServiceTest {
             User user = createUserWithStatus(UserStatus.LOCKED);
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
             doThrow(new ForbiddenException(ErrorCode.AUTH_004, "Account is locked"))
-                    .when(loginAttemptService).checkLockStatus(TEST_EMAIL);
+                    .when(loginAttemptService).checkLockStatus(any(User.class));
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
 

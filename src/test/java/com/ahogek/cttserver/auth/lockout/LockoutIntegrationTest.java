@@ -1,11 +1,16 @@
 package com.ahogek.cttserver.auth.lockout;
 
 import com.ahogek.cttserver.auth.dto.LoginRequest;
+import com.ahogek.cttserver.auth.entity.LoginAttempt;
+import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
+import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.fixtures.UserFixtures;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
+
+import jakarta.persistence.EntityManager;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,12 +18,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -29,15 +34,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Integration tests for account lockout behavior during login.
- *
- * <p>These tests verify the end-to-end lockout flow including:
- *
- * <ul>
- *   <li>Account lockout after max failed attempts
- *   <li>Auto-unlock after lockout duration expires
- *   <li>Failed attempt counter reset after successful login
- *   <li>Sliding window behavior for failure counter
- * </ul>
  *
  * <p>Uses real database (Testcontainers) and full Spring ApplicationContext.
  *
@@ -51,17 +47,22 @@ class LockoutIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private UserRepository userRepository;
+    @Autowired private LoginAttemptRepository loginAttemptRepository;
+    @Autowired private EntityManager entityManager;
 
     private static final String TEST_PASSWORD = "Test@1234";
     private static final String WRONG_PASSWORD = "WrongPass123!";
     private static final String DEVICE_ID = "test-device-" + UUID.randomUUID();
 
     private String testEmail;
+    private String testEmailHash;
 
     @BeforeEach
     void setUp() {
         testEmail = "lockout-" + UUID.randomUUID() + "@test.example";
+        testEmailHash = TokenUtils.hashToken(testEmail.toLowerCase());
         userRepository.deleteAll();
+        loginAttemptRepository.deleteAll();
     }
 
     private User createAndPersistUser() {
@@ -86,10 +87,8 @@ class LockoutIntegrationTest {
         @Test
         @DisplayName("should return 403 after max failed login attempts")
         void shouldReturn403_afterMaxFailedAttempts() throws Exception {
-            // Given: A registered active user
             createAndPersistUser();
 
-            // When: Login with wrong password 5 times (default max attempts)
             for (int i = 0; i < 5; i++) {
                 mockMvc.perform(post("/api/v1/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -98,7 +97,6 @@ class LockoutIntegrationTest {
                         .andExpect(jsonPath("$.code").value("AUTH_001"));
             }
 
-            // Then: 6th login attempt returns 403 Forbidden (account locked)
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginRequestJson(testEmail, TEST_PASSWORD)))
@@ -109,15 +107,21 @@ class LockoutIntegrationTest {
         @Test
         @DisplayName("should auto-unlock after lockout duration expires")
         void shouldAutoUnlock_afterLockoutDurationExpires() throws Exception {
-            // Given: A registered user that is manually locked (simulate expired lock)
             User user = createAndPersistUser();
-            ReflectionTestUtils.setField(user, "status", UserStatus.LOCKED);
-            user.setFailedLoginAttempts(5);
-            ReflectionTestUtils.setField(user, "lockedUntil", Instant.now().minusSeconds(3600));
+            user.lockAccount();
             userRepository.saveAndFlush(user);
 
-            // When: Login with correct password
-            // Then: Login succeeds (auto-unlock triggered)
+            // Insert a backdated login attempt (older than lockout duration)
+            // to simulate "lockout expired" scenario. Cannot use @CreationTimestamp
+            // entity since it always sets attemptAt to now.
+            loginAttemptRepository.deleteByEmailHash(testEmailHash);
+            entityManager.createNativeQuery(
+                    "INSERT INTO login_attempts (email_hash, ip_hash, attempt_at) VALUES (?, ?, ?)")
+                    .setParameter(1, testEmailHash)
+                    .setParameter(2, TokenUtils.hashToken("10.0.0.1"))
+                    .setParameter(3, Instant.now().minus(Duration.ofMinutes(31)))
+                    .executeUpdate();
+
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginRequestJson(testEmail, TEST_PASSWORD)))
@@ -125,11 +129,8 @@ class LockoutIntegrationTest {
                     .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
                     .andExpect(jsonPath("$.data.refreshToken").isNotEmpty());
 
-            // Verify user state was reset
             User refreshed = userRepository.findByEmailIgnoreCase(testEmail).orElseThrow();
             assertThat(refreshed.getStatus()).isEqualTo(UserStatus.ACTIVE);
-            assertThat(refreshed.getFailedLoginAttempts()).isZero();
-            assertThat(refreshed.getLockedUntil()).isNull();
         }
     }
 
@@ -140,109 +141,41 @@ class LockoutIntegrationTest {
         @Test
         @DisplayName("should reset failed attempts after successful login")
         void shouldResetFailedAttempts_afterSuccessfulLogin() throws Exception {
-            // Given: User has 4 failed login attempts
-            User user = createAndPersistUser();
-            user.setFailedLoginAttempts(4);
-            userRepository.saveAndFlush(user);
+            createAndPersistUser();
+            for (int i = 0; i < 4; i++) {
+                loginAttemptRepository.save(new LoginAttempt(testEmailHash, TokenUtils.hashToken("10.0.0.1")));
+            }
 
-            // When: User logs in successfully
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginRequestJson(testEmail, TEST_PASSWORD)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
 
-            // Then: Failed attempts reset to 0
-            User refreshed = userRepository.findByEmailIgnoreCase(testEmail).orElseThrow();
-            assertThat(refreshed.getFailedLoginAttempts()).isZero();
-            assertThat(refreshed.getLastFailureTime()).isNull();
+            assertThat(loginAttemptRepository.countAttemptsInWindow(
+                    testEmailHash, Instant.now().minus(Duration.ofMinutes(15)))).isZero();
         }
 
         @Test
         @DisplayName("should allow login after partial failures then success")
         void shouldAllowLogin_afterPartialFailuresThenSuccess() throws Exception {
-            // Given: User has 3 failed attempts (below threshold)
-            User user = createAndPersistUser();
-            user.setFailedLoginAttempts(3);
-            userRepository.saveAndFlush(user);
+            createAndPersistUser();
+            for (int i = 0; i < 3; i++) {
+                loginAttemptRepository.save(new LoginAttempt(testEmailHash, TokenUtils.hashToken("10.0.0.1")));
+            }
 
-            // When: User logs in successfully
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginRequestJson(testEmail, TEST_PASSWORD)))
                     .andExpect(status().isOk());
 
-            // Then: Counter resets, user can attempt again without risk of immediate lockout
-            User refreshed = userRepository.findByEmailIgnoreCase(testEmail).orElseThrow();
-            assertThat(refreshed.getFailedLoginAttempts()).isZero();
-
-            // Verify user can fail again without immediate lockout
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 5; i++) {
                 mockMvc.perform(post("/api/v1/auth/login")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(loginRequestJson(testEmail, WRONG_PASSWORD)))
                         .andExpect(status().isUnauthorized());
             }
 
-            // 5th failure should trigger lockout (counter started from 0 after success)
-            mockMvc.perform(post("/api/v1/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(loginRequestJson(testEmail, WRONG_PASSWORD)))
-                    .andExpect(status().isUnauthorized());
-
-            // Next attempt should be forbidden (locked)
-            mockMvc.perform(post("/api/v1/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(loginRequestJson(testEmail, TEST_PASSWORD)))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.code").value("AUTH_004"));
-        }
-    }
-
-    @Nested
-    @DisplayName("Sliding Window")
-    class SlidingWindow {
-
-        @Test
-        @DisplayName("should reset counter when sliding window expires")
-        void shouldResetCounter_whenSlidingWindowExpires() throws Exception {
-            // Given: User has some failed attempts but with old failure time (window expired)
-            User user = createAndPersistUser();
-            user.setFailedLoginAttempts(3);
-            ReflectionTestUtils.setField(user, "lastFailureTime", Instant.now().minusSeconds(3600));
-            userRepository.saveAndFlush(user);
-
-            // When: User attempts login again with wrong password
-            mockMvc.perform(post("/api/v1/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(loginRequestJson(testEmail, WRONG_PASSWORD)))
-                    .andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.code").value("AUTH_001"));
-
-            // Then: Counter resets due to sliding window expiry, so only 1 failure counted
-            User refreshed = userRepository.findByEmailIgnoreCase(testEmail).orElseThrow();
-            assertThat(refreshed.getFailedLoginAttempts()).isEqualTo(1);
-            assertThat(refreshed.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        }
-
-        @Test
-        @DisplayName("should accumulate failures within sliding window")
-        void shouldAccumulateFailures_withinSlidingWindow() throws Exception {
-            // Given: User has 3 failed attempts within the sliding window
-            User user = createAndPersistUser();
-            user.setFailedLoginAttempts(3);
-            ReflectionTestUtils.setField(user, "lastFailureTime", Instant.now().minusSeconds(60));
-            userRepository.saveAndFlush(user);
-
-            // When: User fails 2 more times (total 5, within window)
-            for (int i = 0; i < 2; i++) {
-                mockMvc.perform(post("/api/v1/auth/login")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(loginRequestJson(testEmail, WRONG_PASSWORD)))
-                        .andExpect(status().isUnauthorized());
-            }
-
-            // Then: Account should be locked (5 failures within window)
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginRequestJson(testEmail, TEST_PASSWORD)))
@@ -258,15 +191,13 @@ class LockoutIntegrationTest {
         @Test
         @DisplayName("should return AUTH_004 error code with forbidden status when locked")
         void shouldReturnAuth004_whenAccountLocked() throws Exception {
-            // Given: A locked user
             User user = createAndPersistUser();
-            ReflectionTestUtils.setField(user, "status", UserStatus.LOCKED);
-            user.setFailedLoginAttempts(5);
-            ReflectionTestUtils.setField(user, "lockedUntil", Instant.now().plusSeconds(1800));
+            user.lockAccount();
+            for (int i = 0; i < 5; i++) {
+                loginAttemptRepository.save(new LoginAttempt(testEmailHash, TokenUtils.hashToken("10.0.0.1")));
+            }
             userRepository.saveAndFlush(user);
 
-            // When: Attempt login
-            // Then: Returns 403 with AUTH_004 error code
             mockMvc.perform(post("/api/v1/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginRequestJson(testEmail, TEST_PASSWORD)))

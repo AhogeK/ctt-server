@@ -1,204 +1,123 @@
 package com.ahogek.cttserver.auth.lockout;
 
-import com.ahogek.cttserver.user.entity.User;
+import com.ahogek.cttserver.auth.entity.LoginAttempt;
+import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
+import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.UUID;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class DbLockoutStrategyTest {
 
+    @Mock
+    private LoginAttemptRepository loginAttemptRepository;
+
     private DbLockoutStrategy strategy;
-    private User user;
+
+    private static final String TEST_EMAIL = "test@example.com";
+    private static final String TEST_EMAIL_HASH = TokenUtils.hashToken(TEST_EMAIL);
+    private static final String TEST_IP_HASH = TokenUtils.hashToken("192.168.1.1");
 
     @BeforeEach
     void setUp() {
-        strategy = new DbLockoutStrategy();
-        user = createActiveUser();
+        strategy = new DbLockoutStrategy(loginAttemptRepository);
     }
 
-    private User createActiveUser() {
-        User newUser = new User();
-        newUser.setId(UUID.randomUUID());
-        newUser.setEmail("test@example.com");
-        newUser.setDisplayName("Test User");
-        newUser.setPasswordHash("hashedPassword");
-        newUser.verifyEmail();
-        return newUser;
+    @Nested
+    @DisplayName("recordFailure")
+    class RecordFailure {
+
+        @Test
+        @DisplayName("should save login attempt with correct hashes")
+        void shouldSaveLoginAttemptWithHashes() {
+            strategy.recordFailure(TEST_EMAIL_HASH, TEST_IP_HASH, 5, Duration.ofMinutes(30), 900);
+
+            ArgumentCaptor<LoginAttempt> captor = ArgumentCaptor.forClass(LoginAttempt.class);
+            verify(loginAttemptRepository).save(captor.capture());
+            assertThat(captor.getValue().getEmailHash()).isEqualTo(TEST_EMAIL_HASH);
+            assertThat(captor.getValue().getIpHash()).isEqualTo(TEST_IP_HASH);
+        }
     }
 
-    @Test
-    void shouldIncrementFailureCount_whenRecordFailureCalled() {
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 900);
+    @Nested
+    @DisplayName("recordSuccess")
+    class RecordSuccess {
 
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(user.getLastFailureTime()).isNotNull();
+        @Test
+        @DisplayName("should delete login attempts by email hash")
+        void shouldDeleteAttemptsByEmailHash() {
+            strategy.recordSuccess(TEST_EMAIL_HASH);
+
+            verify(loginAttemptRepository).deleteByEmailHash(TEST_EMAIL_HASH);
+        }
     }
 
-    @Test
-    void shouldAccumulateFailures_whenMultipleFailuresWithinWindow() {
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 900);
+    @Nested
+    @DisplayName("shouldAutoUnlock")
+    class ShouldAutoUnlock {
 
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(3);
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-    }
-
-    @Test
-    void shouldLockAccount_whenFailureCountReachesThreshold() {
-        int maxAttempts = 3;
-
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(3);
-        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
-        assertThat(user.getLockedUntil()).isNotNull();
-    }
-
-    @Test
-    void shouldLockAccount_whenFailureCountExactlyAtThreshold() {
-        int maxAttempts = 5;
-
-        for (int i = 0; i < maxAttempts; i++) {
-            strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
+        @Test
+        @DisplayName("should return false when user not locked")
+        void shouldReturnFalse_whenNotLocked() {
+            assertThat(strategy.shouldAutoUnlock(
+                    TEST_EMAIL_HASH, UserStatus.ACTIVE, Duration.ofMinutes(30), 900)).isFalse();
         }
 
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(5);
-        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
-    }
+        @Test
+        @DisplayName("should return false when suspended")
+        void shouldReturnFalse_whenSuspended() {
+            assertThat(strategy.shouldAutoUnlock(
+                    TEST_EMAIL_HASH, UserStatus.SUSPENDED, Duration.ofMinutes(30), 900)).isFalse();
+        }
 
-    @Test
-    void shouldNotLockAccount_whenFailureCountBelowThreshold() {
-        int maxAttempts = 5;
+        @Test
+        @DisplayName("should return true when no attempts in window (lockout expired)")
+        void shouldReturnTrue_whenNoAttempts() {
+            when(loginAttemptRepository.findEarliestAttemptInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+                    .thenReturn(Optional.empty());
 
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
+            assertThat(strategy.shouldAutoUnlock(
+                    TEST_EMAIL_HASH, UserStatus.LOCKED, Duration.ofMinutes(30), 900)).isTrue();
+        }
 
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(3);
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-    }
+        @Test
+        @DisplayName("should return false when lock not expired")
+        void shouldReturnFalse_whenLockNotExpired() {
+            Instant firstAttempt = Instant.now().minus(Duration.ofMinutes(10));
+            when(loginAttemptRepository.findEarliestAttemptInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+                    .thenReturn(Optional.of(firstAttempt));
 
-    @Test
-    void shouldNotChangeDeletedUser_whenRecordFailureCalled() {
-        user.markAsDeleted();
+            assertThat(strategy.shouldAutoUnlock(
+                    TEST_EMAIL_HASH, UserStatus.LOCKED, Duration.ofMinutes(30), 900)).isFalse();
+        }
 
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 900);
+        @Test
+        @DisplayName("should return true when lock expired")
+        void shouldReturnTrue_whenLockExpired() {
+            Instant firstAttempt = Instant.now().minus(Duration.ofMinutes(31));
+            when(loginAttemptRepository.findEarliestAttemptInWindow(eq(TEST_EMAIL_HASH), any(Instant.class)))
+                    .thenReturn(Optional.of(firstAttempt));
 
-        assertThat(user.getFailedLoginAttempts()).isZero();
-        assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
-    }
-
-    @Test
-    void shouldResetFailureCount_whenRecordSuccessCalled() {
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 900);
-
-        strategy.recordSuccess(user);
-
-        assertThat(user.getFailedLoginAttempts()).isZero();
-        assertThat(user.getLastFailureTime()).isNull();
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-    }
-
-    @Test
-    void shouldUnlockAccount_whenRecordSuccessCalledOnLockedUser() {
-        strategy.recordFailure(user, 3, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, 3, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, 3, Duration.ofMinutes(30), 900);
-        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
-
-        strategy.recordSuccess(user);
-
-        assertThat(user.getFailedLoginAttempts()).isZero();
-        assertThat(user.getLockedUntil()).isNull();
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-    }
-
-    @Test
-    void shouldNotChangeActiveUser_whenRecordSuccessCalled() {
-        strategy.recordSuccess(user);
-
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(user.getFailedLoginAttempts()).isZero();
-    }
-
-    @Test
-    void shouldReturnFalse_whenUserNotLocked() {
-        assertThat(strategy.shouldAutoUnlock(user)).isFalse();
-    }
-
-    @Test
-    void shouldReturnFalse_whenLockPeriodNotExpired() {
-        strategy.recordFailure(user, 3, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, 3, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, 3, Duration.ofMinutes(30), 900);
-
-        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
-        assertThat(user.getLockedUntil()).isAfter(Instant.now());
-
-        assertThat(strategy.shouldAutoUnlock(user)).isFalse();
-    }
-
-    @Test
-    void shouldReturnTrue_whenLockPeriodExpired() {
-        Duration shortLockDuration = Duration.ofMillis(1);
-
-        strategy.recordFailure(user, 3, shortLockDuration, 900);
-        strategy.recordFailure(user, 3, shortLockDuration, 900);
-        strategy.recordFailure(user, 3, shortLockDuration, 900);
-
-        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
-
-        assertThat(user.getLockedUntil())
-                .isNotNull()
-                .isBeforeOrEqualTo(Instant.now().plusMillis(5));
-    }
-
-    @Test
-    void shouldReturnFalse_whenUserSuspended() {
-        user.suspend();
-
-        assertThat(strategy.shouldAutoUnlock(user)).isFalse();
-    }
-
-    @Test
-    void shouldReturnFalse_whenUserDeleted() {
-        user.markAsDeleted();
-
-        assertThat(strategy.shouldAutoUnlock(user)).isFalse();
-    }
-
-    @Test
-    void shouldHandleZeroWindowSeconds_whenRecordFailureCalled() {
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 0);
-        strategy.recordFailure(user, 5, Duration.ofMinutes(30), 0);
-
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(2);
-        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-    }
-
-    @Test
-    void shouldContinueCounting_whenFailuresBeyondThreshold() {
-        int maxAttempts = 3;
-
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-        strategy.recordFailure(user, maxAttempts, Duration.ofMinutes(30), 900);
-
-        assertThat(user.getFailedLoginAttempts()).isEqualTo(5);
-        assertThat(user.getStatus()).isEqualTo(UserStatus.LOCKED);
+            assertThat(strategy.shouldAutoUnlock(
+                    TEST_EMAIL_HASH, UserStatus.LOCKED, Duration.ofMinutes(30), 900)).isTrue();
+        }
     }
 }

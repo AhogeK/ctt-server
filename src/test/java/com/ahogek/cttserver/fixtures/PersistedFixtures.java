@@ -90,7 +90,7 @@ public final class PersistedFixtures {
         return user(em, UserFixtures.admin());
     }
 
-    /** Persists a locked user (5 failed login attempts). */
+    /** Persists a locked user (status LOCKED). */
     public static User lockedUser(TestEntityManager em) {
         return user(em, UserFixtures.lockedUser());
     }

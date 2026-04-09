@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- Migration: Init CTT Platform Schema
 -- Description: Creates initial tables for CTT Server (Auth, Email Verification,
---              OAuth, API Keys, Sync, Audit, Mail Outbox)
+--              OAuth, API Keys, Sync, Audit, Mail Outbox, Login Attempts)
 -- Database: PostgreSQL 16+
 -- ==============================================================================
 
@@ -40,6 +40,7 @@ CREATE TABLE users
     failed_login_attempts INTEGER      NOT NULL DEFAULT 0,
     last_failure_time     TIMESTAMPTZ,
     locked_until          TIMESTAMPTZ,
+    version               BIGINT       NOT NULL DEFAULT 0,
     created_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_users_status
@@ -60,6 +61,7 @@ COMMENT ON COLUMN users.last_login_ip IS 'Last successful login IP address (IPv4
 COMMENT ON COLUMN users.failed_login_attempts IS 'Consecutive failed login attempts';
 COMMENT ON COLUMN users.last_failure_time IS 'Timestamp of the most recent failed login attempt (used for time window calculation)';
 COMMENT ON COLUMN users.locked_until IS 'Temporary account lock expiration time';
+COMMENT ON COLUMN users.version IS 'Optimistic locking version (JPA @Version)';
 COMMENT ON COLUMN users.created_at IS 'Record creation timestamp';
 COMMENT ON COLUMN users.updated_at IS 'Record last update timestamp';
 
@@ -509,6 +511,29 @@ CREATE INDEX idx_mail_outbox_retry
     WHERE status IN ('PENDING', 'FAILED');
 CREATE INDEX idx_mail_outbox_dedup
     ON mail_outbox (recipient, biz_type, status, created_at);
+
+-- ------------------------------------------------------------------------------
+-- 13. Login attempts table
+-- ------------------------------------------------------------------------------
+CREATE TABLE login_attempts
+(
+    id         BIGSERIAL PRIMARY KEY,
+    email_hash VARCHAR(64)  NOT NULL,
+    ip_hash    VARCHAR(64)  NOT NULL,
+    attempt_at TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE login_attempts IS 'Login attempt records for brute-force protection. Email and IP are stored as SHA-256 hashes for privacy.';
+COMMENT ON COLUMN login_attempts.email_hash IS 'SHA-256 hex digest of lowercase email address';
+COMMENT ON COLUMN login_attempts.ip_hash IS 'SHA-256 hex digest of client IP address';
+COMMENT ON COLUMN login_attempts.attempt_at IS 'Timestamp of the login attempt';
+
+CREATE INDEX idx_login_attempts_email_hash
+    ON login_attempts (email_hash);
+CREATE INDEX idx_login_attempts_email_attempt_at
+    ON login_attempts (email_hash, attempt_at);
+CREATE INDEX idx_login_attempts_attempt_at
+    ON login_attempts (attempt_at);
 
 -- ------------------------------------------------------------------------------
 -- updated_at triggers
