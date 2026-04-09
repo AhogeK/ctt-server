@@ -556,19 +556,47 @@ class EmailVerificationTokenRepositoryTest {
 - Locked accounts are automatically unlocked after lockout period
 - Successful login clears failed attempt counter
 
+### Lockout Architecture
+
+The lockout system uses a **Facade Pattern** to decouple failure counting from the main login flow:
+
+```
+AuthController → UserLoginService → LoginAttemptService → LockoutStrategyPort
+                                            ↓
+                                      UserRepository
+```
+
+**Entry Points:**
+
+| Method                    | Purpose                            | Caller                                  |
+|---------------------------|------------------------------------|-----------------------------------------|
+| `checkLockStatus(email)`  | Pre-login lock check + auto-unlock | `UserLoginService.validateUserStatus()` |
+| `recordFailure(user, ip)` | Record failed attempt              | `UserLoginService.handleFailedLogin()`  |
+| `recordSuccess(user)`     | Clear failure state on success     | `UserLoginService.login()`              |
+| `isLocked(user)`          | Check lock status (predicate)      | Future use / admin tools                |
+
+**Storage Strategy:**
+- Default: `DbLockoutStrategy` (User entity fields)
+- Future: `RedisLockoutStrategy` (distributed systems)
+- Switch via `ctt.security.password.lockout.storage` property
+
+**Auto-Unlock:**
+When `checkLockStatus()` detects an expired lock (`lockedUntil < now`), it automatically clears the failure state and transitions the user back to ACTIVE status.
+
 ---
 
 ## Quick Reference
 
 ### Operation Entry Points
 
-| Operation       | Entry Point                | Checklist                                                                  |
-|-----------------|----------------------------|----------------------------------------------------------------------------|
-| Add Error Code  | `ErrorCode.java`           | 1. Add to enum 2. Update CONVENTIONS.md                                    |
-| Add Audit Event | `AuditAction.java`         | 1. Add to enum 2. Publish in Service 3. Add to Fixtures                    |
-| Add Exception   | Module package             | 1. Verify ErrorCode 2. Extend BusinessException 3. Write tests             |
-| Add Interface   | Controller class           | 1. Use @PublicApi for public 2. No annotation for protected 3. Write tests |
-| Email Verify    | `EmailVerificationService` | 1. Token hash lookup 2. Status validation 3. User activation               |
+| Operation       | Entry Point                | Checklist                                                                                         |
+|-----------------|----------------------------|---------------------------------------------------------------------------------------------------|
+| Add Error Code  | `ErrorCode.java`           | 1. Add to enum 2. Update CONVENTIONS.md                                                           |
+| Add Audit Event | `AuditAction.java`         | 1. Add to enum 2. Publish in Service 3. Add to Fixtures                                           |
+| Add Exception   | Module package             | 1. Verify ErrorCode 2. Extend BusinessException 3. Write tests                                    |
+| Add Interface   | Controller class           | 1. Use @PublicApi for public 2. No annotation for protected 3. Write tests                        |
+| Email Verify    | `EmailVerificationService` | 1. Token hash lookup 2. Status validation 3. User activation                                      |
+| Lockout Check   | `LoginAttemptService`      | 1. checkLockStatus() pre-login 2. recordFailure() on auth fail 3. recordSuccess() on auth success |
 
 ### File Locations
 
