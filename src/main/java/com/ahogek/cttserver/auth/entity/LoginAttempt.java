@@ -14,9 +14,9 @@ import java.time.Instant;
 /**
  * Login attempt record for brute-force protection.
  *
- * <p>This is an append-only, read-heavy entity. Email and IP addresses are stored as SHA-256
- * hashes to comply with privacy requirements. No setters are provided — records are created
- * via the no-arg constructor and field assignment by JPA.
+ * <p>This is an append-only, read-heavy entity. Email and IP addresses are stored as SHA-256 hashes
+ * to comply with privacy requirements. No setters are provided — records are created via the no-arg
+ * constructor and field assignment by JPA.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-04-09
