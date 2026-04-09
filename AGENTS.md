@@ -314,7 +314,7 @@ docs(memory-bank): record [feature/bugfix] implementation
 
 ### R12: 依赖管理（强制）
 
-**禁止擅自添加依赖**：添加任何依赖包（npm/yarn/pip/gradle/maven 等）前必须获得用户明确同意。
+**禁止擅自降级更改依赖**：添加任何依赖包（npm/yarn/pip/gradle/maven 等）前必须获得用户明确同意。
 
 **必须提供分析**：
 
