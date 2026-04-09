@@ -188,6 +188,11 @@ public class PasswordResetService {
         if (user.getStatus() == UserStatus.LOCKED) {
             loginAttemptService.recordSuccess(user.getEmail());
             user.reactivate();
+            auditLogService.logSuccess(
+                    user.getId(),
+                    AuditAction.ACCOUNT_UNLOCKED,
+                    ResourceType.USER,
+                    user.getId().toString());
         }
 
         token.setConsumedAt(Instant.now());

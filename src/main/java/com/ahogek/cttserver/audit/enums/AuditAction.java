@@ -48,6 +48,9 @@ public enum AuditAction {
     /** Account automatically locked due to security violations. */
     ACCOUNT_LOCKED("Account automatically locked due to violations"),
 
+    /** Account automatically unlocked after lockout period expired. */
+    ACCOUNT_UNLOCKED("Account automatically unlocked after lockout expired"),
+
     // ==========================================
     // Email Verification Mechanism
     // ==========================================

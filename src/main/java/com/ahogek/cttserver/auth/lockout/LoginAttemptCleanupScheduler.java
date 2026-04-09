@@ -1,5 +1,8 @@
 package com.ahogek.cttserver.auth.lockout;
 
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.repository.LoginAttemptRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties.PasswordProperties;
@@ -45,15 +48,18 @@ public class LoginAttemptCleanupScheduler {
 
     private final LoginAttemptRepository loginAttemptRepository;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
     private final Duration retentionDuration;
     private final int failureWindowSeconds;
 
     public LoginAttemptCleanupScheduler(
             LoginAttemptRepository loginAttemptRepository,
             UserRepository userRepository,
+            AuditLogService auditLogService,
             SecurityProperties securityProperties) {
         this.loginAttemptRepository = loginAttemptRepository;
         this.userRepository = userRepository;
+        this.auditLogService = auditLogService;
         PasswordProperties passwordProps = securityProperties.password();
         this.retentionDuration = passwordProps.retentionDuration();
         this.failureWindowSeconds = passwordProps.failureWindowSeconds();
@@ -108,6 +114,11 @@ public class LoginAttemptCleanupScheduler {
             if (recentAttempts == 0) {
                 user.reactivate();
                 userRepository.save(user);
+                auditLogService.logSuccess(
+                        user.getId(),
+                        AuditAction.ACCOUNT_UNLOCKED,
+                        ResourceType.USER,
+                        user.getId().toString());
                 unlocked++;
             }
         }
