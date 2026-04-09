@@ -281,6 +281,8 @@ Protects against brute-force attacks with automatic temporary lockout:
   - **Lazy unlock**: On next login attempt, precise sliding window check unlocks if lockout expired
   - **Scheduled sweep**: Hourly background task unlocks abandoned locked accounts (no recent attempts in window)
 - **Audit Trail**: All lock/unlock events emit `ACCOUNT_LOCKED` / `ACCOUNT_UNLOCKED` audit actions
+- **Locked Response**: Returns HTTP 403 with `retryAfter` timestamp in response body
+  and `Retry-After` header (seconds until unlock) for frontend countdown UI
 
 Locked accounts are automatically unlocked after lockout period expires, either on next login or via scheduled cleanup.
 
