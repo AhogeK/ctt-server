@@ -1,10 +1,8 @@
 package com.ahogek.cttserver.user.validator;
 
-import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
-import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -21,7 +19,6 @@ import org.springframework.stereotype.Component;
  *
  * <ul>
  *   <li>Email uniqueness at registration
- *   <li>Login attempt limits for brute force protection
  *   <li>State machine transitions (e.g., only PENDING_VERIFICATION can verify email)
  * </ul>
  *
@@ -32,13 +29,9 @@ import org.springframework.stereotype.Component;
 public class UserValidator {
 
     private final UserRepository userRepository;
-    private final SecurityProperties.PasswordProperties passwordProps;
 
-    public UserValidator(
-            UserRepository userRepository,
-            SecurityProperties securityProperties) {
+    public UserValidator(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.passwordProps = securityProperties.password();
     }
 
     /**
@@ -52,20 +45,6 @@ public class UserValidator {
     public void assertEmailUnique(String email) {
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new ConflictException(ErrorCode.USER_001, "Email is already registered");
-        }
-    }
-
-    /**
-     * Rule: Login attempts must not exceed threshold to prevent brute force attacks.
-     *
-     * @param user the user to check
-     * @throws UnauthorizedException if account is locked due to too many failed attempts
-     */
-    public void assertLoginAttemptsNotExceeded(User user) {
-        if (user.getFailedLoginAttempts() != null
-                && user.getFailedLoginAttempts() >= passwordProps.maxFailedAttempts()) {
-            throw new UnauthorizedException(
-                    ErrorCode.AUTH_004, "Account is locked due to too many failed attempts");
         }
     }
 

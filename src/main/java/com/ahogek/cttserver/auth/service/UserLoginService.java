@@ -5,9 +5,11 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
-import com.ahogek.cttserver.auth.lockout.LockoutStrategyPort;
+import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
@@ -15,7 +17,6 @@ import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
-import com.ahogek.cttserver.user.validator.UserValidator;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -39,32 +40,27 @@ public class UserLoginService {
     private static final String ISSUED_FOR_WEB = "WEB";
 
     private final UserRepository userRepository;
-    private final UserValidator userValidator;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
     private final AuditLogService auditLogService;
-    private final LockoutStrategyPort lockoutStrategy;
-    private final SecurityProperties.PasswordProperties passwordProps;
+    private final LoginAttemptService loginAttemptService;
     private final SecurityProperties.JwtProperties jwtProps;
 
     public UserLoginService(
             UserRepository userRepository,
-            UserValidator userValidator,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             RefreshTokenRepository refreshTokenRepository,
             AuditLogService auditLogService,
-            LockoutStrategyPort lockoutStrategy,
+            LoginAttemptService loginAttemptService,
             SecurityProperties securityProperties) {
         this.userRepository = userRepository;
-        this.userValidator = userValidator;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenRepository = refreshTokenRepository;
         this.auditLogService = auditLogService;
-        this.lockoutStrategy = lockoutStrategy;
-        this.passwordProps = securityProperties.password();
+        this.loginAttemptService = loginAttemptService;
         this.jwtProps = securityProperties.jwt();
     }
 
@@ -80,14 +76,12 @@ public class UserLoginService {
 
         validateUserStatus(user);
 
-        userValidator.assertLoginAttemptsNotExceeded(user);
-
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             handleFailedLogin(user);
         }
 
-        lockoutStrategy.recordSuccess(user);
-        userRepository.save(user); // Save cleared failed attempts after successful login
+        // Only reached on successful authentication (handleFailedLogin throws)
+        loginAttemptService.recordSuccess(user);
 
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = createRefreshToken(user.getId(), request.deviceId());
@@ -103,31 +97,24 @@ public class UserLoginService {
     }
 
     private void validateUserStatus(User user) {
-        if (lockoutStrategy.shouldAutoUnlock(user)) {
-            user.recordSuccessfulLogin();
-            userRepository.save(user);
-        }
+        loginAttemptService.checkLockStatus(user.getEmail());
 
+        // Check non-locked status issues (not handled by LoginAttemptService)
         if (user.getStatus() == UserStatus.ACTIVE) {
             return;
         }
         throw switch (user.getStatus()) {
             case PENDING_VERIFICATION ->
                     new ForbiddenException(ErrorCode.AUTH_006, "Email not verified");
-            case LOCKED -> new ForbiddenException(ErrorCode.AUTH_004, "Account is locked");
             case SUSPENDED, DELETED ->
                     new ForbiddenException(ErrorCode.AUTH_005, "Account is disabled");
-            case ACTIVE -> throw new AssertionError("Unreachable");
+            case LOCKED, ACTIVE -> throw new AssertionError("Unreachable");
         };
     }
 
     private void handleFailedLogin(User user) {
-        lockoutStrategy.recordFailure(
-                user,
-                passwordProps.maxFailedAttempts(),
-                passwordProps.lockDuration(),
-                passwordProps.failureWindowSeconds());
-        userRepository.save(user);
+        String clientIp = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
+        loginAttemptService.recordFailure(user, clientIp);
 
         auditLogService.logFailure(
                 user.getId(),

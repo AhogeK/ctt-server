@@ -5,7 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
-import com.ahogek.cttserver.auth.lockout.LockoutStrategyPort;
+import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
@@ -14,7 +14,6 @@ import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
-import com.ahogek.cttserver.user.validator.UserValidator;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,9 +33,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,52 +53,43 @@ class UserLoginServiceTest {
     private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(30);
 
     @Mock private UserRepository userRepository;
-    @Mock private UserValidator userValidator;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtTokenProvider jwtTokenProvider;
     @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private AuditLogService auditLogService;
     @Mock private SecurityProperties securityProperties;
-    @Mock private SecurityProperties.PasswordProperties passwordProps;
     @Mock private SecurityProperties.JwtProperties jwtProps;
-    @Mock private LockoutStrategyPort lockoutStrategy;
+    @Mock private LoginAttemptService loginAttemptService;
 
     private UserLoginService loginService;
 
     @BeforeEach
     void setUp() {
-        when(securityProperties.password()).thenReturn(passwordProps);
         when(securityProperties.jwt()).thenReturn(jwtProps);
-        when(passwordProps.maxFailedAttempts()).thenReturn(MAX_FAILED_ATTEMPTS);
-        when(passwordProps.lockDuration()).thenReturn(LOCK_DURATION);
         when(jwtProps.accessTokenTtl()).thenReturn(ACCESS_TOKEN_TTL);
         when(jwtProps.refreshTokenTtlWeb()).thenReturn(REFRESH_TOKEN_TTL);
 
         loginService =
                 new UserLoginService(
                         userRepository,
-                        userValidator,
                         passwordEncoder,
                         jwtTokenProvider,
                         refreshTokenRepository,
                         auditLogService,
-                        lockoutStrategy,
+                        loginAttemptService,
                         securityProperties);
 
         doAnswer(invocation -> {
             User user = invocation.getArgument(0);
             user.recordSuccessfulLogin();
             return null;
-        }).when(lockoutStrategy).recordSuccess(any(User.class));
+        }).when(loginAttemptService).recordSuccess(any(User.class));
 
         doAnswer(invocation -> {
             User user = invocation.getArgument(0);
-            int maxAttempts = invocation.getArgument(1);
-            Duration lockDuration = invocation.getArgument(2);
-            int windowSeconds = invocation.getArgument(3);
-            user.recordFailedLogin(maxAttempts, lockDuration, windowSeconds);
+            user.recordFailedLogin(MAX_FAILED_ATTEMPTS, LOCK_DURATION, 900);
             return null;
-        }).when(lockoutStrategy).recordFailure(any(User.class), anyInt(), any(Duration.class), anyInt());
+        }).when(loginAttemptService).recordFailure(any(User.class), any());
     }
 
     @Nested
@@ -201,7 +191,7 @@ class UserLoginServiceTest {
             }
 
             assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
-            verify(userRepository).save(user);
+            verify(loginAttemptService).recordFailure(user, null);
         }
 
         @Test
@@ -249,6 +239,8 @@ class UserLoginServiceTest {
         void shouldThrowAuth004_whenLocked() {
             User user = createUserWithStatus(UserStatus.LOCKED);
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
+            doThrow(new ForbiddenException(ErrorCode.AUTH_004, "Account is locked"))
+                    .when(loginAttemptService).checkLockStatus(TEST_EMAIL);
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
 
