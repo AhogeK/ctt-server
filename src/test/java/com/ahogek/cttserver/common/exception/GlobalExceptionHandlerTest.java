@@ -12,6 +12,9 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -150,7 +153,7 @@ class GlobalExceptionHandlerTest {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
         var result = handler.handleSecurityException(ex);
         assertThat(result.getStatusCode().value()).isEqualTo(401);
-        assert result.getBody() != null;
+        assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().code()).isEqualTo("AUTH_003");
     }
 
@@ -161,8 +164,35 @@ class GlobalExceptionHandlerTest {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
         var result = handler.handleSecurityException(ex);
         assertThat(result.getStatusCode().value()).isEqualTo(403);
-        assert result.getBody() != null;
+        assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().code()).isEqualTo("AUTH_005");
+    }
+
+    @Test
+    void shouldReturn403WithRetryAfter_whenAccountLocked() {
+        Instant retryAfter = Instant.now().plus(Duration.ofMinutes(30));
+        AccountLockedException ex = new AccountLockedException(ErrorCode.AUTH_004, retryAfter);
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        var result = handler.handleAccountLockedException(ex);
+        assertThat(result.getStatusCode().value()).isEqualTo(403);
+        assertThat(result.getBody()).isNotNull();
+        assertThat(result.getBody().code()).isEqualTo("AUTH_004");
+        assertThat(result.getBody().retryAfter()).isEqualTo(retryAfter);
+        assertThat(result.getHeaders().getFirst("Retry-After")).isNotNull();
+    }
+
+    @Test
+    void shouldOmitRetryAfterHeader_whenRetryAfterIsNull() {
+        AccountLockedException ex = new AccountLockedException(ErrorCode.AUTH_004, null);
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        var result = handler.handleAccountLockedException(ex);
+        assertThat(result.getStatusCode().value()).isEqualTo(403);
+        assertThat(result.getBody()).isNotNull();
+        assertThat(result.getBody().code()).isEqualTo("AUTH_004");
+        assertThat(result.getBody().retryAfter()).isNull();
+        assertThat(result.getHeaders().getFirst("Retry-After")).isNull();
     }
 
     @Test
@@ -172,7 +202,7 @@ class GlobalExceptionHandlerTest {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
         var result = handler.handleInternalServerError(ex);
         assertThat(result.getStatusCode().value()).isEqualTo(500);
-        assert result.getBody() != null;
+        assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().code()).isEqualTo("SYSTEM_001");
     }
 
@@ -183,7 +213,7 @@ class GlobalExceptionHandlerTest {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
         var result = handler.handleDataIntegrityViolation(ex);
         assertThat(result.getStatusCode().value()).isEqualTo(409);
-        assert result.getBody() != null;
+        assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().code()).isEqualTo("USER_001");
     }
 }
