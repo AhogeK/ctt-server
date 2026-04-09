@@ -1,6 +1,6 @@
 package com.ahogek.cttserver.auth.lockout;
 
-import com.ahogek.cttserver.user.entity.User;
+import com.ahogek.cttserver.user.enums.UserStatus;
 
 import java.time.Duration;
 
@@ -10,13 +10,7 @@ import java.time.Duration;
  * <p>Defines the contract for implementing different lockout tracking mechanisms (e.g., Redis-based
  * distributed tracking, database-backed persistent tracking, or in-memory local tracking).
  *
- * <p><strong>Strategy Pattern:</strong>
- *
- * <ul>
- *   <li>Allows swapping lockout implementations without changing business logic
- *   <li>Supports different deployment scenarios (single-node vs distributed)
- *   <li>Enables testing with mock strategies
- * </ul>
+ * <p>All methods accept primitive/hash parameters — no dependency on the {@code User} entity.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-04-08
@@ -24,40 +18,31 @@ import java.time.Duration;
 public interface LockoutStrategyPort {
 
     /**
-     * Records a failed authentication attempt for the specified user.
+     * Records a failed authentication attempt.
      *
-     * <p>Implementations should:
-     *
-     * <ul>
-     *   <li>Increment failure count within the sliding window
-     *   <li>Lock the account if max attempts exceeded
-     *   <li>Set lock expiration based on lockDuration
-     * </ul>
-     *
-     * @param user the user entity whose account may be locked
+     * @param emailHash SHA-256 hash of the email address (lowercased)
+     * @param ipHash SHA-256 hash of the IP address
      * @param maxAttempts maximum allowed failures before lockout
      * @param lockDuration duration of the lockout period
      * @param windowSeconds sliding window size in seconds for counting failures
      */
-    void recordFailure(User user, int maxAttempts, Duration lockDuration, int windowSeconds);
+    void recordFailure(String emailHash, String ipHash, int maxAttempts, Duration lockDuration, int windowSeconds);
 
     /**
-     * Records a successful authentication for the specified user.
+     * Records a successful authentication — clears failure state.
      *
-     * <p>Implementations should clear the failure count and any active lockout state.
-     *
-     * @param user the user entity whose authentication succeeded
+     * @param emailHash SHA-256 hash of the email address (lowercased)
      */
-    void recordSuccess(User user);
+    void recordSuccess(String emailHash);
 
     /**
-     * Checks whether the user's account should be automatically unlocked.
+     * Checks whether the account should be automatically unlocked.
      *
-     * <p>Implementations should check if the lockout period has expired and the account can be
-     * unlocked without manual intervention.
-     *
-     * @param user the user entity to check
+     * @param emailHash SHA-256 hash of the email address (lowercased)
+     * @param status current user status
+     * @param lockDuration duration of the lockout period
+     * @param windowSeconds sliding window size in seconds
      * @return true if the account should be auto-unlocked, false otherwise
      */
-    boolean shouldAutoUnlock(User user);
+    boolean shouldAutoUnlock(String emailHash, UserStatus status, Duration lockDuration, int windowSeconds);
 }

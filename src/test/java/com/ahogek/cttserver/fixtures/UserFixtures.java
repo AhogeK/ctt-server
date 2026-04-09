@@ -44,6 +44,8 @@ import java.util.UUID;
  *
  * <p><b>Note:</b> User entity uses state machine pattern. The status field is set via
  * ReflectionTestUtils to bypass state transition validation for test data creation.
+ * Lockout state (failedLoginAttempts, lockedUntil, lastFailureTime) should be set
+ * via LoginAttemptRepository or directly on the entity for lockout-specific tests.
  *
  * @author AhogeK
  * @since 2026-03-18
@@ -74,7 +76,7 @@ public final class UserFixtures {
     /**
      * Creates a regular active user with random unique email.
      *
-     * <p>Status: ACTIVE, emailVerified: true, failedLoginAttempts: 0
+     * <p>Status: ACTIVE, emailVerified: true
      *
      * @return builder for further customization
      */
@@ -102,14 +104,15 @@ public final class UserFixtures {
     }
 
     /**
-     * Creates a locked user due to too many failed login attempts.
+     * Creates a locked user (status LOCKED).
      *
-     * <p>Status: LOCKED, failedLoginAttempts: 5
+     * <p>For lockout-specific tests, set lockedUntil and failedLoginAttempts directly on the
+     * built entity or via LoginAttemptRepository.
      *
      * @return builder for further customization
      */
     public static Builder lockedUser() {
-        return regularUser().status(UserStatus.LOCKED).failedLoginAttempts(5);
+        return regularUser().status(UserStatus.LOCKED);
     }
 
     /**
@@ -167,7 +170,6 @@ public final class UserFixtures {
         private String displayName = "Test User";
         private String passwordHash = DEFAULT_PASSWORD_HASH;
         private UserStatus status = UserStatus.PENDING_VERIFICATION;
-        private Integer failedLoginAttempts = 0;
         private Boolean emailVerified = false;
 
         private Builder() {}
@@ -217,12 +219,6 @@ public final class UserFixtures {
             return this;
         }
 
-        /** Sets the failed login attempt count. */
-        public Builder failedLoginAttempts(Integer attempts) {
-            this.failedLoginAttempts = attempts;
-            return this;
-        }
-
         /** Sets whether email is verified. */
         public Builder emailVerified(Boolean verified) {
             this.emailVerified = verified;
@@ -245,7 +241,6 @@ public final class UserFixtures {
             user.setEmail(email);
             user.setDisplayName(displayName);
             user.setPasswordHash(passwordHash);
-            user.setFailedLoginAttempts(failedLoginAttempts);
             user.setEmailVerified(emailVerified);
 
             // Use ReflectionTestUtils to set status field (bypass state machine)

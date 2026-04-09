@@ -87,6 +87,7 @@ ctt:
       max-failed-attempts: 5
       lock-duration: 30m
       failure-window-seconds: 900  # 15 minutes sliding window
+      retention-duration: PT720H  # 30 days - how long to keep login attempt records
       storage: DB  # or REDIS for distributed systems
 
     rate-limit:

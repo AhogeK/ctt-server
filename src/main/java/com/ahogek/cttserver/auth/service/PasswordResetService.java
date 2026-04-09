@@ -6,6 +6,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
 import com.ahogek.cttserver.auth.entity.PasswordResetToken;
 import com.ahogek.cttserver.auth.enums.TokenStatus;
+import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.PasswordResetTokenRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
@@ -49,6 +50,7 @@ public class PasswordResetService {
     private final AuditLogService auditLogService;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final LoginAttemptService loginAttemptService;
 
     public PasswordResetService(
             UserRepository userRepository,
@@ -56,13 +58,15 @@ public class PasswordResetService {
             MailOutboxService mailOutboxService,
             AuditLogService auditLogService,
             PasswordEncoder passwordEncoder,
-            RefreshTokenRepository refreshTokenRepository) {
+            RefreshTokenRepository refreshTokenRepository,
+            LoginAttemptService loginAttemptService) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.mailOutboxService = mailOutboxService;
         this.auditLogService = auditLogService;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.loginAttemptService = loginAttemptService;
     }
 
     /**
@@ -182,7 +186,7 @@ public class PasswordResetService {
 
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         if (user.getStatus() == UserStatus.LOCKED) {
-            user.recordSuccessfulLogin();
+            loginAttemptService.recordSuccess(user.getEmail());
         }
 
         token.setConsumedAt(Instant.now());

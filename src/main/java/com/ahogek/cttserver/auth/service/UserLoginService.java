@@ -81,7 +81,7 @@ public class UserLoginService {
         }
 
         // Only reached on successful authentication (handleFailedLogin throws)
-        loginAttemptService.recordSuccess(user);
+        loginAttemptService.recordSuccess(user.getEmail());
 
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = createRefreshToken(user.getId(), request.deviceId());
@@ -97,7 +97,7 @@ public class UserLoginService {
     }
 
     private void validateUserStatus(User user) {
-        loginAttemptService.checkLockStatus(user.getEmail());
+        loginAttemptService.checkLockStatus(user);
 
         // Check non-locked status issues (not handled by LoginAttemptService)
         if (user.getStatus() == UserStatus.ACTIVE) {
@@ -114,7 +114,7 @@ public class UserLoginService {
 
     private void handleFailedLogin(User user) {
         String clientIp = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
-        loginAttemptService.recordFailure(user, clientIp);
+        loginAttemptService.recordFailure(user.getEmail(), clientIp);
 
         auditLogService.logFailure(
                 user.getId(),

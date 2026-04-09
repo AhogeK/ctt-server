@@ -8,8 +8,8 @@ import jakarta.persistence.*;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.data.annotation.Version;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -43,9 +43,6 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserStatus status = UserStatus.PENDING_VERIFICATION;
 
-    @Column(name = "failed_login_attempts")
-    private Integer failedLoginAttempts = 0;
-
     @Column(name = "email_verified")
     private Boolean emailVerified = false;
 
@@ -58,12 +55,6 @@ public class User {
     @Column(name = "last_login_ip", length = 45)
     private String lastLoginIp;
 
-    @Column(name = "locked_until")
-    private Instant lockedUntil;
-
-    @Column(name = "last_failure_time")
-    private Instant lastFailureTime;
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -71,6 +62,10 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Version
+    @Column(name = "version")
+    private Long version = 0L;
 
     public User() {}
 
@@ -108,57 +103,6 @@ public class User {
     }
 
     /**
-     * Records a failed login attempt with sliding window logic.
-     *
-     * <p>Automatically locks the account if failed attempts reach the threshold.
-     * The sliding window resets the counter if the last failure occurred outside the window.
-     *
-     * @param maxAttempts maximum allowed failed attempts before locking
-     * @param lockDuration duration to lock the account when threshold is reached
-     * @param windowSeconds sliding window duration in seconds (0 disables window logic)
-     */
-    public void recordFailedLogin(int maxAttempts, Duration lockDuration, int windowSeconds) {
-        if (this.status == UserStatus.DELETED) {
-            return;
-        }
-
-        if (this.failedLoginAttempts == null) {
-            this.failedLoginAttempts = 0;
-        }
-
-        if (windowSeconds > 0 && this.lastFailureTime != null) {
-            Instant windowStart = Instant.now().minusSeconds(windowSeconds);
-            if (this.lastFailureTime.isBefore(windowStart)) {
-                this.failedLoginAttempts = 0;
-            }
-        }
-
-        this.failedLoginAttempts++;
-        this.lastFailureTime = Instant.now();
-
-        if (this.failedLoginAttempts >= maxAttempts && this.status == UserStatus.ACTIVE) {
-            transitionTo(UserStatus.LOCKED);
-            this.lockedUntil = Instant.now().plus(lockDuration);
-        }
-    }
-
-    /**
-     * Records a successful login.
-     *
-     * <p>Resets failed login counter, clears lock and failure time, and updates login timestamp.
-     */
-    public void recordSuccessfulLogin() {
-        this.failedLoginAttempts = 0;
-        this.lockedUntil = null;
-        this.lastFailureTime = null;
-        this.lastLoginAt = Instant.now();
-
-        if (this.status == UserStatus.LOCKED) {
-            transitionTo(UserStatus.ACTIVE);
-        }
-    }
-
-    /**
      * Suspends user account due to violations.
      *
      * @throws ConflictException if state transition is not allowed
@@ -174,6 +118,15 @@ public class User {
      */
     public void reactivate() {
         transitionTo(UserStatus.ACTIVE);
+    }
+
+    /**
+     * Locks user account due to excessive failed login attempts.
+     *
+     * @throws ConflictException if state transition is not allowed
+     */
+    public void lockAccount() {
+        transitionTo(UserStatus.LOCKED);
     }
 
     /**
@@ -255,14 +208,6 @@ public class User {
         return status;
     }
 
-    public Integer getFailedLoginAttempts() {
-        return failedLoginAttempts;
-    }
-
-    public void setFailedLoginAttempts(Integer failedLoginAttempts) {
-        this.failedLoginAttempts = failedLoginAttempts;
-    }
-
     public Boolean getEmailVerified() {
         return emailVerified;
     }
@@ -295,11 +240,4 @@ public class User {
         this.lastLoginIp = lastLoginIp;
     }
 
-    public Instant getLockedUntil() {
-        return lockedUntil;
-    }
-
-    public Instant getLastFailureTime() {
-        return lastFailureTime;
-    }
 }

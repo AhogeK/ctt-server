@@ -51,6 +51,7 @@ public record SecurityProperties(
             @Min(3) @DefaultValue("5") int maxFailedAttempts,
             @DefaultValue("30m") Duration lockDuration,
             @DefaultValue("900") int failureWindowSeconds,
+            @DefaultValue("PT720H") Duration retentionDuration,
             @DefaultValue("DB") String storage) {}
 
     /**
