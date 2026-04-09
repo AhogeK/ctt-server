@@ -276,9 +276,12 @@ Protects against brute-force attacks with automatic temporary lockout:
 - **Max Failed Attempts**: 5 (configurable)
 - **Sliding Window**: 15 minutes (configurable)
 - **Lockout Duration**: 30 minutes (configurable)
-- **Storage**: DB (default) or Redis (for distributed systems)
+- **Storage**: DB (default) — login attempts stored in `login_attempts` table with SHA-256 hashed email/IP
+- **Hybrid Unlock**:
+  - **Lazy unlock**: On next login attempt, precise sliding window check unlocks if lockout expired
+  - **Scheduled sweep**: Hourly background task unlocks abandoned locked accounts (no recent attempts in window)
 
-Locked accounts are automatically unlocked after lockout period expires.
+Locked accounts are automatically unlocked after lockout period expires, either on next login or via scheduled cleanup.
 
 ## API Documentation
 
