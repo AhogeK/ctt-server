@@ -53,6 +53,11 @@
     - 在 LoginAttemptCleanupScheduler 中追加 unlockExpiredAccounts()
     - 遍历 LOCKED 用户，滑动窗口内无尝试 → reactivate()
     - 混合模式：登录时懒解锁（精准）+ 定时扫表（数据底座整洁）
+- [x] 账号锁定/解锁审计事件 (ACCOUNT_LOCKED / ACCOUNT_UNLOCKED)
+    - 登录失败超阈值时落 ACCOUNT_LOCKED 审计
+    - 3 条解锁路径均落 ACCOUNT_UNLOCKED 审计（懒解锁/密码重置/定时扫表）
+    - 清理 recordSuccess() 中冗余的 reactivate（调用方已处理）
+    - 39 个测试通过，覆盖全部审计调用点
 
 ## 进行中 🔄
 

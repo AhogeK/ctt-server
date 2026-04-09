@@ -2,6 +2,18 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-09] - Audit logging for account lock/unlock events
+    - 新增: ACCOUNT_UNLOCKED 到 AuditAction enum
+    - 注入: AuditLogService 到 LoginAttemptService, LoginAttemptCleanupScheduler
+    - 审计点: recordFailure() 锁定账户时 logFailure(ACCOUNT_LOCKED)
+    - 审计点: checkLockStatus() 自动解锁时 logSuccess(ACCOUNT_UNLOCKED)
+    - 审计点: PasswordResetService.resetPassword() 解锁时 logSuccess(ACCOUNT_UNLOCKED)
+    - 审计点: LoginAttemptCleanupScheduler.unlockExpiredAccounts() 批量解锁时 logSuccess(ACCOUNT_UNLOCKED)
+    - 文件: AuditAction.java, LoginAttemptService.java, LoginAttemptCleanupScheduler.java, PasswordResetService.java
+    - 测试: LoginAttemptServiceTest, PasswordResetServiceTest, LoginAttemptCleanupSchedulerTest (共 39 tests 通过)
+    - 影响: 所有账户锁定/解锁操作均有审计日志，复用现有 SecurityAuditEvent + AuditEventListener 基础设施
+    - 版本: 0.13.1-SNAPSHOT → 0.14.0-SNAPSHOT
+
 - [2026-04-09] - Batch account unlock scheduler (hybrid: lazy + scheduled)
     - 问题: LOCKED 用户如不再登录则永久锁定，Admin 面板统计数据失真
     - 方案: 在现有 LoginAttemptCleanupScheduler 中追加 unlockExpiredAccounts() 定时任务
