@@ -13,8 +13,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * by Spring MVC for JSON serialization/deserialization and can be injected into components like
  * JwtAuthenticationEntryPoint.
  *
- * <p>JavaTimeModule is explicitly registered because Spring Boot 4's auto-configuration is
- * bypassed when a custom ObjectMapper bean is defined.
+ * <p>JavaTimeModule is explicitly registered because Spring Boot 4's auto-configuration is bypassed
+ * when a custom ObjectMapper bean is defined.
  *
  * @author AhogeK
  */
