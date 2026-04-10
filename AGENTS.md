@@ -411,6 +411,27 @@ MAJOR.MINOR.PATCH[-SUFFIX]
 2. 更新 `gradle/libs.versions.toml` 中的 `appVersion`
 3. 在 `activeContext.md` 记录版本变更
 
+#### 版本号同步检查（强制）
+
+**每次更新版本号后必须执行全局搜索，确保所有硬编码版本字符串同步更新：**
+
+1. 搜索全项目：`grep -rn "0\.\d\+\.\d\+" --include="*.java" --include="*.yaml" --include="*.kts" --include="*.md" --include="*.xml"`
+2. 排除项（不需要更新）：
+    - Javadoc `@since` 注解（历史记录，不应修改）
+    - `memory-bank/` 中的历史版本记录（保留变更轨迹）
+    - 依赖库版本号（如 `JJWT 0.12.6`、`JaCoCo 0.8.14`）
+    - IP 地址（如 `127.0.0.1`、`10.0.0.x`）
+    - Flyway `baseline-version`
+3. 确认项（必须同步）：
+    - `application.yaml` 中 `info.app.version: @appVersion@`（Gradle 资源过滤，自动同步）
+    - `OpenApiConfig.java` 中 `.version()` 调用（应使用 `@Value` 注入，禁止硬编码）
+    - 任何其他硬编码项目版本号的代码或配置文件
+
+**红线**：
+- ❌ 只改 `libs.versions.toml` 不做全局搜索
+- ❌ 在代码中硬编码项目版本号（应使用 `@Value("${info.app.version}")` 或 `@appVersion@`）
+- ❌ 修改 Javadoc `@since` 注解
+
 #### 禁止事项
 
 - ❌ 代码变更但不更新版本号
