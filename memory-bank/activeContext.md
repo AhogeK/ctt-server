@@ -2,6 +2,15 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - Docker 化部署：Dockerfile + docker-compose 集成 app 服务
+    - 新增: Dockerfile (多阶段构建: eclipse-temurin:25-jdk → 25-jre-noble)
+    - 修改: docker-compose.yaml 新增 app 服务，含 healthcheck、depends_on、环境变量注入
+    - 修改: Mailpit 端口动态化 (MAIL_SMTP_EXTERNAL_PORT, MAIL_UI_EXTERNAL_PORT)
+    - 修改: APP_EXTERNAL_PORT 支持自定义宿主机端口 (默认 8080)
+    - 修改: README.md 更新 Docker Compose 启动说明
+    - 文件: Dockerfile, docker-compose.yaml, README.md
+    - 版本: 0.15.8-SNAPSHOT → 0.15.9-SNAPSHOT
+
 - [2026-04-10] - application-local.yaml.template mail 配置环境变量化
     - 修复: mail.host/mail.port 硬编码 → \${MAIL_SMTP_HOST:localhost}/\${MAIL_SMTP_PORT:1025}
     - 原因: 与 .env 变量命名保持一致，支持自定义 SMTP 地址

@@ -110,6 +110,10 @@
     - 支持 PostgreSQL 18+ Docker 镜像的 pg_ctlcluster 管理和 pg_upgrade
 - [x] application-local.yaml.template mail 配置环境变量化
     - mail.host/mail.port 改为 \${MAIL_SMTP_HOST:localhost}/\${MAIL_SMTP_PORT:1025}
+- [x] Docker 化部署：Dockerfile + docker-compose 集成 app 服务
+    - 多阶段构建: eclipse-temurin:25-jdk (build) → 25-jre-noble (runtime)
+    - app 服务含 healthcheck、depends_on、环境变量自动注入
+    - 所有外部端口可配置 (POSTGRES, REDIS, MAIL_SMTP, MAIL_UI, APP)
 
 ## 进行中 🔄
 
