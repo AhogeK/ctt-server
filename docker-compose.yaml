@@ -1,9 +1,40 @@
 # Docker Compose - Local Development Infrastructure
-# Provides: PostgreSQL, Redis, Mailpit (SMTP sandbox)
+# Provides: PostgreSQL, Redis, Mailpit (SMTP sandbox), CTT Server (app)
 # Usage: docker compose up -d
 # Prerequisites: Copy .env.example to .env and customize passwords
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ctt-server
+    ports:
+      - "${APP_EXTERNAL_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_DATASOURCE_URL: jdbc:postgresql://ctt-postgres:5432/${POSTGRES_DB:-ctt_server}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ctt}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ctt_local_pass}
+      SPRING_DATA_REDIS_HOST: ctt-redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-ctt_redis_pass}
+      SPRING_MAIL_HOST: ctt-mailpit
+      SPRING_MAIL_PORT: 1025
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ctt-server/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   postgres:
     image: postgres:latest
     container_name: ctt-postgres
@@ -37,8 +68,8 @@ services:
     image: axllent/mailpit:latest
     container_name: ctt-mailpit
     ports:
-      - "1025:1025"   # SMTP — spring.mail.port
-      - "8025:8025"   # Web UI — http://localhost:8025
+      - "${MAIL_SMTP_EXTERNAL_PORT:-1025}:1025"   # SMTP — spring.mail.port
+      - "${MAIL_UI_EXTERNAL_PORT:-8025}:8025"     # Web UI — http://localhost:8025
     volumes:
       - mailpit_data:/data   # Persistent email storage
     environment:

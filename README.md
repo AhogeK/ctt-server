@@ -168,22 +168,14 @@ src/main/resources/
 
    Edit `.env` with your preferred passwords (default values are examples).
 
-2. Start local infrastructure (PostgreSQL + Redis + Mailpit):
-   ```bash
-   docker compose up -d
-   ```
+2. Start local infrastructure and application (PostgreSQL + Redis + Mailpit + CTT Server):
+    ```bash
+    docker compose up -d --build
+    ```
 
-3. Copy the template and customize:
-   ```bash
-   cp src/main/resources/application-local.yaml.template \
-      src/main/resources/application-local.yaml
-   ```
-
-   The template uses environment variable placeholders with defaults. You can either:
-   - Set environment variables in `.env` (recommended)
-   - Or hardcode values directly in `application-local.yaml`
-
-4. Access Mailpit Web UI to view emails: http://localhost:8025
+3. Access Mailpit Web UI to view emails: http://localhost:8025
+4. Access CTT Server API: http://localhost:8080/ctt-server
+5. Access Swagger UI: http://localhost:8080/ctt-server/swagger-ui.html
 
 > **Security Note**: Both `.env` and `application-local.yaml` are gitignored. Never commit sensitive data.
 
@@ -204,6 +196,16 @@ src/main/resources/
 | `MAIL_FROM_ADDRESS`      | Sender email address        | (required for prod) |
 | `MAIL_FROM_NAME`         | Sender display name         | `CTT`               |
 | `SPRING_PROFILES_ACTIVE` | Active Spring profile       | `local`             |
+
+**Docker Compose Port Mappings (Local):**
+
+| Variable                     | Description              | Default  |
+|------------------------------|--------------------------|----------|
+| `POSTGRES_EXTERNAL_PORT`     | PostgreSQL host port     | `15432`  |
+| `REDIS_EXTERNAL_PORT`        | Redis host port          | `16379`  |
+| `MAIL_SMTP_EXTERNAL_PORT`    | Mailpit SMTP host port   | `1025`   |
+| `MAIL_UI_EXTERNAL_PORT`      | Mailpit Web UI host port | `8025`   |
+| `APP_EXTERNAL_PORT`          | CTT Server host port     | `8080`   |
 
 > **Note**: Production environment requires all variables to be set. Local development uses sensible defaults from `application-local.yaml`.
 
