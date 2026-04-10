@@ -2,6 +2,13 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - Jenkins CI/CD 测试流水线
+    - 新增: Jenkinsfile-test (checkout → configure → infra up → deploy → health check)
+    - 使用 master 分支，docker compose 自动构建部署 app 服务
+    - 健康检查轮询 + 超时日志输出
+    - 文件: Jenkinsfile-test
+    - 版本: 0.15.9-SNAPSHOT → 0.15.10-SNAPSHOT
+
 - [2026-04-10] - Docker 化部署：Dockerfile + docker-compose 集成 app 服务
     - 新增: Dockerfile (多阶段构建: eclipse-temurin:25-jdk → 25-jre-noble)
     - 修改: docker-compose.yaml 新增 app 服务，含 healthcheck、depends_on、环境变量注入
