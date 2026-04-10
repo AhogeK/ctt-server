@@ -22,6 +22,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: ${APP_PORT:-8080}
+      APP_PORT: ${APP_PORT:-8080}
       SPRING_DATASOURCE_URL: jdbc:postgresql://ctt-postgres:5432/${POSTGRES_DB:-ctt_server}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ctt}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ctt_local_pass}
