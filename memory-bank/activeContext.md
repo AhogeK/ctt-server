@@ -1,11 +1,17 @@
 # Active Context
+- [2026-04-10] - Dockerfile 安装 curl 修复 healthcheck
+    - Dockerfile: apt-get install curl + 清理缓存（~几MB）
+    - docker-compose.yaml: healthcheck 恢复 curl，移除 :-8080 fallback
+    - 文件: Dockerfile, docker-compose.yaml
+    - 版本: 0.15.14-SNAPSHOT → 0.15.15-SNAPSHOT
+
 
 ## Recent Changes (Last 30 Days)
 
 - [2026-04-10] - Dockerfile APP_PORT 动态化 + 审查修复
     - Dockerfile: ARG APP_PORT=8080 + ENV SERVER_PORT=${APP_PORT} + EXPOSE ${APP_PORT}
     - docker-compose.yaml: build.args 传入 APP_PORT，端口映射和 healthcheck 全部联动
-    - docker-compose.yaml: healthcheck curl → wget（temurin JRE 镜像无 curl）
+    - docker-compose.yaml: healthcheck curl → wget → curl（安装 curl 到 JRE 镜像）
     - 默认 8080，Jenkins 通过 .env 注入 APP_PORT=8004 覆盖
     - Jenkinsfile: .env 生成新增 JWT_SECRET_KEY, MAIL_FROM_*, FRONTEND_BASE_URL, SPRING_PROFILES_ACTIVE
     - Jenkinsfile: 删除 environment 块中冗余的 APP_PORT
@@ -14,7 +20,7 @@
     - README.md: Docker Compose 端口表新增 APP_PORT
     - 文件: Dockerfile, docker-compose.yaml, Jenkinsfile, .gitignore, .env.example, README.md
     - docker-compose.yaml: environment 注入 SERVER_PORT 和 APP_PORT，修复 healthcheck 容器内变量缺失
-    - 版本: 0.15.12-SNAPSHOT → 0.15.14-SNAPSHOT
+    - 版本: 0.15.12-SNAPSHOT → 0.15.15-SNAPSHOT
     - 审查: 4 agent 并行审查，修复 P0（healthcheck curl, JWT_SECRET_KEY 缺失）+ P1（版本号跳过, .gitignore, README 文档, Jenkinsfile 冗余）
 
 - [2026-04-10] - AGENTS.md 新增 R17 禁止操作：严禁在 master 上做任何修改
