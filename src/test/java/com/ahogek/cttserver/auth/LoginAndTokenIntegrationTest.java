@@ -215,7 +215,19 @@ class LoginAndTokenIntegrationTest {
                     objectMapper.readTree(refreshBody).path("data").path("refreshToken").asText();
             assertThat(rt2).isNotBlank().isNotEqualTo(rt1);
 
-            // Then 1: DB: replayed token (rt1) remains revoked
+            // Then 1: Replay rt1 → 403 AUTH_009 (reuse detected)
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/refresh")
+                                    .header(USER_AGENT, TEST_USER_AGENT)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(refreshTokenRequestJson(rt1)))
+                    .hasStatus(403)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_009");
+
+            // Then 2: DB: replayed token (rt1) remains revoked
             Long revokedCount =
                     jdbcClient
                             .sql(
@@ -225,7 +237,7 @@ class LoginAndTokenIntegrationTest {
                             .single();
             assertThat(revokedCount).isGreaterThanOrEqualTo(1);
 
-            // Then 2: rt2 remains active (revokeAllUserTokens rolled back with transaction)
+            // Then 3: rt2 remains active (revokeAllUserTokens rolled back with transaction)
             Long activeCount =
                     jdbcClient
                             .sql(
@@ -234,6 +246,18 @@ class LoginAndTokenIntegrationTest {
                             .query(Long.class)
                             .single();
             assertThat(activeCount).isEqualTo(1);
+
+            // Then 4: rt2 can still be used to refresh (kill switch ineffective due to rollback)
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/refresh")
+                                    .header(USER_AGENT, TEST_USER_AGENT)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(refreshTokenRequestJson(rt2)))
+                    .hasStatus(200)
+                    .bodyJson()
+                    .extractingPath("$.data.accessToken")
+                    .isNotEmpty();
         }
     }
 }
