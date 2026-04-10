@@ -92,6 +92,15 @@
     - 2 个测试全部通过，覆盖密码重置完整生命周期 + 过期边界
     - 手动 QA: Swagger UI 全链路 18 个测试用例 100/100 通过
     - 技术要点: mail_outbox 表查询 + 正则提取 token, JdbcClient 时间旅行
+- [x] 登出与会话吊销 E2E 集成测试 (LogoutIntegrationTest)
+    - Single Session Logout (7 测试): 正常登出、幂等登出、空白/null token 验证、BOLA 防护、不存在 token 幂等、过期 token 幂等、审计日志验证
+    - Global Logout / Kill Switch (2 测试): 多设备全量吊销、无活跃 token 幂等
+    - Unauthenticated Access (2 测试): 无 JWT 返回 401
+    - 11 个测试全部通过，覆盖登出完整生命周期 + 安全边界 + 审计追踪
+    - 手动 QA: 注册→验证→登录→单设备登出→全设备登出 全链路验证通过
+    - 审查修复: 4 agent 并行审查，修复 P0/P1/P2 全部发现
+    - 文档: LogoutRequest.java 补充 Swagger @Schema 注解 + ValidationConstants, developer-handbook.md 更新测试覆盖表
+    - 修复: LogoutController @ApiResponse 错误代码, countActiveTokensForUser 语义匹配
 
 ## 进行中 🔄
 

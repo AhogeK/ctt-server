@@ -2,6 +2,25 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - LogoutIntegrationTest E2E 测试
+    - 新增: LogoutIntegrationTest (11 个 E2E 测试，3 个 @Nested 组)
+    - Single Session Logout (7 测试): 正常登出吊销 token、幂等登出、空白 token 验证 (400 COMMON_003)、BOLA 防护、不存在 token 幂等、null token 验证、过期 token 幂等
+    - Global Logout / Kill Switch (2 测试): 多设备全量吊销、无活跃 token 幂等
+    - Unauthenticated Access (2 测试): 无 JWT 访问 /logout 和 /logout-all 返回 401
+    - 技术要点: MockMvcTester 统一断言模式，JdbcClient DB 状态核查
+    - 技术要点: TokenUtils.hashToken() 验证 token_hash 列
+    - 技术要点: @AfterEach 清理顺序 audit_logs → refresh_tokens → login_attempts → users (JDBC-only)
+    - 技术要点: countActiveTokensForUser 添加 expires_at > NOW() 匹配 revokeAllUserTokens 查询语义
+    - 技术要点: assertTokenRejected() helper 消除重复断言
+    - 技术要点: 审计日志验证 (LOGOUT_SUCCESS, SECURITY_ALERT, LOGOUT_ALL_DEVICES)
+    - 修复: LogoutRequest.java 补充 Swagger @Schema 注解 + ValidationConstants.MSG_NOT_BLANK
+    - 修复: LogoutController.java @ApiResponse 错误代码 (AUTH_003 → COMMON_003, AUTH_001 → missing or invalid JWT)
+    - 审查: 4 agent 并行审查 (逻辑 + 风格 + 架构 + 文档)，修复 P0/P1/P2 全部发现
+    - 手动 QA: 注册→验证→登录→单设备登出→全设备登出 全链路验证通过
+    - 文件: LogoutIntegrationTest.java, LogoutRequest.java, LogoutController.java, JacksonConfig.java, developer-handbook.md, techContext.md
+    - 验证: 全量测试通过，Spotless 通过
+    - 版本: 0.15.3-SNAPSHOT → 0.15.4-SNAPSHOT
+
 - [2026-04-10] - PasswordResetIntegrationTest E2E 测试
     - 新增: PasswordResetIntegrationTest (2 个 E2E 测试场景)
     - 测试场景 1: 完整密码重置链路 → 登录产生 token → 请求重置 → mail_outbox 提取 token → 确认重置 → 验证所有 refresh_tokens 被吊销 → 旧密码失败 → 新密码登录成功
