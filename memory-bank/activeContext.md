@@ -2,6 +2,18 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - PasswordResetIntegrationTest E2E 测试
+    - 新增: PasswordResetIntegrationTest (2 个 E2E 测试场景)
+    - 测试场景 1: 完整密码重置链路 → 登录产生 token → 请求重置 → mail_outbox 提取 token → 确认重置 → 验证所有 refresh_tokens 被吊销 → 旧密码失败 → 新密码登录成功
+    - 测试场景 2: Token 过期时间旅行 → JdbcClient 修改 expires_at 为 1 小时前 → 确认重置返回 401 AUTH_002
+    - 技术要点: mail_outbox 表查询 + 正则提取 token (body_html 列)
+    - 技术要点: JdbcClient "时间旅行" 测试过期逻辑
+    - 技术要点: countActiveRefreshTokens() 验证 Kill Switch 行为
+    - 文件: PasswordResetIntegrationTest.java
+    - 验证: 2 个测试全部通过
+    - 手动 QA: Swagger UI 全链路验证 18 个测试用例 100/100 通过
+    - 版本: 0.15.2-SNAPSHOT → 0.15.3-SNAPSHOT
+
 - [2026-04-10] - LoginAndTokenIntegrationTest E2E 测试
     - 新增: LoginAndTokenIntegrationTest (3 个 E2E 测试场景)
     - 测试场景 1: 正常登录 → 获取双 Token → 用 Access Token 访问受保护接口 200

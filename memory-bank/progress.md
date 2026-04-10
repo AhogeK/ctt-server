@@ -86,6 +86,12 @@
     - 修复版本号为 PATCH bump（0.15.0 → 0.15.1-SNAPSHOT）
     - 新增 developer-handbook.md Logout Behavior 章节
     - 新增注册输入验证测试（3 个用例）
+- [x] 密码重置 E2E 集成测试 (PasswordResetIntegrationTest)
+    - 完整密码重置链路: 登录 → 请求重置 → mail_outbox 提取 token → 确认重置 → 验证 session 全部吊销 → 新密码登录
+    - Token 过期时间旅行测试: JdbcClient 修改 expires_at → 401 AUTH_002
+    - 2 个测试全部通过，覆盖密码重置完整生命周期 + 过期边界
+    - 手动 QA: Swagger UI 全链路 18 个测试用例 100/100 通过
+    - 技术要点: mail_outbox 表查询 + 正则提取 token, JdbcClient 时间旅行
 
 ## 进行中 🔄
 
