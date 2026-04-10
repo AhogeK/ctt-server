@@ -115,9 +115,12 @@
     - app 服务含 healthcheck、depends_on、环境变量自动注入
     - 所有外部端口可配置 (POSTGRES, REDIS, MAIL_SMTP, MAIL_UI, APP)
     - Dockerfile APP_PORT 动态化: 默认 8080，.env 注入覆盖，ARG + ENV + EXPOSE 联动
+    - Dockerfile BuildKit 缓存: --mount=type=cache,target=/root/.gradle 加速构建
+    - docker-compose.yaml: image: ctt-server-test, container_name 动态化
 - [x] Jenkins CI/CD 测试流水线
     - Jenkinsfile: checkout → configure → infra up → deploy → health check
     - APP_PORT 8004，docker compose 自动构建部署
+    - CONTAINER_NAME=ctt-server-test 动态容器名，Health Check 联动
 
 ## 进行中 🔄
 

@@ -1,9 +1,10 @@
 # Active Context
-- [2026-04-10] - Dockerfile 安装 curl 修复 healthcheck
-    - Dockerfile: apt-get install curl + 清理缓存（~几MB）
-    - docker-compose.yaml: healthcheck 恢复 curl，移除 :-8080 fallback
-    - 文件: Dockerfile, docker-compose.yaml
-    - 版本: 0.15.14-SNAPSHOT → 0.15.15-SNAPSHOT
+- [2026-04-10] - Dockerfile BuildKit 缓存 + 容器名动态化
+    - Dockerfile: --mount=type=cache,target=/root/.gradle 加速依赖解析和 bootJar
+    - docker-compose.yaml: 新增 image: ctt-server-test，container_name: ${CONTAINER_NAME:-ctt-server}
+    - Jenkinsfile: Deploy 使用 CONTAINER_NAME=ctt-server-test，Health Check 动态读取容器名
+    - 文件: Dockerfile, docker-compose.yaml, Jenkinsfile
+    - 版本: 0.15.15-SNAPSHOT → 0.15.16-SNAPSHOT
 
 
 ## Recent Changes (Last 30 Days)
