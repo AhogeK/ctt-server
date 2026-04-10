@@ -13,7 +13,8 @@
     - .env.example: 新增完整环境变量模板（APP_PORT, JWT_SECRET_KEY, MAIL_FROM_*, FRONTEND_BASE_URL 等）
     - README.md: Docker Compose 端口表新增 APP_PORT
     - 文件: Dockerfile, docker-compose.yaml, Jenkinsfile, .gitignore, .env.example, README.md
-    - 版本: 0.15.12-SNAPSHOT → 0.15.13-SNAPSHOT
+    - docker-compose.yaml: environment 注入 SERVER_PORT 和 APP_PORT，修复 healthcheck 容器内变量缺失
+    - 版本: 0.15.12-SNAPSHOT → 0.15.14-SNAPSHOT
     - 审查: 4 agent 并行审查，修复 P0（healthcheck curl, JWT_SECRET_KEY 缺失）+ P1（版本号跳过, .gitignore, README 文档, Jenkinsfile 冗余）
 
 - [2026-04-10] - AGENTS.md 新增 R17 禁止操作：严禁在 master 上做任何修改
