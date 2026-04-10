@@ -16,6 +16,7 @@ CTT Server provides:
 - **Soft Delete Architecture**: Safe data handling with `is_deleted` flags for sync integrity
 - **OWASP Security Headers**: X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP
 - **Account Lockout Strategy**: Brute-force attack protection with automatic temporary lockout
+- **Password Reset**: Token-based password recovery with mail outbox delivery, session revocation (Kill Switch), and automatic account unlock
 
 ## Tech Stack
 
@@ -72,17 +73,18 @@ CTT Server provides:
 
 **PostgreSQL Tables** (`src/main/resources/db/migration/V20260303210000__init_base_schema.sql`):
 
-| Table             | Description                        | Key Columns                                                |
-|-------------------|------------------------------------|------------------------------------------------------------|
-| `users`           | User accounts (Web & OAuth)        | `id`, `email`, `github_id`, `status`, `last_login_at`      |
-| `devices`         | Client device registration         | `id`, `user_id`, `platform`, `ide_name`, `last_seen_at`    |
-| `api_keys`        | Authentication keys (device-bound) | `id`, `key_hash`, `revoked_at`, `last_used_at`             |
-| `coding_sessions` | Core time-tracking data            | `session_uuid`, `start_time`, `end_time`, `client_version` |
-| `session_changes` | Sync change log (watermark base)   | `change_id`, `op`, `server_version`, `happened_at`         |
-| `sync_cursors`    | Per-device sync state              | `last_pulled_change_id`, `last_push_at`                    |
-| `audit_logs`      | Security audit trail               | `action`, `resource_type`, `details (JSONB)`, `ip_address` |
-| `mail_outbox`     | Transactional email queue          | `id`, `recipient`, `status`, `retry_count`, `trace_id`     |
-| `login_attempts`  | Brute-force protection audit trail | `id`, `email_hash` (SHA-256), `ip_hash`, `attempt_at`      |
+| Table                   | Description                        | Key Columns                                                            |
+|-------------------------|------------------------------------|------------------------------------------------------------------------|
+| `users`                 | User accounts (Web & OAuth)        | `id`, `email`, `github_id`, `status`, `last_login_at`                  |
+| `devices`               | Client device registration         | `id`, `user_id`, `platform`, `ide_name`, `last_seen_at`                |
+| `api_keys`              | Authentication keys (device-bound) | `id`, `key_hash`, `revoked_at`, `last_used_at`                         |
+| `coding_sessions`       | Core time-tracking data            | `session_uuid`, `start_time`, `end_time`, `client_version`             |
+| `session_changes`       | Sync change log (watermark base)   | `change_id`, `op`, `server_version`, `happened_at`                     |
+| `sync_cursors`          | Per-device sync state              | `last_pulled_change_id`, `last_push_at`                                |
+| `audit_logs`            | Security audit trail               | `action`, `resource_type`, `details (JSONB)`, `ip_address`             |
+| `mail_outbox`           | Transactional email queue          | `id`, `recipient`, `status`, `retry_count`, `trace_id`                 |
+| `login_attempts`        | Brute-force protection audit trail | `id`, `email_hash` (SHA-256), `ip_hash`, `attempt_at`                  |
+| `password_reset_tokens` | Password reset token storage       | `id`, `email`, `token_hash`, `expires_at`, `consumed_at`, `revoked_at` |
 
 **Key Design Features**:
 

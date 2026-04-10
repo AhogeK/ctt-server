@@ -72,9 +72,9 @@ class LoginAndTokenIntegrationTest {
         return userRepository.saveAndFlush(user);
     }
 
-    private String loginRequestJson(String email, String password)
-            throws Exception {
-        LoginRequest request = new LoginRequest(email, password, LoginAndTokenIntegrationTest.DEVICE_ID);
+    private String loginRequestJson(String email, String password) throws Exception {
+        LoginRequest request =
+                new LoginRequest(email, password, LoginAndTokenIntegrationTest.DEVICE_ID);
         return objectMapper.writeValueAsString(request);
     }
 
@@ -102,9 +102,7 @@ class LoginAndTokenIntegrationTest {
                                             .contentType(MediaType.APPLICATION_JSON)
                                             .content(
                                                     loginRequestJson(
-                                                            user.getEmail(),
-                                                            TEST_PASSWORD
-                                                    )))
+                                                            user.getEmail(), TEST_PASSWORD)))
                             .andExpect(status().isOk())
                             .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
                             .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
@@ -113,11 +111,7 @@ class LoginAndTokenIntegrationTest {
                             .getContentAsString();
 
             String accessToken =
-                    objectMapper
-                            .readTree(loginBody)
-                            .path("data")
-                            .path("accessToken")
-                            .asText();
+                    objectMapper.readTree(loginBody).path("data").path("accessToken").asText();
 
             // Then: Protected endpoint accepts the token
             assertThat(
@@ -143,11 +137,7 @@ class LoginAndTokenIntegrationTest {
                 mockMvc.perform(
                                 post("/api/v1/auth/login")
                                         .contentType(MediaType.APPLICATION_JSON)
-                                        .content(
-                                                loginRequestJson(
-                                                        user.getEmail(),
-                                                        WRONG_PASSWORD
-                                                )))
+                                        .content(loginRequestJson(user.getEmail(), WRONG_PASSWORD)))
                         .andExpect(status().isUnauthorized())
                         .andExpect(jsonPath("$.code").value("AUTH_001"));
             }
@@ -159,9 +149,7 @@ class LoginAndTokenIntegrationTest {
                                             .contentType(MediaType.APPLICATION_JSON)
                                             .content(
                                                     loginRequestJson(
-                                                            user.getEmail(),
-                                                            TEST_PASSWORD
-                                                    )))
+                                                            user.getEmail(), TEST_PASSWORD)))
                             .andExpect(status().isForbidden())
                             .andExpect(jsonPath("$.code").value("AUTH_004"))
                             .andReturn()
@@ -201,9 +189,7 @@ class LoginAndTokenIntegrationTest {
                                             .contentType(MediaType.APPLICATION_JSON)
                                             .content(
                                                     loginRequestJson(
-                                                            user.getEmail(),
-                                                            TEST_PASSWORD
-                                                    )))
+                                                            user.getEmail(), TEST_PASSWORD)))
                             .andExpect(status().isOk())
                             .andReturn()
                             .getResponse()
