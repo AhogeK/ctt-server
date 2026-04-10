@@ -7,7 +7,6 @@ pipeline {
 
     environment {
         REPO_DIR = '/repository/ctt-server'
-        APP_PORT = '8004'
         CTX_PATH = '/ctt-server'
     }
 
@@ -35,7 +34,13 @@ REDIS_PASSWORD=ctt_redis_pass
 REDIS_EXTERNAL_PORT=16379
 MAIL_SMTP_EXTERNAL_PORT=1025
 MAIL_UI_EXTERNAL_PORT=8025
+APP_PORT=8004
 APP_EXTERNAL_PORT=8004
+JWT_SECRET_KEY=CI_TEST_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG_REPLACE_IN_PROD
+MAIL_FROM_ADDRESS=noreply@ci.test
+MAIL_FROM_NAME=CTT CI
+FRONTEND_BASE_URL=http://localhost:5173
+SPRING_PROFILES_ACTIVE=local
 EOF
                     '''
                     sh '''
