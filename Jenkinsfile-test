@@ -6,9 +6,9 @@ pipeline {
     }
 
     environment {
-        REPO_DIR     = '/repository/ctt-server'
-        CTX_PATH     = '/ctt-server'
-        APP_PORT     = '8080'
+        REPO_DIR = '/repository/ctt-server'
+        APP_PORT = '8004'
+        CTX_PATH = '/ctt-server'
     }
 
     stages {
@@ -51,15 +51,13 @@ pipeline {
                             STATUS=$(docker inspect --format="{{.State.Health.Status}}" ctt-postgres 2>/dev/null || echo "none")
                             if [ "$STATUS" = "healthy" ]; then
                                 echo "✅ Postgres is ready"
-                                break
+                                exit 0
                             fi
                             echo "Waiting... ($i/20) [$STATUS]"
                             sleep 3
                         done
-                        if [ "$STATUS" != "healthy" ]; then
-                            echo "❌ Postgres never became healthy"
-                            exit 1
-                        fi
+                        echo "❌ Postgres never became healthy"
+                        exit 1
                     '''
                 }
             }
@@ -68,9 +66,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 dir("${REPO_DIR}") {
-                    sh '''
-                        docker compose up -d --build app
-                    '''
+                    sh 'docker compose up -d --build app'
                 }
             }
         }
@@ -79,7 +75,7 @@ pipeline {
             steps {
                 dir("${REPO_DIR}") {
                     sh '''
-                        echo "Waiting for app to pass health check..."
+                        echo "Waiting for app container to be healthy..."
                         for i in $(seq 1 24); do
                             STATUS=$(docker inspect --format="{{.State.Health.Status}}" ctt-server 2>/dev/null || echo "none")
                             if [ "$STATUS" = "healthy" ]; then
@@ -100,7 +96,7 @@ pipeline {
 
     post {
         success {
-            echo "✅ Deploy success → http://localhost:8080/ctt-server/swagger-ui.html"
+            echo "✅ Deploy success → http://localhost:8004/ctt-server/swagger-ui.html"
         }
         failure {
             sh 'docker logs ctt-server --tail 100 || true'
