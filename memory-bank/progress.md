@@ -108,6 +108,8 @@
 - [x] Docker Compose PostgreSQL 18+ 兼容性修复
     - volume 挂载点从 /var/lib/postgresql/data 改为 /var/lib/postgresql
     - 支持 PostgreSQL 18+ Docker 镜像的 pg_ctlcluster 管理和 pg_upgrade
+- [x] application-local.yaml.template mail 配置环境变量化
+    - mail.host/mail.port 改为 \${MAIL_SMTP_HOST:localhost}/\${MAIL_SMTP_PORT:1025}
 
 ## 进行中 🔄
 

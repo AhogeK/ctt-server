@@ -2,6 +2,12 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - application-local.yaml.template mail 配置环境变量化
+    - 修复: mail.host/mail.port 硬编码 → \${MAIL_SMTP_HOST:localhost}/\${MAIL_SMTP_PORT:1025}
+    - 原因: 与 .env 变量命名保持一致，支持自定义 SMTP 地址
+    - 文件: application-local.yaml.template
+    - 版本: 0.15.7-SNAPSHOT → 0.15.8-SNAPSHOT
+
 - [2026-04-10] - Docker Compose PostgreSQL 18+ 兼容性修复
     - 问题: postgres:latest (18+) 要求 volume 挂载到 /var/lib/postgresql 而非 /var/lib/postgresql/data
     - 修复: volumes 路径改为 postgres_data:/var/lib/postgresql
