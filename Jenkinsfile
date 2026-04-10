@@ -84,7 +84,7 @@ EOF
         stage('Deploy') {
             steps {
                 dir("${REPO_DIR}") {
-                    sh 'docker compose up -d --build app'
+                    sh 'CONTAINER_NAME=ctt-server-test docker compose up -d --build app'
                 }
             }
         }
@@ -93,9 +93,10 @@ EOF
             steps {
                 dir("${REPO_DIR}") {
                     sh '''
+                        CONTAINER=ctt-server-test
                         echo "Waiting for app container to be healthy..."
                         for i in $(seq 1 24); do
-                            STATUS=$(docker inspect --format="{{.State.Health.Status}}" ctt-server 2>/dev/null || echo "none")
+                            STATUS=$(docker inspect --format="{{.State.Health.Status}}" "$CONTAINER" 2>/dev/null || echo "none")
                             if [ "$STATUS" = "healthy" ]; then
                                 echo "✅ Service is UP"
                                 exit 0
@@ -104,7 +105,7 @@ EOF
                             sleep 5
                         done
                         echo "❌ Health check timed out"
-                        docker logs ctt-server --tail 50 || true
+                        docker logs "$CONTAINER" --tail 50 || true
                         exit 1
                     '''
                 }
