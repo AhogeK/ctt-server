@@ -2,6 +2,12 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - AGENTS.md 新增 R17 禁止操作：严禁在 master 上做任何修改
+    - 教训: 曾犯在 master 上直接修改 Jenkinsfile 再反向 cherry-pick 到 develop 的严重错误
+    - 规则: 所有修改必须先在 develop 上完成，再从 develop cherry-pick 到 master
+    - master 只接受 cherry-pick，绝不允许直接在 master 上改任何代码/配置/文档
+    - 文件: AGENTS.md (R17 禁止操作新增两条)
+
 - [2026-04-10] - Jenkins CI/CD 测试流水线
     - 新增: Jenkinsfile (原 Jenkinsfile-test 重命名)
     - checkout → configure (.env 自动生成 + application-local.yaml 模板) → infra up → deploy → health check

@@ -451,6 +451,8 @@ MAJOR.MINOR.PATCH[-SUFFIX]
 - ❌ 在 master 上提交 `docs(memory-bank)` 类型提交
 - ❌ 使用 `git reset --hard develop` 同步 master（会带入 AI 文件）
 - ❌ 未经 cherry-pick 过滤直接同步
+- ❌ **反向 cherry-pick（master → develop）：工作分支永远是 develop，所有修改必须先在 develop 上完成，再从 develop cherry-pick 到 master。绝不允许 master 的提交反向合入 develop。**
+- ❌ **在 master 上做任何修改：master 只接受从 develop cherry-pick 过来的提交，绝不允许直接在 master 上修改代码、配置文件或任何业务内容。所有开发、修复、更新必须先在 develop 上完成。**
 
 #### 事故恢复流程
 
