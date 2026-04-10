@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.common.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -21,13 +22,16 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 @Configuration
 public class OpenApiConfig {
 
+    @Value("${info.app.version}")
+    private String appVersion;
+
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(
                         new Info()
                                 .title("CTT Server API")
-                                .version("0.5.0-SNAPSHOT")
+                                .version(appVersion)
                                 .description("Code Time Tracker Server API"))
                 .components(
                         new Components()
