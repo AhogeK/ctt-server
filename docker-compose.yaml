@@ -14,7 +14,7 @@ services:
     ports:
       - "${POSTGRES_EXTERNAL_PORT:-15432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql   # PostgreSQL 18+ requires parent directory
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ctt} -d ${POSTGRES_DB:-ctt_server}"]
       interval: 5s
