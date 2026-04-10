@@ -26,6 +26,19 @@ pipeline {
             steps {
                 dir("${REPO_DIR}") {
                     sh '''
+                        cat > .env << 'EOF'
+POSTGRES_DB=ctt_server
+POSTGRES_USER=ctt
+POSTGRES_PASSWORD=ctt_local_pass
+POSTGRES_EXTERNAL_PORT=15432
+REDIS_PASSWORD=ctt_redis_pass
+REDIS_EXTERNAL_PORT=16379
+MAIL_SMTP_EXTERNAL_PORT=1025
+MAIL_UI_EXTERNAL_PORT=8025
+APP_EXTERNAL_PORT=8004
+EOF
+                    '''
+                    sh '''
                         LOCAL_YAML=src/main/resources/application-local.yaml
                         TEMPLATE=src/main/resources/application-local.yaml.template
                         if [ ! -f "$LOCAL_YAML" ]; then
