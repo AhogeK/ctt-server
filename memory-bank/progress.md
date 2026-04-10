@@ -101,6 +101,10 @@
     - 审查修复: 4 agent 并行审查，修复 P0/P1/P2 全部发现
     - 文档: LogoutRequest.java 补充 Swagger @Schema 注解 + ValidationConstants, developer-handbook.md 更新测试覆盖表
     - 修复: LogoutController @ApiResponse 错误代码, countActiveTokensForUser 语义匹配
+- [x] LoginAndTokenIntegrationTest 补充 Refresh Token 重放 E2E 断言
+    - 原有测试只验证 DB 状态，缺少实际重放 rt1 → 403 AUTH_009 的 E2E 断言
+    - 新增 4 步断言链：重放返回 403 → rt1 revoked → rt2 active → rt2 可刷新
+    - 揭示架构事实：revokeAllUserTokens 因事务回滚无效，rt2 仍可继续使用
 
 ## 进行中 🔄
 

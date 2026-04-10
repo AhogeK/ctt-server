@@ -2,6 +2,17 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - LoginAndTokenIntegrationTest 补充 Refresh Token 重放 E2E 断言
+    - 问题: 原有测试只验证 DB 状态（rt1 revoked, rt2 active = 1），未实际断言重放 rt1 返回 403 AUTH_009
+    - 修复: 新增 4 步 E2E 断言链
+        - Then 1: 重放 rt1 → 403 AUTH_009（reuse detected）
+        - Then 2: DB 验证 rt1 仍为 revoked
+        - Then 3: DB 验证 rt2 仍为 active（revokeAllUserTokens 随事务回滚）
+        - Then 4: rt2 仍可成功刷新（kill switch 因事务回滚无效）
+    - 文件: LoginAndTokenIntegrationTest.java
+    - 验证: 全量测试通过
+    - 版本: 0.15.4-SNAPSHOT（PATCH 修复，版本号不变）
+
 - [2026-04-10] - LogoutIntegrationTest E2E 测试
     - 新增: LogoutIntegrationTest (11 个 E2E 测试，3 个 @Nested 组)
     - Single Session Logout (7 测试): 正常登出吊销 token、幂等登出、空白 token 验证 (400 COMMON_003)、BOLA 防护、不存在 token 幂等、null token 验证、过期 token 幂等
