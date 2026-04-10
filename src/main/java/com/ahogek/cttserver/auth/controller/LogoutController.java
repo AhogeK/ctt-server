@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.auth.controller;
 
 import com.ahogek.cttserver.auth.dto.LogoutRequest;
+import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 
@@ -8,13 +9,10 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -37,7 +35,7 @@ public class LogoutController {
     /**
      * Logout user and revoke refresh token.
      *
-     * @param jwt Current authenticated user's JWT token
+     * @param currentUser current authenticated user (auto-injected by Spring Security)
      * @param request Logout request containing refresh token
      */
     @Operation(
@@ -52,10 +50,10 @@ public class LogoutController {
     @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/logout")
     public ResponseEntity<RestApiResponse<Void>> logout(
-            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody LogoutRequest request) {
+            @AuthenticationPrincipal CurrentUser currentUser,
+            @Valid @RequestBody LogoutRequest request) {
 
-        UUID userId = UUID.fromString(jwt.getSubject());
-        logoutService.logout(userId, request.refreshToken());
+        logoutService.logout(currentUser.id(), request.refreshToken());
 
         return ResponseEntity.ok(RestApiResponse.ok());
     }
