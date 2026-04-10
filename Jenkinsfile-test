@@ -1,0 +1,110 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'Java25'
+    }
+
+    environment {
+        REPO_DIR     = '/repository/ctt-server'
+        CTX_PATH     = '/ctt-server'
+        APP_PORT     = '8080'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                dir("${REPO_DIR}") {
+                    git url: 'https://github.com/AhogeK/ctt-server.git',
+                        branch: 'master'
+                }
+            }
+        }
+
+        stage('Configure') {
+            steps {
+                dir("${REPO_DIR}") {
+                    sh '''
+                        LOCAL_YAML=src/main/resources/application-local.yaml
+                        TEMPLATE=src/main/resources/application-local.yaml.template
+                        if [ ! -f "$LOCAL_YAML" ]; then
+                            cp "$TEMPLATE" "$LOCAL_YAML"
+                            echo "application-local.yaml generated from template."
+                        else
+                            echo "application-local.yaml already exists, skipping."
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Infra Up') {
+            steps {
+                dir("${REPO_DIR}") {
+                    sh 'docker compose up -d postgres redis mailpit'
+                    sh '''
+                        docker network connect ctt-server_default jenkins-blueocean 2>/dev/null || true
+
+                        echo "Waiting for postgres to be healthy..."
+                        for i in $(seq 1 20); do
+                            STATUS=$(docker inspect --format="{{.State.Health.Status}}" ctt-postgres 2>/dev/null || echo "none")
+                            if [ "$STATUS" = "healthy" ]; then
+                                echo "✅ Postgres is ready"
+                                break
+                            fi
+                            echo "Waiting... ($i/20) [$STATUS]"
+                            sleep 3
+                        done
+                        if [ "$STATUS" != "healthy" ]; then
+                            echo "❌ Postgres never became healthy"
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                dir("${REPO_DIR}") {
+                    sh '''
+                        docker compose up -d --build app
+                    '''
+                }
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                dir("${REPO_DIR}") {
+                    sh '''
+                        echo "Waiting for app to pass health check..."
+                        for i in $(seq 1 24); do
+                            STATUS=$(docker inspect --format="{{.State.Health.Status}}" ctt-server 2>/dev/null || echo "none")
+                            if [ "$STATUS" = "healthy" ]; then
+                                echo "✅ Service is UP"
+                                exit 0
+                            fi
+                            echo "Waiting... ($i/24) [$STATUS]"
+                            sleep 5
+                        done
+                        echo "❌ Health check timed out"
+                        docker logs ctt-server --tail 50 || true
+                        exit 1
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deploy success → http://localhost:8080/ctt-server/swagger-ui.html"
+        }
+        failure {
+            sh 'docker logs ctt-server --tail 100 || true'
+            echo "❌ Deploy failed — check Console Output above"
+        }
+    }
+}
