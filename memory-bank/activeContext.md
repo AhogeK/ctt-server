@@ -2,6 +2,20 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - Dockerfile APP_PORT 动态化 + 审查修复
+    - Dockerfile: ARG APP_PORT=8080 + ENV SERVER_PORT=${APP_PORT} + EXPOSE ${APP_PORT}
+    - docker-compose.yaml: build.args 传入 APP_PORT，端口映射和 healthcheck 全部联动
+    - docker-compose.yaml: healthcheck curl → wget（temurin JRE 镜像无 curl）
+    - 默认 8080，Jenkins 通过 .env 注入 APP_PORT=8004 覆盖
+    - Jenkinsfile: .env 生成新增 JWT_SECRET_KEY, MAIL_FROM_*, FRONTEND_BASE_URL, SPRING_PROFILES_ACTIVE
+    - Jenkinsfile: 删除 environment 块中冗余的 APP_PORT
+    - .gitignore: 恢复 .env.* 通配符，保留 !.env.example 排除
+    - .env.example: 新增完整环境变量模板（APP_PORT, JWT_SECRET_KEY, MAIL_FROM_*, FRONTEND_BASE_URL 等）
+    - README.md: Docker Compose 端口表新增 APP_PORT
+    - 文件: Dockerfile, docker-compose.yaml, Jenkinsfile, .gitignore, .env.example, README.md
+    - 版本: 0.15.12-SNAPSHOT → 0.15.13-SNAPSHOT
+    - 审查: 4 agent 并行审查，修复 P0（healthcheck curl, JWT_SECRET_KEY 缺失）+ P1（版本号跳过, .gitignore, README 文档, Jenkinsfile 冗余）
+
 - [2026-04-10] - AGENTS.md 新增 R17 禁止操作：严禁在 master 上做任何修改
     - 教训: 曾犯在 master 上直接修改 Jenkinsfile 再反向 cherry-pick 到 develop 的严重错误
     - 规则: 所有修改必须先在 develop 上完成，再从 develop cherry-pick 到 master

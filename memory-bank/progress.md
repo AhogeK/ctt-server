@@ -114,6 +114,7 @@
     - 多阶段构建: eclipse-temurin:25-jdk (build) → 25-jre-noble (runtime)
     - app 服务含 healthcheck、depends_on、环境变量自动注入
     - 所有外部端口可配置 (POSTGRES, REDIS, MAIL_SMTP, MAIL_UI, APP)
+    - Dockerfile APP_PORT 动态化: 默认 8080，.env 注入覆盖，ARG + ENV + EXPOSE 联动
 - [x] Jenkins CI/CD 测试流水线
     - Jenkinsfile: checkout → configure → infra up → deploy → health check
     - APP_PORT 8004，docker compose 自动构建部署
