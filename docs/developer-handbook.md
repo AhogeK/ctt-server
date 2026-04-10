@@ -11,6 +11,7 @@ This handbook provides step-by-step instructions for five common development tas
 5. [Using Mail Template Renderer](#using-mail-template-renderer)
 6. [Implementing Email Verification](#implementing-email-verification)
 7. [Account Lockout Configuration](#account-lockout-configuration)
+8. [Logout Behavior](#logout-behavior)
 
 ---
 
@@ -620,6 +621,38 @@ Example response:
   "retryAfter": "2026-04-10T06:30:00Z"
 }
 ```
+
+---
+
+## Logout Behavior
+
+The application provides two logout endpoints with different scopes:
+
+### Single Session Logout (`POST /api/v1/auth/logout`)
+
+- **Authentication**: Requires JWT Bearer token + request body with `refreshToken`
+- **Behavior**: Revokes the specified refresh token for the authenticated user
+- **Idempotent**: Calling logout with an already-revoked token returns 200 (no-op)
+- **BOLA Protection**: `LogoutService` verifies the refresh token belongs to the authenticated user. If a user attempts to revoke another user's token, the operation silently returns without revoking, and a security audit event is logged.
+- **Response**: `RestApiResponse<Void>` with `success: true`
+- **Error Codes**:
+  - `400 COMMON_003` — Validation error (blank/null refreshToken)
+  - `401 AUTH_001` — Unauthorized (missing or invalid JWT)
+
+### Global Logout / Kill Switch (`POST /api/v1/auth/logout-all`)
+
+- **Authentication**: Requires JWT Bearer token (no request body)
+- **Behavior**: Revokes ALL active refresh tokens for the authenticated user
+- **Rate Limited**: 5 requests per minute per user (`@RateLimit(type = USER)`)
+- **Use Case**: User suspects account compromise, wants to terminate all sessions
+- **Response**: `RestApiResponse<Void>` with `success: true`
+- **Error Codes**:
+  - `401 AUTH_001` — Unauthorized (missing or invalid JWT)
+  - `429 COMMON_004` — Rate limit exceeded
+
+### Implementation Notes
+
+Both endpoints use `@AuthenticationPrincipal CurrentUser` for user identity extraction. The `JwtToCurrentUserConverter` transforms the JWT into a `CurrentUser` object during Spring Security filter processing. Controllers should NEVER use `@AuthenticationPrincipal Jwt` — the principal is always `CurrentUser`.
 
 ---
 
