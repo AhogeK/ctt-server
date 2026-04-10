@@ -2,6 +2,12 @@
 
 ## 已完成 ✅
 
+- [x] 清理 ProbeController 及全部引用
+    - 删除 probe/ 包（仅含 ProbeController.java），无生产代码引用
+    - GlobalExceptionHandlerTest 从 @WebMvcTest 迁移为纯 JUnit 5 直接 handler 调用
+    - api-governance.md 探针引用更新为 Actuator 原生端点
+    - 版本: 0.15.16 → 0.15.17-SNAPSHOT
+
 - [x] AGENTS.md 项目记忆配置
 - [x] 开发者手册 (docs/developer-handbook.md)
 - [x] 版本升级: 0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT

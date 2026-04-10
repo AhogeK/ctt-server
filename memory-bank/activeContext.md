@@ -1,4 +1,12 @@
 # Active Context
+- [2026-04-10] - 清理 ProbeController 及全部引用
+    - 删除: src/main/java/com/ahogek/cttserver/probe/ProbeController.java（整个 probe/ 包）
+    - 重写: GlobalExceptionHandlerTest.java — 移除 @WebMvcTest + ProbeController，8 个 probe 端点测试转为直接 handler 方法调用，删除 2 个 happy-path 测试，最终 13 个测试全部通过
+    - 更新: docs/api-governance.md — `/api/v1/probe/health` → `/actuator/health/liveness`（Spring Boot Actuator 原生探针）
+    - 版本: 0.15.16-SNAPSHOT → 0.15.17-SNAPSHOT
+    - 注意: application.yaml 中 management.health.probes 配置保留，属于 Spring Boot Actuator K8s 原生探针，与 ProbeController 无关
+
+
 - [2026-04-10] - Dockerfile BuildKit 缓存 + 容器名动态化
     - Dockerfile: --mount=type=cache,target=/root/.gradle 加速依赖解析和 bootJar
     - docker-compose.yaml: 新增 image: ctt-server-test，container_name: ${CONTAINER_NAME:-ctt-server}
