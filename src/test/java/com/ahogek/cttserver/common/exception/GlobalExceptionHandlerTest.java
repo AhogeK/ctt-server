@@ -1,171 +1,200 @@
 package com.ahogek.cttserver.common.exception;
 
-import com.ahogek.cttserver.probe.ProbeController;
+import com.ahogek.cttserver.common.response.ErrorResponse;
+
+import jakarta.validation.ConstraintViolationException;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
-@WebMvcTest(
-        controllers = ProbeController.class,
-        excludeFilters = {
-            @org.springframework.context.annotation.ComponentScan.Filter(
-                    type = org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE,
-                    classes = {
-                        com.ahogek.cttserver.common.ratelimit.RateLimitAspect.class,
-                        com.ahogek.cttserver.common.idempotent.IdempotentAspect.class
-                    })
-        })
-@ActiveProfiles("test")
 class GlobalExceptionHandlerTest {
 
-    @Autowired private MockMvcTester mvc;
-
     @Test
-    @WithMockUser
-    void ok_returns_unified_structure() {
-        assertThat(mvc.get().uri("/probe/ok"))
-                .hasStatusOk()
-                .bodyJson()
-                .extractingPath("$.success")
-                .isEqualTo(true);
-    }
+    void shouldReturn400WithFieldErrors_whenMethodArgumentNotValid() {
+        BindingResult bindingResult = mock(BindingResult.class);
+        FieldError fieldError = new FieldError("object", "name", "must not be blank");
+        given(bindingResult.getFieldErrors()).willReturn(List.of(fieldError));
 
-    @Test
-    @WithMockUser
-    void validation_failure_returns_error_response() {
-        assertThat(
-                        mvc.post()
-                                .uri("/probe/validate")
-                                .with(csrf())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(
-                                        """
-                        { "name": "", "age": 0 }
-                        """))
-                .hasStatus(400)
-                .bodyJson()
-                .extractingPath("$.code")
-                .isEqualTo("COMMON_003");
-    }
+        MethodArgumentNotValidException ex = mock(MethodArgumentNotValidException.class);
+        given(ex.getBindingResult()).willReturn(bindingResult);
 
-    @Test
-    @WithMockUser
-    void validation_success_returns_ok() {
-        assertThat(
-                        mvc.post()
-                                .uri("/probe/validate")
-                                .with(csrf())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(
-                                        """
-                        { "name": "test", "age": 25 }
-                        """))
-                .hasStatusOk()
-                .bodyJson()
-                .extractingPath("$.success")
-                .isEqualTo(true);
-    }
-
-    @Test
-    @WithMockUser
-    void business_exception_returns_error_response() {
-        assertThat(mvc.get().uri("/probe/biz-error"))
-                .hasStatus(404)
-                .bodyJson()
-                .extractingPath("$.code")
-                .isEqualTo("COMMON_002");
-    }
-
-    @Test
-    @WithMockUser
-    void generic_exception_returns_500_without_stack() {
-        assertThat(mvc.get().uri("/probe/sys-error"))
-                .hasStatus(500)
-                .bodyJson()
-                .extractingPath("$.code")
-                .isEqualTo("SYSTEM_001");
-    }
-
-    @Test
-    @WithMockUser
-    void malformed_json_returns_400() {
-        assertThat(
-                        mvc.post()
-                                .uri("/probe/validate")
-                                .with(csrf())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("{ broken json"))
-                .hasStatus(400)
-                .bodyJson()
-                .extractingPath("$.code")
-                .isEqualTo("COMMON_001");
-    }
-
-    @Test
-    @WithMockUser
-    void missing_param_returns_400() {
-        assertThat(mvc.get().uri("/probe/missing-param"))
-                .hasStatus(400)
-                .bodyJson()
-                .extractingPath("$.code")
-                .isEqualTo("COMMON_005");
-    }
-
-    @Test
-    @WithMockUser
-    void illegal_argument_returns_400() {
-        assertThat(mvc.get().uri("/probe/illegal-arg"))
-                .hasStatus(400)
-                .bodyJson()
-                .extractingPath("$.code")
-                .isEqualTo("COMMON_001");
-    }
-
-    @Test
-    void handleConstraintViolation_returns_400() {
-        jakarta.validation.ConstraintViolationException ex =
-                new jakarta.validation.ConstraintViolationException(
-                        java.util.Collections.emptySet());
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
-        var result = handler.handleConstraintViolation(ex);
+
+        ResponseEntity<ErrorResponse> result = handler.handleValidationException(ex);
+
         assertThat(result.getStatusCode().value()).isEqualTo(400);
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("COMMON_003");
+                            assertThat(body.traceId()).isNotNull();
+                            assertThat(body.details()).hasSize(1);
+                            assertThat(body.details().getFirst().field()).isEqualTo("name");
+                        });
     }
 
     @Test
-    void handleUnauthorizedException_returns_401() {
+    void shouldReturn404_whenBusinessExceptionThrown() {
+        NotFoundException ex = new NotFoundException(ErrorCode.COMMON_002, "Resource not found");
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+
+        ResponseEntity<ErrorResponse> result = handler.handleBusinessException(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(404);
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("COMMON_002");
+                            assertThat(body.traceId()).isNotNull();
+                        });
+    }
+
+    @Test
+    void shouldReturn500WithoutStackTrace_whenInternalServerErrorException() {
+        InternalServerErrorException ex = new InternalServerErrorException("Internal system error");
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+
+        ResponseEntity<ErrorResponse> result = handler.handleInternalServerError(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(500);
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("SYSTEM_001");
+                            assertThat(body.traceId()).isNotNull();
+                        });
+    }
+
+    @Test
+    void shouldReturn400_whenMalformedJson() {
+        HttpMessageNotReadableException ex =
+                new HttpMessageNotReadableException("JSON parse error", null);
+
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+
+        ResponseEntity<ErrorResponse> result = handler.handleUnreadableMessage(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(400);
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("COMMON_001");
+                            assertThat(body.traceId()).isNotNull();
+                        });
+    }
+
+    @Test
+    void shouldReturn400_whenMissingServletRequestParameter() {
+        MissingServletRequestParameterException ex =
+                new MissingServletRequestParameterException("param", "String");
+
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+
+        ResponseEntity<ErrorResponse> result = handler.handleMissingParam(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(400);
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("COMMON_005");
+                            assertThat(body.traceId()).isNotNull();
+                        });
+    }
+
+    @Test
+    void shouldReturn400_whenIllegalArgumentException() {
+        IllegalArgumentException ex = new IllegalArgumentException("Invalid value");
+
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+
+        ResponseEntity<ErrorResponse> result = handler.handleIllegalArgumentException(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(400);
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("COMMON_001");
+                            assertThat(body.traceId()).isNotNull();
+                        });
+    }
+
+    @Test
+    void shouldReturn400WithFieldErrors_whenConstraintViolation() {
+        ConstraintViolationException ex = new ConstraintViolationException(Collections.emptySet());
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        ResponseEntity<ErrorResponse> result = handler.handleConstraintViolation(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(400);
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("COMMON_003");
+                            assertThat(body.traceId()).isNotBlank();
+                        });
+    }
+
+    @Test
+    void shouldReturn401_whenUnauthorizedException() {
         UnauthorizedException ex = new UnauthorizedException(ErrorCode.AUTH_003, "Invalid token");
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
-        var result = handler.handleSecurityException(ex);
+        ResponseEntity<ErrorResponse> result = handler.handleSecurityException(ex);
+
         assertThat(result.getStatusCode().value()).isEqualTo(401);
-        assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().code()).isEqualTo("AUTH_003");
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("AUTH_003");
+                            assertThat(body.traceId()).isNotBlank();
+                        });
     }
 
     @Test
-    void handleForbiddenException_returns_403() {
+    void shouldReturn403_whenForbiddenException() {
         ForbiddenException ex = new ForbiddenException(ErrorCode.AUTH_005, "Access denied");
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
-        var result = handler.handleSecurityException(ex);
+        ResponseEntity<ErrorResponse> result = handler.handleSecurityException(ex);
+
         assertThat(result.getStatusCode().value()).isEqualTo(403);
-        assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().code()).isEqualTo("AUTH_005");
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("AUTH_005");
+                            assertThat(body.traceId()).isNotBlank();
+                        });
     }
 
     @Test
@@ -174,11 +203,16 @@ class GlobalExceptionHandlerTest {
         AccountLockedException ex = new AccountLockedException(ErrorCode.AUTH_004, retryAfter);
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
-        var result = handler.handleAccountLockedException(ex);
+        ResponseEntity<ErrorResponse> result = handler.handleAccountLockedException(ex);
+
         assertThat(result.getStatusCode().value()).isEqualTo(403);
-        assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().code()).isEqualTo("AUTH_004");
-        assertThat(result.getBody().retryAfter()).isEqualTo(retryAfter);
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("AUTH_004");
+                            assertThat(body.retryAfter()).isEqualTo(retryAfter);
+                        });
         assertThat(result.getHeaders().getFirst("Retry-After")).isNotNull();
     }
 
@@ -187,33 +221,33 @@ class GlobalExceptionHandlerTest {
         AccountLockedException ex = new AccountLockedException(ErrorCode.AUTH_004, null);
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
-        var result = handler.handleAccountLockedException(ex);
+        ResponseEntity<ErrorResponse> result = handler.handleAccountLockedException(ex);
+
         assertThat(result.getStatusCode().value()).isEqualTo(403);
-        assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().code()).isEqualTo("AUTH_004");
-        assertThat(result.getBody().retryAfter()).isNull();
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("AUTH_004");
+                            assertThat(body.retryAfter()).isNull();
+                        });
         assertThat(result.getHeaders().getFirst("Retry-After")).isNull();
     }
 
     @Test
-    void handleInternalServerErrorException_returns_500() {
-        InternalServerErrorException ex = new InternalServerErrorException("Internal system error");
-        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
-        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
-        var result = handler.handleInternalServerError(ex);
-        assertThat(result.getStatusCode().value()).isEqualTo(500);
-        assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().code()).isEqualTo("SYSTEM_001");
-    }
-
-    @Test
-    void handleDataIntegrityViolationException_returns_409() {
+    void shouldReturn409_whenDataIntegrityViolation() {
         DataIntegrityViolationException ex = new DataIntegrityViolationException("Duplicate key");
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
-        var result = handler.handleDataIntegrityViolation(ex);
+        ResponseEntity<ErrorResponse> result = handler.handleDataIntegrityViolation(ex);
+
         assertThat(result.getStatusCode().value()).isEqualTo(409);
-        assertThat(result.getBody()).isNotNull();
-        assertThat(result.getBody().code()).isEqualTo("USER_001");
+        assertThat(result.getBody())
+                .isNotNull()
+                .satisfies(
+                        body -> {
+                            assertThat(body.code()).isEqualTo("USER_001");
+                            assertThat(body.traceId()).isNotBlank();
+                        });
     }
 }

@@ -15,7 +15,7 @@ Endpoints accessible without any authentication. High risk of abuse.
     *   `POST /api/v1/auth/register`
     *   `POST /api/v1/auth/login`
     *   `POST /api/v1/auth/refresh`
-    *   `GET  /api/v1/probe/health`
+    *   `GET  /actuator/health/liveness` (Spring Boot Actuator)
 *   **Authentication**: None.
 *   **Rate Limiting**: Strictly enforced by **IP Address**.
     *   Low capacity (e.g., 5 requests / minute for login).
