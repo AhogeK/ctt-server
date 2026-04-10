@@ -5,12 +5,13 @@
 
 services:
   app:
+    image: ctt-server-app
     build:
       context: .
       dockerfile: Dockerfile
       args:
         APP_PORT: ${APP_PORT:-8080}
-    container_name: ctt-server
+    container_name: ${CONTAINER_NAME:-ctt-server}
     ports:
       - "${APP_EXTERNAL_PORT:-8080}:${APP_PORT:-8080}"
     depends_on:
