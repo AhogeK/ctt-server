@@ -2,7 +2,17 @@
 
 ## Recent Changes (Last 30 Days)
 
-- [2026-04-10] - RegistrationAndVerificationIntegrationTest E2E 测试 + LogoutController Bug 修复
+- [2026-04-10] - LoginAndTokenIntegrationTest E2E 测试
+    - 新增: LoginAndTokenIntegrationTest (3 个 E2E 测试场景)
+    - 测试场景 1: 正常登录 → 获取双 Token → 用 Access Token 访问受保护接口 200
+    - 测试场景 2: 错误密码 5 次 → 第 6 次触发锁定 (403 AUTH_004 + retryAfter) → DB 状态 LOCKED
+    - 测试场景 3: 刷新令牌轮换 → 重放旧 Token → 403 AUTH_009 → 验证事务回滚后 rt2 仍活跃
+    - 技术要点: MockMvc 提取响应体 + MockMvcTester 断言受保护接口
+    - 技术要点: UserRepository.saveAndFlush() 替代 TestEntityManager 避免事务问题
+    - 技术要点: 记录 TokenRefreshService 事务回滚导致 revokeAllUserTokens 失效的行为
+    - 文件: LoginAndTokenIntegrationTest.java
+    - 验证: 3 个测试全部通过
+    - 版本: 0.15.1-SNAPSHOT (待更新)
     - 新增: RegistrationAndVerificationIntegrationTest (6 个 E2E 测试场景)
     - 测试场景 1-3: 完整注册/重复注册/Token过期+重发验证
     - 测试场景 4-6: 注册输入验证（无效邮箱/弱密码/空邮箱）

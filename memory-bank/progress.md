@@ -75,7 +75,13 @@
     - 修复: 改为 @AuthenticationPrincipal CurrentUser currentUser
     - 同步更新 LogoutControllerTest 使用 authentication(createAuth()) 替代 jwt()
     - 审查修复：合并分裂注释、修正全路径类名为 import
-- [x] 代码审查修复（4 agent 并行审查）
+- [x] 登录与令牌 E2E 集成测试 (LoginAndTokenIntegrationTest)
+    - 正常登录 → 获取双 Token → 用 Access Token 访问受保护接口 200
+    - 错误密码 5 次 → 第 6 次触发锁定 (403 AUTH_004 + retryAfter) → DB 状态 LOCKED
+    - 刷新令牌轮换 → 重放旧 Token → 403 AUTH_009 → 验证事务回滚行为
+    - 3 个测试全部通过，覆盖登录、暴破防护、令牌重用检测
+    - 技术要点: MockMvc 提取响应体 + MockMvcTester 断言受保护接口
+    - 技术要点: UserRepository.saveAndFlush() 替代 TestEntityManager 避免事务问题
     - 修复全路径类名 → import（LogoutControllerTest 反射调用）
     - 修复版本号为 PATCH bump（0.15.0 → 0.15.1-SNAPSHOT）
     - 新增 developer-handbook.md Logout Behavior 章节
