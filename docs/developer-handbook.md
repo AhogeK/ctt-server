@@ -11,7 +11,8 @@ This handbook provides step-by-step instructions for five common development tas
 5. [Using Mail Template Renderer](#using-mail-template-renderer)
 6. [Implementing Email Verification](#implementing-email-verification)
 7. [Account Lockout Configuration](#account-lockout-configuration)
-8. [Logout Behavior](#logout-behavior)
+8. [Password Reset Flow](#password-reset-flow)
+9. [Logout Behavior](#logout-behavior)
 
 ---
 
@@ -621,6 +622,152 @@ Example response:
   "retryAfter": "2026-04-10T06:30:00Z"
 }
 ```
+
+---
+
+## Password Reset Flow
+
+### Overview
+
+Password reset uses one-time tokens with 1-hour expiration, SHA-256 hashing, and automatic session revocation (Kill Switch) on successful reset.
+
+### Architecture
+
+```
+User requests reset
+        ↓
+POST /api/v1/auth/password-reset/request {"email": "..."}
+        ↓
+PasswordResetService.requestReset(email)
+        ↓
+1. Find user by email (anti-enumeration: always returns 200)
+2. Generate 64-byte random token
+3. Hash token (SHA-256)
+4. Store in password_reset_tokens table
+5. Queue email via mail_outbox
+6. Return 200 (even if email not found)
+        ↓
+User clicks reset link
+        ↓
+POST /api/v1/auth/password-reset/confirm {"token": "...", "newPassword": "..."}
+        ↓
+PasswordResetService.resetPassword(token, newPassword)
+        ↓
+1. Hash token (SHA-256)
+2. Find by hash
+3. Validate status (not expired/consumed/revoked)
+4. Validate new password ≠ old password
+5. Update password (BCrypt)
+6. Consume token (consumedAt = now)
+7. Kill Switch: revokeAllUserTokens(userId, Instant.now())
+8. Account unlock (if locked): loginAttemptService.recordSuccess(email)
+9. Log audit event
+10. Return 200
+```
+
+### Endpoints
+
+| Endpoint                                   | Method | Description                                                                          |
+|--------------------------------------------|--------|--------------------------------------------------------------------------------------|
+| `POST /api/v1/auth/password-reset/request` | POST   | Request password reset — body: `{"email": "..."}` → 200 (always, anti-enumeration)   |
+| `POST /api/v1/auth/password-reset/confirm` | POST   | Confirm password reset — body: `{"token": "...", "newPassword": "..."}` → 200 or 401 |
+| `POST /api/v1/auth/forgot-password`        | POST   | Alias for `/password-reset/request`                                                  |
+
+### Key Design Decisions
+
+1. **Token Hashing**: Raw tokens never stored, only SHA-256 hashes (prevents DB breach token theft)
+2. **Anti-Enumeration**: Request endpoint always returns 200 regardless of email existence
+3. **One-Time Use**: Token consumed on first use (`consumedAt` set), optimistic locking prevents TOCTOU
+4. **Session Revocation (Kill Switch)**: All `refresh_tokens` revoked on successful reset via `refreshTokenRepository.revokeAllUserTokens(userId, Instant.now())`
+5. **Account Unlock Side-Effect**: Locked accounts auto-unlocked on password reset via `loginAttemptService.recordSuccess(email)`
+6. **Rate Limiting**:
+   - Request: 3 requests per 10min per EMAIL
+   - Confirm: 15 requests per 10min per IP
+
+### Token Lifecycle
+
+```java
+// PasswordResetToken.determineStatus()
+if (revokedAt != null) return REVOKED;      // Admin action
+if (consumedAt != null) return CONSUMED;    // Already used
+if (Instant.now().isAfter(expiresAt)) return EXPIRED;
+return VALID;
+```
+
+| Property       | Value                               |
+|----------------|-------------------------------------|
+| Token size     | 64 bytes random                     |
+| Hash algorithm | SHA-256                             |
+| TTL            | 1 hour                              |
+| Storage        | `password_reset_tokens` table       |
+| Consumption    | Optimistic locking (version column) |
+
+### Error Handling
+
+| Scenario                       | Error Code             | HTTP Status |
+|--------------------------------|------------------------|-------------|
+| Token expired                  | `AUTH_002`             | 401         |
+| Token invalid/consumed/revoked | `AUTH_003`             | 401         |
+| Same password as old           | `PASSWORD_SAME_AS_OLD` | 409         |
+
+### Testing Approach
+
+```java
+@BaseIntegrationTest
+class PasswordResetE2ETest {
+
+    @Autowired JdbcClient jdbcClient;
+    @Autowired MailOutboxRepository mailOutboxRepository;
+
+    @Test
+    @DisplayName("should extract token from mail_outbox and reset password")
+    void shouldResetPassword_whenValidToken() {
+        // Given: User requests reset
+        var response = mvc.post().uri("/api/v1/auth/password-reset/request")
+                .body(new PasswordResetRequest("user@example.com"))
+                .exchange();
+        assertThat(response).hasStatusOk();
+
+        // When: Extract token from mail_outbox
+        var outbox = mailOutboxRepository.findLatestByRecipient("user@example.com");
+        var token = extractTokenFromEmail(outbox.getContent());
+
+        // Then: Confirm reset
+        var confirmResponse = mvc.post().uri("/api/v1/auth/password-reset/confirm")
+                .body(new PasswordResetConfirm(token, "newSecurePassword123!"))
+                .exchange();
+        assertThat(confirmResponse).hasStatusOk();
+    }
+
+    @Test
+    @DisplayName("should expire token after 1 hour using JdbcClient time travel")
+    void shouldFail_whenTokenExpired() {
+        var token = createResetToken("user@example.com");
+
+        // Time travel: set expires_at to 2 hours ago
+        jdbcClient.sql("""
+            UPDATE password_reset_tokens
+            SET expires_at = NOW() - INTERVAL '2 hours'
+            WHERE token_hash = :hash
+            """)
+            .param("hash", sha256(token))
+            .update();
+
+        var response = mvc.post().uri("/api/v1/auth/password-reset/confirm")
+                .body(new PasswordResetConfirm(token, "newPassword123!"))
+                .exchange();
+        assertThat(response).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+}
+```
+
+### Audit Events
+
+| Operation       | Audit Action                     | Trigger Point                                            |
+|-----------------|----------------------------------|----------------------------------------------------------|
+| Reset requested | `PASSWORD_RESET_REQUESTED`       | `requestReset()` when user found                         |
+| Email not found | `PASSWORD_RESET_EMAIL_NOT_FOUND` | `requestReset()` when email not found (anti-enumeration) |
+| Reset confirmed | `PASSWORD_CHANGED`               | `resetPassword()` on success                             |
 
 ---
 
