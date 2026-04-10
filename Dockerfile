@@ -4,12 +4,10 @@ WORKDIR /app
 
 COPY gradle/ gradle/
 COPY gradlew build.gradle.kts settings.gradle.kts gradle.properties* ./
-RUN --mount=type=cache,target=/root/.gradle \
-    chmod +x gradlew && ./gradlew dependencies --no-daemon -q
-
 COPY src/ src/
+
 RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew bootJar -x test --no-daemon -q
+    chmod +x gradlew && ./gradlew bootJar -x test --no-daemon -q
 
 # ---- Runtime Stage ----
 FROM eclipse-temurin:25-jre-noble
