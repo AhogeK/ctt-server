@@ -801,6 +801,18 @@ The application provides two logout endpoints with different scopes:
 
 Both endpoints use `@AuthenticationPrincipal CurrentUser` for user identity extraction. The `JwtToCurrentUserConverter` transforms the JWT into a `CurrentUser` object during Spring Security filter processing. Controllers should NEVER use `@AuthenticationPrincipal Jwt` — the principal is always `CurrentUser`.
 
+### E2E Test Coverage
+
+`LogoutIntegrationTest` (11 tests, 3 @Nested groups) covers:
+
+| Test Group                  | Scenarios                                                                             | Key Assertions                                                         |
+|-----------------------------|---------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| Single Session Logout       | Normal logout, idempotent, blank/null token, BOLA attack, non-existent, expired token | DB: `revoked_at IS NOT NULL`, active count, 400 COMMON_003, audit logs |
+| Global Logout / Kill Switch | Multi-device revoke (3 devices), idempotent with no tokens                            | DB: 0 active tokens, all tokens rejected on /refresh, audit logs       |
+| Unauthenticated Access      | No JWT on /logout, no JWT on /logout-all                                              | 401 Unauthorized                                                       |
+
+**Test infrastructure**: `@BaseIntegrationTest` + `JdbcClient` for DB assertions + `TokenUtils.hashToken()` for token hash lookups + audit log verification.
+
 ---
 
 ## Quick Reference

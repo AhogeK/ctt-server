@@ -44,8 +44,10 @@ public class LogoutController {
     @ApiResponses(
             value = {
                 @ApiResponse(responseCode = "200", description = "Logout successful"),
-                @ApiResponse(responseCode = "400", description = "Invalid request - AUTH_003"),
-                @ApiResponse(responseCode = "401", description = "Unauthorized - AUTH_001")
+                @ApiResponse(responseCode = "400", description = "Invalid request - COMMON_003"),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid JWT")
             })
     @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/logout")

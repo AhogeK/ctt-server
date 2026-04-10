@@ -5,7 +5,7 @@
 | 类别 | 技术 |
 |------|------|
 | 语言 | Java 25 (Virtual Threads) |
-| 框架 | Spring Boot 4.0.3 |
+| 框架 | Spring Boot 4.0.5 |
 | 构建 | Gradle 9.x + Kotlin DSL + Version Catalog |
 | 数据库 | PostgreSQL 16 + Flyway 11.4.0 |
 | 缓存 | Redis 7 |
