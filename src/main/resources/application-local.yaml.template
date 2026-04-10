@@ -21,8 +21,8 @@ spring:
       database: 0
 
   mail:
-    host: localhost
-    port: 1025
+    host: ${MAIL_SMTP_HOST:localhost}
+    port: ${MAIL_SMTP_PORT:1025}
     username: ""
     password: ""
     properties:
