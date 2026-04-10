@@ -1,4 +1,16 @@
 # Active Context
+- [2026-04-10] - AGENTS.md R15 新增版本号同步检查规则
+    - 教训: OpenApiConfig 硬编码 "0.5.0-SNAPSHOT" 未随项目版本更新
+    - 规则: 每次更新版本号后必须全局搜索 `0.\d+\.\d+`，确认所有硬编码版本同步
+    - 排除: Javadoc @since、memory-bank 历史、依赖版本号、IP 地址、Flyway baseline
+    - 红线: 代码中禁止硬编码项目版本号，必须用 @Value 或 @appVersion@ 注入
+    - 文件: AGENTS.md (R15 新增「版本号同步检查」区块)
+
+- [2026-04-10] - Swagger 版本号与项目版本同步
+    - 修复: OpenApiConfig.java — 硬编码 `.version("0.5.0-SNAPSHOT")` → `@Value("${info.app.version}")` 动态注入
+    - 版本号来源: application.yaml `info.app.version: @appVersion@` → gradle/libs.versions.toml
+    - 版本: 0.15.17-SNAPSHOT → 0.15.18-SNAPSHOT
+
 - [2026-04-10] - 清理 ProbeController 及全部引用
     - 删除: src/main/java/com/ahogek/cttserver/probe/ProbeController.java（整个 probe/ 包）
     - 重写: GlobalExceptionHandlerTest.java — 移除 @WebMvcTest + ProbeController，8 个 probe 端点测试转为直接 handler 方法调用，删除 2 个 happy-path 测试，最终 13 个测试全部通过
