@@ -105,6 +105,9 @@
     - 原有测试只验证 DB 状态，缺少实际重放 rt1 → 403 AUTH_009 的 E2E 断言
     - 新增 4 步断言链：重放返回 403 → rt1 revoked → rt2 active → rt2 可刷新
     - 揭示架构事实：revokeAllUserTokens 因事务回滚无效，rt2 仍可继续使用
+- [x] Docker Compose PostgreSQL 18+ 兼容性修复
+    - volume 挂载点从 /var/lib/postgresql/data 改为 /var/lib/postgresql
+    - 支持 PostgreSQL 18+ Docker 镜像的 pg_ctlcluster 管理和 pg_upgrade
 
 ## 进行中 🔄
 

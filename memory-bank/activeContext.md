@@ -2,6 +2,13 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - Docker Compose PostgreSQL 18+ 兼容性修复
+    - 问题: postgres:latest (18+) 要求 volume 挂载到 /var/lib/postgresql 而非 /var/lib/postgresql/data
+    - 修复: volumes 路径改为 postgres_data:/var/lib/postgresql
+    - 原因: 18+ 镜像使用 pg_ctlcluster 管理，需要父目录以支持 pg_upgrade --link
+    - 文件: docker-compose.yaml
+    - 版本: 0.15.6-SNAPSHOT → 0.15.7-SNAPSHOT
+
 - [2026-04-10] - LoginAndTokenIntegrationTest 补充 Refresh Token 重放 E2E 断言
     - 问题: 原有测试只验证 DB 状态（rt1 revoked, rt2 active = 1），未实际断言重放 rt1 返回 403 AUTH_009
     - 修复: 新增 4 步 E2E 断言链
