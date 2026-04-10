@@ -63,6 +63,23 @@
     - ErrorResponse 新增 retryAfter 字段，GlobalExceptionHandler 设置 Retry-After HTTP Header
     - LockoutStrategyPort.getRetryAfter() 基于最早尝试时间 + lockDuration 计算
     - 前端可渲染倒计时 UI，网关层可通过 Retry-After header 拦截高频重试
+- [x] 认证闭环 E2E 集成测试 (RegistrationAndVerificationIntegrationTest)
+    - 完整注册 → GreenMail/Mailpit 收邮件 → 提取 token → 验证 → users.status = ACTIVE
+    - 重复注册同邮箱 → 409 USER_001
+    - Token 过期 → 401 MAIL_005 → 重发验证 → 旧 token 失效新 token 可用
+    - 注册输入验证：无效邮箱/弱密码/空邮箱 → 400 COMMON_003
+    - 6 个测试全部通过，覆盖注册验证完整生命周期 + 边界验证
+    - 审查修复：移除冗余断言、增强 token 不等式 DB 验证
+- [x] LogoutController NPE Bug 修复
+    - 根因: @AuthenticationPrincipal Jwt jwt 为 null（JwtToCurrentUserConverter 将 principal 转为 CurrentUser）
+    - 修复: 改为 @AuthenticationPrincipal CurrentUser currentUser
+    - 同步更新 LogoutControllerTest 使用 authentication(createAuth()) 替代 jwt()
+    - 审查修复：合并分裂注释、修正全路径类名为 import
+- [x] 代码审查修复（4 agent 并行审查）
+    - 修复全路径类名 → import（LogoutControllerTest 反射调用）
+    - 修复版本号为 PATCH bump（0.15.0 → 0.15.1-SNAPSHOT）
+    - 新增 developer-handbook.md Logout Behavior 章节
+    - 新增注册输入验证测试（3 个用例）
 
 ## 进行中 🔄
 

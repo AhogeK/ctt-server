@@ -2,6 +2,20 @@
 
 ## Recent Changes (Last 30 Days)
 
+- [2026-04-10] - RegistrationAndVerificationIntegrationTest E2E 测试 + LogoutController Bug 修复
+    - 新增: RegistrationAndVerificationIntegrationTest (6 个 E2E 测试场景)
+    - 测试场景 1-3: 完整注册/重复注册/Token过期+重发验证
+    - 测试场景 4-6: 注册输入验证（无效邮箱/弱密码/空邮箱）
+    - 修复: LogoutController NPE Bug (@AuthenticationPrincipal Jwt → CurrentUser)
+    - 修复: LogoutControllerTest 同步更新 (jwt() → authentication(createAuth()))
+    - 修复: 审查发现的全路径类名、冗余断言、注释分裂等问题
+    - 文档: developer-handbook.md 新增 Logout Behavior 章节
+    - 文件: RegistrationAndVerificationIntegrationTest.java, LogoutController.java,
+      LogoutControllerTest.java, developer-handbook.md
+    - 验证: 全量测试通过，Spotless 通过，覆盖率达标
+    - 手动验证: 注册→验证→登录→刷新→登出 全链路 200，错误路径覆盖完整
+    - 版本: 0.15.0-SNAPSHOT → 0.15.1-SNAPSHOT
+
 - [2026-04-10] - Login lockout response includes retryAfter timestamp
     - 新增: AccountLockedException extends BusinessException with retryAfter field
     - 新增: ErrorResponse.retryAfter 字段（nullable Instant）+ withRetryAfter() 方法
