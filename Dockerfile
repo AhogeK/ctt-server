@@ -13,6 +13,11 @@ RUN ./gradlew bootJar -x test --no-daemon -q
 FROM eclipse-temurin:25-jre-noble
 WORKDIR /app
 
+# Port is set at build time via docker-compose build args.
+# Override at runtime with: docker run -e SERVER_PORT=xxxx
+ARG APP_PORT=8080
+ENV SERVER_PORT=${APP_PORT}
+
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 COPY --from=builder /app/build/libs/*.jar app.jar
@@ -20,6 +25,6 @@ COPY --from=builder /app/build/libs/*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 
-EXPOSE 8080
+EXPOSE ${APP_PORT}
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

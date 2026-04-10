@@ -201,11 +201,12 @@ src/main/resources/
 
 | Variable                     | Description              | Default  |
 |------------------------------|--------------------------|----------|
+| `APP_PORT`                   | CTT Server container port| `8080`   |
+| `APP_EXTERNAL_PORT`          | CTT Server host port     | `8080`   |
 | `POSTGRES_EXTERNAL_PORT`     | PostgreSQL host port     | `15432`  |
 | `REDIS_EXTERNAL_PORT`        | Redis host port          | `16379`  |
 | `MAIL_SMTP_EXTERNAL_PORT`    | Mailpit SMTP host port   | `1025`   |
 | `MAIL_UI_EXTERNAL_PORT`      | Mailpit Web UI host port | `8025`   |
-| `APP_EXTERNAL_PORT`          | CTT Server host port     | `8080`   |
 
 > **Note**: Production environment requires all variables to be set. Local development uses sensible defaults from `application-local.yaml`.
 
