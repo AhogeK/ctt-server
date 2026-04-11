@@ -274,6 +274,10 @@ docs(memory-bank): record [feature/bugfix] implementation
     - 每个字段/record 组件必须加 `@Schema(description = "...", example = "...")`
     - 校验注解（`@NotBlank`、`@Email`、`@StrongPassword` 等）不可遗漏
     - 禁止硬编码项目版本号，使用 `@Value("${info.app.version}")` 注入
+    - **@ApiResponse 必须带 content**：每个 `@ApiResponse` 必须包含 `content = @Content(schema = @Schema(implementation = ...))`
+    - **错误响应必须有独立示例**：非 200 响应必须加 `examples = @ExampleObject(name = "...", summary = "...", value = "{真实JSON}")`，每个错误码示例必须不同且包含 realistic 的 code/message/details 值
+    - **200 响应**：`content = @Content(schema = @Schema(implementation = RestApiResponse.class))`
+    - **错误响应**：`content = @Content(schema = @Schema(implementation = ErrorResponse.class), examples = @ExampleObject(...))`
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试代码**：
     - 同一对象的多个断言必须链式调用（`.isX().isY().isZ()`），禁止分开写
