@@ -1,4 +1,16 @@
 # Active Context
+- [2026-04-11] - AGENTS.md R9 补充 @ApiResponse content + ExampleObject 规则
+    - 规则: 每个 @ApiResponse 必须带 content = @Content(schema = @Schema(implementation = ...))
+    - 规则: 非 200 响应必须加 examples = @ExampleObject，每个错误码示例必须不同且包含真实 JSON
+    - 规则: 200 响应使用 RestApiResponse schema，错误响应使用 ErrorResponse schema + 独立示例
+    - 文件: AGENTS.md (R9 OpenAPI Schema 区块扩展 4 行)
+
+- [2026-04-11] - Swagger @ApiResponse 补充独立 Example Value
+    - 修复: 3 个 Controller 共 28 个 @ApiResponse 添加 content = @Content(schema + @ExampleObject)
+    - 每个错误码(400/401/403/409/429)现在显示独立的 JSON 示例，不再重复相同 Schema
+    - 文件: AuthController.java, LogoutController.java, EmailVerificationController.java
+    - 版本: 0.15.19-SNAPSHOT → 0.15.20-SNAPSHOT
+
 - [2026-04-10] - AGENTS.md R9 新增 OpenAPI Schema 强制规则
     - 规则: 所有 DTO/Response 类 + 字段必须加 @Schema(description + example)
     - 规则: 校验注解不可遗漏，禁止硬编码版本号
