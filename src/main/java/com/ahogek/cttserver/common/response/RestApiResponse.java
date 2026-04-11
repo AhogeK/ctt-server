@@ -2,6 +2,8 @@ package com.ahogek.cttserver.common.response;
 
 import java.time.Instant;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Generic API response wrapper for consistent REST API responses.
  *
@@ -22,7 +24,15 @@ import java.time.Instant;
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14
  */
-public record RestApiResponse<T>(boolean success, String message, T data, Instant timestamp) {
+@Schema(description = "Generic REST API response wrapper")
+public record RestApiResponse<T>(
+        @Schema(description = "Whether the operation succeeded", example = "true") boolean success,
+        @Schema(description = "Response message", example = "Operation successful") String message,
+        @Schema(description = "Response payload data") T data,
+        @Schema(
+                        description = "Response timestamp in ISO 8601 format",
+                        example = "2026-03-14T03:23:12Z")
+                Instant timestamp) {
 
     public static <T> RestApiResponse<T> ok() {
         return ok(null, "Operation successful");
