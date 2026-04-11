@@ -1,4 +1,13 @@
 # Active Context
+- [2026-04-11] - OAuth 阶段启动：数据模型与基础设施准备（收敛方案）
+    - 复用: 已有 `user_oauth_accounts` 表（init schema 创建），不新建 `oauth_accounts`
+    - 集成: 两项基础设施直接融入 init schema（V20260303210000__init_base_schema.sql）
+        - audit_logs 的 chk_audit_resource_type 追加 'OAUTH_ACCOUNT'（第 418-428 行）
+        - Section 14: oauth_states 表（CSRF state 持久化，第 540-559 行）
+    - 设计: oauth_states 使用 JSONB payload 区分 Login/Bind 流，expires_at 索引支持定时清理
+    - 状态: init schema 已更新，独立迁移文件已删除，待提交
+    - 版本: 0.15.21-SNAPSHOT → 0.15.22-SNAPSHOT
+
 - [2026-04-11] - AGENTS.md R9 补充 @ApiResponse content + ExampleObject 规则
     - 规则: 每个 @ApiResponse 必须带 content = @Content(schema = @Schema(implementation = ...))
     - 规则: 非 200 响应必须加 examples = @ExampleObject，每个错误码示例必须不同且包含真实 JSON
