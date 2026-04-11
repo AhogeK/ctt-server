@@ -269,6 +269,11 @@ docs(memory-bank): record [feature/bugfix] implementation
     - ✅ **必要的注释**：公共 API Javadoc（类/接口/公共方法）、复杂算法 Why（非 What）、警示/法律信息
     - ❌ **禁止的注释**：解释代码做了什么（代码应自解释）、废话/冗余/误导性注释、注释掉的代码、TODO/FIXME（直接创建 issue）
     - **自解释优先**：好的命名和清晰的结构比注释更有价值
+- **OpenAPI Schema（强制）**：
+    - 所有 DTO 和 Response 类必须加 `@Schema(description = "...")`
+    - 每个字段/record 组件必须加 `@Schema(description = "...", example = "...")`
+    - 校验注解（`@NotBlank`、`@Email`、`@StrongPassword` 等）不可遗漏
+    - 禁止硬编码项目版本号，使用 `@Value("${info.app.version}")` 注入
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试代码**：
     - 同一对象的多个断言必须链式调用（`.isX().isY().isZ()`），禁止分开写
