@@ -23,7 +23,7 @@ public record UserRegisterRequest(
                 @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
                 @Email(message = ValidationConstants.MSG_EMAIL_INVALID)
                 String email,
-        @Schema(description = "User display name", example = "John Doe")
+        @Schema(description = "User display name", example = "AhogeK")
                 @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
                 @Pattern(
                         regexp = ValidationConstants.REGEX_DISPLAY_NAME,
