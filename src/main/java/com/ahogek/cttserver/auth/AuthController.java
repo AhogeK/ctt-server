@@ -17,6 +17,7 @@ import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
+import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
 import com.ahogek.cttserver.common.utils.IpUtils;
@@ -34,6 +35,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -101,13 +105,35 @@ public class AuthController {
                             + "syntax validation via @Valid on DTO, and semantic validation by UserService for domain rules")
     @ApiResponses(
             value = {
-                @ApiResponse(responseCode = "200", description = "User registered successfully"),
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "User registered successfully",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "400",
-                        description = "Validation error - COMMON_003: Invalid request parameters"),
+                        description = "Validation error - COMMON_003: Invalid request parameters",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "validation-error",
+                                                        summary = "Field validation failure",
+                                                        value =
+                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "409",
-                        description = "Email already exists - USER_001: Email already registered")
+                        description = "Email already exists - USER_001: Email already registered",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "email-already-exists",
+                                                        summary = "Email already registered",
+                                                        value =
+                                                                "{\"code\":\"USER_001\",\"message\":\"Email already registered\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":409,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
             })
     @PublicApi(reason = "User registration endpoint - Tier 1 public API")
     @RateLimit(limit = 60, windowSeconds = 3600)
@@ -149,14 +175,34 @@ public class AuthController {
                 @ApiResponse(
                         responseCode = "200",
                         description =
-                                "Login successful - returns JWT access token and refresh token"),
+                                "Login successful - returns JWT access token and refresh token",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "400",
-                        description = "Validation error - COMMON_003: Invalid request parameters"),
+                        description = "Validation error - COMMON_003: Invalid request parameters",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "validation-error",
+                                                        summary = "Field validation failure",
+                                                        value =
+                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "401",
                         description =
-                                "Invalid credentials - AUTH_001: Authentication failed due to wrong email/password")
+                                "Invalid credentials - AUTH_001: Authentication failed due to wrong email/password",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "invalid-credentials",
+                                                        summary = "Wrong email or password",
+                                                        value =
+                                                                "{\"code\":\"AUTH_001\",\"message\":\"Authentication failed\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
             })
     @PublicApi(reason = "User login endpoint - Tier 1 public API")
     @RateLimit(limit = 30, windowSeconds = 3600)
@@ -198,15 +244,36 @@ public class AuthController {
                 @ApiResponse(
                         responseCode = "200",
                         description =
-                                "Token refresh successful - returns new JWT access token and refresh token"),
+                                "Token refresh successful - returns new JWT access token and refresh token",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "400",
                         description =
-                                "Syntax validation error - COMMON_003: Blank/null refresh token (checked before business logic)"),
+                                "Syntax validation error - COMMON_003: Blank/null refresh token (checked before business logic)",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "blank-token",
+                                                        summary = "Blank or null refresh token",
+                                                        value =
+                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"refreshToken\",\"message\":\"Refresh token must not be blank\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "401",
                         description =
-                                "Business validation error - AUTH_003: Token invalid/expired/revoked (checked in service layer)")
+                                "Business validation error - AUTH_003: Token invalid/expired/revoked (checked in service layer)",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "token-invalid",
+                                                        summary =
+                                                                "Invalid or expired refresh token",
+                                                        value =
+                                                                "{\"code\":\"AUTH_003\",\"message\":\"Token invalid or expired\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
             })
     @PublicApi(reason = "Token refresh endpoint - Tier 1 public API")
     @RateLimit(limit = 120, windowSeconds = 3600)
@@ -240,13 +307,33 @@ public class AuthController {
             value = {
                 @ApiResponse(
                         responseCode = "200",
-                        description = "All sessions revoked successfully"),
+                        description = "All sessions revoked successfully",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "401",
-                        description = "Unauthorized - AUTH_002: Invalid or expired JWT token"),
+                        description = "Unauthorized - AUTH_002: Invalid or expired JWT token",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "invalid-jwt",
+                                                        summary = "Invalid or expired JWT",
+                                                        value =
+                                                                "{\"code\":\"AUTH_002\",\"message\":\"Invalid or expired JWT token\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "429",
-                        description = "Rate limit exceeded - COMMON_002: Too many logout requests")
+                        description = "Rate limit exceeded - COMMON_002: Too many logout requests",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rate-limited",
+                                                        summary = "Too many requests",
+                                                        value =
+                                                                "{\"code\":\"COMMON_002\",\"message\":\"Rate limit exceeded\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":429,\"timestamp\":\"2026-04-10T03:23:12Z\",\"retryAfter\":\"2026-04-10T03:33:12Z\"}")))
             })
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(type = RateLimitType.USER, limit = 5, windowSeconds = 60)
@@ -291,10 +378,21 @@ public class AuthController {
                 @ApiResponse(
                         responseCode = "200",
                         description =
-                                "Password reset request processed - if email exists and user is active, a reset link will be sent"),
+                                "Password reset request processed - if email exists and user is active, a reset link will be sent",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "400",
-                        description = "Validation error - COMMON_003: Invalid email format")
+                        description = "Validation error - COMMON_003: Invalid email format",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "invalid-email",
+                                                        summary = "Invalid email format",
+                                                        value =
+                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
             })
     @PublicApi(reason = "Password reset request endpoint - Tier 1 public API")
     @RateLimit(
@@ -343,14 +441,34 @@ public class AuthController {
                 @ApiResponse(
                         responseCode = "200",
                         description =
-                                "Forgot password request processed - if email exists and user is active, a reset link will be sent"),
+                                "Forgot password request processed - if email exists and user is active, a reset link will be sent",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "400",
-                        description = "Validation error - COMMON_003: Invalid email format"),
+                        description = "Validation error - COMMON_003: Invalid email format",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "invalid-email",
+                                                        summary = "Invalid email format",
+                                                        value =
+                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "429",
                         description =
-                                "Rate limit exceeded - COMMON_002: Too many requests from this IP (30/hour)")
+                                "Rate limit exceeded - COMMON_002: Too many requests from this IP (30/hour)",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rate-limited",
+                                                        summary = "Rate limit exceeded",
+                                                        value =
+                                                                "{\"code\":\"COMMON_002\",\"message\":\"Rate limit exceeded\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":429,\"timestamp\":\"2026-04-10T03:23:12Z\",\"retryAfter\":\"2026-04-10T03:33:12Z\"}")))
             })
     @PublicApi(reason = "Forgot password request endpoint - Tier 1 public API")
     @RateLimit(
@@ -396,23 +514,61 @@ public class AuthController {
                 @ApiResponse(
                         responseCode = "200",
                         description =
-                                "Password reset successful - all existing sessions have been terminated"),
+                                "Password reset successful - all existing sessions have been terminated",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "400",
                         description =
-                                "Validation error - COMMON_003: Invalid token or weak password"),
+                                "Validation error - COMMON_003: Invalid token or weak password",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "validation-error",
+                                                        summary = "Invalid token or weak password",
+                                                        value =
+                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"password\",\"message\":\"Password must be at least 8 characters\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "401",
                         description =
-                                "Invalid or expired token - AUTH_003: Token validation failed"),
+                                "Invalid or expired token - AUTH_003: Token validation failed",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "token-invalid",
+                                                        summary = "Invalid or expired reset token",
+                                                        value =
+                                                                "{\"code\":\"AUTH_003\",\"message\":\"Token invalid or expired\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "409",
                         description =
-                                "Password conflict - PASSWORD_SAME_AS_OLD: New password cannot be the same as current password"),
+                                "Password conflict - PASSWORD_SAME_AS_OLD: New password cannot be the same as current password",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "same-password",
+                                                        summary = "New password same as old",
+                                                        value =
+                                                                "{\"code\":\"PASSWORD_SAME_AS_OLD\",\"message\":\"New password cannot be the same as current password\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":409,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "429",
                         description =
-                                "Rate limit exceeded - RATE_LIMIT_001: Too many requests from this IP (15/10min)")
+                                "Rate limit exceeded - RATE_LIMIT_001: Too many requests from this IP (15/10min)",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rate-limited",
+                                                        summary = "Rate limit exceeded",
+                                                        value =
+                                                                "{\"code\":\"COMMON_002\",\"message\":\"Rate limit exceeded\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":429,\"timestamp\":\"2026-04-10T03:23:12Z\",\"retryAfter\":\"2026-04-10T03:33:12Z\"}")))
             })
     @PublicApi(reason = "Password reset confirmation endpoint - Tier 1 public API")
     @RateLimit(type = RateLimitType.IP, limit = 15, windowSeconds = 600)
