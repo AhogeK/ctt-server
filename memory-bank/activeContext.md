@@ -1,4 +1,15 @@
 # Active Context
+- [2026-04-10] - AGENTS.md R9 新增 OpenAPI Schema 强制规则
+    - 规则: 所有 DTO/Response 类 + 字段必须加 @Schema(description + example)
+    - 规则: 校验注解不可遗漏，禁止硬编码版本号
+    - 文件: AGENTS.md (R9 新增 OpenAPI Schema 区块)
+
+- [2026-04-10] - Swagger Schemas 补充 @Schema 注解
+    - 修复: 4 个 DTO 缺少 @Schema — RefreshTokenRequest, PasswordResetRequest, ForgotPasswordRequest, ResetPasswordRequest
+    - 修复: 4 个 Response 缺少 @Schema — EmptyResponse, RestApiResponse, ErrorResponse(+FieldError), PagedResponse
+    - 所有类 + 字段均添加 description + example，Swagger UI 现在显示完整的 Schema 文档
+    - 版本: 0.15.18-SNAPSHOT → 0.15.19-SNAPSHOT
+
 - [2026-04-10] - AGENTS.md R15 新增版本号同步检查规则
     - 教训: OpenApiConfig 硬编码 "0.5.0-SNAPSHOT" 未随项目版本更新
     - 规则: 每次更新版本号后必须全局搜索 `0.\d+\.\d+`，确认所有硬编码版本同步
