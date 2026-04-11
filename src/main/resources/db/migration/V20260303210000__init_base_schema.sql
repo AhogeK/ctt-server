@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- Migration: Init CTT Platform Schema
 -- Description: Creates initial tables for CTT Server (Auth, Email Verification,
---              OAuth, API Keys, Sync, Audit, Mail Outbox, Login Attempts, OAuth States)
+--              OAuth, API Keys, Sync, Audit, Mail Outbox, Login Attempts)
 -- Database: PostgreSQL 18+
 -- ==============================================================================
 
@@ -535,28 +535,6 @@ CREATE INDEX idx_login_attempts_email_attempt_at
     ON login_attempts (email_hash, attempt_at);
 CREATE INDEX idx_login_attempts_attempt_at
     ON login_attempts (attempt_at);
-
--- ------------------------------------------------------------------------------
--- 14. OAuth states table
--- ------------------------------------------------------------------------------
-CREATE TABLE oauth_states
-(
-    id           UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
-    redirect_uri VARCHAR(512),
-    payload      JSONB        NOT NULL DEFAULT '{}'::jsonb,
-    created_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at   TIMESTAMPTZ  NOT NULL
-);
-
-COMMENT ON TABLE oauth_states IS 'OAuth 2.0 state parameter tracking for CSRF protection and flow context';
-COMMENT ON COLUMN oauth_states.id IS 'State UUID passed to the OAuth provider (Primary Key)';
-COMMENT ON COLUMN oauth_states.redirect_uri IS 'The redirect URI used when initiating the OAuth flow, to prevent redirection tampering';
-COMMENT ON COLUMN oauth_states.payload IS 'Contextual payload distinguishing LOGIN vs BIND flows, e.g. {"action":"BIND", "userId":"..."}';
-COMMENT ON COLUMN oauth_states.created_at IS 'Record creation timestamp';
-COMMENT ON COLUMN oauth_states.expires_at IS 'Expiration timestamp (typically 5-15 mins) for validity check and cron cleanup';
-
-CREATE INDEX idx_oauth_states_expires_at
-    ON oauth_states (expires_at);
 
 -- ------------------------------------------------------------------------------
 -- updated_at triggers
