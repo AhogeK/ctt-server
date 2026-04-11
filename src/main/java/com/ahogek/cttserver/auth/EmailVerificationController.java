@@ -5,6 +5,7 @@ import com.ahogek.cttserver.auth.service.EmailVerificationService;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
+import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
 
@@ -20,6 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -82,15 +86,38 @@ public class EmailVerificationController {
                             + "On success: user status → ACTIVE, token consumed, all other tokens revoked.")
     @ApiResponses(
             value = {
-                @ApiResponse(responseCode = "200", description = "Email verified successfully"),
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Email verified successfully",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "400",
                         description =
-                                "Invalid token - AUTH_004: Token not found, expired, consumed, or revoked"),
+                                "Invalid token - AUTH_004: Token not found, expired, consumed, or revoked",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "invalid-token",
+                                                        summary =
+                                                                "Invalid or expired verification token",
+                                                        value =
+                                                                "{\"code\":\"AUTH_004\",\"message\":\"Invalid or expired verification token\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "409",
                         description =
-                                "User already verified - USER_002: User status is not PENDING_VERIFICATION")
+                                "User already verified - USER_002: User status is not PENDING_VERIFICATION",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "already-verified",
+                                                        summary = "User already verified",
+                                                        value =
+                                                                "{\"code\":\"USER_002\",\"message\":\"User status is not PENDING_VERIFICATION\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":409,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
             })
     @PublicApi(reason = "Email verification endpoint - Tier 1 public API")
     @GetMapping("/verify-email")
@@ -131,22 +158,60 @@ public class EmailVerificationController {
             value = {
                 @ApiResponse(
                         responseCode = "200",
-                        description = "Verification email sent successfully"),
+                        description = "Verification email sent successfully",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
                         responseCode = "400",
                         description =
-                                "Validation error - COMMON_003: Invalid email format or blank email"),
+                                "Validation error - COMMON_003: Invalid email format or blank email",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "validation-error",
+                                                        summary = "Invalid email format",
+                                                        value =
+                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "404",
-                        description = "User not found - USER_003: No user with provided email"),
+                        description = "User not found - USER_003: No user with provided email",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "user-not-found",
+                                                        summary = "User not found",
+                                                        value =
+                                                                "{\"code\":\"USER_003\",\"message\":\"No user with provided email\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":404,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "409",
                         description =
-                                "User already verified - USER_002: User status is not PENDING_VERIFICATION"),
+                                "User already verified - USER_002: User status is not PENDING_VERIFICATION",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "already-verified",
+                                                        summary = "User already verified",
+                                                        value =
+                                                                "{\"code\":\"USER_002\",\"message\":\"User status is not PENDING_VERIFICATION\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":409,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
                 @ApiResponse(
                         responseCode = "429",
                         description =
-                                "Rate limit exceeded - COMMON_002: Too many resend requests (3/minute per email)")
+                                "Rate limit exceeded - COMMON_002: Too many resend requests (3/minute per email)",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rate-limited",
+                                                        summary = "Rate limit exceeded",
+                                                        value =
+                                                                "{\"code\":\"COMMON_002\",\"message\":\"Rate limit exceeded\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":429,\"timestamp\":\"2026-04-10T03:23:12Z\",\"retryAfter\":\"2026-04-10T03:33:12Z\"}")))
             })
     @PublicApi(reason = "Resend verification email - Tier 1 public API")
     @RateLimit(
