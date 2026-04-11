@@ -2,6 +2,8 @@ package com.ahogek.cttserver.common.response;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Paginated response wrapper for list endpoints.
  *
@@ -25,14 +27,17 @@ import java.util.List;
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14
  */
+@Schema(description = "Paginated response wrapper for list endpoints")
 public record PagedResponse<T>(
-        List<T> items,
-        int page,
-        int size,
-        long totalItems,
-        int totalPages,
-        boolean hasNext,
-        boolean hasPrevious) {
+        @Schema(description = "List of items on the current page") List<T> items,
+        @Schema(description = "Current page number (1-based)", example = "1") int page,
+        @Schema(description = "Number of items per page", example = "20") int size,
+        @Schema(description = "Total number of items across all pages", example = "150")
+                long totalItems,
+        @Schema(description = "Total number of pages", example = "8") int totalPages,
+        @Schema(description = "Whether a next page exists", example = "true") boolean hasNext,
+        @Schema(description = "Whether a previous page exists", example = "false")
+                boolean hasPrevious) {
 
     public static <T> PagedResponse<T> of(List<T> items, int page, int size, long totalItems) {
         int totalPages = calculateTotalPages(totalItems, size);

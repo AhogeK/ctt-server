@@ -4,6 +4,8 @@ import com.ahogek.cttserver.common.validation.annotation.StrongPassword;
 
 import jakarta.validation.constraints.NotBlank;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Reset password request carrier.
  *
@@ -12,6 +14,14 @@ import jakarta.validation.constraints.NotBlank;
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-04-07
  */
+@Schema(description = "Reset password confirmation with token and new password")
 public record ResetPasswordRequest(
-        @NotBlank(message = "Token cannot be blank") String token,
-        @StrongPassword String newPassword) {}
+        @Schema(description = "Password reset token from email link", example = "a1b2c3d4e5f6...")
+                @NotBlank(message = "Token cannot be blank")
+                String token,
+        @Schema(
+                        description =
+                                "New password (min 8 chars, requires uppercase, lowercase, digit, and special char)",
+                        example = "NewSecurePass123!")
+                @StrongPassword
+                String newPassword) {}

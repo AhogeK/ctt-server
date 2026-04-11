@@ -6,6 +6,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * Standardized error response for API errors.
  *
@@ -32,16 +34,32 @@ import java.util.List;
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-14
  */
+@Schema(description = "Standardized error response following RFC 7807")
 public record ErrorResponse(
-        String code,
-        String message,
-        List<FieldError> details,
-        String traceId,
-        Integer httpStatus,
-        Instant timestamp,
-        Instant retryAfter) {
+        @Schema(description = "Error code identifier", example = "COMMON_003") String code,
+        @Schema(
+                        description = "Human-readable error message",
+                        example = "Invalid request parameters")
+                String message,
+        @Schema(description = "List of field-level validation errors") List<FieldError> details,
+        @Schema(description = "Distributed trace ID for debugging", example = "abc-123-def")
+                String traceId,
+        @Schema(description = "HTTP status code", example = "400") Integer httpStatus,
+        @Schema(
+                        description = "Error timestamp in ISO 8601 format",
+                        example = "2026-03-14T03:23:12Z")
+                Instant timestamp,
+        @Schema(
+                        description = "Retry-After timestamp for rate-limited responses",
+                        example = "2026-03-14T03:53:12Z")
+                Instant retryAfter) {
 
-    public record FieldError(String field, String message) {}
+    @Schema(description = "Field-level validation error detail")
+    public record FieldError(
+            @Schema(description = "Field name that failed validation", example = "email")
+                    String field,
+            @Schema(description = "Validation error message", example = "Invalid email format")
+                    String message) {}
 
     public static ErrorResponse of(ErrorCode errorCode) {
         return new ErrorResponse(
