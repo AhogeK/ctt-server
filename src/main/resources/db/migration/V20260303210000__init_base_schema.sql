@@ -1,8 +1,8 @@
 -- ==============================================================================
 -- Migration: Init CTT Platform Schema
 -- Description: Creates initial tables for CTT Server (Auth, Email Verification,
---              OAuth, API Keys, Sync, Audit, Mail Outbox, Login Attempts)
--- Database: PostgreSQL 16+
+--              OAuth, API Keys, Sync, Audit, Mail Outbox, Login Attempts, OAuth States)
+-- Database: PostgreSQL 18+
 -- ==============================================================================
 
 -- ------------------------------------------------------------------------------
@@ -423,7 +423,8 @@ CREATE TABLE audit_logs
                                  'REFRESH_TOKEN',
                                  'API_KEY',
                                  'MAIL_OUTBOX',
-                                 'UNKNOWN'
+                                 'UNKNOWN',
+                                 'OAUTH_ACCOUNT'
             ))
 );
 
@@ -438,7 +439,7 @@ COMMENT ON COLUMN audit_logs.ip_address IS 'Client IP address (IPv4/IPv6)';
 COMMENT ON COLUMN audit_logs.user_agent IS 'Client user agent';
 COMMENT ON COLUMN audit_logs.trace_id IS 'W3C Trace Context trace-id (32 lowercase hex chars) for distributed tracing correlation';
 COMMENT ON COLUMN audit_logs.created_at IS 'Timestamp when the action occurred';
-COMMENT ON CONSTRAINT chk_audit_resource_type ON audit_logs IS 'Validates audit log resource types - includes MAIL_OUTBOX for email delivery tracking';
+COMMENT ON CONSTRAINT chk_audit_resource_type ON audit_logs IS 'Validates audit log resource types - includes MAIL_OUTBOX and OAUTH_ACCOUNT';
 COMMENT ON CONSTRAINT audit_logs_user_id_fkey ON audit_logs IS 'Optional reference to user who triggered the action (null for system events)';
 
 CREATE INDEX idx_audit_logs_user_id
@@ -534,6 +535,28 @@ CREATE INDEX idx_login_attempts_email_attempt_at
     ON login_attempts (email_hash, attempt_at);
 CREATE INDEX idx_login_attempts_attempt_at
     ON login_attempts (attempt_at);
+
+-- ------------------------------------------------------------------------------
+-- 14. OAuth states table
+-- ------------------------------------------------------------------------------
+CREATE TABLE oauth_states
+(
+    id           UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
+    redirect_uri VARCHAR(512),
+    payload      JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at   TIMESTAMPTZ  NOT NULL
+);
+
+COMMENT ON TABLE oauth_states IS 'OAuth 2.0 state parameter tracking for CSRF protection and flow context';
+COMMENT ON COLUMN oauth_states.id IS 'State UUID passed to the OAuth provider (Primary Key)';
+COMMENT ON COLUMN oauth_states.redirect_uri IS 'The redirect URI used when initiating the OAuth flow, to prevent redirection tampering';
+COMMENT ON COLUMN oauth_states.payload IS 'Contextual payload distinguishing LOGIN vs BIND flows, e.g. {"action":"BIND", "userId":"..."}';
+COMMENT ON COLUMN oauth_states.created_at IS 'Record creation timestamp';
+COMMENT ON COLUMN oauth_states.expires_at IS 'Expiration timestamp (typically 5-15 mins) for validity check and cron cleanup';
+
+CREATE INDEX idx_oauth_states_expires_at
+    ON oauth_states (expires_at);
 
 -- ------------------------------------------------------------------------------
 -- updated_at triggers
