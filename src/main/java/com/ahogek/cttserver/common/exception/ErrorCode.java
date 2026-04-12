@@ -40,6 +40,7 @@ public enum ErrorCode {
     AUTH_010("API key invalid", HttpStatus.UNAUTHORIZED),
     AUTH_011("API key expired", HttpStatus.UNAUTHORIZED),
     AUTH_012("API key revoked", HttpStatus.FORBIDDEN),
+    AUTH_013("OAuth state invalid or expired", HttpStatus.UNAUTHORIZED),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),
 
