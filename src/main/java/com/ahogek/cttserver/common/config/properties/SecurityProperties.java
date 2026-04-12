@@ -29,7 +29,8 @@ public record SecurityProperties(
         @NotNull JwtProperties jwt,
         @NotNull PasswordProperties password,
         @NotNull RateLimitProperties rateLimit,
-        @NotNull AuditProperties audit) {
+        @NotNull AuditProperties audit,
+        @NotNull OAuthProperties oauth) {
 
     /** JWT and session configuration. */
     public record JwtProperties(
@@ -71,4 +72,9 @@ public record SecurityProperties(
             @DefaultValue(
                             "password,passwordConfirm,oldPassword,token,access_token,refresh_token,secret,key")
                     List<String> maskedFields) {}
+
+    /** OAuth token encryption and provider settings. */
+    public record OAuthProperties(
+            // Base64-encoded 32-byte AES-256 key for encrypting stored OAuth tokens.
+            String tokenEncryptionKey) {}
 }
