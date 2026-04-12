@@ -1,4 +1,14 @@
 # Active Context
+- [2026-04-12] - OAuth Domain Objects 实现
+    - 新增: `auth/oauth/enums/OAuthProvider.java` — 仅 GITHUB 枚举（YAGNI）
+    - 新增: `auth/oauth/crypto/OAuthTokenConverter.java` — JPA AttributeConverter，自动加解密
+    - 新增: `auth/oauth/entity/UserOAuthAccount.java` — Entity 映射 user_oauth_accounts 表，无感加密
+    - 新增: `auth/oauth/repository/UserOAuthAccountRepository.java` — 4 查询方法
+    - 设计: Java enum 仅 GITHUB（应用层 YAGNI），DB CHECK 保留多 Provider（Schema 扩展性）
+    - 设计: Converter 使用 @Autowired setter 注入（现代 Hibernate 5+）
+    - 设计: accessToken + refreshToken 双字段应用 @Convert（Defense in Depth）
+    - 版本: 0.15.24-SNAPSHOT → 0.16.0-SNAPSHOT
+
 - [2026-04-12] - OAuth 加密基础设施（AES-256-GCM）
     - 新增: `auth/oauth/crypto/OAuthTokenEncryptor.java` — 加密接口（DIP）
     - 新增: `auth/oauth/crypto/AesGcmTokenEncryptor.java` — AES-256-GCM 实现，IV 12 字节随机，AEAD 防篡改
