@@ -41,6 +41,7 @@ public enum ErrorCode {
     AUTH_011("API key expired", HttpStatus.UNAUTHORIZED),
     AUTH_012("API key revoked", HttpStatus.FORBIDDEN),
     AUTH_013("OAuth state invalid or expired", HttpStatus.UNAUTHORIZED),
+    AUTH_014("OAuth token decryption failed", HttpStatus.UNAUTHORIZED),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),
 

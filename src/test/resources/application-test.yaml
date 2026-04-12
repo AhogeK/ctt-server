@@ -45,6 +45,9 @@ ctt:
     rate-limit:
       # Disable rate limiting in tests to avoid interference
       enabled: false
+    oauth:
+      # Test-only AES-256 key (Base64-encoded 32 bytes)
+      token-encryption-key: "L4QmQcZ4IuNPd0Q4rWRqoB33oOASs9As3pFAkdNIOs8="
 
   # Mail configuration for tests
   mail:

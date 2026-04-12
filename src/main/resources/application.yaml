@@ -106,6 +106,9 @@ ctt:
         - secret
         - key
 
+    oauth:
+      token-encryption-key: "${OAUTH_TOKEN_ENCRYPTION_KEY:L4QmQcZ4IuNPd0Q4rWRqoB33oOASs9As3pFAkdNIOs8=}"
+
   mail:
     from:
       address: ${MAIL_FROM_ADDRESS:noreply@localhost}
