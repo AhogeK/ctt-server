@@ -1,4 +1,12 @@
 # Active Context
+- [2026-04-11] - OAuth State 存储（Redis 方案）
+    - 新增: `auth/oauth/model/OAuthStatePayload.java` — record 含 Action 枚举（LOGIN/BIND）
+    - 新增: `auth/oauth/service/OAuthStateService.java` — Redis SETEX + GETDEL 原子操作
+    - 新增: ErrorCode.AUTH_013 "OAuth state invalid or expired"
+    - 设计: Key 格式 `oauth:state:{uuid}`，TTL 10 分钟，`getAndDelete()` 防重放攻击
+    - 移除: init schema 中的 oauth_states 表（改用 Redis，零清理成本）
+    - 版本: 待 bump
+
 - [2026-04-11] - OAuth 阶段启动：数据模型与基础设施准备（收敛方案）
     - 复用: 已有 `user_oauth_accounts` 表（init schema 创建），不新建 `oauth_accounts`
     - 集成: 两项基础设施直接融入 init schema（V20260303210000__init_base_schema.sql）
