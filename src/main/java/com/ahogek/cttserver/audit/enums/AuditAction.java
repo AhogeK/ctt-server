@@ -52,6 +52,22 @@ public enum AuditAction {
     ACCOUNT_UNLOCKED("Account automatically unlocked after lockout expired"),
 
     // ==========================================
+    // OAuth Integration
+    // ==========================================
+
+    /** Successful OAuth provider authentication. */
+    OAUTH_LOGIN_SUCCESS("Successful OAuth provider authentication"),
+
+    /** Failed OAuth authentication attempt. */
+    OAUTH_LOGIN_FAILED("Failed OAuth authentication attempt"),
+
+    /** OAuth account linked to user. */
+    OAUTH_ACCOUNT_LINKED("OAuth account linked to user"),
+
+    /** OAuth account unlinked from user. */
+    OAUTH_ACCOUNT_UNLINKED("OAuth account unlinked from user"),
+
+    // ==========================================
     // Email Verification Mechanism
     // ==========================================
 

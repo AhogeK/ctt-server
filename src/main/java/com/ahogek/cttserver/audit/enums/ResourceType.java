@@ -25,6 +25,9 @@ public enum ResourceType {
     /** Client / plugin API key entity. */
     API_KEY,
 
+    /** OAuth account entity. */
+    OAUTH_ACCOUNT,
+
     /** Mail outbox entity for transactional email queue. */
     MAIL_OUTBOX,
 
