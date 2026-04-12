@@ -1,4 +1,14 @@
 # Active Context
+- [2026-04-12] - OAuth 审计事件扩展（AuditAction + ResourceType）
+    - 新增: AuditAction.java 新增 "OAuth Integration" 区块
+    - 新增: 4 个 OAuth 事件 — OAUTH_LOGIN_SUCCESS / OAUTH_LOGIN_FAILED / OAUTH_ACCOUNT_LINKED / OAUTH_ACCOUNT_UNLINKED
+    - 修复: ResourceType.java 添加 OAUTH_ACCOUNT（与 DB CHECK 约束一致性）
+    - 设计: OAuth 区块放置在 IAM 区块末尾（ACCOUNT_UNLOCKED 之后），符合认证领域划分
+    - 决策: OAUTH_TOKEN_REFRESHED 暂不添加（GitHub token 不过期，YAGNI）
+    - 文件: AuditAction.java, ResourceType.java
+    - 验证: ./gradlew compileJava 通过
+    - 版本: 0.16.0-SNAPSHOT → 0.17.0-SNAPSHOT
+
 - [2026-04-12] - OAuth Domain Objects 实现
     - 新增: `auth/oauth/enums/OAuthProvider.java` — 仅 GITHUB 枚举（YAGNI）
     - 新增: `auth/oauth/crypto/OAuthTokenConverter.java` — JPA AttributeConverter，自动加解密
