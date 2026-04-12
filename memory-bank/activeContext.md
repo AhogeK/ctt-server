@@ -1,4 +1,12 @@
 # Active Context
+- [2026-04-12] - OAuth 加密基础设施（AES-256-GCM）
+    - 新增: `auth/oauth/crypto/OAuthTokenEncryptor.java` — 加密接口（DIP）
+    - 新增: `auth/oauth/crypto/AesGcmTokenEncryptor.java` — AES-256-GCM 实现，IV 12 字节随机，AEAD 防篡改
+    - 新增: `SecurityProperties.OAuthProperties` — tokenEncryptionKey 配置项
+    - 新增: ErrorCode.AUTH_014 "OAuth token decryption failed"
+    - 新增: AesGcmTokenEncryptorTest（4 个测试：加解密还原、IV 随机性、空值处理、防篡改）
+    - 版本: 待 bump
+
 - [2026-04-11] - OAuth State 存储（Redis 方案）
     - 新增: `auth/oauth/model/OAuthStatePayload.java` — record 含 Action 枚举（LOGIN/BIND）
     - 新增: `auth/oauth/service/OAuthStateService.java` — Redis SETEX + GETDEL 原子操作
