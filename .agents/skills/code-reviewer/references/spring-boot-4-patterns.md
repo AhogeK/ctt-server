@@ -304,50 +304,56 @@ class UserServiceIntegrationTest {
 ❌ **Missing AOP support**
 ```xml
 <!-- @Retryable won't work without AOP! -->
-<dependency>
-    <groupId>org.springframework.retry</groupId>
-    <artifactId>spring-retry</artifactId>
-</dependency>
+<!-- No spring-retry dependency needed — native in Spring Framework 7 -->
 ```
 
 ✅ **Include AspectJ starter**
 ```xml
-<!-- Required for @Retryable to work -->
+<!-- Required for @Retryable and @ConcurrencyLimit -->
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-aspectj</artifactId>
 </dependency>
-<dependency>
-    <groupId>org.springframework.retry</groupId>
-    <artifactId>spring-retry</artifactId>
-</dependency>
 ```
 
-### Spring Retry Integration
+### Native Resilience (Spring Framework 7)
 
-✅ **Option A: Spring Retry (classic pattern)**
+Spring Retry is maintenance-only and superseded by native resilience in Spring Framework 7.
+New Boot 4 projects should use `org.springframework.resilience.annotation.*`.
+
+✅ **Native @Retryable + @ConcurrencyLimit (recommended)**
 ```java
+import org.springframework.resilience.annotation.EnableResilientMethods;
+
+@Configuration
+@EnableResilientMethods
+public class ResilienceConfig {}
+```
+
+```java
+import org.springframework.resilience.annotation.Retryable;
+import org.springframework.resilience.annotation.ConcurrencyLimit;
+
 @Service
-@EnableRetry
 public class PaymentService {
     @Retryable(
-        retryFor = PaymentException.class,
+        includes = {PaymentException.class},
         maxAttempts = 3,
-        backoff = @Backoff(delay = 1000)
+        delay = 1000,
+        multiplier = 2
     )
     public Payment processPayment(Order order) {
-        // May throw PaymentException
+        // May throw PaymentException — retried automatically
     }
 
-    @Recover
-    public Payment recoverPayment(PaymentException e, Order order) {
-        // Fallback logic after all retries fail
-        return handlePaymentFailure(order);
+    @ConcurrencyLimit(2)
+    public void processExpensiveReport(String id) {
+        // Max 2 concurrent executions
     }
 }
 ```
 
-✅ **Option B: Resilience4j (declarative resilience)**
+✅ **Resilience4j (for circuit breaker — NOT native)**
 ```java
 @Service
 public class PaymentService {
@@ -383,10 +389,11 @@ resilience4j:
 ```
 
 **Review Checklist:**
-- [ ] If using `@Retryable`, verify `spring-boot-starter-aspectj` is present
-- [ ] If using Spring Retry directly, ensure explicit `spring-retry` dependency + version
-- [ ] If using Resilience4j, ensure `spring-boot-starter-aop` or `spring-boot-starter-aspectj` is present
+- [ ] If using `@Retryable`/`@ConcurrencyLimit`, verify `spring-boot-starter-aspectj` is present
+- [ ] If using native resilience, verify `@EnableResilientMethods` on a `@Configuration` class
+- [ ] If using Resilience4j (circuit breaker), ensure `spring-boot-starter-aspectj` is present
 - [ ] Verify retry configuration matches production requirements (backoff, max attempts)
+- [ ] If legacy `spring-retry` dependency found, recommend migrating to native `org.springframework.resilience.annotation.*`
 
 ---
 
@@ -672,6 +679,8 @@ public class EmailService {
 
 ### RestClient with Virtual Threads
 
+**Requires:** `spring-boot-starter-restclient` (Boot 4 modular starter — not included in `spring-boot-starter-webmvc`)
+
 ✅ **RestClient (modern, virtual-thread-friendly)**
 ```java
 @Configuration
@@ -715,6 +724,12 @@ webClient.get()
 
 ❌ `spring-boot-starter-web` → Should be `spring-boot-starter-webmvc`
 ❌ `spring-boot-starter-aop` → Should be `spring-boot-starter-aspectj`
+❌ Using `RestClient` without `spring-boot-starter-restclient` dependency
+❌ Using `WebClient` without `spring-boot-starter-webclient` dependency
+
+Boot 4 modular starters split HTTP client support from the web starter. `spring-boot-starter-webmvc` no longer includes RestClient auto-configuration — add `spring-boot-starter-restclient` explicitly.
+
+Source: [Spring Boot 4.0 Migration Guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide)
 
 ### 2. Old Jackson Group IDs
 
@@ -754,13 +769,92 @@ webClient.get()
 ❌ Scattered `@Value` annotations
 ✅ Use `@ConfigurationProperties` with records
 
+### 8. TestRestTemplate in Boot 4
+
+❌ `TestRestTemplate` → Deprecated in Spring Boot 4
+✅ Use `RestTestClient` (`org.springframework.test.web.servlet.client.RestTestClient`)
+
+```java
+// Before (Boot 3)
+@Autowired
+private TestRestTemplate restTemplate;
+
+// After (Boot 4)
+@Autowired
+private RestTestClient restTestClient;
+```
+
+Source: [RestTestClient :: Spring Framework](https://docs.spring.io/spring-framework/reference/testing/resttestclient.html)
+
+### 9. Manual HttpServiceProxyFactory Boilerplate
+
+❌ Manual `HttpServiceProxyFactory` bean setup for `@HttpExchange` clients
+✅ Use `@ImportHttpServices` auto-configuration (Spring Framework 7.0)
+
+```java
+// Before (Boot 3 / Framework 6)
+@Bean
+ProductClient productClient(RestClient.Builder builder) {
+    RestClient restClient = builder.baseUrl("http://api.example.com").build();
+    return HttpServiceProxyFactory
+            .builderFor(RestClientAdapter.create(restClient))
+            .build()
+            .createClient(ProductClient.class);
+}
+
+// After (Boot 4 / Framework 7)
+@Configuration
+@ImportHttpServices(group = "product", types = ProductClient.class)
+public class ClientConfig { }
+```
+
+Note: `@HttpExchange` itself exists since Framework 6.0. Only `@ImportHttpServices` (`org.springframework.web.service.registry`) is new in Framework 7.0.
+
+Source: [HTTP Service Client Enhancements](https://spring.io/blog/2025/09/23/http-service-client-enhancements/)
+
+### 10. Custom API Versioning Instead of Native
+
+❌ Custom versioning interceptors, filters, or external libraries
+✅ Use native `spring.mvc.apiversion.*` properties and `version` attribute on `@GetMapping` / `@PostMapping`
+
+```java
+// Native API versioning (Framework 7.0)
+@GetMapping(value = "/search", version = "2.0")
+public List<ProductVM> searchV2(@RequestParam("q") String query) { ... }
+```
+
+```yaml
+spring:
+  mvc:
+    apiversion:
+      enabled: true
+      strategy: header
+      default-version: "1.0"
+      header-name: "API-Version"
+```
+
+Source: [API Versioning in Spring](https://spring.io/blog/2025/09/16/api-versioning-in-spring/)
+
+### 11. @ConcurrencyLimit Without @EnableResilientMethods
+
+❌ Using `@ConcurrencyLimit` without `@EnableResilientMethods` on a `@Configuration` class
+✅ Add `@EnableResilientMethods` — required for both `@ConcurrencyLimit` and native `@Retryable`
+
+```java
+@Configuration
+@EnableResilientMethods  // Required
+public class ResilienceConfig { }
+```
+
+Source: [Core Spring Resilience Features](https://spring.io/blog/2025/09/09/core-spring-resilience-features/)
+
 ---
 
 ## Review Checklist
 
 When reviewing Spring Boot 4 code:
 
-- [ ] All starters use Spring Boot 4 names (webmvc, aspectj, test-classic)
+- [ ] All starters use Spring Boot 4 names (webmvc, aspectj, restclient, webclient)
 - [ ] Jackson imports use `tools.jackson.*` (except `jackson-annotations`)
 - [ ] Test annotations use `@MockitoBean` / `@MockitoSpyBean`
 - [ ] `@Retryable` has `spring-boot-starter-aspectj` dependency
@@ -769,6 +863,10 @@ When reviewing Spring Boot 4 code:
 - [ ] Problem Details used for error responses
 - [ ] Type-safe configuration with `@ConfigurationProperties`
 - [ ] Observability configured (metrics, tracing)
+- [ ] `TestRestTemplate` replaced with `RestTestClient`
+- [ ] HTTP service clients use `@ImportHttpServices` instead of manual `HttpServiceProxyFactory`
+- [ ] API versioning uses native `spring.mvc.apiversion.*` and `version=` attribute
+- [ ] `@ConcurrencyLimit` and native `@Retryable` have `@EnableResilientMethods` configured
 
 ---
 
@@ -781,5 +879,9 @@ When reviewing Spring Boot 4 code:
 - [Modularizing Spring Boot (Blog)](https://spring.io/blog/2025/10/28/modularizing-spring-boot/)
 - [Spring Boot 4.0.0 Announcement](https://spring.io/blog/2025/11/20/spring-boot-4-0-0-available-now/)
 - [Spring Modulith Reference](https://docs.spring.io/spring-modulith/reference/)
-- [Spring Retry Documentation](https://docs.spring.io/spring-retry/docs/current/reference/html/)
+- [Spring Retry (maintenance-only)](https://github.com/spring-projects/spring-retry) — superseded by Spring Framework 7 native resilience
 - [Resilience4j Spring Boot](https://resilience4j.readme.io/docs/getting-started-3)
+- [RestTestClient :: Spring Framework](https://docs.spring.io/spring-framework/reference/testing/resttestclient.html)
+- [HTTP Service Client Enhancements (Blog)](https://spring.io/blog/2025/09/23/http-service-client-enhancements/)
+- [API Versioning in Spring (Blog)](https://spring.io/blog/2025/09/16/api-versioning-in-spring/)
+- [Core Spring Resilience Features (Blog)](https://spring.io/blog/2025/09/09/core-spring-resilience-features/)

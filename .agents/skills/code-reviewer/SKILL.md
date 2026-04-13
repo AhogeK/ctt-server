@@ -97,6 +97,10 @@ Use these as review prompts, not as a substitute for code evidence.
 - old starter names
 - old Mockito test annotations
 - Jackson 2 assumptions in a Boot 4 codebase
+- `TestRestTemplate` usage instead of `RestTestClient`
+- manual `HttpServiceProxyFactory` boilerplate instead of `@ImportHttpServices`
+- custom API versioning instead of native `spring.mvc.apiversion.*`
+- `@ConcurrencyLimit` or native `@Retryable` without `@EnableResilientMethods`
 
 ### Null-safety
 
