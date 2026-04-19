@@ -40,8 +40,12 @@ public enum ErrorCode {
     AUTH_010("API key invalid", HttpStatus.UNAUTHORIZED),
     AUTH_011("API key expired", HttpStatus.UNAUTHORIZED),
     AUTH_012("API key revoked", HttpStatus.FORBIDDEN),
-    AUTH_013("OAuth state invalid or expired", HttpStatus.UNAUTHORIZED),
+    AUTH_013("OAuth state validation failed", HttpStatus.FORBIDDEN),
     AUTH_014("OAuth token decryption failed", HttpStatus.UNAUTHORIZED),
+    AUTH_015("OAuth provider error", HttpStatus.BAD_GATEWAY),
+    AUTH_016("OAuth account already linked", HttpStatus.CONFLICT),
+    AUTH_017("OAuth account not linked", HttpStatus.BAD_REQUEST),
+    AUTH_018("Cannot unlink last credential", HttpStatus.BAD_REQUEST),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),
 
@@ -54,9 +58,6 @@ public enum ErrorCode {
     USER_004("User not found", HttpStatus.NOT_FOUND),
     USER_005("Display name already taken", HttpStatus.CONFLICT),
     USER_006("Cannot delete own account", HttpStatus.FORBIDDEN),
-    USER_007("OAuth provider error", HttpStatus.BAD_REQUEST),
-    USER_008("OAuth account already linked", HttpStatus.CONFLICT),
-    USER_009("OAuth account not linked", HttpStatus.BAD_REQUEST),
 
     // =========================================================================
     // MAIL - Email delivery errors

@@ -38,16 +38,16 @@ public enum ErrorCode {
     // =========================================================================
     // AUTH - Add new authentication error
     // =========================================================================
-    AUTH_013("OAuth token expired", HttpStatus.UNAUTHORIZED),
+    AUTH_013("OAuth state validation failed", HttpStatus.FORBIDDEN),
 }
 ```
 
 **Step 2**: Update `CONVENTIONS.md` Error Code Registry
 
 ```markdown
-| Error Code | HTTP Status | Description           | Added In |
-|------------|-------------|----------------------|----------|
-| AUTH_013   | 401         | OAuth token expired   | Week 3   |
+| Error Code | HTTP Status | Description                  | Added In |
+|------------|-------------|------------------------------|----------|
+| AUTH_013   | 403         | OAuth state validation failed | Week 3   |
 ```
 
 **Important**: Do NOT use HTTP status codes as error codes. Frontend needs precise error handling (e.g., distinguish "password wrong" vs "account locked" - both return 403).
