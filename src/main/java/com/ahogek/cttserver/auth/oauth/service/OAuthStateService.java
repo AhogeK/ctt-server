@@ -2,8 +2,8 @@ package com.ahogek.cttserver.auth.oauth.service;
 
 import com.ahogek.cttserver.auth.oauth.model.OAuthStatePayload;
 import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.InternalServerErrorException;
-import com.ahogek.cttserver.common.exception.UnauthorizedException;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -60,14 +60,14 @@ public class OAuthStateService {
      *
      * @param stateId the state UUID received from the OAuth provider callback
      * @return the stored payload
-     * @throws UnauthorizedException if the state is missing or expired
+     * @throws ForbiddenException if the state is missing or expired
      */
     public OAuthStatePayload consumeState(String stateId) {
         String key = STATE_KEY_PREFIX + stateId;
         String jsonValue = redisTemplate.opsForValue().getAndDelete(key);
 
         if (jsonValue == null) {
-            throw new UnauthorizedException(ErrorCode.AUTH_013);
+            throw new ForbiddenException(ErrorCode.AUTH_013);
         }
 
         try {
