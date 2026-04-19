@@ -1,4 +1,17 @@
 # Active Context
+- [2026-04-13] - OAuth 错误码扩展（ErrorCode AUTH 分组）
+    - 更新: AUTH_013 "OAuth state validation failed" + HttpStatus.FORBIDDEN（原 401→403，语义更精准）
+    - 新增: AUTH_015 "OAuth provider error" + 502 BAD_GATEWAY（上游 Provider 异常）
+    - 新增: AUTH_016 "OAuth account already linked" + 409 CONFLICT（账号绑定冲突）
+    - 新增: AUTH_017 "OAuth account not linked" + 400 BAD_REQUEST（用户未绑定该 Provider）
+    - 新增: AUTH_018 "Cannot unlink last credential" + 400 BAD_REQUEST（无密码用户解绑唯一 OAuth）
+    - 删除: USER_007/008/009（与 AUTH_015/016/017 语义重复，保持 AUTH 分组统一）
+    - 修复: OAuthStateService UnauthorizedException → ForbiddenException（匹配 AUTH_013 403）
+    - 测试: ErrorCodeTest 更新所有 AUTH_013-018 HTTP status 断言
+    - 文件: ErrorCode.java, OAuthStateService.java, ErrorCodeTest.java
+    - 验证: 全量测试通过，Spotless 通过，覆盖率达标
+    - 版本: 0.17.0-SNAPSHOT → 0.18.0-SNAPSHOT
+
 - [2026-04-12] - OAuth 审计事件扩展（AuditAction + ResourceType）
     - 新增: AuditAction.java 新增 "OAuth Integration" 区块
     - 新增: 4 个 OAuth 事件 — OAUTH_LOGIN_SUCCESS / OAUTH_LOGIN_FAILED / OAUTH_ACCOUNT_LINKED / OAUTH_ACCOUNT_UNLINKED
