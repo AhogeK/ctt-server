@@ -1,4 +1,23 @@
 # Active Context
+- [2026-04-21] - EmailVerificationController Text Block 重构
+    - 变更: 6 处 @ExampleObject JSON 字符串转换为 Java Text Block (""")
+    - 位置: AUTH_004, USER_007 (verify), COMMON_003, USER_003, USER_007 (resend), COMMON_002
+    - 格式: 单行 JSON 内容，三引号包裹（遵循 Text Block 规范）
+    - 文件: EmailVerificationController.java
+    - 版本: 0.18.2-SNAPSHOT → 0.18.3-SNAPSHOT
+
+- [2026-04-20] - USER_007 ErrorCode 创建（Email Verification Bug 修复）
+    - 根因: OpenAPI 文档声明 USER_002 + 409（已验证），实际代码抛 COMMON_003 (400)，语义矛盾
+    - 分析: EmailVerificationController @ApiResponse 错误声明 USER_002（实际代码不抛此 ErrorCode）
+    - 分析: UserValidator.assertCanVerifyEmail() 抛 ConflictException(COMMON_003)，COMMON_003 定义为 BAD_REQUEST (400) 与 ConflictException 语义矛盾
+    - 修复: 创建 USER_007("Email already verified", HttpStatus.CONFLICT) 替代 COMMON_003
+    - 修复: UserValidator.assertCanVerifyEmail() 使用 USER_007 替代 COMMON_003 + 自定义消息
+    - 修复: EmailVerificationController @ApiResponse 4处 USER_002 → USER_007
+    - 测试: ErrorCodeTest 新增 USER_007.httpStatus() 断言
+    - 测试: UserValidatorTest 4处消息断言更新 "not in pending verification" → "Email already verified"
+    - 文件: ErrorCode.java, UserValidator.java, EmailVerificationController.java, ErrorCodeTest.java, UserValidatorTest.java
+    - 版本: 0.18.1-SNAPSHOT → 0.18.2-SNAPSHOT
+
 - [2026-04-20] - AUTH_014 HTTP status 设计错误修复（删除）
     - 根因: AesGcmTokenEncryptor.decrypt() 失败是服务端问题（DB损坏/密钥配置错误/JCE不可用），客户端无法解决
     - 分析: HTTP 401 (Unauthorized) 语义不符（表示"客户端需提供身份凭证"），decrypt 失败非客户端问题
