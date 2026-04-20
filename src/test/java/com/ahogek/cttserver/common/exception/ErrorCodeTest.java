@@ -40,6 +40,7 @@ class ErrorCodeTest {
     void userCodes_haveCorrectHttpStatus() {
         assertThat(ErrorCode.USER_001.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.USER_004.httpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(ErrorCode.USER_007.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test

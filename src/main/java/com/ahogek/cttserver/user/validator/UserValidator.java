@@ -56,8 +56,7 @@ public class UserValidator {
      */
     public void assertCanVerifyEmail(User user) {
         if (user.getStatus() != UserStatus.PENDING_VERIFICATION) {
-            throw new ConflictException(
-                    ErrorCode.COMMON_003, "User is not in pending verification state");
+            throw new ConflictException(ErrorCode.USER_007);
         }
     }
 
