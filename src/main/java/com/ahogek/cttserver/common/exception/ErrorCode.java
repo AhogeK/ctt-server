@@ -57,6 +57,7 @@ public enum ErrorCode {
     USER_004("User not found", HttpStatus.NOT_FOUND),
     USER_005("Display name already taken", HttpStatus.CONFLICT),
     USER_006("Cannot delete own account", HttpStatus.FORBIDDEN),
+    USER_007("Email already verified", HttpStatus.CONFLICT),
 
     // =========================================================================
     // MAIL - Email delivery errors

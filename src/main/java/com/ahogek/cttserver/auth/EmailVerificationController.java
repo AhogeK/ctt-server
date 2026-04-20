@@ -104,11 +104,19 @@ public class EmailVerificationController {
                                                         summary =
                                                                 "Invalid or expired verification token",
                                                         value =
-                                                                "{\"code\":\"AUTH_004\",\"message\":\"Invalid or expired verification token\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_004",
+                                                                  "message": "Invalid or expired verification token",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }
+                                                                """))),
                 @ApiResponse(
                         responseCode = "409",
-                        description =
-                                "User already verified - USER_002: User status is not PENDING_VERIFICATION",
+                        description = "User already verified - USER_007: Email already verified",
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
@@ -117,7 +125,16 @@ public class EmailVerificationController {
                                                         name = "already-verified",
                                                         summary = "User already verified",
                                                         value =
-                                                                "{\"code\":\"USER_002\",\"message\":\"User status is not PENDING_VERIFICATION\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":409,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "USER_007",
+                                                                  "message": "Email already verified",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 409,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }
+                                                                """)))
             })
     @PublicApi(reason = "Email verification endpoint - Tier 1 public API")
     @GetMapping("/verify-email")
@@ -173,7 +190,21 @@ public class EmailVerificationController {
                                                         name = "validation-error",
                                                         summary = "Invalid email format",
                                                         value =
-                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Invalid request parameters",
+                                                                  "details": [
+                                                                    {
+                                                                      "field": "email",
+                                                                      "message": "Invalid email format"
+                                                                    }
+                                                                  ],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }
+                                                                """))),
                 @ApiResponse(
                         responseCode = "404",
                         description = "User not found - USER_003: No user with provided email",
@@ -185,11 +216,19 @@ public class EmailVerificationController {
                                                         name = "user-not-found",
                                                         summary = "User not found",
                                                         value =
-                                                                "{\"code\":\"USER_003\",\"message\":\"No user with provided email\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":404,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "USER_003",
+                                                                  "message": "No user with provided email",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 404,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }
+                                                                """))),
                 @ApiResponse(
                         responseCode = "409",
-                        description =
-                                "User already verified - USER_002: User status is not PENDING_VERIFICATION",
+                        description = "User already verified - USER_007: Email already verified",
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
@@ -198,7 +237,16 @@ public class EmailVerificationController {
                                                         name = "already-verified",
                                                         summary = "User already verified",
                                                         value =
-                                                                "{\"code\":\"USER_002\",\"message\":\"User status is not PENDING_VERIFICATION\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":409,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "USER_007",
+                                                                  "message": "Email already verified",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 409,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }
+                                                                """))),
                 @ApiResponse(
                         responseCode = "429",
                         description =
@@ -211,7 +259,17 @@ public class EmailVerificationController {
                                                         name = "rate-limited",
                                                         summary = "Rate limit exceeded",
                                                         value =
-                                                                "{\"code\":\"COMMON_002\",\"message\":\"Rate limit exceeded\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":429,\"timestamp\":\"2026-04-10T03:23:12Z\",\"retryAfter\":\"2026-04-10T03:33:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_002",
+                                                                  "message": "Rate limit exceeded",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 429,
+                                                                  "timestamp": "2026-04-10T03:23:12Z",
+                                                                  "retryAfter": "2026-04-10T03:33:12Z"
+                                                                }
+                                                                """)))
             })
     @PublicApi(reason = "Resend verification email - Tier 1 public API")
     @RateLimit(

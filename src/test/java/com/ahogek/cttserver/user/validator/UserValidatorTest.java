@@ -97,7 +97,7 @@ class UserValidatorTest {
 
             assertThatThrownBy(() -> userValidator.assertCanVerifyEmail(user))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("not in pending verification state");
+                    .hasMessageContaining("Email already verified");
         }
 
         @Test
@@ -107,7 +107,7 @@ class UserValidatorTest {
 
             assertThatThrownBy(() -> userValidator.assertCanVerifyEmail(user))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("not in pending verification state");
+                    .hasMessageContaining("Email already verified");
         }
 
         @Test
@@ -117,7 +117,7 @@ class UserValidatorTest {
 
             assertThatThrownBy(() -> userValidator.assertCanVerifyEmail(user))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("not in pending verification state");
+                    .hasMessageContaining("Email already verified");
         }
 
         @Test
@@ -127,7 +127,7 @@ class UserValidatorTest {
 
             assertThatThrownBy(() -> userValidator.assertCanVerifyEmail(user))
                     .isInstanceOf(ConflictException.class)
-                    .hasMessageContaining("not in pending verification state");
+                    .hasMessageContaining("Email already verified");
         }
     }
 
