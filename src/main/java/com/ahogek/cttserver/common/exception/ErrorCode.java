@@ -41,7 +41,6 @@ public enum ErrorCode {
     AUTH_011("API key expired", HttpStatus.UNAUTHORIZED),
     AUTH_012("API key revoked", HttpStatus.FORBIDDEN),
     AUTH_013("OAuth state validation failed", HttpStatus.FORBIDDEN),
-    AUTH_014("OAuth token decryption failed", HttpStatus.UNAUTHORIZED),
     AUTH_015("OAuth provider error", HttpStatus.BAD_GATEWAY),
     AUTH_016("OAuth account already linked", HttpStatus.CONFLICT),
     AUTH_017("OAuth account not linked", HttpStatus.BAD_REQUEST),

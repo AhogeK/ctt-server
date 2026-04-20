@@ -1,9 +1,7 @@
 package com.ahogek.cttserver.auth.oauth.crypto;
 
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
-import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.InternalServerErrorException;
-import com.ahogek.cttserver.common.exception.UnauthorizedException;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -103,8 +101,8 @@ public class AesGcmTokenEncryptor implements OAuthTokenEncryptor {
 
             byte[] plainTextBytes = cipher.doFinal(cipherTextWithTag);
             return new String(plainTextBytes, StandardCharsets.UTF_8);
-        } catch (Exception _) {
-            throw new UnauthorizedException(ErrorCode.AUTH_014);
+        } catch (Exception e) {
+            throw new InternalServerErrorException("OAuth token decryption failed", e);
         }
     }
 }

@@ -29,7 +29,6 @@ class ErrorCodeTest {
         assertThat(ErrorCode.AUTH_011.httpStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(ErrorCode.AUTH_012.httpStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(ErrorCode.AUTH_013.httpStatus()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(ErrorCode.AUTH_014.httpStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(ErrorCode.AUTH_015.httpStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
         assertThat(ErrorCode.AUTH_016.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.AUTH_017.httpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
