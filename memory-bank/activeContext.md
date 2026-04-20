@@ -1,4 +1,13 @@
 # Active Context
+- [2026-04-20] - AUTH_014 HTTP status 设计错误修复（删除）
+    - 根因: AesGcmTokenEncryptor.decrypt() 失败是服务端问题（DB损坏/密钥配置错误/JCE不可用），客户端无法解决
+    - 分析: HTTP 401 (Unauthorized) 语义不符（表示"客户端需提供身份凭证"），decrypt 失败非客户端问题
+    - 修复: UnauthorizedException(ErrorCode.AUTH_014) → InternalServerErrorException("OAuth token decryption failed")
+    - 删除: AUTH_014 enum constant（decrypt 失败不应有专属 ErrorCode，与 encrypt 保持一致）
+    - 设计: 500 Internal Server Error 更准确表达服务端故障，日志级别 ERROR（含完整堆栈便于排查）
+    - 文件: ErrorCode.java, AesGcmTokenEncryptor.java, ErrorCodeTest.java, AesGcmTokenEncryptorTest.java
+    - 版本: 0.18.0-SNAPSHOT → 0.18.1-SNAPSHOT
+
 - [2026-04-13] - OAuth 错误码扩展（ErrorCode AUTH 分组）
     - 更新: AUTH_013 "OAuth state validation failed" + HttpStatus.FORBIDDEN（原 401→403，语义更精准）
     - 新增: AUTH_015 "OAuth provider error" + 502 BAD_GATEWAY（上游 Provider 异常）
