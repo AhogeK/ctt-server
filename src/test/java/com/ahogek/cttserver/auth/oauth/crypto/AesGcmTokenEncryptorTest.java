@@ -1,7 +1,7 @@
 package com.ahogek.cttserver.auth.oauth.crypto;
 
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
-import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.exception.InternalServerErrorException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +24,10 @@ class AesGcmTokenEncryptorTest {
         new SecureRandom().nextBytes(keyBytes);
         String base64Key = Base64.getEncoder().encodeToString(keyBytes);
 
+        encryptor = new AesGcmTokenEncryptor(createSecurityProperties(base64Key));
+    }
+
+    private SecurityProperties createSecurityProperties(String base64Key) {
         SecurityProperties.JwtProperties jwt =
                 new SecurityProperties.JwtProperties(
                         "test-secret",
@@ -41,9 +45,7 @@ class AesGcmTokenEncryptorTest {
         SecurityProperties.OAuthProperties oauth =
                 new SecurityProperties.OAuthProperties(base64Key);
 
-        SecurityProperties properties =
-                new SecurityProperties(jwt, password, rateLimit, audit, oauth);
-        encryptor = new AesGcmTokenEncryptor(properties);
+        return new SecurityProperties(jwt, password, rateLimit, audit, oauth);
     }
 
     @Test
@@ -77,7 +79,7 @@ class AesGcmTokenEncryptorTest {
     }
 
     @Test
-    void shouldThrowUnauthorizedException_whenCiphertextTampered() {
+    void shouldThrowInternalServerErrorException_whenCiphertextTampered() {
         String plaintext = "SensitiveData";
         String cipherText = encryptor.encrypt(plaintext);
 
@@ -86,29 +88,12 @@ class AesGcmTokenEncryptorTest {
         String tamperedCipherText = cipherText.substring(0, cipherText.length() - 1) + tamperedChar;
 
         assertThatThrownBy(() -> encryptor.decrypt(tamperedCipherText))
-                .isInstanceOf(UnauthorizedException.class);
+                .isInstanceOf(InternalServerErrorException.class);
     }
 
     @Test
     void shouldThrowIllegalStateException_whenEncryptionKeyMissing() {
-        SecurityProperties.JwtProperties jwt =
-                new SecurityProperties.JwtProperties(
-                        "test-secret",
-                        "test-issuer",
-                        Duration.ofMinutes(15),
-                        Duration.ofDays(14),
-                        Duration.ofDays(30));
-        SecurityProperties.PasswordProperties password =
-                new SecurityProperties.PasswordProperties(
-                        12, 5, Duration.ofMinutes(30), 900, Duration.ofHours(720), "DB");
-        SecurityProperties.RateLimitProperties rateLimit =
-                new SecurityProperties.RateLimitProperties(true, 200);
-        SecurityProperties.AuditProperties audit =
-                new SecurityProperties.AuditProperties(true, List.of("password"));
-        SecurityProperties.OAuthProperties oauth = new SecurityProperties.OAuthProperties(null);
-
-        SecurityProperties properties =
-                new SecurityProperties(jwt, password, rateLimit, audit, oauth);
+        SecurityProperties properties = createSecurityProperties(null);
 
         assertThatThrownBy(() -> new AesGcmTokenEncryptor(properties))
                 .isInstanceOf(IllegalStateException.class)
@@ -118,25 +103,7 @@ class AesGcmTokenEncryptorTest {
     @Test
     void shouldThrowIllegalArgumentException_whenEncryptionKeyWrongSize() {
         String shortKey = Base64.getEncoder().encodeToString(new byte[16]);
-
-        SecurityProperties.JwtProperties jwt =
-                new SecurityProperties.JwtProperties(
-                        "test-secret",
-                        "test-issuer",
-                        Duration.ofMinutes(15),
-                        Duration.ofDays(14),
-                        Duration.ofDays(30));
-        SecurityProperties.PasswordProperties password =
-                new SecurityProperties.PasswordProperties(
-                        12, 5, Duration.ofMinutes(30), 900, Duration.ofHours(720), "DB");
-        SecurityProperties.RateLimitProperties rateLimit =
-                new SecurityProperties.RateLimitProperties(true, 200);
-        SecurityProperties.AuditProperties audit =
-                new SecurityProperties.AuditProperties(true, List.of("password"));
-        SecurityProperties.OAuthProperties oauth = new SecurityProperties.OAuthProperties(shortKey);
-
-        SecurityProperties properties =
-                new SecurityProperties(jwt, password, rateLimit, audit, oauth);
+        SecurityProperties properties = createSecurityProperties(shortKey);
 
         assertThatThrownBy(() -> new AesGcmTokenEncryptor(properties))
                 .isInstanceOf(IllegalArgumentException.class)
