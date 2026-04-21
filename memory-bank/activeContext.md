@@ -1,4 +1,22 @@
 # Active Context
+- [2026-04-21] - Notion 开发计划页面更新（O 阶段状态同步）
+    - 更新: 标题 "O：GitHub OAuth 核心流程实现 ⚠️（未实现）" → "⚠️（部分实现）"
+    - 更新: 实现状态描述，详细列出已完成/未完成项
+    - 更新: GitHub API 客户端复选框（6项全部勾选）
+    - 更新: 总交付清单表格状态 "❌ 未实现" → "⚠️ 部分完成"
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+
+- [2026-04-21] - GitHub OAuth 客户端基础设施
+    - 新增: `BadGatewayException` — 502 异常类型，扩展 BusinessException sealed permits
+    - 新增: `GitHubTokenResponse` / `GitHubUserInfo` / `GitHubEmail` — OAuth API 响应 record
+    - 新增: `GitHubOAuthClient` — RestClient 实现 code→token 交换、用户信息获取、邮箱回退
+    - 扩展: `SecurityProperties.OAuthProperties` 嵌套 `GitHubProperties`（clientId, clientSecret, URIs, scope）
+    - 新增: `GitHubOAuthClientTest` (9 tests) — 正常链路、邮箱回退、无主邮箱异常、API 错误映射
+    - 新增: application.yaml github 配置 + .env.example GITHUB_CLIENT_ID/SECRET
+    - 修复: AesGcmTokenEncryptorTest OAuthProperties 构造函数适配
+    - 设计: 邮箱回退 — `/user` email=null 时自动调用 `/user/emails` 取 primary+verified
+    - 版本: 0.18.4-SNAPSHOT → 0.19.0-SNAPSHOT (MINOR: 新功能)
+
 - [2026-04-21] - OAuthStateService 单元测试补充
     - 新增: `OAuthStateServiceTest` (10 tests, 2 nested groups)
     - 覆盖: generateAndSaveState 正常生成/序列化失败/BIND payload, consumeState 正常消费/重放攻击/过期/无效 state/反序列化失败

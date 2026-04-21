@@ -2,6 +2,15 @@
 
 ## 已完成 ✅
 
+- [x] GitHub OAuth 客户端基础设施
+    - GitHubOAuthClient (RestClient): code→token 交换、用户信息获取、邮箱回退逻辑
+    - GitHubTokenResponse / GitHubUserInfo / GitHubEmail 响应模型
+    - BadGatewayException (502) 异常类型
+    - SecurityProperties.OAuthProperties 扩展 GitHubProperties
+    - 9 个单元测试覆盖正常链路、邮箱回退、异常映射
+    - OAuthStateService 单元测试 (10 tests)
+    - 版本: 0.18.4-SNAPSHOT → 0.19.0-SNAPSHOT
+
 - [x] 清理 ProbeController 及全部引用
     - 删除 probe/ 包（仅含 ProbeController.java），无生产代码引用
     - GlobalExceptionHandlerTest 从 @WebMvcTest 迁移为纯 JUnit 5 直接 handler 调用
