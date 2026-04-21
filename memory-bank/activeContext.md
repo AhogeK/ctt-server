@@ -1,4 +1,40 @@
 # Active Context
+- [2026-04-22] - OAuthLoginOrRegisterServiceTest 移除无用 eq() matcher
+    - 问题: Sonar/IntelliJ 警告 "Remove this and every subsequent useless 'eq(...)' invocation"
+    - 修复: 移除 `eq(OAuthProvider.GITHUB)` → 直接传递枚举值
+    - 修复: 移除 `eq(String.valueOf(GITHUB_USER_ID))` → 直接传递字符串表达式
+    - 修复: 移除 `eq(TEST_EMAIL)` → 直接传递常量字符串
+    - 修复: 移除 verify(auditLogService) 中大部分 eq() 调用
+    - 保留: 混用 any() matcher 时其他参数必须用 eq()（Mockito 规则）
+    - 格式: spotlessApply 修复缩进
+    - 验证: 12 tests 通过、spotlessCheck 通过
+    - 文件: OAuthLoginOrRegisterServiceTest.java
+    - 版本: 0.20.0-SNAPSHOT (版本号不变，代码质量修复)
+
+- [2026-04-22] - OAuthLoginOrRegisterService Critical 修复
+    - 问题: 方法签名缺少 accessToken 参数，导致 userInfo.toString() 被误用作 accessToken 存储
+    - 影响: 数据库存储无效的 toString() 输出而非真正的 OAuth token，无法调用 GitHub API
+    - 修复: 修改 process() 方法签名为 `process(OAuthProvider, String accessToken, GitHubUserInfo)`
+    - 修复: 所有 setAccessToken() 调用改为使用正确的 accessToken 参数
+    - 修复: 测试文件添加 ReflectionTestUtils import，移除全路径类名
+    - 修复: 测试文件适配新方法签名，添加 TEST_GITHUB_ACCESS_TOKEN 常量区分 GitHub token 和 CTT token
+    - 验证: 编译通过、13 tests 通过、全量测试无回归、Spotless 通过
+    - 文件: OAuthLoginOrRegisterService.java, OAuthLoginOrRegisterServiceTest.java
+    - 版本: 0.20.0-SNAPSHOT (版本号不变，PATCH 修复)
+
+- [2026-04-22] - OAuthLoginOrRegisterService 实现
+    - 新增: `OAuthLoginOrRegisterService` — OAuth 登录/注册核心服务，身份协调器
+    - 实现: `process(OAuthProvider, GitHubUserInfo): LoginResponse` — 处理 OAuth 回调
+    - 分支1: 已有绑定 → 状态校验 + Token 更新 + OAUTH_LOGIN_SUCCESS 审计 + 返回凭据
+    - 分支2: 邮箱合并 → 插入 OAuth 绑定 + OAUTH_ACCOUNT_LINKED 审计 + 调用已有绑定流程
+    - 分支3: 新用户注册 → verifyEmail() 激活（OAuth 跳过邮箱验证）+ 插入绑定 + 返回凭据
+    - 设计: OAuth 用户调用 `verifyEmail()` 设置 ACTIVE + emailVerified + emailVerifiedAt
+    - 设计: GitHub token 永不过期 → `tokenExpiresAt = null`
+    - 测试: `OAuthLoginOrRegisterServiceTest` (13 tests) — 已有绑定/邮箱合并/新用户注册/状态校验
+    - 清理: 删除 docs/plans/, docs/superpowers/, ~/.local/share/opencode/plans/ (Plan agent 误创建)
+    - 文件: OAuthLoginOrRegisterService.java, OAuthLoginOrRegisterServiceTest.java
+    - 版本: 0.19.0-SNAPSHOT → 0.20.0-SNAPSHOT (MINOR: 新功能)
+
 - [2026-04-21] - Notion 开发计划页面更新（O 阶段状态同步）
     - 更新: 标题 "O：GitHub OAuth 核心流程实现 ⚠️（未实现）" → "⚠️（部分实现）"
     - 更新: 实现状态描述，详细列出已完成/未完成项

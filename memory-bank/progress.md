@@ -2,6 +2,12 @@
 
 ## 已完成 ✅
 
+- [x] OAuthLoginOrRegisterService 实现
+    - OAuth 登录/注册核心服务：身份协调器
+    - 3 个分支：已有绑定/邮箱合并/新用户注册
+    - 13 个单元测试覆盖完整流程 + 状态校验
+    - 版本: 0.19.0-SNAPSHOT → 0.20.0-SNAPSHOT
+
 - [x] GitHub OAuth 客户端基础设施
     - GitHubOAuthClient (RestClient): code→token 交换、用户信息获取、邮箱回退逻辑
     - GitHubTokenResponse / GitHubUserInfo / GitHubEmail 响应模型
