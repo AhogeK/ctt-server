@@ -76,5 +76,15 @@ public record SecurityProperties(
     /** OAuth token encryption and provider settings. */
     public record OAuthProperties(
             // Base64-encoded 32-byte AES-256 key for encrypting stored OAuth tokens.
-            String tokenEncryptionKey) {}
+            String tokenEncryptionKey, GitHubProperties github) {
+
+        /** GitHub OAuth provider configuration. */
+        public record GitHubProperties(
+                String clientId,
+                String clientSecret,
+                @DefaultValue("https://github.com/login/oauth/access_token") String tokenUri,
+                @DefaultValue("https://api.github.com/user") String userInfoUri,
+                @DefaultValue("https://api.github.com/user/emails") String userEmailsUri,
+                @DefaultValue("read:user,user:email") String scope) {}
+    }
 }
