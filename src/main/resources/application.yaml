@@ -108,6 +108,9 @@ ctt:
 
     oauth:
       token-encryption-key: "${OAUTH_TOKEN_ENCRYPTION_KEY:L4QmQcZ4IuNPd0Q4rWRqoB33oOASs9As3pFAkdNIOs8=}"
+      github:
+        client-id: "${GITHUB_CLIENT_ID:}"
+        client-secret: "${GITHUB_CLIENT_SECRET:}"
 
   mail:
     from:

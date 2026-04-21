@@ -42,10 +42,20 @@ class AesGcmTokenEncryptorTest {
                 new SecurityProperties.RateLimitProperties(true, 200);
         SecurityProperties.AuditProperties audit =
                 new SecurityProperties.AuditProperties(true, List.of("password", "token"));
-        SecurityProperties.OAuthProperties oauth =
-                new SecurityProperties.OAuthProperties(base64Key);
 
-        return new SecurityProperties(jwt, password, rateLimit, audit, oauth);
+        return new SecurityProperties(jwt, password, rateLimit, audit, createOAuthProperties(base64Key));
+    }
+
+    private SecurityProperties.OAuthProperties createOAuthProperties(String base64Key) {
+        SecurityProperties.OAuthProperties.GitHubProperties github =
+                new SecurityProperties.OAuthProperties.GitHubProperties(
+                        "test-client-id",
+                        "test-client-secret",
+                        "https://github.com/login/oauth/access_token",
+                        "https://api.github.com/user",
+                        "https://api.github.com/user/emails",
+                        "read:user,user:email");
+        return new SecurityProperties.OAuthProperties(base64Key, github);
     }
 
     @Test
