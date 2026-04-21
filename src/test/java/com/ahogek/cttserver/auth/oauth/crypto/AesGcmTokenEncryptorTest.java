@@ -43,7 +43,8 @@ class AesGcmTokenEncryptorTest {
         SecurityProperties.AuditProperties audit =
                 new SecurityProperties.AuditProperties(true, List.of("password", "token"));
 
-        return new SecurityProperties(jwt, password, rateLimit, audit, createOAuthProperties(base64Key));
+        return new SecurityProperties(
+                jwt, password, rateLimit, audit, createOAuthProperties(base64Key));
     }
 
     private SecurityProperties.OAuthProperties createOAuthProperties(String base64Key) {

@@ -128,8 +128,7 @@ public class GitHubOAuthClient {
                             throw new BadGatewayException(
                                     ErrorCode.AUTH_015, "GitHub user emails API failed");
                         })
-                .body(new ParameterizedTypeReference<>() {
-                });
+                .body(new ParameterizedTypeReference<>() {});
     }
 
     private GitHubUserInfo fetchBasicInfo(String accessToken) {
