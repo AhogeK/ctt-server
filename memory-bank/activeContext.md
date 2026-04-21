@@ -1,4 +1,11 @@
 # Active Context
+- [2026-04-22] - Notion 开发计划页面更新（O 阶段 OAuthLoginOrRegisterService）
+    - 更新: O 阶段 checkbox 勾选状态 — OAuthLoginOrRegisterService（❌）→（✅）
+    - 更新: 所有登录/注册核心服务的子 checkbox 已勾选
+    - 更新: 方法签名 AuthTokenResponse → LoginResponse
+    - 更新: 总交付清单表格同步状态
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+
 - [2026-04-22] - OAuthLoginOrRegisterServiceTest 移除无用 eq() matcher
     - 问题: Sonar/IntelliJ 警告 "Remove this and every subsequent useless 'eq(...)' invocation"
     - 修复: 移除 `eq(OAuthProvider.GITHUB)` → 直接传递枚举值
