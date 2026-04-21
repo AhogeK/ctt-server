@@ -1,4 +1,11 @@
 # Active Context
+- [2026-04-21] - OAuthStateService 单元测试补充
+    - 新增: `OAuthStateServiceTest` (10 tests, 2 nested groups)
+    - 覆盖: generateAndSaveState 正常生成/序列化失败/BIND payload, consumeState 正常消费/重放攻击/过期/无效 state/反序列化失败
+    - 模式: MockitoExtension + ValueOperations mock + @Nested + shouldX_whenY 命名
+    - 文件: OAuthStateServiceTest.java
+    - 版本: 0.18.3-SNAPSHOT → 0.18.4-SNAPSHOT
+
 - [2026-04-21] - EmailVerificationController Text Block 重构
     - 变更: 6 处 @ExampleObject JSON 字符串转换为 Java Text Block (""")
     - 位置: AUTH_004, USER_007 (verify), COMMON_003, USER_003, USER_007 (resend), COMMON_002
@@ -74,7 +81,7 @@
     - 新增: ErrorCode.AUTH_013 "OAuth state invalid or expired"
     - 设计: Key 格式 `oauth:state:{uuid}`，TTL 10 分钟，`getAndDelete()` 防重放攻击
     - 移除: init schema 中的 oauth_states 表（改用 Redis，零清理成本）
-    - 版本: 待 bump
+    - 测试: OAuthStateServiceTest (10 tests) — 2026-04-21 补充
 
 - [2026-04-11] - OAuth 阶段启动：数据模型与基础设施准备（收敛方案）
     - 复用: 已有 `user_oauth_accounts` 表（init schema 创建），不新建 `oauth_accounts`
