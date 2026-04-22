@@ -46,8 +46,16 @@ ctt:
       # Disable rate limiting in tests to avoid interference
       enabled: false
     oauth:
+      frontend-url: "http://localhost:5173"
       # Test-only AES-256 key (Base64-encoded 32 bytes)
       token-encryption-key: "L4QmQcZ4IuNPd0Q4rWRqoB33oOASs9As3pFAkdNIOs8="
+      github:
+        client-id: "test-client-id"
+        client-secret: "test-client-secret"
+        token-uri: "https://github.com/login/oauth/access_token"
+        user-info-uri: "https://api.github.com/user"
+        user-emails-uri: "https://api.github.com/user/emails"
+        scope: "read:user,user:email"
 
   # Mail configuration for tests
   mail:

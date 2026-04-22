@@ -1,5 +1,10 @@
 package com.ahogek.cttserver.auth.oauth.enums;
 
+import java.util.Arrays;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * OAuth provider enumeration for third-party authentication integration.
  *
@@ -9,5 +14,25 @@ package com.ahogek.cttserver.auth.oauth.enums;
 public enum OAuthProvider {
 
     /** GitHub OAuth provider. */
-    GITHUB
+    GITHUB("github");
+
+    private final String value;
+
+    OAuthProvider(String value) {
+        this.value = value;
+    }
+
+    @JsonValue
+    public String getValue() {
+        return value;
+    }
+
+    @JsonCreator
+    public static OAuthProvider fromValue(String value) {
+        return Arrays.stream(values())
+                .filter(p -> p.value.equalsIgnoreCase(value))
+                .findFirst()
+                .orElseThrow(
+                        () -> new IllegalArgumentException("Unknown OAuth provider: " + value));
+    }
 }

@@ -107,6 +107,7 @@ ctt:
         - key
 
     oauth:
+      frontend-url: "${FRONTEND_BASE_URL:http://localhost:5173}"
       token-encryption-key: "${OAUTH_TOKEN_ENCRYPTION_KEY:L4QmQcZ4IuNPd0Q4rWRqoB33oOASs9As3pFAkdNIOs8=}"
       github:
         client-id: "${GITHUB_CLIENT_ID:}"
