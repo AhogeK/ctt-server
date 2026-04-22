@@ -1,4 +1,53 @@
 # Active Context
+- [2026-04-22] - OAuthCallbackController 拟人测试 + 配置修复
+    - 配置: .env 补齐 GitHub OAuth 凭据 + 缺失字段 (MAIL_FROM_*, FRONTEND_BASE_URL, APP_PORT 等)
+    - 配置: application.yaml 新增 ctt.security.oauth.frontend-url 映射
+    - 修复: OAuthProvider 枚举支持大小写不敏感路径绑定 (github/GITHUB → GITHUB)
+    - 新增: OAuthProviderConverter Spring Converter 实现路径变量转换
+    - 修复: callback 端点 code/state 参数改为可选，先检查 error 再检查缺失参数
+    - 手动 QA 验证:
+        - ✅ GET /authorize → 200 + 有效 GitHub URL (含 client_id, scope, state)
+        - ✅ GET /authorize (invalid provider) → 302 到错误页
+        - ✅ GET /callback?error=access_denied → 302 + OAUTH_PROVIDER_ERROR
+        - ✅ GET /callback (missing code) → 302 + MISSING_OAUTH_PARAMS
+        - ✅ GET /callback (invalid state) → 302 + AUTH_013
+        - ✅ GET /callback (missing state) → 302 + MISSING_OAUTH_PARAMS
+        - ✅ Swagger UI: OAuth tag 下 2 个端点文档完整
+    - 验证: 全量测试通过、覆盖率通过、服务启动正常
+    - 文件: .env, application.yaml, OAuthProvider.java, OAuthProviderConverter.java, OAuthCallbackController.java
+    - 版本: 0.20.0-SNAPSHOT → 0.21.0-SNAPSHOT (MINOR: 新功能)
+
+- [2026-04-22] - OAuthCallbackController 审查修复
+    - 修复: callback 端点补充 @PublicApi（原缺失导致 401）
+    - 修复: callback 端点补充 @RateLimit(IP, 60/3600s) 防洪
+    - 修复: 处理 GitHub 错误参数 (?error=access_denied) → 302 到前端错误页
+    - 修复: 验证 state payload action == LOGIN，防止 BIND 动作滥用
+    - 修复: @ExceptionHandler FQN → 使用已导入形式
+    - 修复: 302 @ApiResponse 补充 content schema
+    - 修复: 删除冗余 Javadoc（@param response 等）
+    - 新增: @ExceptionHandler(Exception.class) 兜底所有未预期异常 → 302 到错误页
+    - 新增: redirectError() 私有方法消除重复代码
+    - 新增: OAuthCallbackControllerTest (9 annotation tests, pure unit, no Spring context)
+    - 修复: application-test.yaml 补充 OAuth github.* 和 frontend-url 配置
+    - 验证: spotlessApply 通过、全量测试通过、覆盖率通过
+    - 文件: OAuthCallbackController.java, OAuthCallbackControllerTest.java, application-test.yaml
+    - 版本: 0.20.0-SNAPSHOT → 0.21.0-SNAPSHOT (MINOR: 新功能)
+
+- [2026-04-22] - OAuthCallbackController 实现
+    - 新增: `OAuthCallbackController` — OAuth 回调入口，连接 GitHub Provider 与内部认证系统
+    - 新增: `GET /{provider}/authorize` — 生成 CSRF state，返回 GitHub 授权 URL（JSON `{authUrl: "..."}`）
+    - 新增: `GET /{provider}/callback` — 校验 state → 换 token → 取用户信息 → 登录/注册 → 302 重定向前端
+    - 新增: `AuthorizeResponse` DTO — 授权 URL 响应载体
+    - 新增: `SecurityProperties.OAuthProperties.frontendUrl` — 前端基础 URL 配置项
+    - 设计: 成功重定向 `{frontendUrl}/oauth/callback?accessToken=...&refreshToken=...`
+    - 设计: 失败重定向 `{frontendUrl}/oauth/error?code={errorCode}`
+    - 设计: `@ExceptionHandler(BusinessException)` 统一捕获回调异常并 302
+    - 设计: authorize 端点 `@RateLimit(IP, 30/3600s)` 防 state 滥用
+    - 修复: AesGcmTokenEncryptorTest / GitHubOAuthClientTest 适配 OAuthProperties 新构造函数
+    - 验证: compileJava 通过、spotlessApply 通过、全量测试通过
+    - 文件: OAuthCallbackController.java, AuthorizeResponse.java, SecurityProperties.java, 2 测试文件
+    - 版本: 0.20.0-SNAPSHOT → 0.21.0-SNAPSHOT (MINOR: 新功能)
+
 - [2026-04-22] - Notion 开发计划页面更新（O 阶段 OAuthLoginOrRegisterService）
     - 更新: O 阶段 checkbox 勾选状态 — OAuthLoginOrRegisterService（❌）→（✅）
     - 更新: 所有登录/注册核心服务的子 checkbox 已勾选

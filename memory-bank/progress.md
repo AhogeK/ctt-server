@@ -2,6 +2,18 @@
 
 ## 已完成 ✅
 
+- [x] OAuthCallbackController 实现 + 审查修复
+    - OAuth 回调入口：authorize + callback 双端点
+    - authorize: 生成 CSRF state，返回 GitHub 授权 URL（JSON `{authUrl: "..."}`）
+    - callback: 校验 state → 验证 action == LOGIN → 换 token → 取用户信息 → 登录/注册 → 302 重定向
+    - 失败处理: @ExceptionHandler(BusinessException + Exception) 统一 302 到前端错误页
+    - 错误处理: GitHub 拒绝授权 (?error=access_denied) → 302 到错误页
+    - 限流: authorize 端点 IP 级别 30/hour，callback 端点 60/hour
+    - 安全: @PublicApi 标注两个端点，state CSRF 保护 + action 验证
+    - 配置: SecurityProperties.OAuthProperties 新增 frontendUrl 字段
+    - 测试: OAuthCallbackControllerTest (9 annotation tests, pure unit)
+    - 版本: 0.20.0-SNAPSHOT → 0.21.0-SNAPSHOT
+
 - [x] OAuthLoginOrRegisterService 实现
     - OAuth 登录/注册核心服务：身份协调器
     - 3 个分支：已有绑定/邮箱合并/新用户注册
