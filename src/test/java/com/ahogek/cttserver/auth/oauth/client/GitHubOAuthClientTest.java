@@ -48,7 +48,7 @@ class GitHubOAuthClientTest {
                         USER_EMAILS_URI,
                         "read:user,user:email");
         SecurityProperties.OAuthProperties oauthProps =
-                new SecurityProperties.OAuthProperties("test-key", props);
+                new SecurityProperties.OAuthProperties("https://example.com", "test-key", props);
         SecurityProperties securityProps =
                 new SecurityProperties(null, null, null, null, oauthProps);
 

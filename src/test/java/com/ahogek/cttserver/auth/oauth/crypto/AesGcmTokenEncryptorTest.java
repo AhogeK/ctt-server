@@ -56,7 +56,7 @@ class AesGcmTokenEncryptorTest {
                         "https://api.github.com/user",
                         "https://api.github.com/user/emails",
                         "read:user,user:email");
-        return new SecurityProperties.OAuthProperties(base64Key, github);
+        return new SecurityProperties.OAuthProperties("https://example.com", base64Key, github);
     }
 
     @Test
