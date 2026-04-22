@@ -199,14 +199,14 @@ src/main/resources/
 
 **Docker Compose Port Mappings (Local):**
 
-| Variable                     | Description              | Default  |
-|------------------------------|--------------------------|----------|
-| `APP_PORT`                   | CTT Server container port| `8080`   |
-| `APP_EXTERNAL_PORT`          | CTT Server host port     | `8080`   |
-| `POSTGRES_EXTERNAL_PORT`     | PostgreSQL host port     | `15432`  |
-| `REDIS_EXTERNAL_PORT`        | Redis host port          | `16379`  |
-| `MAIL_SMTP_EXTERNAL_PORT`    | Mailpit SMTP host port   | `1025`   |
-| `MAIL_UI_EXTERNAL_PORT`      | Mailpit Web UI host port | `8025`   |
+| Variable                  | Description               | Default |
+|---------------------------|---------------------------|---------|
+| `APP_PORT`                | CTT Server container port | `8080`  |
+| `APP_EXTERNAL_PORT`       | CTT Server host port      | `8080`  |
+| `POSTGRES_EXTERNAL_PORT`  | PostgreSQL host port      | `15432` |
+| `REDIS_EXTERNAL_PORT`     | Redis host port           | `16379` |
+| `MAIL_SMTP_EXTERNAL_PORT` | Mailpit SMTP host port    | `1025`  |
+| `MAIL_UI_EXTERNAL_PORT`   | Mailpit Web UI host port  | `8025`  |
 
 > **Note**: Production environment requires all variables to be set. Local development uses sensible defaults from `application-local.yaml`.
 
@@ -261,6 +261,24 @@ railway variables set RESEND_API_KEY=re_xxx
 | `/api/v1/auth/logout-all`             | POST   | **Kill Switch**: Revoke all active sessions (requires JWT, 5/min per user) |
 | `/api/v1/auth/password-reset/request` | POST   | Request password reset (rate limited: 3/10min per email)                   |
 | `/api/v1/auth/password-reset/confirm` | POST   | Confirm password reset (rate limited: 15/10min per IP)                     |
+
+### GitHub OAuth
+
+| Endpoint                              | Method | Description                                                                                                                      |
+|---------------------------------------|--------|----------------------------------------------------------------------------------------------------------------------------------|
+| `/api/v1/auth/oauth/github/authorize` | GET    | Generate CSRF state, return GitHub authorization URL (public, 30/hour)                                                           |
+| `/api/v1/auth/oauth/github/callback`  | GET    | Handle OAuth callback: validate state → exchange token → login/register → 302 redirect to frontend with tokens (public, 60/hour) |
+
+**OAuth Flow**:
+```
+Client → GET /authorize → {authUrl: "https://github.com/..."}
+Client → redirect user to GitHub → user authorizes
+GitHub → redirect to /callback?code=xxx&state=xxx
+Server → validate state → exchange code → get user info → login/register
+Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshToken=...
+```
+
+**Error Handling**: All OAuth errors redirect to `{frontendUrl}/oauth/error?code={errorCode}`.
 
 ### Email Verification Flow
 
