@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -213,11 +214,19 @@ public class MailOutboxService {
     }
 
     private String buildVerificationLink(String token) {
-        return properties.frontend().baseUrl() + "/verify-email?token=" + token;
+        return UriComponentsBuilder.fromUriString(properties.frontend().baseUrl())
+                .path(properties.frontend().verifyEmailPath())
+                .queryParam("token", token)
+                .build()
+                .toUriString();
     }
 
     private String buildPasswordResetLink(String token) {
-        return properties.frontend().baseUrl() + "/reset-password?token=" + token;
+        return UriComponentsBuilder.fromUriString(properties.frontend().baseUrl())
+                .path(properties.frontend().resetPasswordPath())
+                .queryParam("token", token)
+                .build()
+                .toUriString();
     }
 
     private MailOutbox buildOutboxEntity(

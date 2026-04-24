@@ -74,3 +74,5 @@ ctt:
       max-attempts: 2
     frontend:
       base-url: http://localhost:5173
+      verify-email-path: /auth/verify-email
+      reset-password-path: /auth/reset-password
