@@ -46,6 +46,8 @@ import static org.mockito.Mockito.when;
 class MailOutboxServiceTest {
 
     private static final String FRONTEND_BASE_URL = "http://localhost:5173";
+    private static final String VERIFY_EMAIL_PATH = "/auth/verify-email";
+    private static final String RESET_PASSWORD_PATH = "/auth/reset-password";
     private static final int MAX_RETRIES = 5;
 
     @Mock private MailOutboxRepository repository;
@@ -64,7 +66,8 @@ class MailOutboxServiceTest {
                         new CttMailProperties.From("test@localhost", "CTT Test"),
                         new CttMailProperties.Outbox(5000, 50, 300, 120000),
                         new CttMailProperties.Retry(10, 2.0, 3600, MAX_RETRIES, 0.1),
-                        new CttMailProperties.Frontend(FRONTEND_BASE_URL));
+                        new CttMailProperties.Frontend(
+                                FRONTEND_BASE_URL, VERIFY_EMAIL_PATH, RESET_PASSWORD_PATH));
 
         service = new MailOutboxService(repository, renderer, properties, auditLog);
 
@@ -140,7 +143,7 @@ class MailOutboxServiceTest {
             verify(repository).save(outboxCaptor.capture());
 
             Map<String, Object> payload = outboxCaptor.getValue().getPayload();
-            String expectedLink = FRONTEND_BASE_URL + "/verify-email?token=abc123";
+            String expectedLink = FRONTEND_BASE_URL + VERIFY_EMAIL_PATH + "?token=abc123";
             assertThat(payload).containsEntry("verificationLink", expectedLink);
         }
 
@@ -248,7 +251,7 @@ class MailOutboxServiceTest {
             verify(repository).save(outboxCaptor.capture());
 
             Map<String, Object> payload = outboxCaptor.getValue().getPayload();
-            String expectedLink = FRONTEND_BASE_URL + "/reset-password?token=xyz789";
+            String expectedLink = FRONTEND_BASE_URL + RESET_PASSWORD_PATH + "?token=xyz789";
             assertThat(payload).containsEntry("resetLink", expectedLink);
         }
 
@@ -573,6 +576,71 @@ class MailOutboxServiceTest {
                             anyString(),
                             any(SecuritySeverity.class),
                             any(AuditDetails.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("configurable paths")
+    class ConfigurablePathTests {
+
+        private static final String CUSTOM_BASE_URL = "https://custom.example.com";
+        private static final String CUSTOM_VERIFY_PATH = "/custom/verify";
+        private static final String CUSTOM_RESET_PATH = "/custom/reset";
+
+        private MailOutboxService createCustomService() {
+            CttMailProperties customProperties =
+                    new CttMailProperties(
+                            new CttMailProperties.From("test@localhost", "CTT Test"),
+                            new CttMailProperties.Outbox(5000, 50, 300, 120000),
+                            new CttMailProperties.Retry(10, 2.0, 3600, MAX_RETRIES, 0.1),
+                            new CttMailProperties.Frontend(
+                                    CUSTOM_BASE_URL, CUSTOM_VERIFY_PATH, CUSTOM_RESET_PATH));
+            return new MailOutboxService(repository, renderer, customProperties, auditLog);
+        }
+
+        private void setupCommonMocks() {
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(0L);
+            when(renderer.renderHtml(any())).thenReturn("<html></html>");
+            when(renderer.renderText(any())).thenReturn("text");
+        }
+
+        @Test
+        @DisplayName("should use custom frontend paths for verification email link")
+        void shouldUseCustomPaths_forVerificationEmailLink() {
+            // Given
+            MailOutboxService customService = createCustomService();
+            setupCommonMocks();
+            String token = "custom-token-123";
+
+            // When
+            customService.enqueueVerificationEmail(
+                    UUID.randomUUID(), "user", "email@test.com", token);
+
+            // Then
+            verify(repository).save(outboxCaptor.capture());
+            Map<String, Object> payload = outboxCaptor.getValue().getPayload();
+            String expectedLink = CUSTOM_BASE_URL + CUSTOM_VERIFY_PATH + "?token=" + token;
+            assertThat(payload).containsEntry("verificationLink", expectedLink);
+        }
+
+        @Test
+        @DisplayName("should use custom frontend paths for password reset email link")
+        void shouldUseCustomPaths_forPasswordResetEmailLink() {
+            // Given
+            MailOutboxService customService = createCustomService();
+            setupCommonMocks();
+            String token = "custom-reset-token-456";
+
+            // When
+            customService.enqueuePasswordResetEmail(
+                    UUID.randomUUID(), "user", "email@test.com", token);
+
+            // Then
+            verify(repository).save(outboxCaptor.capture());
+            Map<String, Object> payload = outboxCaptor.getValue().getPayload();
+            String expectedLink = CUSTOM_BASE_URL + CUSTOM_RESET_PATH + "?token=" + token;
+            assertThat(payload).containsEntry("resetLink", expectedLink);
         }
     }
 }

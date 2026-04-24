@@ -54,7 +54,10 @@ class MailOutboxPollerTest {
                         new CttMailProperties.Outbox(
                                 POLL_INTERVAL_MS, BATCH_SIZE, 300, ZOMBIE_INTERVAL_MS),
                         new CttMailProperties.Retry(10, 2.0, 3600, 5, 0.1),
-                        new CttMailProperties.Frontend("http://localhost:5173"));
+                        new CttMailProperties.Frontend(
+                                "http://localhost:5173",
+                                "/auth/verify-email",
+                                "/auth/reset-password"));
 
         poller = new MailOutboxPoller(outboxRepository, outboxProcessor, properties);
     }
@@ -183,7 +186,10 @@ class MailOutboxPollerTest {
                             new CttMailProperties.Outbox(
                                     POLL_INTERVAL_MS, 1, 300, ZOMBIE_INTERVAL_MS),
                             new CttMailProperties.Retry(10, 2.0, 3600, 5, 0.1),
-                            new CttMailProperties.Frontend("http://localhost:5173"));
+                            new CttMailProperties.Frontend(
+                                    "http://localhost:5173",
+                                    "/auth/verify-email",
+                                    "/auth/reset-password"));
 
             return new MailOutboxPoller(outboxRepository, outboxProcessor, smallBatchProperties);
         }

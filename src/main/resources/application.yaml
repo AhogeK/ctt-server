@@ -142,3 +142,5 @@ ctt:
 
     frontend:
       base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+      verify-email-path: /auth/verify-email
+      reset-password-path: /auth/reset-password

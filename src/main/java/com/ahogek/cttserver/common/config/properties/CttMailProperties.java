@@ -6,6 +6,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -40,8 +41,13 @@ public record CttMailProperties(
      * Frontend URL configuration for building email links.
      *
      * @param baseUrl Frontend application base URL (e.g., https://app.cttserver.com)
+     * @param verifyEmailPath Path for email verification link (e.g., /auth/verify-email)
+     * @param resetPasswordPath Path for password reset link (e.g., /auth/reset-password)
      */
-    public record Frontend(@NotBlank String baseUrl) {}
+    public record Frontend(
+            @NotBlank String baseUrl,
+            @NotBlank @Pattern(regexp = "^/.*") String verifyEmailPath,
+            @NotBlank @Pattern(regexp = "^/.*") String resetPasswordPath) {}
 
     /**
      * Outbox scheduler configuration.
