@@ -1,4 +1,13 @@
 # Active Context
+- [2026-04-25] - 邮件链接路径可配置化（修复前端 404）
+    - 问题: 邮件中生成的 `/verify-email` 和 `/reset-password` 路径与前端路由 `/auth/verify-email`、`/auth/reset-password` 不匹配
+    - 修复: `CttMailProperties.Frontend` record 新增 `verifyEmailPath` 和 `resetPasswordPath` 字段（原仅 `baseUrl`）
+    - 修复: `MailOutboxService.buildVerificationLink()` 和 `buildPasswordResetLink()` 使用配置路径替代硬编码
+    - 配置: application.yaml / application-test.yaml 新增 `verify-email-path: /auth/verify-email` 和 `reset-password-path: /auth/reset-password`
+    - 测试: MailOutboxServiceTest / MailOutboxPollerTest / MailDispatcherTest / ExponentialBackoffRetryStrategyTest 全部适配新构造函数
+    - 文件: CttMailProperties.java, application.yaml, application-test.yaml, MailOutboxService.java, 4 个测试文件
+    - 版本: 0.21.0-SNAPSHOT → 0.21.1-SNAPSHOT (PATCH bug fix)
+
 - [2026-04-22] - OAuthCallbackController 拟人测试 + 配置修复
     - 配置: .env 补齐 GitHub OAuth 凭据 + 缺失字段 (MAIL_FROM_*, FRONTEND_BASE_URL, APP_PORT 等)
     - 配置: application.yaml 新增 ctt.security.oauth.frontend-url 映射
