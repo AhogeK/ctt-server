@@ -46,7 +46,7 @@ ctt:
       # Disable rate limiting in tests to avoid interference
       enabled: false
     oauth:
-      frontend-url: "http://localhost:5175"
+      frontend-url: "http://localhost:5173"
       # Test-only AES-256 key (Base64-encoded 32 bytes)
       token-encryption-key: "L4QmQcZ4IuNPd0Q4rWRqoB33oOASs9As3pFAkdNIOs8="
       github:
@@ -73,6 +73,6 @@ ctt:
       max-delay-seconds: 5
       max-attempts: 2
     frontend:
-      base-url: http://localhost:5175
+      base-url: http://localhost:5173
       verify-email-path: /auth/verify-email
       reset-password-path: /auth/reset-password
