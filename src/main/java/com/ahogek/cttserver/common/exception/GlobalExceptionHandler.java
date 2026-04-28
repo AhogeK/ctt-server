@@ -386,7 +386,8 @@ public final class GlobalExceptionHandler {
      * [LEVEL 2] Data Integrity Violation - CONFLICT level without stack trace.
      *
      * <p>Handles database constraint violations (e.g., duplicate unique keys in concurrent
-     * registration scenarios).
+     * registration scenarios). Parses the constraint name from the exception message to return
+     * context-specific error codes.
      *
      * <p>This is a safety net for race conditions where multiple requests pass application-level
      * validation but violate database constraints.
@@ -395,17 +396,53 @@ public final class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
             DataIntegrityViolationException ex) {
         String traceId = currentTraceId();
+        String message = ex.getMessage();
+        ErrorCode errorCode = resolveConstraintErrorCode(message);
 
         log.atWarn()
-                .addKeyValue(ERROR_CODE_KEY, ErrorCode.USER_001.name())
+                .addKeyValue(ERROR_CODE_KEY, errorCode.name())
                 .addKeyValue(ERROR_TYPE_KEY, "DATA_INTEGRITY_VIOLATION")
                 .addKeyValue(TRACE_ID_KEY, traceId)
-                .log("Data integrity violation (possible race condition): {}", ex.getMessage());
+                .log("Data integrity violation: {}", message);
 
         ErrorResponse response =
-                ErrorResponse.of(ErrorCode.USER_001, "Resource already exists or conflicts")
-                        .withTraceId(traceId);
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+                ErrorResponse.of(errorCode, errorCode.message()).withTraceId(traceId);
+        return ResponseEntity.status(errorCode.httpStatus()).body(response);
+    }
+
+    private ErrorCode resolveConstraintErrorCode(String message) {
+        if (message == null) {
+            return ErrorCode.SYSTEM_001;
+        }
+        String constraintName = extractConstraintName(message);
+        if (constraintName == null) {
+            return ErrorCode.SYSTEM_001;
+        }
+        return switch (constraintName) {
+            case "uk_users_email_lower",
+                    "uk_user_oauth_provider_uid",
+                    "uk_user_oauth_user_provider" ->
+                    ErrorCode.USER_001;
+            case "uk_refresh_tokens_token_hash",
+                    "uk_email_verification_token_hash",
+                    "uk_password_reset_token_hash" ->
+                    ErrorCode.AUTH_014;
+            default -> ErrorCode.SYSTEM_001;
+        };
+    }
+
+    // PostgreSQL error format: unique constraint "uk_constraint_name"
+    private String extractConstraintName(String message) {
+        int start = message.indexOf("constraint \"");
+        if (start == -1) {
+            return null;
+        }
+        start += "constraint \"".length();
+        int end = message.indexOf("\"", start);
+        if (end == -1) {
+            return null;
+        }
+        return message.substring(start, end);
     }
 
     /**
