@@ -1,4 +1,12 @@
 # Active Context
+- [2026-04-28] - 设备管理模块提交
+    - 问题: src/main/java/com/ahogek/cttserver/device/ 目录下有未提交代码
+    - 根因: 2026-04-28 AI 生成的设备管理模块，从未提交
+    - 内容: Device entity + DeviceController + DeviceService + DeviceRepository + DeviceResponse DTO
+    - 功能: IDE 插件客户端注册/追踪，GET /api/v1/devices（设备列表），DELETE /api/v1/devices/{deviceId}（吊销设备）
+    - 文件: device/entity/, device/controller/, device/service/, device/repository/, device/dto/
+    - 版本: 0.21.2-SNAPSHOT → 0.22.0-SNAPSHOT (MINOR: 新功能)
+
 - [2026-04-28] - 登录失败修复 + 约束感知错误处理
     - 问题: `/api/v1/auth/login` 返回 USER_001/SYSTEM_001 错误
     - 根因: `refresh_tokens.device_id` FK 约束指向 `devices` 表，WEB 登录传递的 deviceId 不存在于 devices 表
