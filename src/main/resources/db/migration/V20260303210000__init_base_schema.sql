@@ -226,7 +226,9 @@ CREATE TABLE refresh_tokens
     user_id      UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     token_hash   VARCHAR(64) NOT NULL,
     issued_for   VARCHAR(20) NOT NULL DEFAULT 'WEB',
-    device_id    UUID        REFERENCES devices (id) ON DELETE SET NULL,
+    -- device_id is an optional tracking field; no FK constraint because WEB logins
+    -- do not create device records (devices table is for IDE plugin clients only)
+    device_id    UUID,
     expires_at   TIMESTAMPTZ NOT NULL,
     revoked_at   TIMESTAMPTZ,
     last_used_at TIMESTAMPTZ,
