@@ -1,4 +1,10 @@
 # Active Context
+- [2026-04-28] - 前端端口配置修正（5175 → 5173）
+    - 变更: application.yaml 默认端口 5175 → 5173（两处）
+    - 变更: application-test.yaml 默认端口 5175 → 5173（两处）
+    - 文件: src/main/resources/application.yaml, src/test/resources/application-test.yaml
+    - 版本: 0.23.2-SNAPSHOT (PATCH, 配置修正)
+
 - [2026-04-28] - @ExampleObject JSON字符串Text Block转换（代码风格优化）
     - 变更: AuthController.java 16个@ExampleObject JSON字符串转换为Text Block格式（避免单行溢出）
     - 变更: DeviceController.java 2个@ExampleObject JSON字符串转换为Text Block格式
