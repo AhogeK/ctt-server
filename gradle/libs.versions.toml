@@ -1,17 +1,19 @@
 [versions]
 
 appVersion = "0.22.1-SNAPSHOT"
-springBoot = "4.0.5"
+springBoot = "4.0.6"
 springDependencyManagement = "1.1.7"
 spotless = "8.4.0"
 greenmail = "2.1.8"
-springOpenapi = "3.0.2"
-benManes = "0.53.0"
+springOpenapi = "3.0.3"
+benManes = "0.54.0"
+flyway = "12.5.0"
 
 [libraries]
 
 springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springOpenapi" }
 greenmail = { module = "com.icegreen:greenmail", version.ref = "greenmail" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 
 [plugins]
 
