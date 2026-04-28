@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
  * {@code @LastModifiedBy}, {@code @CreatedDate}, and {@code @LastModifiedDate} fields on entity
  * classes.
  *
- * @author Auto-generated
+ * @author AhogeK [ahogek@gmail.com]
  * @since 0.1.0
  */
 @Configuration
