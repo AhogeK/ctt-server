@@ -40,15 +40,12 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleValidationException(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(400);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("COMMON_003");
-                            assertThat(body.traceId()).isNotNull();
-                            assertThat(body.details()).hasSize(1);
-                            assertThat(body.details().getFirst().field()).isEqualTo("name");
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("COMMON_003");
+        assertThat(body.traceId()).isNotNull();
+        assertThat(body.details()).hasSize(1);
+        assertThat(body.details().getFirst().field()).isEqualTo("name");
     }
 
     @Test
@@ -60,13 +57,10 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleBusinessException(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(404);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("COMMON_002");
-                            assertThat(body.traceId()).isNotNull();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("COMMON_002");
+        assertThat(body.traceId()).isNotNull();
     }
 
     @Test
@@ -78,16 +72,14 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleInternalServerError(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(500);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("SYSTEM_001");
-                            assertThat(body.traceId()).isNotNull();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("SYSTEM_001");
+        assertThat(body.traceId()).isNotNull();
     }
 
     @Test
+    @SuppressWarnings("DataFlowIssue")
     void shouldReturn400_whenMalformedJson() {
         HttpMessageNotReadableException ex =
                 new HttpMessageNotReadableException("JSON parse error", null);
@@ -98,13 +90,10 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleUnreadableMessage(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(400);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("COMMON_001");
-                            assertThat(body.traceId()).isNotNull();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("COMMON_001");
+        assertThat(body.traceId()).isNotNull();
     }
 
     @Test
@@ -118,13 +107,10 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleMissingParam(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(400);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("COMMON_005");
-                            assertThat(body.traceId()).isNotNull();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("COMMON_005");
+        assertThat(body.traceId()).isNotNull();
     }
 
     @Test
@@ -137,13 +123,10 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleIllegalArgumentException(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(400);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("COMMON_001");
-                            assertThat(body.traceId()).isNotNull();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("COMMON_001");
+        assertThat(body.traceId()).isNotNull();
     }
 
     @Test
@@ -154,13 +137,10 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleConstraintViolation(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(400);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("COMMON_003");
-                            assertThat(body.traceId()).isNotBlank();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("COMMON_003");
+        assertThat(body.traceId()).isNotBlank();
     }
 
     @Test
@@ -171,13 +151,10 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleSecurityException(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(401);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("AUTH_003");
-                            assertThat(body.traceId()).isNotBlank();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("AUTH_003");
+        assertThat(body.traceId()).isNotBlank();
     }
 
     @Test
@@ -188,13 +165,10 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleSecurityException(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(403);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("AUTH_005");
-                            assertThat(body.traceId()).isNotBlank();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("AUTH_005");
+        assertThat(body.traceId()).isNotBlank();
     }
 
     @Test
@@ -206,13 +180,10 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleAccountLockedException(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(403);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("AUTH_004");
-                            assertThat(body.retryAfter()).isEqualTo(retryAfter);
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("AUTH_004");
+        assertThat(body.retryAfter()).isEqualTo(retryAfter);
         assertThat(result.getHeaders().getFirst("Retry-After")).isNotNull();
     }
 
@@ -224,30 +195,54 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ErrorResponse> result = handler.handleAccountLockedException(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(403);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("AUTH_004");
-                            assertThat(body.retryAfter()).isNull();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("AUTH_004");
+        assertThat(body.retryAfter()).isNull();
         assertThat(result.getHeaders().getFirst("Retry-After")).isNull();
     }
 
     @Test
-    void shouldReturn409_whenDataIntegrityViolation() {
+    void shouldReturnSystemError_whenDataIntegrityViolationWithUnknownConstraint() {
         DataIntegrityViolationException ex = new DataIntegrityViolationException("Duplicate key");
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
         ResponseEntity<ErrorResponse> result = handler.handleDataIntegrityViolation(ex);
 
+        assertThat(result.getStatusCode().value()).isEqualTo(500);
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("SYSTEM_001");
+        assertThat(body.traceId()).isNotBlank();
+    }
+
+    @Test
+    void shouldReturnUser001_whenEmailConstraintViolated() {
+        String msg =
+                "ERROR: duplicate key value violates unique constraint \"uk_users_email_lower\"";
+        DataIntegrityViolationException ex = new DataIntegrityViolationException(msg);
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        ResponseEntity<ErrorResponse> result = handler.handleDataIntegrityViolation(ex);
+
         assertThat(result.getStatusCode().value()).isEqualTo(409);
-        assertThat(result.getBody())
-                .isNotNull()
-                .satisfies(
-                        body -> {
-                            assertThat(body.code()).isEqualTo("USER_001");
-                            assertThat(body.traceId()).isNotBlank();
-                        });
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("USER_001");
+    }
+
+    @Test
+    void shouldReturnAuth014_whenTokenConstraintViolated() {
+        String msg =
+                "ERROR: duplicate key value violates unique constraint \"uk_refresh_tokens_token_hash\"";
+        DataIntegrityViolationException ex = new DataIntegrityViolationException(msg);
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        ResponseEntity<ErrorResponse> result = handler.handleDataIntegrityViolation(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(409);
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("AUTH_014");
     }
 }
