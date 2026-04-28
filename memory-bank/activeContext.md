@@ -1,4 +1,58 @@
 # Active Context
+- [2026-04-28] - @ExampleObject JSON字符串Text Block转换（代码风格优化）
+    - 变更: AuthController.java 16个@ExampleObject JSON字符串转换为Text Block格式（避免单行溢出）
+    - 变更: DeviceController.java 2个@ExampleObject JSON字符串转换为Text Block格式
+    - 变更: LogoutController.java 2个@ExampleObject JSON字符串转换为Text Block格式
+    - 格式: `value = """\n{JSON}\n"""`（遵循EmailVerificationController.java模式）
+    - 文件: AuthController.java, DeviceController.java, LogoutController.java
+    - 版本: 0.23.1-SNAPSHOT (PATCH, 代码风格重构)
+
+- [2026-04-28] - Code Review优化项实现（@author统一 + docs补充）
+    - 修复: EmailVerificationService.java + JpaAuditingConfig.java `@author Auto-generated` → `@author AhogeK [ahogek@gmail.com]`
+    - 补充: developer-handbook.md 新增 "Idempotent Skip Behavior" 章节（10min窗口、EmptyResponse.ok(true)、MAIL_IDEMPOTENT_SKIP）
+    - 补充: api-governance.md 新增 "Idempotency Strategies Comparison" 章节（@Idempotent vs 业务层幂等窗口对比）
+    - 文件: EmailVerificationService.java, JpaAuditingConfig.java, developer-handbook.md, api-governance.md
+    - 版本: 0.23.0-SNAPSHOT (不变，非功能修改)
+
+- [2026-04-28] - PasswordResetService 适配 MailOutboxService EmptyResponse 返回值
+    - 变更: `MailOutboxService.enqueuePasswordResetEmail()` 返回类型 `void` → `EmptyResponse`
+    - 变更: Idempotent skip 时返回 `EmptyResponse.ok(true)`（idempotentSkip=true）
+    - 变更: 正常处理时返回 `EmptyResponse.ok(false)`（idempotentSkip=false）
+    - 变更: `PasswordResetService.requestReset()` 返回类型 `void` → `EmptyResponse`，透传 mailOutboxService 返回值
+    - 变更: `AuthController.requestPasswordReset()` 和 `forgotPassword()` 使用 service 返回的 EmptyResponse
+    - 测试: PasswordResetServiceTest 新增 `shouldReturnIdempotentSkipWhenMailOutboxDeduplicates` 测试
+    - 测试: 现有 5 个 RequestReset 测试适配 EmptyResponse 返回值断言
+    - 文件: MailOutboxService.java, PasswordResetService.java, AuthController.java, PasswordResetServiceTest.java
+    - 版本: 0.23.0-SNAPSHOT (不变，功能完善)
+
+- [2026-04-28] - MailOutboxService enqueue 方法返回 EmptyResponse 支持 idempotent skip 标记
+    - 变更: `enqueueVerificationEmail()` 和 `enqueuePasswordResetEmail()` 返回类型 `void` → `EmptyResponse`
+    - 变更: Idempotent skip 时返回 `EmptyResponse.ok(true)`（idempotentSkip=true, message="Operation successful"）
+    - 变更: 正常处理时返回 `EmptyResponse.ok("Email queued successfully")`（idempotentSkip=null）
+    - 变更: 调用方（EmailVerificationService, PasswordResetService, UserService）忽略返回值，无需修改
+    - 测试: MailOutboxServiceTest 新增 2 个测试验证 idempotent skip 返回值，现有测试适配返回值断言
+    - 文件: MailOutboxService.java, MailOutboxServiceTest.java
+    - 版本: 0.23.0-SNAPSHOT (不变，功能完善)
+
+- [2026-04-28] - EmptyResponse 新增 idempotentSkip 字段（TDD 流程）
+    - 背景: Idempotent Skip 静默响应问题，需要让 API 返回可区分响应
+    - 新增: EmptyResponse 第 4 个 record 组件 `Boolean idempotentSkip`
+    - 新增: factory 方法 `ok(boolean idempotentSkip)` 和 `ok(String message, boolean idempotentSkip)`
+    - 保留: `ok()` 和 `ok(String message)` 保持不变（idempotentSkip=null）
+    - 测试: EmptyResponseTest 新增 5 个测试（shouldX_whenY 模式）
+    - TDD 流程: RED（测试编译失败）→ GREEN（实现通过）→ 全量测试无回归
+    - 文件: EmptyResponse.java, EmptyResponseTest.java
+    - 版本: 0.22.1-SNAPSHOT → 0.23.0-SNAPSHOT (MINOR: 新功能)
+
+- [2026-04-28] - resend-verification 邮件未发送根因调查
+    - 问题: API 返回成功但用户未收到邮件
+    - 根因: **Idempotent Skip** 触发（MailOutboxService.java:94-96）
+    - 机制: 10分钟幂等窗口内重复请求静默跳过，不创建新 mail_outbox 行
+    - 证据: 用户确认 mail_outbox 表有10分钟内记录 + 日志有 "Idempotent skip" 消息
+    - 结论: 预期行为（防骚扰设计），无需代码修改
+    - 测试建议: 清空 mail_outbox 或等待10分钟后再测试
+    - 调查方法: investigate skill (Phase 1-4)，并行 fire 3 agent（explore/librarian）
+
 - [2026-04-28] - Refresh Token Device FK 约束内联到 init schema
     - 变更: 删除独立迁移文件 V20260428060000__remove_refresh_token_device_fk.sql
     - 变更: init schema 中 refresh_tokens.device_id 移除 REFERENCES devices (id) ON DELETE SET NULL

@@ -2,6 +2,13 @@
 
 ## 已完成 ✅
 
+- [x] EmptyResponse 新增 idempotentSkip 字段（TDD 流程）
+    - 背景: Idempotent Skip 静默响应问题，需要让 API 返回可区分响应
+    - 新增: EmptyResponse 第 4 个 record 组件 `Boolean idempotentSkip`
+    - 新增: factory 方法 `ok(boolean)` 和 `ok(String, boolean)`
+    - 测试: EmptyResponseTest 新增 5 个测试（shouldX_whenY 模式）
+    - 版本: 0.22.1-SNAPSHOT → 0.23.0-SNAPSHOT (MINOR: 新功能)
+
 - [x] 登录失败修复 + 约束感知错误处理
     - 删除 refresh_tokens.device_id FK 约束（WEB 登录不依赖 devices 表）— 已内联到 init schema
     - 新增 AUTH_014 错误码（Token creation failed）
