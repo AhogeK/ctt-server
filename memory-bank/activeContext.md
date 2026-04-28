@@ -1,4 +1,18 @@
 # Active Context
+- [2026-04-28] - 登录失败修复 + 约束感知错误处理
+    - 问题: `/api/v1/auth/login` 返回 USER_001/SYSTEM_001 错误
+    - 根因: `refresh_tokens.device_id` FK 约束指向 `devices` 表，WEB 登录传递的 deviceId 不存在于 devices 表
+    - 修复: Flyway migration 删除 `refresh_tokens_device_id_fkey` 约束，device_id 保持为可选追踪字段
+    - 新增: AUTH_014 "Token creation failed" (HTTP 409) 错误码
+    - 增强: GlobalExceptionHandler 解析 PostgreSQL 约束名返回上下文相关错误码
+        - uk_users_email_lower, uk_user_oauth_* → USER_001
+        - uk_refresh_tokens_token_hash, uk_*_token_hash → AUTH_014
+        - 未知约束 → SYSTEM_001
+    - 测试: GlobalExceptionHandlerTest 新增 3 个约束解析测试
+    - 测试: IDE 警告修复 — .satisfies() 链式调用改为直接断言
+    - 文件: ErrorCode.java, GlobalExceptionHandler.java, GlobalExceptionHandlerTest.java, V20260428060000__*.sql
+    - 版本: 0.21.1-SNAPSHOT → 0.21.2-SNAPSHOT (PATCH bug fix)
+
 - [2026-04-25] - 邮件链接路径可配置化（修复前端 404）
     - 问题: 邮件中生成的 `/verify-email` 和 `/reset-password` 路径与前端路由 `/auth/verify-email`、`/auth/reset-password` 不匹配
     - 修复: `CttMailProperties.Frontend` record 新增 `verifyEmailPath` 和 `resetPasswordPath` 字段（原仅 `baseUrl`）
