@@ -3,7 +3,7 @@
 ## 已完成 ✅
 
 - [x] 登录失败修复 + 约束感知错误处理
-    - 删除 refresh_tokens.device_id FK 约束（WEB 登录不依赖 devices 表）
+    - 删除 refresh_tokens.device_id FK 约束（WEB 登录不依赖 devices 表）— 已内联到 init schema
     - 新增 AUTH_014 错误码（Token creation failed）
     - GlobalExceptionHandler 解析 PostgreSQL 约束名返回精准错误码
     - 测试：3 个约束解析测试 + IDE 警告修复

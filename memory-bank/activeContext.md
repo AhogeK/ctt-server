@@ -1,4 +1,12 @@
 # Active Context
+- [2026-04-28] - Refresh Token Device FK 约束内联到 init schema
+    - 变更: 删除独立迁移文件 V20260428060000__remove_refresh_token_device_fk.sql
+    - 变更: init schema 中 refresh_tokens.device_id 移除 REFERENCES devices (id) ON DELETE SET NULL
+    - 原因: 开发阶段清理，WEB 登录不需要 devices 表前置记录
+    - 影响: device_id 保留为可选追踪字段，无 FK 约束
+    - 文件: V20260303210000__init_base_schema.sql (line 229), V20260428060000__*.sql (deleted)
+    - 版本: 0.22.0-SNAPSHOT (不变，重构清理)
+
 - [2026-04-28] - 设备管理模块提交
     - 问题: src/main/java/com/ahogek/cttserver/device/ 目录下有未提交代码
     - 根因: 2026-04-28 AI 生成的设备管理模块，从未提交
