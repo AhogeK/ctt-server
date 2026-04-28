@@ -63,7 +63,20 @@ public class LogoutController {
                                                         name = "validation-error",
                                                         summary = "Invalid request body",
                                                         value =
-                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"refreshToken\",\"message\":\"Refresh token must not be blank\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Invalid request parameters",
+                                                                  "details": [
+                                                                    {
+                                                                      "field": "refreshToken",
+                                                                      "message": "Refresh token must not be blank"
+                                                                    }
+                                                                  ],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "401",
                         description = "Unauthorized - missing or invalid JWT",
@@ -75,7 +88,15 @@ public class LogoutController {
                                                         name = "unauthorized",
                                                         summary = "Missing or invalid JWT",
                                                         value =
-                                                                "{\"code\":\"AUTH_002\",\"message\":\"Invalid or expired JWT token\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_002",
+                                                                  "message": "Invalid or expired JWT token",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }""")))
             })
     @SecurityRequirement(name = "bearerAuth")
     @PostMapping("/logout")
