@@ -137,6 +137,50 @@ When adding a new controller method, consult this matrix to apply the correct an
 
 **Note**: For Tier 1 endpoints involving email operations (password reset, verification resend), consider adding EMAIL-based limits alongside IP limits for multi-dimensional protection.
 
+## Idempotency Strategies Comparison
+
+The project uses two complementary idempotency mechanisms at different layers:
+
+### `@Idempotent` Annotation (Controller Layer)
+
+| Aspect            | Description                                                                  |
+|-------------------|------------------------------------------------------------------------------|
+| Layer             | Controller (Redis-based distributed lock)                                    |
+| Mechanism         | Redis key with SpEL expression + user ID                                     |
+| Duplicate Request | Throws `ConflictException` → HTTP 409                                        |
+| Response Body     | `ErrorResponse` with error code `COMMON_005`                                 |
+| Use Case          | Prevent concurrent duplicate submissions (e.g., sync push, API key creation) |
+| Key Scope         | Request-level (correlation ID, operation ID)                                 |
+
+### Business-Layer Idempotent Window (Service Layer)
+
+| Aspect            | Description                                                            |
+|-------------------|------------------------------------------------------------------------|
+| Layer             | Service (DB query-based)                                               |
+| Mechanism         | `MailOutboxService.isIdempotentSkip()` checks DB for recent records    |
+| Duplicate Request | Returns `EmptyResponse.ok(true)` with `idempotentSkip=true` → HTTP 200 |
+| Response Body     | `RestApiResponse<EmptyResponse>` (success response)                    |
+| Use Case          | Prevent email bombing from repeated user clicks                        |
+| Key Scope         | Business-level (user + business type + recipient)                      |
+| Window            | 10 minutes sliding window                                              |
+| Audit             | `MAIL_IDEMPOTENT_SKIP` logged on skip                                  |
+
+### Response Difference
+
+| Scenario                    | `@Idempotent` Response          | Business-Layer Idempotent Skip Response |
+|-----------------------------|---------------------------------|-----------------------------------------|
+| Duplicate within window     | 409 Conflict + error message    | 200 OK + `idempotentSkip=true`          |
+| User Experience             | Error shown to user             | Silent success, no error                |
+| Frontend Handling           | Error toast/alert               | Normal success flow                     |
+
+### When to Use Each
+
+| Endpoint Type                | Recommended Strategy      | Rationale                                 |
+|------------------------------|---------------------------|-------------------------------------------|
+| Sync push, API key creation  | `@Idempotent` annotation  | Prevent concurrent race conditions        |
+| Email resend, password reset | Business-layer idempotent | Better UX, prevent email bombing silently |
+| Payment, order creation      | `@Idempotent` annotation  | Explicit error for duplicate transactions |
+
 ## Example: Applying Governance
 
 ### Single-Dimension Rate Limiting (Tier 4)

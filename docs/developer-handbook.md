@@ -815,6 +815,51 @@ Both endpoints use `@AuthenticationPrincipal CurrentUser` for user identity extr
 
 ---
 
+## Idempotent Skip Behavior
+
+### Overview
+
+`MailOutboxService` implements a business-layer idempotent window to prevent duplicate email requests when users repeatedly click send buttons (e.g., resend verification, password reset).
+
+### Mechanism
+
+| Component          | Value                                              |
+|--------------------|----------------------------------------------------|
+| Window Duration    | 10 minutes (`IDEMPOTENT_WINDOW = Duration.ofMinutes(10)`) |
+| Check Condition    | Same user + same business type + same recipient + active status (PENDING/SENDING/SENT) + record exists within window |
+| Response           | `EmptyResponse.ok(true)` with `idempotentSkip=true` |
+| HTTP Status        | 200 (user-friendly, no error thrown)              |
+| Audit Event        | `MAIL_IDEMPOTENT_SKIP` logged when skip occurs     |
+
+### Affected APIs
+
+| Endpoint                              | Business Type          |
+|---------------------------------------|------------------------|
+| `POST /api/v1/auth/resend-verification` | `EMAIL_VERIFICATION`   |
+| `POST /api/v1/auth/password-reset/request` | `PASSWORD_RESET`       |
+
+### Implementation Flow
+
+```
+User requests resend
+        ↓
+MailOutboxService.queueEmail()
+        ↓
+1. Check isIdempotentSkip(userId, businessType, recipient)
+2. Query: SELECT FROM mail_outbox WHERE user_id=? AND business_type=? AND recipient=? AND status IN (PENDING,SENDING,SENT) AND created_at > NOW() - 10min
+3. If found → return EmptyResponse.ok(true) with idempotentSkip=true + log MAIL_IDEMPOTENT_SKIP
+4. If not found → queue new email → return EmptyResponse.ok(true) with idempotentSkip=false
+```
+
+### Purpose
+
+- Prevents email bombing from repeated user clicks
+- Returns 200 instead of 409 (better UX, no error message)
+- Audit trail tracks skipped requests for monitoring
+- Complements `@Idempotent` annotation (different layer, different response strategy)
+
+---
+
 ## Quick Reference
 
 ### Operation Entry Points
