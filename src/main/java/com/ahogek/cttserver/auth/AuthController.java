@@ -121,7 +121,20 @@ public class AuthController {
                                                         name = "validation-error",
                                                         summary = "Field validation failure",
                                                         value =
-                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Invalid request parameters",
+                                                                  "details": [
+                                                                    {
+                                                                      "field": "email",
+                                                                      "message": "Invalid email format"
+                                                                    }
+                                                                  ],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "409",
                         description = "Email already exists - USER_001: Email already registered",
@@ -133,7 +146,15 @@ public class AuthController {
                                                         name = "email-already-exists",
                                                         summary = "Email already registered",
                                                         value =
-                                                                "{\"code\":\"USER_001\",\"message\":\"Email already registered\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":409,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "USER_001",
+                                                                  "message": "Email already registered",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 409,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }""")))
             })
     @PublicApi(reason = "User registration endpoint - Tier 1 public API")
     @RateLimit(limit = 60, windowSeconds = 3600)
@@ -189,7 +210,20 @@ public class AuthController {
                                                         name = "validation-error",
                                                         summary = "Field validation failure",
                                                         value =
-                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Invalid request parameters",
+                                                                  "details": [
+                                                                    {
+                                                                      "field": "email",
+                                                                      "message": "Invalid email format"
+                                                                    }
+                                                                  ],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "401",
                         description =
@@ -202,7 +236,15 @@ public class AuthController {
                                                         name = "invalid-credentials",
                                                         summary = "Wrong email or password",
                                                         value =
-                                                                "{\"code\":\"AUTH_001\",\"message\":\"Authentication failed\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_001",
+                                                                  "message": "Authentication failed",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }""")))
             })
     @PublicApi(reason = "User login endpoint - Tier 1 public API")
     @RateLimit(limit = 30, windowSeconds = 3600)
@@ -259,7 +301,20 @@ public class AuthController {
                                                         name = "blank-token",
                                                         summary = "Blank or null refresh token",
                                                         value =
-                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"refreshToken\",\"message\":\"Refresh token must not be blank\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Invalid request parameters",
+                                                                  "details": [
+                                                                    {
+                                                                      "field": "refreshToken",
+                                                                      "message": "Refresh token must not be blank"
+                                                                    }
+                                                                  ],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "401",
                         description =
@@ -273,7 +328,15 @@ public class AuthController {
                                                         summary =
                                                                 "Invalid or expired refresh token",
                                                         value =
-                                                                "{\"code\":\"AUTH_003\",\"message\":\"Token invalid or expired\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_003",
+                                                                  "message": "Token invalid or expired",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }""")))
             })
     @PublicApi(reason = "Token refresh endpoint - Tier 1 public API")
     @RateLimit(limit = 120, windowSeconds = 3600)
@@ -321,7 +384,15 @@ public class AuthController {
                                                         name = "invalid-jwt",
                                                         summary = "Invalid or expired JWT",
                                                         value =
-                                                                "{\"code\":\"AUTH_002\",\"message\":\"Invalid or expired JWT token\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_002",
+                                                                  "message": "Invalid or expired JWT token",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "429",
                         description = "Rate limit exceeded - COMMON_002: Too many logout requests",
@@ -333,7 +404,16 @@ public class AuthController {
                                                         name = "rate-limited",
                                                         summary = "Too many requests",
                                                         value =
-                                                                "{\"code\":\"COMMON_002\",\"message\":\"Rate limit exceeded\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":429,\"timestamp\":\"2026-04-10T03:23:12Z\",\"retryAfter\":\"2026-04-10T03:33:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_002",
+                                                                  "message": "Rate limit exceeded",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 429,
+                                                                  "timestamp": "2026-04-10T03:23:12Z",
+                                                                  "retryAfter": "2026-04-10T03:33:12Z"
+                                                                }""")))
             })
     @SecurityRequirement(name = "bearerAuth")
     @RateLimit(type = RateLimitType.USER, limit = 5, windowSeconds = 60)
@@ -392,7 +472,20 @@ public class AuthController {
                                                         name = "invalid-email",
                                                         summary = "Invalid email format",
                                                         value =
-                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Invalid request parameters",
+                                                                  "details": [
+                                                                    {
+                                                                      "field": "email",
+                                                                      "message": "Invalid email format"
+                                                                    }
+                                                                  ],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }""")))
             })
     @PublicApi(reason = "Password reset request endpoint - Tier 1 public API")
     @RateLimit(
@@ -407,12 +500,9 @@ public class AuthController {
         String ip = IpUtils.getRealIp(httpRequest);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 
-        passwordResetService.requestReset(request.email(), ip, userAgent);
+        EmptyResponse response = passwordResetService.requestReset(request.email(), ip, userAgent);
 
-        return ResponseEntity.ok(
-                RestApiResponse.ok(
-                        EmptyResponse.ok(
-                                "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes.")));
+        return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
     /**
@@ -455,7 +545,20 @@ public class AuthController {
                                                         name = "invalid-email",
                                                         summary = "Invalid email format",
                                                         value =
-                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"email\",\"message\":\"Invalid email format\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Invalid request parameters",
+                                                                  "details": [
+                                                                    {
+                                                                      "field": "email",
+                                                                      "message": "Invalid email format"
+                                                                    }
+                                                                  ],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "429",
                         description =
@@ -468,7 +571,16 @@ public class AuthController {
                                                         name = "rate-limited",
                                                         summary = "Rate limit exceeded",
                                                         value =
-                                                                "{\"code\":\"COMMON_002\",\"message\":\"Rate limit exceeded\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":429,\"timestamp\":\"2026-04-10T03:23:12Z\",\"retryAfter\":\"2026-04-10T03:33:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_002",
+                                                                  "message": "Rate limit exceeded",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 429,
+                                                                  "timestamp": "2026-04-10T03:23:12Z",
+                                                                  "retryAfter": "2026-04-10T03:33:12Z"
+                                                                }""")))
             })
     @PublicApi(reason = "Forgot password request endpoint - Tier 1 public API")
     @RateLimit(
@@ -484,12 +596,9 @@ public class AuthController {
         String ip = IpUtils.getRealIp(httpRequest);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 
-        passwordResetService.requestReset(request.email(), ip, userAgent);
+        EmptyResponse response = passwordResetService.requestReset(request.email(), ip, userAgent);
 
-        return ResponseEntity.ok(
-                RestApiResponse.ok(
-                        EmptyResponse.ok(
-                                "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes.")));
+        return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
     /**
@@ -529,7 +638,20 @@ public class AuthController {
                                                         name = "validation-error",
                                                         summary = "Invalid token or weak password",
                                                         value =
-                                                                "{\"code\":\"COMMON_003\",\"message\":\"Invalid request parameters\",\"details\":[{\"field\":\"password\",\"message\":\"Password must be at least 8 characters\"}],\"traceId\":\"abc-123\",\"httpStatus\":400,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Invalid request parameters",
+                                                                  "details": [
+                                                                    {
+                                                                      "field": "password",
+                                                                      "message": "Password must be at least 8 characters"
+                                                                    }
+                                                                  ],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "401",
                         description =
@@ -542,7 +664,15 @@ public class AuthController {
                                                         name = "token-invalid",
                                                         summary = "Invalid or expired reset token",
                                                         value =
-                                                                "{\"code\":\"AUTH_003\",\"message\":\"Token invalid or expired\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":401,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_003",
+                                                                  "message": "Token invalid or expired",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "409",
                         description =
@@ -555,7 +685,15 @@ public class AuthController {
                                                         name = "same-password",
                                                         summary = "New password same as old",
                                                         value =
-                                                                "{\"code\":\"PASSWORD_SAME_AS_OLD\",\"message\":\"New password cannot be the same as current password\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":409,\"timestamp\":\"2026-04-10T03:23:12Z\"}"))),
+                                                                """
+                                                                {
+                                                                  "code": "PASSWORD_SAME_AS_OLD",
+                                                                  "message": "New password cannot be the same as current password",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 409,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
                 @ApiResponse(
                         responseCode = "429",
                         description =
@@ -568,7 +706,16 @@ public class AuthController {
                                                         name = "rate-limited",
                                                         summary = "Rate limit exceeded",
                                                         value =
-                                                                "{\"code\":\"COMMON_002\",\"message\":\"Rate limit exceeded\",\"details\":[],\"traceId\":\"abc-123\",\"httpStatus\":429,\"timestamp\":\"2026-04-10T03:23:12Z\",\"retryAfter\":\"2026-04-10T03:33:12Z\"}")))
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_002",
+                                                                  "message": "Rate limit exceeded",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 429,
+                                                                  "timestamp": "2026-04-10T03:23:12Z",
+                                                                  "retryAfter": "2026-04-10T03:33:12Z"
+                                                                }""")))
             })
     @PublicApi(reason = "Password reset confirmation endpoint - Tier 1 public API")
     @RateLimit(type = RateLimitType.IP, limit = 15, windowSeconds = 600)
