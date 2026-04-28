@@ -11,8 +11,8 @@ import java.util.UUID;
 /**
  * Device entity representing a registered client device.
  *
- * <p>Tracks device metadata for multi-device sync and session management.
- * Devices are automatically registered on first login from a new device ID.
+ * <p>Tracks device metadata for multi-device sync and session management. Devices are automatically
+ * registered on first login from a new device ID.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-04-28

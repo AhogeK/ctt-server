@@ -11,6 +11,7 @@ import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
@@ -106,8 +107,11 @@ class PasswordResetServiceTest {
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
             when(tokenRepository.revokeActiveTokensByUserId(eq(userId), any(Instant.class)))
                     .thenReturn(2);
+            when(mailOutboxService.enqueuePasswordResetEmail(
+                            eq(userId), eq(displayName), eq(email), any(String.class)))
+                    .thenReturn(EmptyResponse.ok(false));
 
-            service.requestReset(email, ip, userAgent);
+            EmptyResponse response = service.requestReset(email, ip, userAgent);
 
             verify(tokenRepository).revokeActiveTokensByUserId(eq(userId), any(Instant.class));
 
@@ -127,6 +131,9 @@ class PasswordResetServiceTest {
                     .enqueuePasswordResetEmail(
                             eq(userId), eq(displayName), eq(email), any(String.class));
 
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isFalse();
+
             verify(auditLogService)
                     .logSuccess(
                             userId,
@@ -145,7 +152,7 @@ class PasswordResetServiceTest {
 
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.empty());
 
-            service.requestReset(email, ip, userAgent);
+            EmptyResponse response = service.requestReset(email, ip, userAgent);
 
             verify(auditLogService)
                     .logFailure(
@@ -159,6 +166,9 @@ class PasswordResetServiceTest {
             verify(tokenRepository, never()).save(any());
             verify(mailOutboxService, never())
                     .enqueuePasswordResetEmail(any(), any(), any(), any());
+
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isFalse();
         }
 
         @Test
@@ -175,7 +185,7 @@ class PasswordResetServiceTest {
 
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
 
-            service.requestReset(email, ip, userAgent);
+            EmptyResponse response = service.requestReset(email, ip, userAgent);
 
             verify(auditLogService)
                     .logFailure(
@@ -189,6 +199,9 @@ class PasswordResetServiceTest {
             verify(tokenRepository, never()).save(any());
             verify(mailOutboxService, never())
                     .enqueuePasswordResetEmail(any(), any(), any(), any());
+
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isFalse();
         }
 
         @Test
@@ -205,10 +218,13 @@ class PasswordResetServiceTest {
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
             when(tokenRepository.revokeActiveTokensByUserId(eq(userId), any(Instant.class)))
                     .thenReturn(0);
+            when(mailOutboxService.enqueuePasswordResetEmail(
+                            eq(userId), eq(displayName), eq(email), any(String.class)))
+                    .thenReturn(EmptyResponse.ok(false));
 
             ArgumentCaptor<String> rawTokenCaptor = ArgumentCaptor.forClass(String.class);
 
-            service.requestReset(email, ip, userAgent);
+            EmptyResponse response = service.requestReset(email, ip, userAgent);
 
             verify(mailOutboxService)
                     .enqueuePasswordResetEmail(
@@ -223,6 +239,9 @@ class PasswordResetServiceTest {
 
             String tokenHash = tokenCaptor.getValue().getTokenHash();
             assertThat(tokenHash).hasSize(64).matches("[0-9a-f]{64}");
+
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isFalse();
         }
 
         @Test
@@ -239,10 +258,13 @@ class PasswordResetServiceTest {
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
             when(tokenRepository.revokeActiveTokensByUserId(eq(userId), any(Instant.class)))
                     .thenReturn(0);
+            when(mailOutboxService.enqueuePasswordResetEmail(
+                            eq(userId), eq(displayName), eq(email), any(String.class)))
+                    .thenReturn(EmptyResponse.ok(false));
 
             Instant beforeRequest = Instant.now();
 
-            service.requestReset(email, ip, userAgent);
+            EmptyResponse response = service.requestReset(email, ip, userAgent);
 
             Instant afterRequest = Instant.now();
 
@@ -255,6 +277,39 @@ class PasswordResetServiceTest {
             Instant expectedMax = afterRequest.plus(1, ChronoUnit.HOURS);
 
             assertThat(expiresAt).isBetween(expectedMin, expectedMax);
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return idempotentSkip=true when mail outbox deduplicates request")
+        void shouldReturnIdempotentSkipWhenMailOutboxDeduplicates() {
+            UUID userId = UUID.randomUUID();
+            String email = "user@example.com";
+            String displayName = "Test User";
+            String ip = "192.168.1.1";
+            String userAgent = "Mozilla/5.0";
+
+            User user = createActiveUser(userId, email, displayName);
+
+            when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
+            when(tokenRepository.revokeActiveTokensByUserId(eq(userId), any(Instant.class)))
+                    .thenReturn(0);
+            when(mailOutboxService.enqueuePasswordResetEmail(
+                            eq(userId), eq(displayName), eq(email), any(String.class)))
+                    .thenReturn(EmptyResponse.ok(true));
+
+            EmptyResponse response = service.requestReset(email, ip, userAgent);
+
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isTrue();
+
+            verify(auditLogService)
+                    .logSuccess(
+                            userId,
+                            AuditAction.PASSWORD_RESET_REQUESTED,
+                            ResourceType.USER,
+                            userId.toString());
         }
     }
 

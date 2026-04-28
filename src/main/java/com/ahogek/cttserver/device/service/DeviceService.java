@@ -1,11 +1,11 @@
 package com.ahogek.cttserver.device.service;
 
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.device.dto.DeviceResponse;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
-import com.ahogek.cttserver.common.exception.ErrorCode;
-import com.ahogek.cttserver.common.exception.NotFoundException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,8 +34,7 @@ public class DeviceService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     public DeviceService(
-            DeviceRepository deviceRepository,
-            RefreshTokenRepository refreshTokenRepository) {
+            DeviceRepository deviceRepository, RefreshTokenRepository refreshTokenRepository) {
         this.deviceRepository = deviceRepository;
         this.refreshTokenRepository = refreshTokenRepository;
     }
@@ -56,8 +55,8 @@ public class DeviceService {
     /**
      * Revokes a specific device by revoking all its refresh tokens.
      *
-     * <p>This effectively logs out all sessions associated with the device.
-     * The device record itself is not deleted to preserve audit history.
+     * <p>This effectively logs out all sessions associated with the device. The device record
+     * itself is not deleted to preserve audit history.
      *
      * @param userId the user ID (ownership check)
      * @param deviceId the device ID to revoke
@@ -65,12 +64,17 @@ public class DeviceService {
      */
     @Transactional
     public void revokeDevice(UUID userId, UUID deviceId) {
-        Device device = deviceRepository.findByIdAndUserId(deviceId, userId)
-                .orElseThrow(() -> new NotFoundException(
-                        ErrorCode.COMMON_002,
-                        "Device not found or access denied"));
+        Device device =
+                deviceRepository
+                        .findByIdAndUserId(deviceId, userId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                ErrorCode.COMMON_002,
+                                                "Device not found or access denied"));
 
-        int revokedCount = refreshTokenRepository.revokeDeviceTokens(userId, deviceId, Instant.now());
+        int revokedCount =
+                refreshTokenRepository.revokeDeviceTokens(userId, deviceId, Instant.now());
 
         log.info("User {} revoked device {} ({} tokens revoked)", userId, deviceId, revokedCount);
     }

@@ -175,7 +175,9 @@ public class EmailVerificationController {
             value = {
                 @ApiResponse(
                         responseCode = "200",
-                        description = "Verification email sent successfully",
+                        description =
+                                "Verification email sent successfully. "
+                                        + "If idempotentSkip is true, the request was within the idempotent window and no new email was sent.",
                         content =
                                 @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
@@ -284,8 +286,8 @@ public class EmailVerificationController {
                     @RequestBody
                     ResendVerificationRequest request) {
 
-        verificationService.resendVerificationEmail(request.email());
+        EmptyResponse response = verificationService.resendVerificationEmail(request.email());
 
-        return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok("Verification email sent")));
+        return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 }

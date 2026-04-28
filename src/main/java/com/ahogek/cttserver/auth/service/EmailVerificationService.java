@@ -11,6 +11,7 @@ import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.common.utils.TokenUtils.EmailVerificationTokenPair;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
@@ -31,7 +32,7 @@ import java.util.UUID;
  * <p>This service manages verification token generation, validation, and email verification
  * completion. It ensures only valid, unexpired tokens can verify user email addresses.
  *
- * @author Auto-generated
+ * @author AhogeK [ahogek@gmail.com]
  * @since 0.1.0
  */
 @Service
@@ -112,7 +113,7 @@ public class EmailVerificationService {
     }
 
     @Transactional
-    public void resendVerificationEmail(String email) {
+    public EmptyResponse resendVerificationEmail(String email) {
         User user =
                 userRepository
                         .findByEmailIgnoreCase(email)
@@ -127,8 +128,9 @@ public class EmailVerificationService {
                 TokenUtils.createVerificationToken(
                         user.getId(), user.getEmail(), TOKEN_TTL, tokenRepository);
 
-        mailOutboxService.enqueueVerificationEmail(
-                user.getId(), user.getDisplayName(), user.getEmail(), tokenPair.rawToken());
+        EmptyResponse response =
+                mailOutboxService.enqueueVerificationEmail(
+                        user.getId(), user.getDisplayName(), user.getEmail(), tokenPair.rawToken());
 
         auditLog.log(
                 user.getId(),
@@ -137,6 +139,8 @@ public class EmailVerificationService {
                 user.getId().toString(),
                 SecuritySeverity.INFO,
                 AuditDetails.empty());
+
+        return response;
     }
 
     private void revokeOtherTokens(EmailVerificationToken consumedToken) {

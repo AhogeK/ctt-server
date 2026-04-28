@@ -15,29 +15,20 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @Schema(description = "Device information response")
 public record DeviceResponse(
-        @Schema(description = "Device unique identifier", example = "550e8400-e29b-41d4-a716-446655440000")
-        UUID id,
-
+        @Schema(
+                        description = "Device unique identifier",
+                        example = "550e8400-e29b-41d4-a716-446655440000")
+                UUID id,
         @Schema(description = "Human-readable device name", example = "MacBook Pro")
-        String deviceName,
-
-        @Schema(description = "Operating system platform", example = "macOS")
-        String platform,
-
-        @Schema(description = "IDE name", example = "IntelliJ IDEA")
-        String ideName,
-
-        @Schema(description = "IDE version", example = "2024.1")
-        String ideVersion,
-
-        @Schema(description = "Application or plugin version", example = "1.2.0")
-        String appVersion,
-
+                String deviceName,
+        @Schema(description = "Operating system platform", example = "macOS") String platform,
+        @Schema(description = "IDE name", example = "IntelliJ IDEA") String ideName,
+        @Schema(description = "IDE version", example = "2024.1") String ideVersion,
+        @Schema(description = "Application or plugin version", example = "1.2.0") String appVersion,
         @Schema(description = "Device registration timestamp", example = "2026-03-01T10:00:00Z")
-        Instant createdAt,
-
+                Instant createdAt,
         @Schema(description = "Last activity timestamp", example = "2026-04-28T15:30:00Z")
-        Instant lastSeenAt) {
+                Instant lastSeenAt) {
 
     /**
      * Creates a DeviceResponse from a Device entity.

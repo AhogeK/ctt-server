@@ -10,6 +10,7 @@ import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -313,11 +314,16 @@ class EmailVerificationServiceTest {
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
             when(tokenRepository.findValidTokensByUserId(eq(userId), any(Instant.class)))
                     .thenReturn(Collections.emptyList());
+            when(mailOutboxService.enqueueVerificationEmail(
+                            eq(userId), eq("Test User"), eq(email), any(String.class)))
+                    .thenReturn(EmptyResponse.ok("Email queued successfully", false));
 
             // When
-            service.resendVerificationEmail(email);
+            EmptyResponse response = service.resendVerificationEmail(email);
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isFalse();
             verify(tokenRepository).save(any(EmailVerificationToken.class));
             verify(mailOutboxService)
                     .enqueueVerificationEmail(
@@ -363,15 +369,44 @@ class EmailVerificationServiceTest {
             when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
             when(tokenRepository.findValidTokensByUserId(eq(userId), any(Instant.class)))
                     .thenReturn(List.of(existingToken));
+            when(mailOutboxService.enqueueVerificationEmail(
+                            eq(userId), eq("Test User"), eq(email), any(String.class)))
+                    .thenReturn(EmptyResponse.ok("Email queued successfully", false));
 
             // When
-            service.resendVerificationEmail(email);
+            EmptyResponse response = service.resendVerificationEmail(email);
 
             // Then - verify the existing token was revoked
             assertThat(existingToken.getRevokedAt()).isNotNull();
             // Then - verify save was called twice (revoke + new token)
             verify(tokenRepository, org.mockito.Mockito.times(2))
                     .save(any(EmailVerificationToken.class));
+            assertThat(response.idempotentSkip()).isFalse();
+        }
+
+        @Test
+        @DisplayName("should return idempotent skip when within idempotent window")
+        void shouldReturnIdempotentSkip_whenWithinIdempotentWindow() {
+            // Given
+            String email = "test@example.com";
+            UUID userId = UUID.randomUUID();
+            User user = createUser(userId, email, false);
+
+            when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(user));
+            when(tokenRepository.findValidTokensByUserId(eq(userId), any(Instant.class)))
+                    .thenReturn(Collections.emptyList());
+            when(mailOutboxService.enqueueVerificationEmail(
+                            eq(userId), eq("Test User"), eq(email), any(String.class)))
+                    .thenReturn(EmptyResponse.ok(true));
+
+            // When
+            EmptyResponse response = service.resendVerificationEmail(email);
+
+            // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isTrue();
+            // Token is created before mail service call, so save is still called once
+            verify(tokenRepository).save(any(EmailVerificationToken.class));
         }
     }
 }
