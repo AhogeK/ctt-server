@@ -217,7 +217,7 @@ class RegistrationAndVerificationIntegrationTest {
                     .hasStatus(200)
                     .bodyJson()
                     .extractingPath("$.data.message")
-                    .isEqualTo("Verification email sent");
+                    .isEqualTo("Email queued successfully");
 
             // Then 2: Extract new token
             String secondToken = extractTokenFromMailOutbox(email);

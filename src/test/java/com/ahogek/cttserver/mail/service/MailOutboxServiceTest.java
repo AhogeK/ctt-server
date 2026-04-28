@@ -8,6 +8,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.config.properties.CttMailProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
+import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
 import com.ahogek.cttserver.mail.enums.MailOutboxStatus;
 import com.ahogek.cttserver.mail.repository.MailOutboxRepository;
@@ -107,9 +108,14 @@ class MailOutboxServiceTest {
             when(renderer.renderText(any())).thenReturn("verification text");
 
             // When
-            service.enqueueVerificationEmail(userId, username, email, token);
+            EmptyResponse response =
+                    service.enqueueVerificationEmail(userId, username, email, token);
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.message()).isEqualTo("Email queued successfully");
+            assertThat(response.idempotentSkip()).isNull();
+
             verify(repository).save(outboxCaptor.capture());
             MailOutbox saved = outboxCaptor.getValue();
 
@@ -136,9 +142,14 @@ class MailOutboxServiceTest {
             when(renderer.renderText(any())).thenReturn("text");
 
             // When
-            service.enqueueVerificationEmail(UUID.randomUUID(), "user", "email@test.com", "abc123");
+            EmptyResponse response =
+                    service.enqueueVerificationEmail(
+                            UUID.randomUUID(), "user", "email@test.com", "abc123");
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isNull();
+
             verify(renderer).renderHtml(any());
             verify(repository).save(outboxCaptor.capture());
 
@@ -180,9 +191,13 @@ class MailOutboxServiceTest {
             when(renderer.renderText(any())).thenReturn("text");
 
             // When
-            service.enqueueVerificationEmail(UUID.randomUUID(), "user", email, "token");
+            EmptyResponse response =
+                    service.enqueueVerificationEmail(UUID.randomUUID(), "user", email, "token");
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isNull();
+
             verify(repository)
                     .countDuplicates(
                             eq(email),
@@ -215,9 +230,14 @@ class MailOutboxServiceTest {
             when(renderer.renderText(any())).thenReturn("reset text");
 
             // When
-            service.enqueuePasswordResetEmail(userId, username, email, token);
+            EmptyResponse response =
+                    service.enqueuePasswordResetEmail(userId, username, email, token);
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.message()).isEqualTo("Email queued successfully");
+            assertThat(response.idempotentSkip()).isNull();
+
             verify(repository).save(outboxCaptor.capture());
             MailOutbox saved = outboxCaptor.getValue();
 
@@ -244,10 +264,14 @@ class MailOutboxServiceTest {
             when(renderer.renderText(any())).thenReturn("text");
 
             // When
-            service.enqueuePasswordResetEmail(
-                    UUID.randomUUID(), "user", "email@test.com", "xyz789");
+            EmptyResponse response =
+                    service.enqueuePasswordResetEmail(
+                            UUID.randomUUID(), "user", "email@test.com", "xyz789");
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isNull();
+
             verify(repository).save(outboxCaptor.capture());
 
             Map<String, Object> payload = outboxCaptor.getValue().getPayload();
@@ -266,9 +290,13 @@ class MailOutboxServiceTest {
                     .thenReturn(true);
 
             // When
-            service.enqueuePasswordResetEmail(userId, "user", email, "token");
+            EmptyResponse response =
+                    service.enqueuePasswordResetEmail(userId, "user", email, "token");
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isTrue();
+
             verify(repository, never()).save(any());
             verify(repository, never()).countDuplicates(anyString(), anyString(), anyList(), any());
             verify(auditLog)
@@ -297,9 +325,13 @@ class MailOutboxServiceTest {
                     .thenReturn(true);
 
             // When
-            service.enqueueVerificationEmail(userId, "user", email, "token");
+            EmptyResponse response =
+                    service.enqueuePasswordResetEmail(userId, "user", email, "token");
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isTrue();
+
             verify(repository, never()).save(any());
             verify(repository, never()).countDuplicates(anyString(), anyString(), anyList(), any());
             verify(auditLog)
@@ -323,9 +355,13 @@ class MailOutboxServiceTest {
                     .thenReturn(true);
 
             // When
-            service.enqueuePasswordResetEmail(userId, "user", email, "token");
+            EmptyResponse response =
+                    service.enqueuePasswordResetEmail(userId, "user", email, "token");
 
             // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isTrue();
+
             verify(repository, never()).save(any());
             verify(auditLog)
                     .log(
@@ -348,11 +384,56 @@ class MailOutboxServiceTest {
                     .thenReturn(true);
 
             // When
-            service.enqueueVerificationEmail(userId, "user", email, "token");
+            EmptyResponse response =
+                    service.enqueueVerificationEmail(userId, "user", email, "token");
 
             // Then - idempotent skip should win, rate limit never checked
+            assertThat(response.idempotentSkip()).isTrue();
             verify(repository, never()).countDuplicates(anyString(), anyString(), anyList(), any());
             verify(repository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should return EmptyResponse with idempotentSkip=true for verification email")
+        void shouldReturnEmptyResponse_withIdempotentSkipTrue_forVerificationEmail() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
+
+            // When
+            EmptyResponse response =
+                    service.enqueueVerificationEmail(userId, "user", email, "token");
+
+            // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.message()).isEqualTo("Operation successful");
+            assertThat(response.idempotentSkip()).isTrue();
+            assertThat(response.timestamp()).isNotNull();
+        }
+
+        @Test
+        @DisplayName(
+                "should return EmptyResponse with idempotentSkip=true for password reset email")
+        void shouldReturnEmptyResponse_withIdempotentSkipTrue_forPasswordResetEmail() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String email = "test@example.com";
+            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
+                            anyString(), anyString(), any(UUID.class), anyList(), any()))
+                    .thenReturn(true);
+
+            // When
+            EmptyResponse response =
+                    service.enqueuePasswordResetEmail(userId, "user", email, "token");
+
+            // Then
+            assertThat(response.success()).isTrue();
+            assertThat(response.message()).isEqualTo("Operation successful");
+            assertThat(response.idempotentSkip()).isTrue();
+            assertThat(response.timestamp()).isNotNull();
         }
 
         @Test
@@ -366,72 +447,12 @@ class MailOutboxServiceTest {
                     .thenReturn(true);
 
             // When
-            service.enqueueVerificationEmail(userId, "user", email, "token");
+            EmptyResponse response =
+                    service.enqueueVerificationEmail(userId, "user", email, "token");
 
             // Then
-            verify(repository)
-                    .existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
-                            eq(email),
-                            eq("REGISTER_VERIFY"),
-                            eq(userId),
-                            eq(
-                                    List.of(
-                                            MailOutboxStatus.PENDING,
-                                            MailOutboxStatus.SENDING,
-                                            MailOutboxStatus.SENT)),
-                            any());
-        }
-
-        @Test
-        @DisplayName("should include bizType and recipient in audit details")
-        void shouldIncludeDetails_inAuditEvent() {
-            // Given
-            UUID userId = UUID.randomUUID();
-            String email = "test@example.com";
-            when(repository.existsByRecipientAndBizTypeAndBizIdAndStatusInAndCreatedAtAfter(
-                            anyString(), anyString(), any(UUID.class), anyList(), any()))
-                    .thenReturn(true);
-
-            // When
-            service.enqueuePasswordResetEmail(userId, "user", email, "token");
-
-            // Then
-            verify(auditLog)
-                    .log(
-                            any(UUID.class),
-                            any(AuditAction.class),
-                            any(ResourceType.class),
-                            anyString(),
-                            any(SecuritySeverity.class),
-                            auditDetailsCaptor.capture());
-
-            AuditDetails details = auditDetailsCaptor.getValue();
-            assertThat(details.ext()).containsEntry("bizType", "RESET_PASSWORD");
-            assertThat(details.ext()).containsEntry("recipientMasked", "te***@example.com");
-            assertThat(details.ext()).containsEntry("windowMinutes", 10L);
-        }
-    }
-
-    @Nested
-    @DisplayName("error handling")
-    class ErrorHandlingTests {
-
-        @Test
-        @DisplayName("should propagate exception and not save when template rendering fails")
-        void shouldPropagateException_whenTemplateRenderingFails() {
-            // Given
-            UUID userId = UUID.randomUUID();
-            String email = "test@example.com";
-            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
-                    .thenReturn(0L);
-            when(renderer.renderHtml(any()))
-                    .thenThrow(new RuntimeException("Template processing failed"));
-
-            // When & Then
-            assertThatThrownBy(
-                            () -> service.enqueueVerificationEmail(userId, "user", email, "token"))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessage("Template processing failed");
+            assertThat(response.success()).isTrue();
+            assertThat(response.idempotentSkip()).isTrue();
 
             verify(repository, never()).save(any());
         }

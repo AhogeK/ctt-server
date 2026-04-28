@@ -11,6 +11,7 @@ import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
+import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
 import com.ahogek.cttserver.mail.enums.MailOutboxStatus;
@@ -87,12 +88,15 @@ public class MailOutboxService {
      * @param username the user's display name for email personalization
      * @param email the recipient email address
      * @param token the verification token for the email link
+     * @return {@link EmptyResponse} indicating success, with {@code idempotentSkip=true} if the
+     *     request was deduplicated within the idempotent window
      * @throws TooManyRequestsException if rate limit is exceeded (ErrorCode.MAIL_004)
      */
     @Transactional
-    public void enqueueVerificationEmail(UUID userId, String username, String email, String token) {
+    public EmptyResponse enqueueVerificationEmail(
+            UUID userId, String username, String email, String token) {
         if (isIdempotentSkip(userId, email, BIZ_TYPE_VERIFICATION)) {
-            return;
+            return EmptyResponse.ok(true);
         }
 
         checkRateLimit(email, BIZ_TYPE_VERIFICATION, VERIFICATION_RATE_WINDOW);
@@ -113,6 +117,7 @@ public class MailOutboxService {
 
         repository.save(outbox);
         logMailEnqueued(outbox);
+        return EmptyResponse.ok("Email queued successfully");
     }
 
     /**
@@ -125,13 +130,15 @@ public class MailOutboxService {
      * @param username the user's display name for email personalization
      * @param email the recipient email address
      * @param token the password reset token for the email link
+     * @return {@link EmptyResponse} indicating success, with {@code idempotentSkip=true} if the
+     *     request was deduplicated within the idempotent window
      * @throws TooManyRequestsException if rate limit is exceeded (ErrorCode.MAIL_004)
      */
     @Transactional
-    public void enqueuePasswordResetEmail(
+    public EmptyResponse enqueuePasswordResetEmail(
             UUID userId, String username, String email, String token) {
         if (isIdempotentSkip(userId, email, BIZ_TYPE_PASSWORD_RESET)) {
-            return;
+            return EmptyResponse.ok(true);
         }
 
         checkRateLimit(email, BIZ_TYPE_PASSWORD_RESET, PASSWORD_RESET_RATE_WINDOW);
@@ -152,6 +159,7 @@ public class MailOutboxService {
 
         repository.save(outbox);
         logMailEnqueued(outbox);
+        return EmptyResponse.ok("Email queued successfully");
     }
 
     private void checkRateLimit(String email, String bizType, Duration window) {

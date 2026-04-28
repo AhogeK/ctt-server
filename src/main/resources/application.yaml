@@ -107,7 +107,7 @@ ctt:
         - key
 
     oauth:
-      frontend-url: "${FRONTEND_BASE_URL:http://localhost:5173}"
+      frontend-url: "${FRONTEND_BASE_URL:http://localhost:5175}"
       token-encryption-key: "${OAUTH_TOKEN_ENCRYPTION_KEY:L4QmQcZ4IuNPd0Q4rWRqoB33oOASs9As3pFAkdNIOs8=}"
       github:
         client-id: "${GITHUB_CLIENT_ID:}"
@@ -141,6 +141,6 @@ ctt:
       jitter-factor: ${MAIL_RETRY_JITTER_FACTOR:0.1}
 
     frontend:
-      base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+      base-url: ${FRONTEND_BASE_URL:http://localhost:5175}
       verify-email-path: /auth/verify-email
       reset-password-path: /auth/reset-password

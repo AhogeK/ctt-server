@@ -12,6 +12,7 @@ import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
@@ -89,9 +90,11 @@ public class PasswordResetService {
      * @param email the email address to send reset link to
      * @param ip the client IP address for audit logging
      * @param userAgent the client User-Agent for audit logging
+     * @return EmptyResponse indicating success, with idempotentSkip flag if request was
+     *     deduplicated
      */
     @Transactional
-    public void requestReset(String email, String ip, String userAgent) {
+    public EmptyResponse requestReset(String email, String ip, String userAgent) {
         Optional<User> userOpt = userRepository.findByEmailIgnoreCase(email);
 
         if (userOpt.isEmpty() || userOpt.get().getStatus() != UserStatus.ACTIVE) {
@@ -101,7 +104,9 @@ public class PasswordResetService {
                     ResourceType.UNKNOWN,
                     email,
                     "Email not found or user not active");
-            return;
+            return EmptyResponse.ok(
+                    "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes.",
+                    false);
         }
 
         User user = userOpt.get();
@@ -122,14 +127,17 @@ public class PasswordResetService {
 
         tokenRepository.save(token);
 
-        mailOutboxService.enqueuePasswordResetEmail(
-                user.getId(), user.getDisplayName(), user.getEmail(), rawToken);
+        EmptyResponse mailResponse =
+                mailOutboxService.enqueuePasswordResetEmail(
+                        user.getId(), user.getDisplayName(), user.getEmail(), rawToken);
 
         auditLogService.logSuccess(
                 user.getId(),
                 AuditAction.PASSWORD_RESET_REQUESTED,
                 ResourceType.USER,
                 user.getId().toString());
+
+        return mailResponse;
     }
 
     /**

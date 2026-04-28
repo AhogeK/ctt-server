@@ -31,13 +31,25 @@ public record EmptyResponse(
         @Schema(
                         description = "Response timestamp in ISO 8601 format",
                         example = "2026-03-14T03:23:12Z")
-                Instant timestamp) {
+                Instant timestamp,
+        @Schema(
+                        description = "True if request was skipped due to idempotent window",
+                        example = "false")
+                Boolean idempotentSkip) {
 
     public static EmptyResponse ok() {
         return ok("Operation successful");
     }
 
     public static EmptyResponse ok(String message) {
-        return new EmptyResponse(true, message, Instant.now());
+        return new EmptyResponse(true, message, Instant.now(), null);
+    }
+
+    public static EmptyResponse ok(boolean idempotentSkip) {
+        return new EmptyResponse(true, "Operation successful", Instant.now(), idempotentSkip);
+    }
+
+    public static EmptyResponse ok(String message, boolean idempotentSkip) {
+        return new EmptyResponse(true, message, Instant.now(), idempotentSkip);
     }
 }
