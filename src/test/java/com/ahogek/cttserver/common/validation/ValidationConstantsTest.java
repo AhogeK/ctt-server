@@ -3,6 +3,10 @@ package com.ahogek.cttserver.common.validation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -86,10 +90,39 @@ class ValidationConstantsTest {
                 .doesNotMatch(ValidationConstants.REGEX_DISPLAY_NAME);
     }
 
+    static Stream<String> validPasswordCharsProvider() {
+        return Stream.of(
+                "abcXYZ123",
+                "!@#$%^&*()_+-=[]{};:,.<>?/~",
+                "a!b@c#d$1%2^");
+    }
+
+    @ParameterizedTest
+    @MethodSource("validPasswordCharsProvider")
+    void regex_password_chars_matches_valid_chars(String password) {
+        assertThat(password)
+                .matches(ValidationConstants.REGEX_PASSWORD_CHARS);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "",
+            "hello world",
+            "hello\tworld",
+            "héllo",
+            "密码",
+            "\ud83d\ude00"
+    })
+    void regex_password_chars_rejects_invalid_chars(String password) {
+        assertThat(password)
+                .doesNotMatch(ValidationConstants.REGEX_PASSWORD_CHARS);
+    }
+
     @Test
     void error_messages_are_defined() {
         assertThat(ValidationConstants.MSG_EMAIL_INVALID).isNotBlank();
         assertThat(ValidationConstants.MSG_PASSWORD_WEAK).isNotBlank();
+        assertThat(ValidationConstants.MSG_PASSWORD_CHARS).isNotBlank();
         assertThat(ValidationConstants.MSG_UUID_INVALID).isNotBlank();
         assertThat(ValidationConstants.MSG_NAME_INVALID).isNotBlank();
         assertThat(ValidationConstants.MSG_NOT_BLANK).isNotBlank();
