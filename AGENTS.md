@@ -88,17 +88,21 @@
 
 **任何一项不确定 → 停下来问用户。**
 
-### R6.5: 提交边界与顺序（强制）
+### R6.5: 提交规则（强制）
 
-**核心原则：功能优先，版本其次，AI 记录最后。**
+**核心原则：原子化提交、版本同步、AI独立、cherry-pick合并。**
 
-提交顺序：功能代码 → 版本号更新 → AI记忆记录（禁止版本早于功能、混合提交、多功能合并）
+- **原子化**：代码修改触发版本号更新（检查所有相关文件一并更新），版本提交独立且晚于代码提交
+- **累计更新**：不用刻意提交每次中途更新，可只提交最后的版本描述跳过中途
+- **提交顺序**：功能代码 → 版本号更新 → AI记忆记录（禁止版本早于功能、混合提交）
+- **提交拆分**：原子性一致可合并，不过分拆分刷提交，不过于宽泛堆积大量文件
+- **分支顺序**：优先完成 develop 全部提交再考虑 master
+- **AI独立**：AI相关内容（memory-bank等）单独提交，不与代码混在一起
+- **master合并**：非AI内容单独cherry-pick进master，严禁整条分支合并（导致AI污染），严禁错误cherry-pick旧develop导致污染
 
-提交策略：单个功能=1提交，功能+Bug修复/重构=分开提交，AI记忆/版本号=独立提交
+**提交信息格式**：`feat(scope): 功能描述` / `fix(scope): 根因+修复+验证` / `chore: bump version to X.Y.Z` / `docs(memory-bank): record implementation`
 
-提交信息：`feat(scope): 功能描述` / `fix(scope): 根因+修复+验证` / `chore: bump version to X.Y.Z` / `docs(memory-bank): record implementation`
-
-最终清理：功能commit → 版本commit → AI记忆commit → 推送 → 验证 `git status` 干净 → 有残留立即补提交
+**最终清理**：功能commit → 版本commit → AI记忆commit → 推送 → 验证 `git status` 干净 → 有残留立即补提交
 
 ### R7: 技术决策确认
 
