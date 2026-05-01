@@ -30,8 +30,7 @@ public record UserRegisterRequest(
                         message = ValidationConstants.MSG_NAME_INVALID)
                 String displayName,
         @Schema(
-                        description =
-                                "User password (min 8 chars, requires uppercase, lowercase, digit, and special char)",
+                        description = "User password (8-64 characters, no complexity requirements)",
                         example = "SecurePass123!")
                 @StrongPassword
                 String password) {

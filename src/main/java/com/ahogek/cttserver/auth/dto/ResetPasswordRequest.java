@@ -20,8 +20,7 @@ public record ResetPasswordRequest(
                 @NotBlank(message = "Token cannot be blank")
                 String token,
         @Schema(
-                        description =
-                                "New password (min 8 chars, requires uppercase, lowercase, digit, and special char)",
+                        description = "New password (8-64 characters, no complexity requirements)",
                         example = "NewSecurePass123!")
                 @StrongPassword
                 String newPassword) {}

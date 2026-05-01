@@ -8,40 +8,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ValidationConstantsTest {
 
-    @ParameterizedTest
-    @CsvSource({
-        "Password123!, valid password with all requirements",
-        "MyP@ssw0rd, valid password",
-        "A1b2c3d4$, valid password",
-        "Test@1234, valid password"
-    })
-    void regex_password_matches_valid_passwords(String password, String description) {
-        assertThat(password)
-                .withFailMessage("Password should match regex: " + description)
-                .matches(ValidationConstants.REGEX_PASSWORD);
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        "Pass1!, too short",
-        "password123!, no uppercase",
-        "PASSWORD123!, no lowercase",
-        "Password!!!, no digit",
-        "Password1234, no special char"
-    })
-    void regex_password_rejects_invalid_passwords(String password, String reason) {
-        assertThat(password)
-                .withFailMessage("Password should NOT match regex: " + reason)
-                .doesNotMatch(ValidationConstants.REGEX_PASSWORD);
+    @Test
+    void password_min_length_is_8() {
+        assertThat(ValidationConstants.PASSWORD_MIN_LENGTH).isEqualTo(8);
     }
 
     @Test
-    void regex_password_rejects_too_long_passwords() {
-        String tooLongPassword = "Password123!" + "a".repeat(30);
+    void password_max_length_is_64() {
+        assertThat(ValidationConstants.PASSWORD_MAX_LENGTH).isEqualTo(64);
+    }
 
-        assertThat(tooLongPassword)
-                .withFailMessage("Password exceeding 32 chars should be rejected")
-                .doesNotMatch(ValidationConstants.REGEX_PASSWORD);
+    @Test
+    void password_min_length_is_less_than_max_length() {
+        assertThat(ValidationConstants.PASSWORD_MIN_LENGTH)
+                .isLessThan(ValidationConstants.PASSWORD_MAX_LENGTH);
     }
 
     @ParameterizedTest

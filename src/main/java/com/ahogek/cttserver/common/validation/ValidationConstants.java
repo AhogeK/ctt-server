@@ -10,14 +10,11 @@ package com.ahogek.cttserver.common.validation;
  */
 public final class ValidationConstants {
 
-    /**
-     * Password strength: 8-32 characters, at least one uppercase, one lowercase, one digit, and one
-     * special character.
-     */
-    // SonarQube false positive: this is a regex pattern, not a hardcoded password
-    @SuppressWarnings("java:S2068")
-    public static final String REGEX_PASSWORD =
-            "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,32}$";
+    /** Minimum password length (NIST SP 800-63B compliant). */
+    public static final int PASSWORD_MIN_LENGTH = 8;
+
+    /** Maximum password length (prevent storage of excessively long passwords). */
+    public static final int PASSWORD_MAX_LENGTH = 64;
 
     /** Strict UUID v4 format. */
     public static final String REGEX_UUID_V4 =
@@ -31,8 +28,7 @@ public final class ValidationConstants {
             "^[\\u4e00-\\u9fa5\\u3040-\\u309f\\u30a0-\\u30ff\\uac00-\\ud7afa-zA-Z0-9_-]{2,50}$";
 
     public static final String MSG_EMAIL_INVALID = "Invalid email format";
-    public static final String MSG_PASSWORD_WEAK =
-            "Password must be 8-32 characters long, including uppercase, lowercase, number, and special character";
+    public static final String MSG_PASSWORD_WEAK = "Password must be 8-64 characters long";
     public static final String MSG_UUID_INVALID = "Invalid UUID v4 format";
     public static final String MSG_NAME_INVALID =
             "Display name must be 2-50 characters and contain only Chinese, Japanese, Korean, English letters, numbers, underscores, or hyphens";
