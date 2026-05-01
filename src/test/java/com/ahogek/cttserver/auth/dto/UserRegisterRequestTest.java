@@ -141,54 +141,44 @@ class UserRegisterRequestTest {
         assertThat(displayNameErrors).isEmpty();
     }
 
-    @Test
-    void blank_password_is_invalid() {
-        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", "");
-
-        Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
-
-        assertThat(violations).hasSize(1);
-        assertThat(violations)
-                .extracting(ConstraintViolation::getMessage)
-                .contains(
-                        "Password must be 8-32 characters long, including uppercase, lowercase, number, and special character");
-    }
-
-    @Test
-    void weak_password_is_rejected() {
-        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", "weak");
-
-        Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
-
-        assertThat(violations)
-                .extracting(ConstraintViolation::getMessage)
-                .contains(
-                        "Password must be 8-32 characters long, including uppercase, lowercase, number, and special character");
-    }
-
     @ParameterizedTest
     @CsvSource({
-        "password123!, missing uppercase",
-        "PASSWORD123!, missing lowercase",
-        "Password!!!, missing digit",
-        "Password1234, missing special character"
+        "'', blank password",
+        "weak, too short password",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, too long password"
     })
-    void invalid_passwords_are_rejected(String password, String description) {
+    void invalid_password_length_is_rejected(String password, String description) {
         UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
         assertThat(violations)
-                .withFailMessage("Expected rejection for password with " + description)
-                .hasSize(1);
+                .withFailMessage("Expected rejection for " + description)
+                .hasSize(1)
+                .extracting(ConstraintViolation::getMessage)
+                .contains("Password must be 8-64 characters long");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "simple, password without uppercase or digit (too short)",
+        "1234567, too short (7 chars)"
+    })
+    void short_passwords_are_rejected(String password, String description) {
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password);
+
+        Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
+
+        assertThat(violations).withFailMessage("Expected rejection for " + description).hasSize(1);
     }
 
     @Test
-    void strong_passwords_accepted() {
-        assertValidPassword("Password123!");
-        assertValidPassword("MyP@ssw0rd");
-        assertValidPassword("Test@1234");
-        assertValidPassword("A1b2c3d4$");
+    void simple_passwords_accepted_when_length_meets_requirement() {
+        assertValidPassword("password");
+        assertValidPassword("12345678");
+        assertValidPassword("ABCDEFGH");
+        assertValidPassword("P@ssw0rd");
+        assertValidPassword("a".repeat(64));
     }
 
     private void assertValidPassword(String password) {
@@ -202,6 +192,17 @@ class UserRegisterRequestTest {
                         .collect(Collectors.toSet());
 
         assertThat(passwordErrors).isEmpty();
+    }
+
+    @Test
+    void null_password_is_invalid() {
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", null);
+        Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
+
+        assertThat(violations).hasSize(1);
+        assertThat(violations)
+                .extracting(ConstraintViolation::getMessage)
+                .contains("Password must be 8-64 characters long");
     }
 
     @Test
