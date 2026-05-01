@@ -1,4 +1,15 @@
 # Active Context
+- [2026-05-01] - 密码校验规则 NIST SP 800-63B 对齐 + ParameterizedTest 合并
+    - 变更: ValidationConstants.java 移除 REGEX_PASSWORD (复杂度正则)，新增 PASSWORD_MIN_LENGTH=8 / PASSWORD_MAX_LENGTH=64
+    - 变更: StrongPassword.java @Pattern(regex=REGEX_PASSWORD) → @Size(min=PASSWORD_MIN_LENGTH, max=PASSWORD_MAX_LENGTH)
+    - 变更: MSG_PASSWORD_WEAK "8-32, including uppercase/lowercase/digit/special" → "8-64 characters"
+    - 变更: 3 个 DTO @Schema(password) description 更新（UserRegisterRequest, LoginRequest, ResetPasswordRequest）
+    - 测试: UserRegisterRequestTest 移除复杂度测试，新增长度 ParameterizedTest（@CsvSource 3 种: blank/too short/too long），边界值(64字符)、null密码均已覆盖
+    - 测试: ValidationConstantsTest 移除正则测试，新增长度常量测试
+    - 审查: 3 concurrent review agents 审查通过 + 测试覆盖验证通过
+    - 验证: 编译通过 + 全量测试通过 + LSP diagnostics clean
+    - 版本: 0.23.2-SNAPSHOT → 0.24.1-SNAPSHOT (PATCH, 约束行为变更 + 测试重构)
+
 - [2026-04-28] - 前端端口配置修正（5175 → 5173）
     - 变更: application.yaml 默认端口 5175 → 5173（两处）
     - 变更: application-test.yaml 默认端口 5175 → 5173（两处）

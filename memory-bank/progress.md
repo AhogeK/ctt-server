@@ -2,6 +2,14 @@
 
 ## 已完成 ✅
 
+- [x] 密码校验规则 NIST SP 800-63B 对齐 + ParameterizedTest 合并
+    - 移除复杂度正则 REGEX_PASSWORD，改为纯长度校验 (PASSWORD_MIN_LENGTH=8 / PASSWORD_MAX_LENGTH=64)
+    - StrongPassword @Pattern → @Size + @NotBlank 组合，无自定义 validator
+    - 3 个 DTO @Schema(password) description 同步更新
+    - 测试: UserRegisterRequestTest 合并为 ParameterizedTest + 边界值(64字符)、null密码覆盖
+    - 审查: 3 concurrent review agents + 测试覆盖验证，全量测试通过
+    - 版本: 0.23.2-SNAPSHOT → 0.24.1-SNAPSHOT
+
 - [x] EmptyResponse 新增 idempotentSkip 字段（TDD 流程）
     - 背景: Idempotent Skip 静默响应问题，需要让 API 返回可区分响应
     - 新增: EmptyResponse 第 4 个 record 组件 `Boolean idempotentSkip`
