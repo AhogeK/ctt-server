@@ -8,34 +8,19 @@
 
 每次会话开始立即读取 `memory-bank/` 下所有文件，缺失则创建。
 
-### R2: 记忆更新（强制）
+### R2: 记忆更新（强制实时）
 
-#### 触发条件与更新文件
+**严禁滞后更新** - 不在单次交互自动更新易造成断片。响应完成后**立即**评估更新：
 
-| 触发条件  | 更新文件                | 更新内容        |
-|-------|---------------------|-------------|
-| 代码修改  | `activeContext.md`  | 具体变更 + 日期前缀 |
-| 任务完成  | `progress.md`       | 完成项移至"已完成"  |
-| 架构决策  | `systemPatterns.md` | 新模式/设计决策    |
-| 技术栈变化 | `techContext.md`    | 依赖/版本变更     |
-| 项目变更  | `README.md`         | API/功能/里程碑  |
-| 规则优化  | `AGENTS.md`         | 规则补充/修正     |
+| 触发条件 | 更新文件 | 更新内容 |
+|---|---|---|
+| 代码修改 | `activeContext.md` | 具体变更 + 日期前缀 |
+| 任务完成 | `progress.md` | 完成项移至"已完成" |
+| 架构决策 | `systemPatterns.md` | 新模式/设计决策 |
+| 技术栈变化 | `techContext.md` | 依赖/版本变更 |
+| 项目变更 | `README.md` | API/功能/里程碑 |
 
-#### 更新流程（强制执行）
-
-1. **响应完成前**：评估是否需要更新记忆
-2. **读取现有内容**：确认当前状态
-3. **追加新信息**：使用 `[YYYY-MM-DD]` 日期前缀
-4. **检查行数**：超过限制触发修剪（R13）
-5. **输出摘要**：`=== 记忆保存 ===` 格式确认
-
-#### 更新格式
-
-```markdown
-- [YYYY-MM-DD] - 变更标题
-    - 文件: 具体修改内容
-    - 影响: 业务影响说明
-```
+**更新格式**：`[YYYY-MM-DD] - 变更标题` + 文件/影响说明
 
 ### R3: 关联项目
 
@@ -107,111 +92,13 @@
 
 **核心原则：功能优先，版本其次，AI 记录最后。**
 
-#### 提交顺序（强制执行）
+提交顺序：功能代码 → 版本号更新 → AI记忆记录（禁止版本早于功能、混合提交、多功能合并）
 
-```
-1. 功能代码提交（业务逻辑、测试、文档）
-    ↓
-2. 版本号更新提交（PATCH/MINOR/Major）
-    ↓
-3. AI 记忆记录提交（activeContext.md, progress.md）
-```
+提交策略：单个功能=1提交，功能+Bug修复/重构=分开提交，AI记忆/版本号=独立提交
 
-**禁止事项**：
+提交信息：`feat(scope): 功能描述` / `fix(scope): 根因+修复+验证` / `chore: bump version to X.Y.Z` / `docs(memory-bank): record implementation`
 
-- ❌ 版本号更新早于功能代码提交
-- ❌ AI 记忆记录与功能代码混合提交
-- ❌ 多个功能合并到一个提交
-
-#### 提交细化规则
-
-| 变更类型            | 提交策略                 | 示例                                           |
-|-----------------|----------------------|----------------------------------------------|
-| **单个功能**        | 功能 + 测试 + 文档 = 1 个提交 | `feat(auth): implement login endpoint`       |
-| **功能 + Bug 修复** | 分开提交                 | 先 `feat: X` → 再 `fix: Y`                     |
-| **功能 + 重构**     | 分开提交                 | 先 `feat: X` → 再 `refactor: Y`                |
-| **AI 记忆记录**     | 独立提交                 | `docs(memory-bank): record X implementation` |
-| **版本号更新**       | 独立提交                 | `chore: bump version to X.Y.Z`               |
-
-#### 提交信息规范
-
-**功能提交**：
-
-```
-feat(scope): 功能描述
-
-- 具体变更 1
-- 具体变更 2
-- 测试覆盖说明
-
-Refs: #issue-number (如有)
-```
-
-**Bug 修复提交**：
-
-```
-fix(scope): 修复问题描述
-
-- 根因分析
-- 修复方案
-- 测试验证
-
-Fixes: #issue-number (如有)
-```
-
-**版本号提交**：
-
-```
-chore: bump version to X.Y.Z
-
-Change type: [Bug fix | New feature | Breaking change]
-- Previous version: X.Y.(Z-1)-SNAPSHOT
-- New version: X.Y.Z-SNAPSHOT
-```
-
-**AI 记忆记录提交**：
-
-```
-docs(memory-bank): record [feature/bugfix] implementation
-
-- Files modified: [list]
-- Key changes: [summary]
-- Test results: [pass/fail]
-```
-
-#### 最终工作区清理
-
-**用户说"提交"后的完整流程**：
-
-```
-1. 功能代码 commit
-    ↓
-2. 版本号 commit
-    ↓
-3. AI 记忆记录 commit
-    ↓
-4. 推送远程（如用户授权）
-    ↓
-5. 验证工作区干净：git status
-```
-
-**最终状态要求**：
-
-- ✅ 工作区干净（`git status` 无输出）
-- ✅ 所有变更已提交
-- ✅ 版本号已更新
-- ✅ memory-bank 已记录
-
-**如有残留 → 立即补提交，不要等待用户指出。**
-
-#### 常见错误预防
-
-| 错误          | 预防                            |
-|-------------|-------------------------------|
-| **版本早于功能**  | 强制顺序检查：功能 → 版本 → AI 记录        |
-| **混合提交**    | 检查 `git diff --cached`，不同类型分开 |
-| **AI 记录遗漏** | 每次功能提交后自动检查 memory-bank       |
-| **工作区残留**   | 最终 `git status` 验证，有残留立即补提交   |
+最终清理：功能commit → 版本commit → AI记忆commit → 推送 → 验证 `git status` 干净 → 有残留立即补提交
 
 ### R7: 技术决策确认
 
@@ -232,333 +119,124 @@ docs(memory-bank): record [feature/bugfix] implementation
 
 **核心原则：按项目来而不是任务需求，需求要变通符合项目的一致性。**
 
-| 场景               | 错误做法 ❌                     | 正确做法 ✅                                                        |
-|------------------|----------------------------|---------------------------------------------------------------|
-| **ErrorCode 使用** | 任务说"AUTH_TOKEN_INVALID"就新建 | 搜索项目现有错误码，使用已有的 `AUTH_003` = "Token invalid"                  |
-| **命名规范**         | 按任务需求创建新命名                 | 遵循项目现有命名模式（如 `*Service`, `*Controller`）                       |
-| **代码结构**         | 按任务要求创建独立文件                | 复用现有结构（如已有 `UserLoginService`，新增 `TokenRefreshService` 应与其一致） |
-| **注释风格**         | 添加解释"代码做了什么"的注释            | 遵循 Clean Code（R9），删除冗余注释                                      |
+| 场景 | 错误 ❌ | 正确 ✅ |
+|---|---|---|
+| ErrorCode | 任务说新建就新建 | 搜索现有错误码，复用已有的 |
+| 命名/结构 | 按任务需求创建 | 遵循项目现有 `*Service`, `*Controller` 模式 |
+| 注释 | 解释"代码做了什么" | 遵循 Clean Code（R9），删除冗余注释 |
 
-**执行前强制检查**：
+执行前检查：任务是否与现有模式冲突？是否应复用而非新建？
 
-```
-□ 任务需求是否与项目现有模式冲突？
-□ 是否有更好的项目内解决方案？
-□ 是否应该复用而非新建？
-□ 是否应该扩充而非修改？
-```
-
-**项目名称一致性检查**：
-
-- ErrorCode → 搜索现有错误码，不要新建同义码
-- DTO 命名 → 遵循项目现有模式（`*Request`, `*Response`）
-- Service 命名 → 遵循项目现有模式（`*Service`）
-- 测试命名 → 遵循项目现有模式（`*Test`, `shouldX_whenY`）
-
-**发现冲突时的处理**：
-
-1. 暂停实现
-2. 搜索项目现有模式（grep/ast-grep）
-3. 向用户确认是否遵循项目模式
-4. 按项目一致性调整实现
+发现冲突 → 暂停 → grep搜索现有模式 → 向用户确认 → 按项目一致性调整
 
 ### R9: 代码规范
 
 - **语言**：代码/注释/日志强制英文，仅 `.md` 可中文
-- **注释原则**（Clean Code）：
-    - ✅ **必要的注释**：公共 API Javadoc（类/接口/公共方法）、复杂算法 Why（非 What）、警示/法律信息
-    - ❌ **禁止的注释**：解释代码做了什么（代码应自解释）、废话/冗余/误导性注释、注释掉的代码、TODO/FIXME（直接创建 issue）
-    - **自解释优先**：好的命名和清晰的结构比注释更有价值
-- **OpenAPI Schema（强制）**：
-    - 所有 DTO 和 Response 类必须加 `@Schema(description = "...")`
-    - 每个字段/record 组件必须加 `@Schema(description = "...", example = "...")`
-    - 校验注解（`@NotBlank`、`@Email`、`@StrongPassword` 等）不可遗漏
-    - 禁止硬编码项目版本号，使用 `@Value("${info.app.version}")` 注入
-    - **@ApiResponse 必须带 content**：每个 `@ApiResponse` 必须包含 `content = @Content(schema = @Schema(implementation = ...))`
-    - **错误响应必须有独立示例**：非 200 响应必须加 `examples = @ExampleObject(name = "...", summary = "...", value = "{真实JSON}")`，每个错误码示例必须不同且包含 realistic 的 code/message/details 值
-    - **200 响应**：`content = @Content(schema = @Schema(implementation = RestApiResponse.class))`
-    - **错误响应**：`content = @Content(schema = @Schema(implementation = ErrorResponse.class), examples = @ExampleObject(...))`
+- **注释（Clean Code）**：✅ 公共API Javadoc/复杂算法Why/警示信息；❌ 解释代码做了什么/冗余注释/注释掉的代码/TODO/FIXME
+- **OpenAPI Schema（强制）**：所有DTO/Response加 `@Schema(description)`，每个字段加 `@Schema(description, example)`，校验注解不可遗漏，禁止硬编码版本号（用 `@Value("${info.app.version}")`），@ApiResponse必须带content，错误响应必须有独立示例
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
-- **测试代码**：
-    - 同一对象的多个断言必须链式调用（`.isX().isY().isZ()`），禁止分开写
-    - 测试方法名遵循 `shouldX_whenY` 模式
-- **编辑前验证**（强制）：
-    - 编辑文件前先读取完整文件
-    - 编辑后检查是否有重复方法/字段（LSP diagnostics）
-    - 编辑后运行编译验证（`./gradlew compileJava`）
-    - 编辑后运行相关测试（`./gradlew test --tests "*TestClass*"）
+- **测试**：多断言链式调用 `.isX().isY().isZ()`，方法名 `shouldX_whenY`
+- **编辑前验证（强制）**：先读完整文件 → 编辑后LSP diagnostics → 编译验证 → 运行相关测试
 
 ### R10: 任务规划（强制）
 
-**多步骤任务必须先规划**：
-
-- 3 步以上任务 → 使用 todo list 工具
-- 规划后再执行，避免遗漏回溯
-- 任务完成后清理 todo list
-
-**示例触发**：
-
-- "分析覆盖率并给出建议" → 创建 todo → 执行步骤 → 清理
-- "重构代码" → 创建 todo → 逐步执行
+多步骤任务（3步以上）必须先创建todo list，规划后再执行，完成后清理。
 
 ### R11: 文件管理（强制）
 
-**禁止创建临时文件**：
-
-- ❌ `./gradlew test > output.log` (重定向到文件)
-- ✅ `./gradlew test 2>&1 | tee /dev/stderr` (输出到控制台)
-- ❌ 创建临时 `.log`、`.txt`、`.tmp` 文件
-- ✅ 使用 Bash 工具的 `tee` 直接输出
-
-**任务完成检查**：
-
-- [ ] 是否创建了不该创建的文件？
-- [ ] 是否有临时文件需要清理？
-- [ ] `.gitignore` 外的文件是否应该入库？
-
-**发现错误立即修复**：
-
-- 误创建文件 → 立即 `rm` 删除
-- 不要等待用户指出
+禁止创建临时文件：❌ 重定向到文件（`> output.log`），❌ `.log/.txt/.tmp`；✅ 输出到控制台。任务完成检查是否误创建文件，发现立即删除。
 
 ### R12: 依赖管理（强制）
 
-**禁止擅自降级更改依赖**：添加任何依赖包（npm/yarn/pip/gradle/maven 等）前必须获得用户明确同意。
-
-**必须提供分析**：
-
-- **目的**：为什么需要这个包？解决什么问题？
-- **选型理由**：为什么选这个而不是其他替代方案？
-- **影响评估**：包大小、维护状态、兼容性、安全风险
-- **替代方案**：是否可以用现有依赖或少量代码替代？
-
-**询问模板**：
-
-```
-需要添加依赖：[包名@版本]
-目的：[具体说明]
-选型理由：[对比分析]
-影响：[大小/维护状态/兼容性]
-替代方案：[如有]
-是否同意添加？
-```
-
-**红线**：
-
-- 禁止为"方便"或"习惯"添加冗余依赖
-- 禁止添加与现有功能重复的包
-- 同类功能优先复用现有依赖
+禁止擅自添加依赖。添加前必须提供分析（目的、选型理由、影响评估、替代方案）并获得用户同意。红线：禁止冗余依赖，禁止重复功能包，优先复用现有依赖。
 
 ### R13: 记忆文件维护（强制）
 
-#### 行数限制
-
-| 文件                  | 超限处理           |
-|---------------------|----------------|
-| `activeContext.md`  | 保留最近 30 天记录    |
-| `progress.md`       | 已完成项归档，保留关键里程碑 |
-| `systemPatterns.md` | 合并相似模式         |
-| `techContext.md`    | 删除过时配置         |
-| `projectbrief.md`   | 保持精简           |
-
-#### 修剪规则
-
-1. **activeContext.md**：保留架构决策,重要记录，删除旧记录至少>90天前
-2. **progress.md**：已完成项移至"已完成"区块
-3. **systemPatterns.md**：合并重复模式，删除废弃模式
-4. **自动触发**
+| 文件 | 超限处理 |
+|---|---|
+| activeContext.md | 保留最近30天，删除>90天前 |
+| progress.md | 已完成项归档 |
+| systemPatterns.md | 合并相似模式 |
+| techContext.md | 删除过时配置 |
 
 ### R14: AGENTS.md 自更新（强制）
 
-#### 触发条件
+触发条件：规则漏洞/用户新约束/重复错误需固化。更新流程：记录问题 → 添加/修改规则 → 记录到activeContext.md → 等待用户确认。命名：新增用 `R{n}`，修改保留序号+版本说明，删除标记 `[已废弃]`。
 
-- 发现规则有漏洞或被违反
-- 用户提出新的约束要求
-- 多次出现相同错误需要规则固化
+### R15: 版本号管理（强制实时）
 
-#### 更新流程
+**核心原则：任何代码变更必须同步更新版本号，严禁滞后更新（防断片）。**
 
-1. 记录问题场景和修复方案
-2. 添加新规则或修改现有规则
-3. 在 `activeContext.md` 记录变更
-4. 等待用户确认后生效
+版本号位置：`gradle/libs.versions.toml` 的 `appVersion` 字段
 
-#### 规则命名
+格式：`MAJOR.MINOR.PATCH[-SNAPSHOT]`
 
-- 新增规则使用 `R{n}` 序号
-- 修改规则保留原序号，追加版本说明
-- 删除规则标记 `[已废弃]` 而非直接删除
+变更规则：Bug修复→PATCH+1，新功能→MINOR+1，破坏性→MAJOR+1，开发中→`-SNAPSHOT`后缀
 
-### R15: 版本号管理（强制）
+执行时机：每次代码修改后立即：1.确定新版本号 2.更新libs.versions.toml 3.全局搜索检查硬编码 4.记录到activeContext.md
 
-**核心原则：任何代码变更必须同步更新版本号。**
+全局搜索检查（强制）：`grep -rn "0\.\d\+\.\d\+" --include="*.java" --include="*.yaml" --include="*.kts"` → 排除 Javadoc @since/依赖版本/IP/Flyway baseline → 确认 application.yaml/OpenAPI Config 同步
 
-#### 版本号位置
+禁止：代码变更不更新、跳版本、未经确认升MAJOR、代码硬编码版本号（用 `@Value("${info.app.version}")`）、修改 Javadoc @since
 
-- `gradle/libs.versions.toml` 的 `appVersion` 字段
+### R16: 自我学习（强制）
 
-#### 版本号格式
+当同一问题解决2次以上，创建skill记录方案。
 
-```
-MAJOR.MINOR.PATCH[-SUFFIX]
-```
+存放位置：`.agents/skills/[skill-name]/SKILL.md`
 
-#### 变更规则
-
-| 变更类型       | 版本变更               | 示例                |
-|------------|--------------------|-------------------|
-| **修复 Bug** | PATCH +1           | `0.1.0` → `0.1.1` |
-| **新增功能**   | MINOR +1, PATCH 归零 | `0.1.5` → `0.2.0` |
-| **破坏性变更**  | MAJOR +1, 其他归零     | `1.2.3` → `2.0.0` |
-| **开发中版本**  | 添加 `-SNAPSHOT` 后缀  | `0.1.0-SNAPSHOT`  |
-
-#### 执行时机
-
-**每次代码修改完成后必须：**
-
-1. 根据变更类型确定新版本号
-2. 更新 `gradle/libs.versions.toml` 中的 `appVersion`
-3. 在 `activeContext.md` 记录版本变更
-
-#### 版本号同步检查（强制）
-
-**每次更新版本号后必须执行全局搜索，确保所有硬编码版本字符串同步更新：**
-
-1. 搜索全项目：`grep -rn "0\.\d\+\.\d\+" --include="*.java" --include="*.yaml" --include="*.kts" --include="*.md" --include="*.xml"`
-2. 排除项（不需要更新）：
-    - Javadoc `@since` 注解（历史记录，不应修改）
-    - `memory-bank/` 中的历史版本记录（保留变更轨迹）
-    - 依赖库版本号（如 `JJWT 0.12.6`、`JaCoCo 0.8.14`）
-    - IP 地址（如 `127.0.0.1`、`10.0.0.x`）
-    - Flyway `baseline-version`
-3. 确认项（必须同步）：
-    - `application.yaml` 中 `info.app.version: @appVersion@`（Gradle 资源过滤，自动同步）
-    - `OpenApiConfig.java` 中 `.version()` 调用（应使用 `@Value` 注入，禁止硬编码）
-    - 任何其他硬编码项目版本号的代码或配置文件
-
-**红线**：
-- ❌ 只改 `libs.versions.toml` 不做全局搜索
-- ❌ 在代码中硬编码项目版本号（应使用 `@Value("${info.app.version}")` 或 `@appVersion@`）
-- ❌ 修改 Javadoc `@since` 注解
-
-#### 禁止事项
-
-- ❌ 代码变更但不更新版本号
-- ❌ 跳过版本号（如 0.1.0 直接到 0.1.5）
-- ❌ 未经用户确认升级 MAJOR 版本
+创建流程：确认解决 → 用skill-creator创建 → 写入.agents/skills/ → 更新版本号
 
 ### R17: 分支管理（强制 - 防止生产事故）
 
 **核心原则：master 是生产分支，永远保持干净（无 AI 文件）。**
 
-#### 分支职责
+| 分支 | 用途 | 允许 | 禁止 |
+|---|---|---|---|
+| master | 生产环境 | 业务代码/测试/文档/版本号 | AI文件（memory-bank/.agents/.opencode/AGENTS.md） |
+| develop | 开发环境 | 业务代码 + AI文件 | 无 |
 
-| 分支        | 用途                | 允许内容           | 禁止内容                                                 |
-|-----------|-------------------|----------------|------------------------------------------------------|
-| `master`  | 生产环境（production）  | 业务代码、测试、文档、版本号 | AI 文件（memory-bank/, .agents/, .opencode/, AGENTS.md） |
-| `develop` | 开发环境（development） | 业务代码 + AI 文件   | 无                                                    |
+**master同步规则**：从固定起点 → `git rm -rf` AI文件 → cherry-pick develop（排除 `docs(memory-bank)`） → 冲突处理（memory-bank冲突用 `git rm -f`，版本号冲突用 `--theirs`） → 验证（`git ls-files` 无AI文件 + `./gradlew build` 通过）
 
-#### master 分支同步规则
+**禁止操作**：直接merge develop、在master创建AI文件、在master提交docs(memory-bank)、`git reset --hard develop`、反向cherry-pick（master→develop）、在master直接修改代码
 
-1. **起点**：从固定日期提交开始（例如 `02b83bd` - 2026-03-24）
-2. **AI 文件清理**：在起点后立即添加删除 AI 文件的提交
-    - `git rm -rf .agents/ .opencode/ AGENTS.md memory-bank/`
-    - 提交信息：`chore: remove all AI-related files from production branch`
-3. **同步 develop**：按顺序 cherry-pick develop 的所有非 AI 提交
-    - 排除：`docs(memory-bank)` 提交
-    - 命令：`git log --oneline 7b01f5e..develop --reverse \| grep -v "docs(memory-bank)"`
-4. **冲突处理**：
-    - memory-bank 文件冲突 → `git rm -f memory-bank/*`
-    - 版本号冲突 → `git checkout --theirs gradle/libs.versions.toml`
-5. **验证**：推送前必须验证
-    - `git ls-files master -- \| grep -E "^(\.agents/|\.opencode/|AGENTS\.md|memory-bank/)"` → 必须无输出
-    - `./gradlew build --quiet` → 必须通过
+**事故恢复**：立即停止 → 确认污染 → 重置到安全点 → 重新cherry-pick → `--force-with-lease`推送 → 记录事故
 
-#### 禁止操作
+**提交前审查清单**：项目一致性（grep现有模式） + Clean Code（无冗余注释） + 测试覆盖 + 编译通过 + 无回归 + 覆盖率≥80%
 
-- ❌ 直接 `git merge develop` 到 master（会带入 AI 文件）
-- ❌ 在 master 上创建 AI 文件
-- ❌ 在 master 上提交 `docs(memory-bank)` 类型提交
-- ❌ 使用 `git reset --hard develop` 同步 master（会带入 AI 文件）
-- ❌ 未经 cherry-pick 过滤直接同步
-- ❌ **反向 cherry-pick（master → develop）：工作分支永远是 develop，所有修改必须先在 develop 上完成，再从 develop cherry-pick 到 master。绝不允许 master 的提交反向合入 develop。**
-- ❌ **在 master 上做任何修改：master 只接受从 develop cherry-pick 过来的提交，绝不允许直接在 master 上修改代码、配置文件或任何业务内容。所有开发、修复、更新必须先在 develop 上完成。**
+**常见错误预防**：重复方法→编辑后grep+LSP；ErrorCode冲突→新建前搜索复用；冗余注释→删除"解释做了什么"；测试遗漏→新增逻辑立即创建测试；命名不一致→搜索现有模式
 
-#### 事故恢复流程
+### R18: Git 恢复禁止（强制）
 
-如果 master 被污染（带入了 AI 文件）：
+**禁止执行 git reset 恢复到初始状态** — 这会导致工作丢失且不可恢复，必须经由用户确认。
 
-1. **立即停止**：停止所有推送操作
-2. **确认污染**：`git ls-files master -- \| grep -E "^(\.agents/|\.opencode/|AGENTS\.md|memory-bank/)"`
-3. **重置到安全点**：`git reset --hard <安全提交 hash>`
-4. **重新构建**：按上述同步规则重新 cherry-pick
-5. **强制推送**：`git push origin master --force-with-lease`
-6. **记录事故**：在 activeContext.md 记录事故原因和修复方案
+### R19: 资源清理（强制）
 
-#### 代码审查清单（提交前必须检查）
+占用资源的工具/服务使用后必须关闭。持续服务需后台静默启动，日志单独输出至文件，避免超时/资源堆积。任务完成后立即清理。
 
-| 检查项            | 验证方法                                       | 标准                    |
-|----------------|--------------------------------------------|-----------------------|
-| **项目一致性**      | grep 搜索现有模式                                | ErrorCode/命名/结构符合项目规范 |
-| **Clean Code** | 检查注释                                       | 无冗余注释，仅保留必要 Javadoc   |
-| **测试覆盖**       | `./gradlew test --tests "*TestClass*"`     | 新增代码必须有对应测试           |
-| **编译通过**       | `./gradlew compileJava`                    | 无编译错误                 |
-| **无回归**        | `./gradlew test`                           | 全量测试通过                |
-| **覆盖率**        | `./gradlew jacocoTestCoverageVerification` | 核心逻辑覆盖率 ≥80%          |
+### R20: Skills 选择规范（强制）
 
-#### 编辑验证流程
+使用某类型Skills前先列出所有同类Skills，可同时加载多个，不是只能选一个。
 
-```
-编辑前 → 读取完整文件 → 理解上下文
-    ↓
-编辑后 → LSP diagnostics → 修复错误
-    ↓
-验证 → 编译 → 测试 → 覆盖率
-    ↓
-确认 → 无重复方法/字段 → 无冗余代码 → 符合项目规范
-```
+### R21: 外部 AI 咨询能力
 
-#### 常见错误预防
-
-| 错误类型             | 预防措施                            |
-|------------------|---------------------------------|
-| **重复方法**         | 编辑后 grep 方法名，LSP diagnostics 检查 |
-| **ErrorCode 冲突** | 新建前搜索 ErrorCode.java，复用现有码      |
-| **冗余注释**         | 写完代码后删除所有"解释做了什么"的注释            |
-| **测试遗漏**         | 新增业务逻辑 → 立即创建对应测试类              |
-| **命名不一致**        | 搜索项目现有命名模式，保持一致                 |
+可使用skills访问 gemini.google.com / perplexity.ai 咨询高级AI（需选择模型）及网络搜索。
 
 ## 执行流程
 
-```
-会话开始 → 读取 memory-bank/ → 创建 todo (如需要)
-    ↓
-处理请求 → 清理临时文件 → 更新记忆 (R2)
-    ↓
-检查行数 (R13) → 修剪 (如需要) → 输出摘要
-    ↓
-代码修改 → 编辑前验证 (R9) → 编辑后验证 (R16)
-    ↓
-提交前检查 → 项目一致性 (R8.5) → Git 授权 (R6) → 提交顺序 (R6.5) → 版本号 (R15)
-```
+会话开始 → 读memory-bank → 创建todo（如需）→ 处理请求 → 清理临时文件 → 更新记忆 → 检查行数修剪 → 代码修改+编辑验证 → 提交前审查+Git授权+版本号
 
 ## 约束
 
-1. 所有文件读写由 AI 自主完成
-2. 记忆文件行数限制（见 R13）
+1. 文件读写由AI自主完成
+2. 记忆文件≤200行
 3. 只记录已发生事实，不猜测
-4. 变更即时更新，不做延迟
-5. **项目一致性优先于任务需求**（R8.5）
+4. 变更即时更新
+5. **项目一致性优先**（R8.5）
 6. **编辑前必须验证**（R9）
-7. **提交前必须审查**（R16）
-8. 如果需要截图请保存在`/Users/ahogek/Pictures/screenshots`目录下
+7. **提交前必须审查**（R17）
+8. 截图保存至 `/Users/ahogek/Pictures/screenshots`
 
 ## 记忆库结构
 
-`memory-bank/` 目录：
-
-- `projectbrief.md` - 项目核心目标
-- `techContext.md` - 技术栈与架构
-- `systemPatterns.md` - 设计模式与规范
-- `activeContext.md` - 当前工作焦点
-- `progress.md` - 任务进度
+`memory-bank/`：projectbrief.md（目标）、techContext.md（技术栈）、systemPatterns.md（规范）、activeContext.md（当前）、progress.md（进度）
