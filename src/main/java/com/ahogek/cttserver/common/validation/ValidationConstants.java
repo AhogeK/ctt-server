@@ -27,8 +27,17 @@ public final class ValidationConstants {
     public static final String REGEX_DISPLAY_NAME =
             "^[\\u4e00-\\u9fa5\\u3040-\\u309f\\u30a0-\\u30ff\\uac00-\\ud7afa-zA-Z0-9_-]{2,50}$";
 
+    /**
+     * Allowed password characters: printable ASCII non-space (0x21-0x7E).
+     * This is a regex pattern, not a hard-coded password.
+     */
+    @SuppressWarnings("java:S2068")
+    public static final String REGEX_PASSWORD_CHARS = "^[!-~]+$";
+
     public static final String MSG_EMAIL_INVALID = "Invalid email format";
     public static final String MSG_PASSWORD_WEAK = "Password must be 8-64 characters long";
+    public static final String MSG_PASSWORD_CHARS =
+            "Password must only contain standard ASCII characters (letters, digits, and symbols)";
     public static final String MSG_UUID_INVALID = "Invalid UUID v4 format";
     public static final String MSG_NAME_INVALID =
             "Display name must be 2-50 characters and contain only Chinese, Japanese, Korean, English letters, numbers, underscores, or hyphens";
