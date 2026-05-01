@@ -4,21 +4,25 @@
     "code-reviewer": {
       "source": "a-pavithraa/springboot-skills-marketplace",
       "sourceType": "github",
+      "skillPath": "plugins/springboot-architecture/skills/code-reviewer/SKILL.md",
       "computedHash": "80a728d04fd2da3c11a4f875fd02b0322e7d43c21bfce9651cc472fb65f9a86d"
     },
     "creating-springboot-projects": {
       "source": "a-pavithraa/springboot-skills-marketplace",
       "sourceType": "github",
+      "skillPath": "plugins/springboot-architecture/skills/creating-springboot-projects/SKILL.md",
       "computedHash": "71d64c3601ffae4cda4684ff035569841f91ce6018875daf739e6ba3c76594ea"
     },
     "spring-data-jpa": {
       "source": "a-pavithraa/springboot-skills-marketplace",
       "sourceType": "github",
+      "skillPath": "plugins/springboot-architecture/skills/spring-data-jpa/SKILL.md",
       "computedHash": "6282f03e27fbc2874811651062a9c8aab92f1fa9b38c735ba92a02d56d92fe0b"
     },
     "springboot-migration": {
       "source": "a-pavithraa/springboot-skills-marketplace",
       "sourceType": "github",
+      "skillPath": "plugins/springboot-architecture/skills/springboot-migration/SKILL.md",
       "computedHash": "7f6d3fc45f2dbeba56e5c3a9fc5004e26e9942259fec3b027cd8cf96a0020a44"
     }
   }
