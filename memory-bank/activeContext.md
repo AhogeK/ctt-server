@@ -1,4 +1,13 @@
 # Active Context
+- [2026-05-01] - 密码字符白名单 REGEX_PASSWORD_CHARS 补充约束
+    - 变更: ValidationConstants.java 新增 REGEX_PASSWORD_CHARS = "^[!-~]+$"（所有可打印 ASCII 非空格字符）
+    - 变更: ValidationConstants.java 新增 MSG_PASSWORD_CHARS 错误消息
+    - 变更: StrongPassword.java 新增 @Pattern(regexp=REGEX_PASSWORD_CHARS) 约束
+    - 说明: NIST SP 800-63B 对齐的补充约束，仅限制字符范围（可打印 ASCII），不引入复杂度要求
+    - 测试: ValidationConstantsTest 新增 validPasswordCharsProvider (3 种合法字符组合) + rejects_invalid_chars (6 种: 空格/制表/拉丁扩展/中文/emoji)
+    - 文件: ValidationConstants.java, StrongPassword.java, ValidationConstantsTest.java
+    - 版本: 0.24.1-SNAPSHOT → 0.24.2-SNAPSHOT (PATCH: 约束行为细化)
+
 - [2026-05-01] - 密码校验规则 NIST SP 800-63B 对齐 + ParameterizedTest 合并
     - 变更: ValidationConstants.java 移除 REGEX_PASSWORD (复杂度正则)，新增 PASSWORD_MIN_LENGTH=8 / PASSWORD_MAX_LENGTH=64
     - 变更: StrongPassword.java @Pattern(regex=REGEX_PASSWORD) → @Size(min=PASSWORD_MIN_LENGTH, max=PASSWORD_MAX_LENGTH)
