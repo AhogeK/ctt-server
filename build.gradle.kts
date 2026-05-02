@@ -50,7 +50,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
-    runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly(libs.org.postgresql)
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-redis-test")
