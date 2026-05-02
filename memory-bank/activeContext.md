@@ -1,4 +1,11 @@
 # Active Context
+- [2026-05-02] - 邮件 From 显示名称修正（CTT Server → Code Time Tracker）
+    - 变更: application.yaml 默认值 `CTT Server` → `Code Time Tracker`
+    - 变更: CttMailProperties.java 注释示例 `"CTT Server"` → `"Code Time Tracker"`
+    - 变更: OpenApiConfig.java API 标题 `"CTT Server API"` → `"Code Time Tracker API"`
+    - 说明: 品牌一致性修正，邮件发送方显示名称与项目名称保持一致
+    - 文件: application.yaml, CttMailProperties.java, OpenApiConfig.java
+    - 版本: 0.24.2-SNAPSHOT → 0.24.3-SNAPSHOT (PATCH: 品牌名称修正)
 - [2026-05-01] - 密码字符白名单 REGEX_PASSWORD_CHARS 补充约束
     - 变更: ValidationConstants.java 新增 REGEX_PASSWORD_CHARS = "^[!-~]+$"（所有可打印 ASCII 非空格字符）
     - 变更: ValidationConstants.java 新增 MSG_PASSWORD_CHARS 错误消息
