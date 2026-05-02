@@ -116,7 +116,7 @@ ctt:
   mail:
     from:
       address: ${MAIL_FROM_ADDRESS:noreply@localhost}
-      name: ${MAIL_FROM_NAME:CTT Server}
+      name: ${MAIL_FROM_NAME:Code Time Tracker}
 
     outbox:
       # Polling interval for outbox table (milliseconds)
