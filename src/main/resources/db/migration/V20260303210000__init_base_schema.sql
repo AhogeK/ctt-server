@@ -43,6 +43,8 @@ CREATE TABLE users
     version               BIGINT       NOT NULL DEFAULT 0,
     created_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at            TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    terms_accepted_at     TIMESTAMPTZ,
+    terms_version         VARCHAR(20),
     CONSTRAINT chk_users_status
         CHECK (status IN ('PENDING_VERIFICATION', 'ACTIVE', 'LOCKED', 'SUSPENDED', 'DELETED'))
 );
@@ -64,6 +66,8 @@ COMMENT ON COLUMN users.locked_until IS 'Temporary account lock expiration time'
 COMMENT ON COLUMN users.version IS 'Optimistic locking version (JPA @Version)';
 COMMENT ON COLUMN users.created_at IS 'Record creation timestamp';
 COMMENT ON COLUMN users.updated_at IS 'Record last update timestamp';
+COMMENT ON COLUMN users.terms_accepted_at IS 'Timestamp when user accepted the terms of service';
+COMMENT ON COLUMN users.terms_version IS 'Version of terms accepted (e.g., 2026-05-02)';
 
 CREATE UNIQUE INDEX uk_users_email_lower
     ON users ((LOWER(email)));

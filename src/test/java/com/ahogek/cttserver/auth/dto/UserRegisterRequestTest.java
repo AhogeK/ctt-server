@@ -37,7 +37,7 @@ class UserRegisterRequestTest {
     @Test
     void valid_registration_request_passes_validation() {
         UserRegisterRequest request =
-                new UserRegisterRequest("user@example.com", "john_doe", "Password123!");
+                new UserRegisterRequest("user@example.com", "john_doe", "Password123!", true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -46,7 +46,7 @@ class UserRegisterRequestTest {
 
     @Test
     void blank_email_is_invalid() {
-        UserRegisterRequest request = new UserRegisterRequest("", "john", "Password123!");
+        UserRegisterRequest request = new UserRegisterRequest("", "john", "Password123!", true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -57,7 +57,7 @@ class UserRegisterRequestTest {
 
     @Test
     void null_email_is_invalid() {
-        UserRegisterRequest request = new UserRegisterRequest(null, "john", "Password123!");
+        UserRegisterRequest request = new UserRegisterRequest(null, "john", "Password123!", true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -69,7 +69,7 @@ class UserRegisterRequestTest {
     @Test
     void invalid_email_format_is_rejected() {
         UserRegisterRequest request =
-                new UserRegisterRequest("not-an-email", "john", "Password123!");
+                new UserRegisterRequest("not-an-email", "john", "Password123!", true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -80,7 +80,7 @@ class UserRegisterRequestTest {
 
     @Test
     void blank_display_name_is_invalid() {
-        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "", "Password123!");
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "", "Password123!", true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -92,7 +92,7 @@ class UserRegisterRequestTest {
     @Test
     void display_name_with_special_chars_is_invalid() {
         UserRegisterRequest request =
-                new UserRegisterRequest("user@test.com", "john@doe", "Password123!");
+                new UserRegisterRequest("user@test.com", "john@doe", "Password123!", true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -104,7 +104,7 @@ class UserRegisterRequestTest {
 
     @Test
     void display_name_too_short_is_invalid() {
-        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "a", "Password123!");
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "a", "Password123!", true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -129,7 +129,7 @@ class UserRegisterRequestTest {
 
     private void assertValidDisplayName(String displayName) {
         UserRegisterRequest request =
-                new UserRegisterRequest("user@test.com", displayName, "Password123!");
+                new UserRegisterRequest("user@test.com", displayName, "Password123!", true);
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
         Set<String> displayNameErrors =
@@ -148,7 +148,7 @@ class UserRegisterRequestTest {
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, too long password"
     })
     void invalid_password_length_is_rejected(String password, String description) {
-        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password);
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password, true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -165,7 +165,7 @@ class UserRegisterRequestTest {
         "1234567, too short (7 chars)"
     })
     void short_passwords_are_rejected(String password, String description) {
-        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password);
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password, true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
@@ -182,7 +182,7 @@ class UserRegisterRequestTest {
     }
 
     private void assertValidPassword(String password) {
-        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password);
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", password, true);
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
         Set<String> passwordErrors =
@@ -196,7 +196,7 @@ class UserRegisterRequestTest {
 
     @Test
     void null_password_is_invalid() {
-        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", null);
+        UserRegisterRequest request = new UserRegisterRequest("user@test.com", "john", null, true);
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 
         assertThat(violations).hasSize(1);
@@ -207,7 +207,7 @@ class UserRegisterRequestTest {
 
     @Test
     void multiple_validation_errors_reported() {
-        UserRegisterRequest request = new UserRegisterRequest("invalid-email", "a", "weak");
+        UserRegisterRequest request = new UserRegisterRequest("invalid-email", "a", "weak", true);
 
         Set<ConstraintViolation<UserRegisterRequest>> violations = validator.validate(request);
 

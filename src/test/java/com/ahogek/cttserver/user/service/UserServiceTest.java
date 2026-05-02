@@ -70,7 +70,7 @@ class UserServiceTest {
             UUID userId = UUID.randomUUID();
 
             UserRegisterRequest request =
-                    new UserRegisterRequest("test@example.com", "Test User", rawPassword);
+                    new UserRegisterRequest("test@example.com", "Test User", rawPassword, true);
 
             User savedUser = new User();
             savedUser.setEmail(request.email());
@@ -95,7 +95,7 @@ class UserServiceTest {
         void shouldThrowConflictException_whenEmailNotUnique() {
             // Given
             UserRegisterRequest request =
-                    new UserRegisterRequest("duplicate@example.com", "Test User", "Test@1234");
+                    new UserRegisterRequest("duplicate@example.com", "Test User", "Test@1234", true);
 
             doThrow(new ConflictException(ErrorCode.AUTH_002, "Email is already registered"))
                     .when(userValidator)
@@ -119,7 +119,7 @@ class UserServiceTest {
             UUID userId = UUID.randomUUID();
 
             UserRegisterRequest request =
-                    new UserRegisterRequest("test@example.com", "Test User", rawPassword);
+                    new UserRegisterRequest("test@example.com", "Test User", rawPassword, true);
 
             when(passwordEncoder.encode(rawPassword)).thenReturn(encodedPassword);
             when(userRepository.save(any(User.class)))
@@ -145,7 +145,7 @@ class UserServiceTest {
             // Given
             UUID userId = UUID.randomUUID();
             UserRegisterRequest request =
-                    new UserRegisterRequest("test@example.com", "Test User", "Test@1234");
+                    new UserRegisterRequest("test@example.com", "Test User", "Test@1234", true);
 
             when(passwordEncoder.encode("Test@1234")).thenReturn("$2a$12$encoded");
             when(userRepository.save(any(User.class)))

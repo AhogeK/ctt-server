@@ -66,7 +66,7 @@ class RegistrationAndVerificationIntegrationTest {
     }
 
     private String registerRequestJson(String email) throws Exception {
-        UserRegisterRequest request = new UserRegisterRequest(email, DISPLAY_NAME, PASSWORD);
+        UserRegisterRequest request = new UserRegisterRequest(email, DISPLAY_NAME, PASSWORD, true);
         return objectMapper.writeValueAsString(request);
     }
 

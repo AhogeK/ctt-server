@@ -60,7 +60,8 @@ class AuthControllerTest {
                     {
                         "email": "test@example.com",
                         "displayName": "TestUser",
-                        "password": "Test@1234"
+                        "password": "Test@1234",
+                        "termsAccepted": true
                     }
                     """;
 
@@ -85,7 +86,8 @@ class AuthControllerTest {
                     {
                         "email": "invalid-email",
                         "displayName": "TestUser",
-                        "password": "Test@1234"
+                        "password": "Test@1234",
+                        "termsAccepted": true
                     }
                     """;
 

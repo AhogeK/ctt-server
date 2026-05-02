@@ -55,6 +55,12 @@ public class User {
     @Column(name = "last_login_ip", length = 45)
     private String lastLoginIp;
 
+    @Column(name = "terms_accepted_at")
+    private Instant termsAcceptedAt;
+
+    @Column(name = "terms_version", length = 20)
+    private String termsVersion;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -238,5 +244,21 @@ public class User {
 
     public void setLastLoginIp(String lastLoginIp) {
         this.lastLoginIp = lastLoginIp;
+    }
+
+    public Instant getTermsAcceptedAt() {
+        return termsAcceptedAt;
+    }
+
+    public void setTermsAcceptedAt(Instant termsAcceptedAt) {
+        this.termsAcceptedAt = termsAcceptedAt;
+    }
+
+    public String getTermsVersion() {
+        return termsVersion;
+    }
+
+    public void setTermsVersion(String termsVersion) {
+        this.termsVersion = termsVersion;
     }
 }

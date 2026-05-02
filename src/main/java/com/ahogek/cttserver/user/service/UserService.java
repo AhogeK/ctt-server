@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.Instant;
 
 /**
  * User application service.
@@ -84,11 +85,14 @@ public class UserService {
     @Transactional
     public void registerUser(UserRegisterRequest request) {
         userValidator.assertEmailUnique(request.email());
+        userValidator.assertTermsAccepted(request.termsAccepted());
 
         User newUser = new User();
         newUser.setEmail(request.email());
         newUser.setDisplayName(request.displayName());
         newUser.setPasswordHash(passwordEncoder.encode(request.password()));
+        newUser.setTermsAcceptedAt(Instant.now());
+        newUser.setTermsVersion("2026-05-02");
 
         User savedUser = userRepository.save(newUser);
 
