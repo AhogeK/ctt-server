@@ -33,7 +33,7 @@ public record CttMailProperties(
      * Sender configuration.
      *
      * @param address Sender email address (e.g., noreply@ahogek.com)
-     * @param name Sender display name (e.g., "CTT Server")
+     * @param name Sender display name (e.g., "Code Time Tracker")
      */
     public record From(@NotBlank String address, @NotBlank String name) {}
 

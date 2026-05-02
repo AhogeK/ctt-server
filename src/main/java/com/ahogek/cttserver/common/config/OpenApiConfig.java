@@ -30,7 +30,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(
                         new Info()
-                                .title("CTT Server API")
+                                .title("Code Time Tracker API")
                                 .version(appVersion)
                                 .description("Code Time Tracker Server API"))
                 .components(
