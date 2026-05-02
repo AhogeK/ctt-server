@@ -59,6 +59,7 @@ public enum ErrorCode {
     USER_005("Display name already taken", HttpStatus.CONFLICT),
     USER_006("Cannot delete own account", HttpStatus.FORBIDDEN),
     USER_007("Email already verified", HttpStatus.CONFLICT),
+    USER_008("Terms acceptance required", HttpStatus.BAD_REQUEST),
 
     // =========================================================================
     // MAIL - Email delivery errors
