@@ -249,9 +249,7 @@ public record PublicConfigResponse(
 ) {}
 ```
 
-**状态**: ❌ 待新增
-
-### 3.11 错误码
+**状态**: ✅ 已新增（独立 ConfigController，路径 `/api/v1/config/public`）
 
 **文件**: `src/main/java/com/ahogek/cttserver/common/exception/ErrorCode.java`
 
@@ -261,7 +259,7 @@ USER_008("Terms acceptance required", HttpStatus.BAD_REQUEST),
 AUTH_019("Terms version expired, please re-accept", HttpStatus.FORBIDDEN)
 ```
 
-**状态**: ⚠️ USER_008 已存在（消息待更新），AUTH_019 待新增
+**状态**: ✅ 已更新（USER_008 消息更新 + AUTH_019 已新增）
 
 ---
 
@@ -418,8 +416,8 @@ public void acceptTerms(UUID userId, String termsVersion) {
 | ~~修改 LoginResponse~~ | ~~`LoginResponse.java`~~ | ~~P0~~ ✅ |
 | ~~修改 UserLoginService~~ | ~~`UserLoginService.java`~~ | ~~P0~~ ✅ |
 | ~~修改 OAuthLoginOrRegisterService~~ | ~~`OAuthLoginOrRegisterService.java`~~ | ~~P0~~ ✅ |
-| 新增公开配置接口 | `AuthController.java` | P0 |
-| 新增错误码 | `ErrorCode.java` | P0 |
+| ~~新增公开配置接口~~ | ~~`ConfigController.java`~~ | ~~P0~~ ✅ |
+| ~~新增错误码~~ | ~~`ErrorCode.java`~~ | ~~P0~~ ✅ |
 
 ### P1 条款过期拦截
 
