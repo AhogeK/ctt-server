@@ -1,4 +1,69 @@
 # Active Context
+- [2026-05-03] - termsVersion 格式调整：日期→语义化版本号
+    - 变更: 全局 "2026-05-02" → "1.0.0"（application.yaml, application-test.yaml, TermsProperties, UserRegisterRequest, 7个测试文件）
+    - 变更: docs/plans/2026-05-02-terms-acceptance.md 示例同步更新
+    - 原因: 前端建议，版本号格式更直观，日期信息由 lastUpdated 字段承载
+    - 文件: 11 个文件
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - 测试修复 TermsProperties 构造函数
+    - 变更: UserLoginServiceTest.java 增加 TermsProperties 参数
+    - 变更: OAuthLoginOrRegisterServiceTest.java 增加 TermsProperties 参数
+    - 说明: 适配 3.8/3.9 的构造函数变更
+    - 文件: 2 个测试文件
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - OAuthLoginOrRegisterService termsExpired 逻辑
+    - 变更: OAuthLoginOrRegisterService.java 注入 TermsProperties，createLoginResponse 比对 termsVersion
+    - 说明: 计划 3.9，与邮箱登录统一
+    - 文件: OAuthLoginOrRegisterService.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - UserLoginService termsExpired 逻辑
+    - 变更: UserLoginService.java 注入 TermsProperties，登录时比对 termsVersion，返回 termsExpired
+    - 说明: 计划 3.8
+    - 文件: UserLoginService.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - LoginResponse 新增 termsExpired
+    - 变更: LoginResponse.java 新增 boolean termsExpired 字段（@Schema + Javadoc）
+    - 变更: 便利构造函数默认 termsExpired=false
+    - 说明: 计划 3.7，实际逻辑在 3.8 UserLoginService 中实现
+    - 文件: LoginResponse.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - 测试修复 termsAccepted→termsVersion
+    - 变更: UserRegisterRequestTest.java 15处 true → "2026-05-02"
+    - 变更: RegistrationAndVerificationIntegrationTest.java 1处 true → "2026-05-02"
+    - 变更: UserServiceTest.java 4处 true → "2026-05-02"
+    - 变更: UserValidatorTest.java 构造函数增加 TermsProperties 参数
+    - 说明: 适配 3.4/3.5/3.6 的 DTO 和 Validator 变更
+    - 文件: 4 个测试文件
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - UserValidator + UserService 修改
+    - 变更: UserValidator.java assertTermsAccepted → assertTermsVersionValid，注入 TermsProperties，版本比对逻辑
+    - 变更: UserService.java assertTermsAccepted → assertTermsVersionValid，setTermsVersion 从 request 获取
+    - 说明: 计划 3.5 + 3.6
+    - 文件: UserValidator.java, UserService.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - UserRegisterRequest termsAccepted→termsVersion
+    - 变更: UserRegisterRequest.java Boolean termsAccepted → String termsVersion (@NotBlank + @Schema)
+    - 变更: AuthControllerTest.java "termsAccepted": true → "termsVersion": "2026-05-02" (2处)
+    - 变更: UserService.java request.termsAccepted() → request.termsVersion()
+    - 变更: UserValidator.java assertTermsAccepted 参数改为 String
+    - 说明: 计划 3.4 DTO 修改
+    - 文件: UserRegisterRequest.java, AuthControllerTest.java, UserService.java, UserValidator.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - TermsProperties 配置类创建 + yaml 配置添加
+    - 新增: TermsProperties.java (@ConfigurationProperties(prefix = "ctt.terms"), record, currentVersion 字段)
+    - 变更: application.yaml 新增 ctt.terms.current-version: "2026-05-02"
+    - 说明: 计划 3.3 配置项，为后续 UserValidator.assertTermsVersionValid 提供版本来源
+    - 文件: TermsProperties.java, application.yaml
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
 - [2026-05-03] - Terms 迁移脚本融合进 init schema
     - 变更: 删除独立迁移文件 V20260502000000__add_terms_fields.sql
     - 变更: 将 terms_accepted_at (TIMESTAMPTZ) 和 terms_version (VARCHAR(20)) 两列融入 init_base_schema.sql 的 users 表 CREATE TABLE 语句
