@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * OAuth provider enumeration for third-party authentication integration.
  *
  * @author AhogeK
- * @since 0.16.0
+ * @since 2026-04-12
  */
 public enum OAuthProvider {
 

@@ -12,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <p><strong>Configuration Prefix:</strong> {@code ctt.terms}
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 0.25.0
+ * @since 2026-05-03
  */
 @ConfigurationProperties(prefix = "ctt.terms")
 public record TermsProperties(

@@ -38,7 +38,7 @@ import java.util.UUID;
  * </ul>
  *
  * @author AhogeK
- * @since 0.20.0
+ * @since 2026-04-22
  */
 @Service
 public class OAuthLoginOrRegisterService {
