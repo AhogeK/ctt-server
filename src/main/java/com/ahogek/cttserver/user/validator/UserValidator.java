@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.user.validator;
 
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
@@ -30,9 +31,11 @@ import org.springframework.stereotype.Component;
 public class UserValidator {
 
     private final UserRepository userRepository;
+    private final TermsProperties termsProperties;
 
-    public UserValidator(UserRepository userRepository) {
+    public UserValidator(UserRepository userRepository, TermsProperties termsProperties) {
         this.userRepository = userRepository;
+        this.termsProperties = termsProperties;
     }
 
     /**
@@ -74,14 +77,14 @@ public class UserValidator {
     }
 
     /**
-     * Rule: Terms of service must be accepted during registration.
+     * Rule: User's accepted terms version must match the current active version.
      *
-     * @param termsAccepted the terms acceptance flag
-     * @throws ValidationException if terms not accepted
+     * @param termsVersion the terms version accepted by user
+     * @throws ValidationException if terms version does not match current version
      */
-    public void assertTermsAccepted(Boolean termsAccepted) {
-        if (termsAccepted == null || !termsAccepted) {
-            throw new ValidationException(ErrorCode.USER_008, "You must accept the terms of service");
+    public void assertTermsVersionValid(String termsVersion) {
+        if (!termsProperties.currentVersion().equals(termsVersion)) {
+            throw new ValidationException(ErrorCode.USER_008, "Terms version mismatch. Please refresh the page and try again.");
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.user.validator;
 
 import com.ahogek.cttserver.common.BaseRepositoryTest;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.fixtures.UserFixtures;
@@ -39,7 +40,7 @@ class UserValidatorTest {
 
     @BeforeEach
     void setUp() {
-        userValidator = new UserValidator(userRepository);
+        userValidator = new UserValidator(userRepository, new TermsProperties("1.0.0"));
     }
 
     @Nested

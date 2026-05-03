@@ -8,6 +8,7 @@ import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.exception.ErrorCode;
@@ -46,6 +47,7 @@ public class UserLoginService {
     private final AuditLogService auditLogService;
     private final LoginAttemptService loginAttemptService;
     private final SecurityProperties.JwtProperties jwtProps;
+    private final TermsProperties termsProperties;
 
     public UserLoginService(
             UserRepository userRepository,
@@ -54,7 +56,8 @@ public class UserLoginService {
             RefreshTokenRepository refreshTokenRepository,
             AuditLogService auditLogService,
             LoginAttemptService loginAttemptService,
-            SecurityProperties securityProperties) {
+            SecurityProperties securityProperties,
+            TermsProperties termsProperties) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
@@ -62,6 +65,7 @@ public class UserLoginService {
         this.auditLogService = auditLogService;
         this.loginAttemptService = loginAttemptService;
         this.jwtProps = securityProperties.jwt();
+        this.termsProperties = termsProperties;
     }
 
     @Transactional
@@ -92,8 +96,16 @@ public class UserLoginService {
                 ResourceType.USER,
                 user.getId().toString());
 
+        boolean termsExpired =
+                !termsProperties.currentVersion().equals(user.getTermsVersion());
+
         return new LoginResponse(
-                user.getId(), accessToken, refreshToken, jwtProps.accessTokenTtl().getSeconds());
+                user.getId(),
+                accessToken,
+                refreshToken,
+                jwtProps.accessTokenTtl().getSeconds(),
+                "Bearer",
+                termsExpired);
     }
 
     private void validateUserStatus(User user) {

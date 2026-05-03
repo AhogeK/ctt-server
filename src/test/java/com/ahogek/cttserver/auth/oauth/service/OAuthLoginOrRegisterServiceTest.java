@@ -11,6 +11,7 @@ import com.ahogek.cttserver.auth.oauth.repository.UserOAuthAccountRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.user.entity.User;
@@ -63,6 +64,8 @@ class OAuthLoginOrRegisterServiceTest {
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
 
+    private final TermsProperties termsProperties = new TermsProperties("1.0.0");
+
     private OAuthLoginOrRegisterService oauthLoginService;
 
     @BeforeEach
@@ -78,7 +81,8 @@ class OAuthLoginOrRegisterServiceTest {
                         jwtTokenProvider,
                         refreshTokenRepository,
                         auditLogService,
-                        securityProperties);
+                        securityProperties,
+                        termsProperties);
 
         doAnswer(
                         invocation -> {

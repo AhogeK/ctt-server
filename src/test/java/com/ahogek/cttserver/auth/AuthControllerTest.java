@@ -61,7 +61,7 @@ class AuthControllerTest {
                         "email": "test@example.com",
                         "displayName": "TestUser",
                         "password": "Test@1234",
-                        "termsAccepted": true
+                        "termsVersion": "1.0.0"
                     }
                     """;
 
@@ -87,7 +87,7 @@ class AuthControllerTest {
                         "email": "invalid-email",
                         "displayName": "TestUser",
                         "password": "Test@1234",
-                        "termsAccepted": true
+                        "termsVersion": "1.0.0"
                     }
                     """;
 
