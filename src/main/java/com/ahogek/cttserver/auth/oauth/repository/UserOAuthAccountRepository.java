@@ -24,7 +24,7 @@ import java.util.UUID;
  * </ul>
  *
  * @author AhogeK
- * @since 0.16.0
+ * @since 2026-04-12
  */
 @Repository
 public interface UserOAuthAccountRepository extends JpaRepository<UserOAuthAccount, UUID> {

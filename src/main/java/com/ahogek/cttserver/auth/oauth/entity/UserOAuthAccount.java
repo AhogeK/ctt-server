@@ -19,7 +19,7 @@ import java.util.UUID;
  * integration. Each user can have multiple OAuth accounts linked to different providers.
  *
  * @author AhogeK
- * @since 0.16.0
+ * @since 2026-04-12
  */
 @Entity
 @Table(

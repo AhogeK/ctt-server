@@ -11,7 +11,7 @@ package com.ahogek.cttserver.auth.enums;
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 0.2.0
+ * @since 2026-04-08
  */
 public enum LockoutStorageType {
     DB,

@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  *
  * @param refreshToken the refresh token for token rotation
  * @author AhogeK [ahogek@gmail.com]
- * @since 0.1.0
+ * @since 2026-04-02
  */
 @Schema(description = "Refresh token request for token rotation")
 public record RefreshTokenRequest(

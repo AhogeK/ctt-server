@@ -33,7 +33,7 @@ import java.util.UUID;
  * completion. It ensures only valid, unexpired tokens can verify user email addresses.
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 0.1.0
+ * @since 2026-03-22
  */
 @Service
 public class EmailVerificationService {

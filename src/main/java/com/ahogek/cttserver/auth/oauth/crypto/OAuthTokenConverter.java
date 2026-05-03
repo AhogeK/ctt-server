@@ -15,7 +15,7 @@ import org.springframework.util.StringUtils;
  * Hibernate 5+.
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 0.16.0
+ * @since 2026-04-12
  */
 @Component
 @Converter

@@ -11,7 +11,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
  * classes.
  *
  * @author AhogeK [ahogek@gmail.com]
- * @since 0.1.0
+ * @since 2026-03-22
  */
 @Configuration
 @EnableJpaAuditing
