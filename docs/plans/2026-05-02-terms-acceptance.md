@@ -22,7 +22,7 @@
   "email": "user@example.com",
   "displayName": "User",
   "password": "...",
-  "termsVersion": "2026-05-02"
+  "termsVersion": "1.0.0"
 }
 
 // 登录时后端返回
@@ -102,7 +102,7 @@ ALTER TABLE users
     ADD COLUMN terms_version VARCHAR(20);
 
 COMMENT ON COLUMN users.terms_accepted_at IS 'Timestamp when user accepted terms (UTC)';
-COMMENT ON COLUMN users.terms_version IS 'Terms version accepted by user (e.g., 2026-05-02)';
+COMMENT ON COLUMN users.terms_version IS 'Terms version accepted by user (e.g., 1.0.0)';
 ```
 
 **状态**: ✅ 已融合进 init schema (`V20260303210000__init_base_schema.sql`)
@@ -134,10 +134,10 @@ public void setTermsVersion(String termsVersion) { this.termsVersion = termsVers
 ```yaml
 ctt:
   terms:
-    current-version: "2026-05-02"
+    current-version: "1.0.0"
 ```
 
-**状态**: ❌ 待添加
+**状态**: ✅ 已添加
 
 ### 3.4 UserRegisterRequest DTO 修改
 
@@ -146,7 +146,7 @@ ctt:
 **修改**: 移除 `termsAccepted`，改为 `termsVersion`
 
 ```java
-@Schema(description = "Terms version accepted by user", example = "2026-05-02")
+@Schema(description = "Terms version accepted by user", example = "1.0.0")
 @NotBlank(message = "Terms version is required")
 String termsVersion
 ```
@@ -157,11 +157,11 @@ String termsVersion
   "email": "user@example.com",
   "displayName": "User",
   "password": "...",
-  "termsVersion": "2026-05-02"
+  "termsVersion": "1.0.0"
 }
 ```
 
-**状态**: ❌ 待修改
+**状态**: ✅ 已修改
 
 ### 3.5 UserValidator 修改
 
@@ -181,9 +181,7 @@ public void assertTermsVersionValid(String termsVersion) {
 }
 ```
 
-**状态**: ❌ 待修改
-
-### 3.6 UserService 修改
+**状态**: ✅ 已修改
 
 **文件**: `src/main/java/com/ahogek/cttserver/user/service/UserService.java`
 
@@ -196,7 +194,7 @@ newUser.setTermsAcceptedAt(Instant.now());
 newUser.setTermsVersion(request.termsVersion());
 ```
 
-**状态**: ❌ 待修改
+**状态**: ✅ 已修改
 
 ### 3.7 LoginResponse 修改
 
@@ -209,7 +207,7 @@ newUser.setTermsVersion(request.termsVersion());
 boolean termsExpired
 ```
 
-**状态**: ❌ 待修改
+**状态**: ✅ 已修改
 
 ### 3.8 UserLoginService 修改
 
@@ -222,7 +220,7 @@ boolean termsExpired = !currentVersion.equals(user.getTermsVersion());
 return new LoginResponse(userId, accessToken, refreshToken, expiresIn, "Bearer", termsExpired);
 ```
 
-**状态**: ❌ 待修改
+**状态**: ✅ 已修改
 
 ### 3.9 OAuthLoginOrRegisterService 修改
 
@@ -230,7 +228,7 @@ return new LoginResponse(userId, accessToken, refreshToken, expiresIn, "Bearer",
 
 **修改**: 与邮箱登录统一，返回 `termsExpired`
 
-**状态**: ❌ 待修改
+**状态**: ✅ 已修改
 
 ### 3.10 公开配置接口
 
@@ -246,7 +244,7 @@ public ApiResponse<PublicConfigResponse> getPublicConfig() {
 }
 
 public record PublicConfigResponse(
-    @Schema(description = "Current terms version", example = "2026-05-02")
+    @Schema(description = "Current terms version", example = "1.0.0")
     String termsVersion
 ) {}
 ```
@@ -413,13 +411,13 @@ public void acceptTerms(UUID userId, String termsVersion) {
 
 | 任务 | 文件 | 优先级 |
 |------|------|--------|
-| 添加配置项 | `application.yaml` | P0 |
-| 修改 UserRegisterRequest | `UserRegisterRequest.java` | P0 |
-| 修改 UserValidator | `UserValidator.java` | P0 |
-| 修改 UserService | `UserService.java` | P0 |
-| 修改 LoginResponse | `LoginResponse.java` | P0 |
-| 修改 UserLoginService | `UserLoginService.java` | P0 |
-| 修改 OAuthLoginOrRegisterService | `OAuthLoginOrRegisterService.java` | P0 |
+| ~~添加配置项~~ | ~~`application.yaml`~~ | ~~P0~~ ✅ |
+| ~~修改 UserRegisterRequest~~ | ~~`UserRegisterRequest.java`~~ | ~~P0~~ ✅ |
+| ~~修改 UserValidator~~ | ~~`UserValidator.java`~~ | ~~P0~~ ✅ |
+| ~~修改 UserService~~ | ~~`UserService.java`~~ | ~~P0~~ ✅ |
+| ~~修改 LoginResponse~~ | ~~`LoginResponse.java`~~ | ~~P0~~ ✅ |
+| ~~修改 UserLoginService~~ | ~~`UserLoginService.java`~~ | ~~P0~~ ✅ |
+| ~~修改 OAuthLoginOrRegisterService~~ | ~~`OAuthLoginOrRegisterService.java`~~ | ~~P0~~ ✅ |
 | 新增公开配置接口 | `AuthController.java` | P0 |
 | 新增错误码 | `ErrorCode.java` | P0 |
 
