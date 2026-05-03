@@ -1,4 +1,23 @@
 # Active Context
+- [2026-05-03] - Terms 迁移脚本融合进 init schema
+    - 变更: 删除独立迁移文件 V20260502000000__add_terms_fields.sql
+    - 变更: 将 terms_accepted_at (TIMESTAMPTZ) 和 terms_version (VARCHAR(20)) 两列融入 init_base_schema.sql 的 users 表 CREATE TABLE 语句
+    - 变更: 将两列的 COMMENT ON COLUMN 追加到 users 表注释区块末尾
+    - 原因: 项目仍在开发阶段，无需独立迁移文件，统一融入 init schema 简化迁移链
+    - 文件: V20260303210000__init_base_schema.sql (modified), V20260502000000__add_terms_fields.sql (deleted)
+    - 版本: 0.25.0-SNAPSHOT (不变，重构清理)
+
+- [2026-05-02] - Terms 同意状态记录（GDPR/CCPA 合规）
+    - 变更: Flyway 迁移 V20260502000000__add_terms_fields.sql 添加 users.terms_accepted_at (TIMESTAMPTZ) 和 users.terms_version (VARCHAR(20))
+    - 变更: User.java 添加 termsAcceptedAt (Instant) 和 termsVersion (String) 字段及 getter/setter
+    - 变更: UserRegisterRequest.java 添加 Boolean termsAccepted 字段（带 @NotNull 和 @Schema）
+    - 变更: ErrorCode.java 新增 USER_008 "Terms acceptance required" (400 BAD_REQUEST)
+    - 变更: UserValidator.java 新增 assertTermsAccepted(Boolean) 方法（null/false 抛 ValidationException）
+    - 变更: UserService.registerUser() 添加 termsAccepted 校验 + 设置 termsAcceptedAt/termsVersion
+    - 说明: GDPR/CCPA 合规要求，注册时必须同意条款，条款更新时检查 terms_version 是否过期
+    - 文件: V20260502000000__add_terms_fields.sql, User.java, UserRegisterRequest.java, ErrorCode.java, UserValidator.java, UserService.java
+    - 版本: 0.24.3-SNAPSHOT → 0.25.0-SNAPSHOT (MINOR: 新功能)
+
 - [2026-05-02] - 邮件 From 显示名称修正（CTT Server → Code Time Tracker）
     - 变更: application.yaml 默认值 `CTT Server` → `Code Time Tracker`
     - 变更: CttMailProperties.java 注释示例 `"CTT Server"` → `"Code Time Tracker"`
