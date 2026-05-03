@@ -35,6 +35,8 @@ spring:
 
 # Security configuration for tests
 ctt:
+  terms:
+    current-version: "1.0.0"
   security:
     jwt:
       # Test-only secret key (256+ bits for HMAC-SHA256)

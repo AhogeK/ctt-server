@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param refreshToken the refresh token
  * @param expiresIn access token expiration time in seconds
  * @param tokenType the token type (e.g., "Bearer")
+ * @param termsExpired whether user's accepted terms version is expired
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-23
  */
@@ -32,13 +33,15 @@ public record LoginResponse(
         @Schema(description = "Access token expiration time in seconds", example = "3600")
                 long expiresIn,
         @Schema(description = "Token type per OAuth2 RFC 6750", example = "Bearer")
-                String tokenType) {
+                String tokenType,
+        @Schema(description = "Whether user's accepted terms version is expired", example = "false")
+                boolean termsExpired) {
 
     /**
      * Business-layer convenience constructor. Automatically defaults tokenType to "Bearer" per
      * OAuth2 RFC 6750.
      */
     public LoginResponse(UUID userId, String accessToken, String refreshToken, long expiresIn) {
-        this(userId, accessToken, refreshToken, expiresIn, "Bearer");
+        this(userId, accessToken, refreshToken, expiresIn, "Bearer", false);
     }
 }

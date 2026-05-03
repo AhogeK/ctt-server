@@ -5,7 +5,7 @@ import com.ahogek.cttserver.common.validation.annotation.StrongPassword;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+
 import jakarta.validation.constraints.Pattern;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -35,9 +35,9 @@ public record UserRegisterRequest(
                         example = "SecurePass123!")
                 @StrongPassword
                 String password,
-        @Schema(description = "Terms acceptance confirmation", example = "true")
-                @NotNull(message = "You must accept the terms of service")
-                Boolean termsAccepted) {
+        @Schema(description = "Terms version accepted by user", example = "1.0.0")
+                @NotBlank(message = "Terms version is required")
+                String termsVersion) {
 
     /**
      * Compact constructor for normalization.
@@ -47,7 +47,7 @@ public record UserRegisterRequest(
      * @param email the email address
      * @param displayName the display name
      * @param password the password
-     * @param termsAccepted the terms acceptance confirmation
+     * @param termsVersion the terms version accepted by user
      */
     public UserRegisterRequest {
         email = (email == null) ? null : email.trim().toLowerCase();

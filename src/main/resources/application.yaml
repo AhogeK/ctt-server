@@ -74,6 +74,9 @@ springdoc:
     path: /swagger-ui.html
 
 ctt:
+  terms:
+    current-version: "1.0.0"
+
   security:
     jwt:
       secret-key: ${JWT_SECRET_KEY:LOCAL_DUMMY_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG}

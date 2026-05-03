@@ -85,14 +85,14 @@ public class UserService {
     @Transactional
     public void registerUser(UserRegisterRequest request) {
         userValidator.assertEmailUnique(request.email());
-        userValidator.assertTermsAccepted(request.termsAccepted());
+        userValidator.assertTermsVersionValid(request.termsVersion());
 
         User newUser = new User();
         newUser.setEmail(request.email());
         newUser.setDisplayName(request.displayName());
         newUser.setPasswordHash(passwordEncoder.encode(request.password()));
         newUser.setTermsAcceptedAt(Instant.now());
-        newUser.setTermsVersion("2026-05-02");
+        newUser.setTermsVersion(request.termsVersion());
 
         User savedUser = userRepository.save(newUser);
 

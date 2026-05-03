@@ -8,6 +8,7 @@ import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
@@ -60,6 +61,8 @@ class UserLoginServiceTest {
     @Mock private SecurityProperties.JwtProperties jwtProps;
     @Mock private LoginAttemptService loginAttemptService;
 
+    private final TermsProperties termsProperties = new TermsProperties("1.0.0");
+
     private UserLoginService loginService;
 
     @BeforeEach
@@ -76,7 +79,8 @@ class UserLoginServiceTest {
                         refreshTokenRepository,
                         auditLogService,
                         loginAttemptService,
-                        securityProperties);
+                        securityProperties,
+                        termsProperties);
 
         doAnswer(_ -> null).when(loginAttemptService).recordSuccess(anyString());
 
