@@ -6,7 +6,19 @@
     - 文件: 11 个文件
     - 版本: 0.25.0-SNAPSHOT (不变)
 
-- [2026-05-03] - 测试修复 TermsProperties 构造函数
+- [2026-05-03] - ErrorCode 更新 USER_008 + 新增 AUTH_019
+    - 变更: USER_008 消息 "Terms acceptance required" → "Terms version mismatch"
+    - 新增: AUTH_019 "Terms version expired, please re-accept" (403 FORBIDDEN)
+    - 说明: 计划 3.11，P0 错误码完成
+    - 文件: ErrorCode.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - 新增 ConfigController 公开配置接口
+    - 新增: ConfigController.java (@RestController, GET /api/v1/config/public)
+    - 决策: 独立 Controller 而非放在 AuthController（路径 /api/v1/config 不属于 /api/v1/auth）
+    - 说明: 计划 3.10，返回 PublicConfigResponse(termsVersion)
+    - 文件: ConfigController.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
     - 变更: UserLoginServiceTest.java 增加 TermsProperties 参数
     - 变更: OAuthLoginOrRegisterServiceTest.java 增加 TermsProperties 参数
     - 说明: 适配 3.8/3.9 的构造函数变更
