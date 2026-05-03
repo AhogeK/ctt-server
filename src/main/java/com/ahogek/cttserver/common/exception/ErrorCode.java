@@ -46,6 +46,7 @@ public enum ErrorCode {
     AUTH_016("OAuth account already linked", HttpStatus.CONFLICT),
     AUTH_017("OAuth account not linked", HttpStatus.BAD_REQUEST),
     AUTH_018("Cannot unlink last credential", HttpStatus.BAD_REQUEST),
+    AUTH_019("Terms version expired, please re-accept", HttpStatus.FORBIDDEN),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),
 
@@ -59,7 +60,7 @@ public enum ErrorCode {
     USER_005("Display name already taken", HttpStatus.CONFLICT),
     USER_006("Cannot delete own account", HttpStatus.FORBIDDEN),
     USER_007("Email already verified", HttpStatus.CONFLICT),
-    USER_008("Terms acceptance required", HttpStatus.BAD_REQUEST),
+    USER_008("Terms version mismatch", HttpStatus.BAD_REQUEST),
 
     // =========================================================================
     // MAIL - Email delivery errors
