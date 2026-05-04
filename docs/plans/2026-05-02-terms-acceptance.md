@@ -275,7 +275,7 @@ AUTH_019("Terms version expired, please re-accept", HttpStatus.FORBIDDEN)
 claims.put("termsVersion", user.getTermsVersion());
 ```
 
-**状态**: ❌ 待修改
+**状态**: ✅ 已修改
 
 ### 4.2 TermsCheckFilter
 
@@ -302,7 +302,7 @@ public class TermsCheckFilter extends OncePerRequestFilter {
 }
 ```
 
-**状态**: ❌ 待新增
+**状态**: ✅ 已新增
 
 ### 4.3 POST /terms/accept API
 
@@ -423,8 +423,8 @@ public void acceptTerms(UUID userId, String termsVersion) {
 
 | 任务 | 文件 | 优先级 |
 |------|------|--------|
-| JWT 编码 termsVersion | `JwtTokenProvider.java` | P1 |
-| 新增 TermsCheckFilter | `auth/filter/TermsCheckFilter.java` | P1 |
+| ~~JWT 编码 termsVersion~~ | ~~`JwtTokenProvider.java`~~ | ~~P1~~ ✅ |
+| ~~新增 TermsCheckFilter~~ | ~~`auth/filter/TermsCheckFilter.java`~~ | ~~P1~~ ✅ |
 | 新增 POST /terms/accept | `AuthController.java` | P1 |
 | 新增 UserService.acceptTerms | `UserService.java` | P1 |
 
