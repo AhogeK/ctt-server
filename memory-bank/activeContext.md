@@ -6,6 +6,27 @@
     - 文件: 11 个文件
     - 版本: 0.25.0-SNAPSHOT (不变)
 
+- [2026-05-03] - 修复 TermsCheckFilter 硬编码 URI
+    - 变更: TermsProperties 新增 termsAcceptPath 字段（默认 /api/v1/auth/terms/accept）
+    - 变更: TermsCheckFilter 移除 TERMS_ACCEPT_PATH 常量，使用配置属性
+    - 变更: application.yaml + application-test.yaml 新增 terms-accept-path 配置
+    - 说明: 修复 SonarQube "URIs should not be hardcoded" 问题
+    - 文件: TermsProperties.java, TermsCheckFilter.java, application.yaml, application-test.yaml, 3个测试文件
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - 新增 TermsCheckFilter + 测试修复
+    - 新增: TermsCheckFilter.java (@Component, OncePerRequestFilter)
+    - 修复: 7个测试文件 excludeFilters 排除 TermsCheckFilter（@WebMvcTest 不加载 TermsProperties）
+    - 说明: 计划 4.2，检查 JWT 中 termsVersion 与当前版本比对
+    - 文件: TermsCheckFilter.java, 7个测试文件
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-03] - JWT 编码 termsVersion claim
+    - 变更: JwtTokenProvider.java generateAccessToken 新增 termsVersion claim（null-safe）
+    - 说明: 计划 4.1，为 TermsCheckFilter 提供比对依据
+    - 文件: JwtTokenProvider.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
 - [2026-05-03] - ErrorCode 更新 USER_008 + 新增 AUTH_019
     - 变更: USER_008 消息 "Terms acceptance required" → "Terms version mismatch"
     - 新增: AUTH_019 "Terms version expired, please re-accept" (403 FORBIDDEN)
