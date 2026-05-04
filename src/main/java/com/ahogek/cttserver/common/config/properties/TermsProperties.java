@@ -17,4 +17,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "ctt.terms")
 public record TermsProperties(
         @Schema(description = "Current active terms of service version identifier", example = "1.0.0")
-        String currentVersion) {}
+        String currentVersion,
+        @Schema(description = "Path for the terms acceptance endpoint", example = "/api/v1/auth/terms/accept")
+        String termsAcceptPath) {
+
+    public TermsProperties {
+        if (termsAcceptPath == null || termsAcceptPath.isBlank()) {
+            termsAcceptPath = "/api/v1/auth/terms/accept";
+        }
+    }
+}

@@ -6,6 +6,7 @@ import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -34,7 +37,12 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
-@BaseControllerSliceTest(AuthController.class)
+@BaseControllerSliceTest(
+        value = AuthController.class,
+        excludeFilters =
+                @ComponentScan.Filter(
+                        type = FilterType.ASSIGNABLE_TYPE,
+                        classes = {TermsCheckFilter.class}))
 @DisplayName("LogoutAllController Web MVC Tests")
 class LogoutAllControllerTest {
 
@@ -51,12 +59,12 @@ class LogoutAllControllerTest {
     @MockitoBean private PasswordResetService passwordResetService;
 
     private Authentication createAuth(
-            UUID userId, String email, UserStatus status, Set<String> authorities) {
+        UUID userId, Set<String> authorities) {
         CurrentUser currentUser =
                 new CurrentUser(
                         userId,
-                        email,
-                        status,
+                    "test@example.com",
+                    UserStatus.ACTIVE,
                         authorities,
                         CurrentUser.AuthenticationType.WEB_SESSION);
         return new UsernamePasswordAuthenticationToken(
@@ -72,7 +80,7 @@ class LogoutAllControllerTest {
         void shouldLogoutAllDevicesSuccessfully_withValidJwt() {
             UUID userId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
             Authentication auth =
-                    createAuth(userId, "test@example.com", UserStatus.ACTIVE, Set.of("ROLE_USER"));
+                    createAuth(userId, Set.of("ROLE_USER"));
 
             assertThat(
                             mvc.post()

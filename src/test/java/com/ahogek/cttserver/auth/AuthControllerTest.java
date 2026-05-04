@@ -5,10 +5,13 @@ import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.user.service.UserService;
 
 import org.junit.jupiter.api.DisplayName;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
@@ -31,7 +34,12 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * @see <a href="docs/developer-handbook.md#adding-protected-interfaces">Developer Handbook - Adding
  *     Protected Interfaces</a>
  */
-@BaseControllerSliceTest(AuthController.class)
+@BaseControllerSliceTest(
+        value = AuthController.class,
+        excludeFilters =
+                @ComponentScan.Filter(
+                        type = FilterType.ASSIGNABLE_TYPE,
+                        classes = {TermsCheckFilter.class}))
 @DisplayName("AuthController REST API Tests")
 class AuthControllerTest {
 

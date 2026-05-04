@@ -40,7 +40,7 @@ class UserValidatorTest {
 
     @BeforeEach
     void setUp() {
-        userValidator = new UserValidator(userRepository, new TermsProperties("1.0.0"));
+        userValidator = new UserValidator(userRepository, new TermsProperties("1.0.0", null));
     }
 
     @Nested

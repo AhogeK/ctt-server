@@ -37,6 +37,7 @@ spring:
 ctt:
   terms:
     current-version: "1.0.0"
+    terms-accept-path: "/api/v1/auth/terms/accept"
   security:
     jwt:
       # Test-only secret key (256+ bits for HMAC-SHA256)

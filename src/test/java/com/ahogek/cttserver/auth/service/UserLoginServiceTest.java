@@ -61,7 +61,7 @@ class UserLoginServiceTest {
     @Mock private SecurityProperties.JwtProperties jwtProps;
     @Mock private LoginAttemptService loginAttemptService;
 
-    private final TermsProperties termsProperties = new TermsProperties("1.0.0");
+    private final TermsProperties termsProperties = new TermsProperties("1.0.0", null);
 
     private UserLoginService loginService;
 
