@@ -64,7 +64,7 @@ class OAuthLoginOrRegisterServiceTest {
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
 
-    private final TermsProperties termsProperties = new TermsProperties("1.0.0");
+    private final TermsProperties termsProperties = new TermsProperties("1.0.0", null);
 
     private OAuthLoginOrRegisterService oauthLoginService;
 

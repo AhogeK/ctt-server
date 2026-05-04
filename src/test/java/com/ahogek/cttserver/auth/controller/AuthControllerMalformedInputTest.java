@@ -5,10 +5,13 @@ import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.user.service.UserService;
 
 import org.junit.jupiter.api.DisplayName;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +31,12 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * @author AhogeK
  * @since 2026-04-02
  */
-@BaseControllerSliceTest(AuthController.class)
+@BaseControllerSliceTest(
+        value = AuthController.class,
+        excludeFilters =
+                @ComponentScan.Filter(
+                        type = FilterType.ASSIGNABLE_TYPE,
+                        classes = {TermsCheckFilter.class}))
 @DisplayName("AuthController Malformed Input Tests")
 class AuthControllerMalformedInputTest {
 
