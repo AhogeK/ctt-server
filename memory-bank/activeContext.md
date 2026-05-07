@@ -1,9 +1,51 @@
 # Active Context
+- [2026-05-07] - Terms Acceptance Code Review 修复 + 版本升级
+    - 背景: Oracle/Momus 代码审查发现 16 个 P0/P1/P2 问题
+    - 修复: P0(4项) SecurityConfig 注册 TermsCheckFilter + OAuth termsVersion + TokenRefreshService termsExpired 逻辑 + 测试覆盖
+    - 修复: P1(5项) UserService acceptTerms 事务性 + 审计日志 + terms/accept 限流 + architecture 模式
+    - 修复: P2(5项) Filter 异常处理 + null safety + Javadoc + test assertions + token comparison
+    - 测试修复: AuthControllerTest 401 assertions ($.code → $.data.code, AUTH_002 → AUTH_003)
+    - 版本: 0.25.0-SNAPSHOT → 0.25.1-SNAPSHOT (PATCH: code review fixes)
+    - 文件: 14 main source files, 12+ test files
+    - 测试状态: 792 tests passing
+
 - [2026-05-03] - termsVersion 格式调整：日期→语义化版本号
     - 变更: 全局 "2026-05-02" → "1.0.0"（application.yaml, application-test.yaml, TermsProperties, UserRegisterRequest, 7个测试文件）
     - 变更: docs/plans/2026-05-02-terms-acceptance.md 示例同步更新
     - 原因: 前端建议，版本号格式更直观，日期信息由 lastUpdated 字段承载
     - 文件: 11 个文件
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-04] - terms/accept 接口验证与测试修复
+    - 变更: AuthControllerTest.java 新增 AcceptTermsTests，验证已认证用户重新同意条款流程
+    - 修复: 修复 AuthControllerForgotPasswordTest 等 5 个测试文件，补全 UserRepository 与 TermsProperties 模拟 Bean
+    - 说明: 计划 10.2，核心功能闭环验证完成
+    - 文件: AuthControllerTest.java, 5 个相关测试文件
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-04] - TermsCheckFilter 逻辑验证
+    - 新增: TermsCheckFilterTest.java 实现 16 个测试用例，覆盖版本匹配、过期、跳过公开接口等场景
+    - 说明: 计划 10.2，确保过滤器行为符合预期且不影响现有流程
+    - 文件: TermsCheckFilterTest.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-04] - LoginResponse 序列化验证
+    - 新增: LoginResponseTest.java 验证 termsExpired 字段在 JSON 中的序列化与反序列化
+    - 说明: 计划 10.1
+    - 文件: LoginResponseTest.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-04] - AuthController 实现 terms/accept API
+    - 变更: AuthController.java 新增 POST /terms/accept 端点，支持重新同意条款并获取新 Token
+    - 变更: UserLoginService.java 新增 issueTokens(User) 方法支持 Token 重发
+    - 说明: 计划 4.3，打通条款同意闭环
+    - 文件: AuthController.java, UserLoginService.java
+    - 版本: 0.25.0-SNAPSHOT (不变)
+
+- [2026-05-04] - UserService 新增 acceptTerms 方法
+    - 新增: UserService.java public void acceptTerms(UUID, String) 实现，更新同意时间与版本
+    - 说明: 计划 4.4，为 4.3 API 提供服务层支持
+    - 文件: UserService.java
     - 版本: 0.25.0-SNAPSHOT (不变)
 
 - [2026-05-03] - 修复 TermsCheckFilter 硬编码 URI
