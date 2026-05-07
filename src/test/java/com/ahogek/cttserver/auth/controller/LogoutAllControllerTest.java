@@ -1,16 +1,18 @@
 package com.ahogek.cttserver.auth.controller;
 
 import com.ahogek.cttserver.auth.AuthController;
+import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
-import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.user.enums.UserStatus;
+import com.ahogek.cttserver.user.repository.UserRepository;
 import com.ahogek.cttserver.user.service.UserService;
 
 import org.junit.jupiter.api.DisplayName;
@@ -58,13 +60,16 @@ class LogoutAllControllerTest {
 
     @MockitoBean private PasswordResetService passwordResetService;
 
-    private Authentication createAuth(
-        UUID userId, Set<String> authorities) {
+    @MockitoBean private UserRepository userRepository;
+
+    @MockitoBean private TermsProperties termsProperties;
+
+    private Authentication createAuth(UUID userId, Set<String> authorities) {
         CurrentUser currentUser =
                 new CurrentUser(
                         userId,
-                    "test@example.com",
-                    UserStatus.ACTIVE,
+                        "test@example.com",
+                        UserStatus.ACTIVE,
                         authorities,
                         CurrentUser.AuthenticationType.WEB_SESSION);
         return new UsernamePasswordAuthenticationToken(
@@ -79,8 +84,7 @@ class LogoutAllControllerTest {
         @DisplayName("Should logout all devices successfully with valid JWT")
         void shouldLogoutAllDevicesSuccessfully_withValidJwt() {
             UUID userId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-            Authentication auth =
-                    createAuth(userId, Set.of("ROLE_USER"));
+            Authentication auth = createAuth(userId, Set.of("ROLE_USER"));
 
             assertThat(
                             mvc.post()

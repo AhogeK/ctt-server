@@ -91,31 +91,19 @@ class ValidationConstantsTest {
     }
 
     static Stream<String> validPasswordCharsProvider() {
-        return Stream.of(
-                "abcXYZ123",
-                "!@#$%^&*()_+-=[]{};:,.<>?/~",
-                "a!b@c#d$1%2^");
+        return Stream.of("abcXYZ123", "!@#$%^&*()_+-=[]{};:,.<>?/~", "a!b@c#d$1%2^");
     }
 
     @ParameterizedTest
     @MethodSource("validPasswordCharsProvider")
     void regex_password_chars_matches_valid_chars(String password) {
-        assertThat(password)
-                .matches(ValidationConstants.REGEX_PASSWORD_CHARS);
+        assertThat(password).matches(ValidationConstants.REGEX_PASSWORD_CHARS);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {
-            "",
-            "hello world",
-            "hello\tworld",
-            "héllo",
-            "密码",
-            "\ud83d\ude00"
-    })
+    @ValueSource(strings = {"", "hello world", "hello\tworld", "héllo", "密码", "\ud83d\ude00"})
     void regex_password_chars_rejects_invalid_chars(String password) {
-        assertThat(password)
-                .doesNotMatch(ValidationConstants.REGEX_PASSWORD_CHARS);
+        assertThat(password).doesNotMatch(ValidationConstants.REGEX_PASSWORD_CHARS);
     }
 
     @Test

@@ -6,8 +6,6 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +19,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -28,6 +27,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Filter that checks if the user's accepted terms version matches the current active version.
@@ -102,8 +103,10 @@ public class TermsCheckFilter extends OncePerRequestFilter {
                 writeForbiddenResponse(response);
                 return;
             }
+        } catch (JwtException e) {
+            // Pass through - authentication issues handled by security filter chain
         } catch (Exception e) {
-            log.warn("Failed to decode JWT for terms check: {}", e.getMessage());
+            log.warn("Unexpected error during terms check: {}", e.getMessage());
         }
 
         chain.doFilter(request, response);

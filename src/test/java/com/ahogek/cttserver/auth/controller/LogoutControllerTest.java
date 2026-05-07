@@ -1,9 +1,9 @@
 package com.ahogek.cttserver.auth.controller;
 
 import com.ahogek.cttserver.auth.dto.LogoutRequest;
+import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
-import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.user.enums.UserStatus;

@@ -1,10 +1,14 @@
 package com.ahogek.cttserver.user.service;
 
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
+import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
@@ -20,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,6 +59,10 @@ class UserServiceTest {
     @Mock private EmailVerificationTokenRepository tokenRepository;
 
     @Mock private MailOutboxService mailOutboxService;
+
+    @Mock private UserLoginService userLoginService;
+
+    @Mock private TermsProperties termsProperties;
 
     @InjectMocks private UserService userService;
 
@@ -95,7 +104,8 @@ class UserServiceTest {
         void shouldThrowConflictException_whenEmailNotUnique() {
             // Given
             UserRegisterRequest request =
-                    new UserRegisterRequest("duplicate@example.com", "Test User", "Test@1234", "1.0.0");
+                    new UserRegisterRequest(
+                            "duplicate@example.com", "Test User", "Test@1234", "1.0.0");
 
             doThrow(new ConflictException(ErrorCode.AUTH_002, "Email is already registered"))
                     .when(userValidator)
@@ -163,6 +173,57 @@ class UserServiceTest {
             userService.registerUser(request);
 
             // Then - assertions are in the mock answer
+        }
+    }
+
+    @Nested
+    @DisplayName("acceptTermsAndIssueTokens() - Terms Acceptance Flow")
+    class AcceptTermsTests {
+
+        @Test
+        @DisplayName("Should accept terms and issue tokens when user exists")
+        void shouldAcceptTermsAndIssueTokensSuccessfully() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            String currentVersion = "2.0.0";
+            User user = new User();
+            org.springframework.test.util.ReflectionTestUtils.setField(user, "id", userId);
+            LoginResponse mockResponse = new LoginResponse(userId, "access", "refresh", 3600L);
+
+            when(termsProperties.currentVersion()).thenReturn(currentVersion);
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(userRepository.save(any(User.class))).thenReturn(user);
+            when(userLoginService.issueTokens(user)).thenReturn(mockResponse);
+
+            // When
+            LoginResponse response = userService.acceptTermsAndIssueTokens(userId);
+
+            // Then
+            assertThat(response).isSameAs(mockResponse);
+            assertThat(user.getTermsAcceptedAt()).isNotNull();
+            assertThat(user.getTermsVersion()).isEqualTo(currentVersion);
+            verify(userRepository).findById(userId);
+            verify(userRepository).save(user);
+            verify(userLoginService).issueTokens(user);
+            verify(auditLogService).logSuccess(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Should throw NotFoundException when user not found")
+        void shouldThrowNotFoundException_whenUserNotFound() {
+            // Given
+            UUID userId = UUID.randomUUID();
+
+            when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> userService.acceptTermsAndIssueTokens(userId))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
+
+            verify(userRepository).findById(userId);
+            verify(userRepository, never()).save(any());
+            verify(userLoginService, never()).issueTokens(any());
         }
     }
 }

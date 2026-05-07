@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.common.config;
 
+import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.infrastructure.security.JwtAuthenticationEntryPoint;
 import com.ahogek.cttserver.auth.infrastructure.security.JwtToCurrentUserConverter;
 import com.ahogek.cttserver.auth.infrastructure.security.PublicApiEndpointRegistry;
@@ -16,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
+import org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter;
 
 /**
  * Security configuration with OWASP-compliant headers.
@@ -39,16 +41,19 @@ public class SecurityConfig {
     private final SecurityProperties securityProperties;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtToCurrentUserConverter jwtToCurrentUserConverter;
+    private final TermsCheckFilter termsCheckFilter;
 
     public SecurityConfig(
             PublicApiEndpointRegistry publicApiRegistry,
             SecurityProperties securityProperties,
             JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
-            JwtToCurrentUserConverter jwtToCurrentUserConverter) {
+            JwtToCurrentUserConverter jwtToCurrentUserConverter,
+            TermsCheckFilter termsCheckFilter) {
         this.publicApiRegistry = publicApiRegistry;
         this.securityProperties = securityProperties;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.jwtToCurrentUserConverter = jwtToCurrentUserConverter;
+        this.termsCheckFilter = termsCheckFilter;
     }
 
     /**
@@ -98,6 +103,7 @@ public class SecurityConfig {
                                                                 .maxAgeInSeconds(31536000))
                                         .contentSecurityPolicy(
                                                 csp -> csp.policyDirectives("default-src 'self'")))
+                .addFilterAfter(termsCheckFilter, SecurityContextHolderAwareRequestFilter.class)
                 .oauth2ResourceServer(
                         oauth2 ->
                                 oauth2.jwt(

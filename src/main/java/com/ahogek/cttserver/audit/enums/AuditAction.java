@@ -99,6 +99,9 @@ public enum AuditAction {
     /** Password updated via user profile settings. */
     PASSWORD_CHANGED("Password updated via user profile"),
 
+    /** Terms of service accepted by user. */
+    TERMS_ACCEPTED("Terms of service accepted by user"),
+
     /** New API key generated for device or service. */
     API_KEY_CREATED("New API key generated"),
 

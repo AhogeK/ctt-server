@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.enums.TokenStatus;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
@@ -33,18 +34,21 @@ public class TokenRefreshService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AuditLogService auditLogService;
     private final SecurityProperties.JwtProperties jwtProps;
+    private final TermsProperties termsProperties;
 
     public TokenRefreshService(
             RefreshTokenRepository refreshTokenRepository,
             UserRepository userRepository,
             JwtTokenProvider jwtTokenProvider,
             AuditLogService auditLogService,
-            SecurityProperties securityProperties) {
+            SecurityProperties securityProperties,
+            TermsProperties termsProperties) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.auditLogService = auditLogService;
         this.jwtProps = securityProperties.jwt();
+        this.termsProperties = termsProperties;
     }
 
     /** Execute token refresh with rotation. Includes reuse detection for security. */
@@ -120,10 +124,16 @@ public class TokenRefreshService {
                 SecuritySeverity.INFO,
                 AuditDetails.extension(Map.of("ip", ip, "userAgent", userAgent)));
 
+        String currentVersion = termsProperties.currentVersion();
+        String userTermsVersion = user.getTermsVersion();
+        boolean termsExpired = userTermsVersion == null || !currentVersion.equals(userTermsVersion);
+
         return new com.ahogek.cttserver.auth.dto.LoginResponse(
                 user.getId(),
                 newAccessToken,
                 newRtPair.rawToken(),
-                jwtProps.accessTokenTtl().getSeconds());
+                jwtProps.accessTokenTtl().getSeconds(),
+                "Bearer",
+                termsExpired);
     }
 }

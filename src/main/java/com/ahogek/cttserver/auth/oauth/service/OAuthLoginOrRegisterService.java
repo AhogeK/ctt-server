@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -156,6 +157,10 @@ public class OAuthLoginOrRegisterService {
         // OAuth provider verified email - activate user directly
         newUser.verifyEmail();
 
+        // Set terms acceptance for new OAuth users (same as email-verified users)
+        newUser.setTermsAcceptedAt(Instant.now());
+        newUser.setTermsVersion(termsProperties.currentVersion());
+
         userRepository.save(newUser);
 
         UserOAuthAccount account =
@@ -215,7 +220,12 @@ public class OAuthLoginOrRegisterService {
         boolean termsExpired = !termsProperties.currentVersion().equals(user.getTermsVersion());
 
         return new LoginResponse(
-                user.getId(), accessToken, refreshToken, jwtProps.accessTokenTtl().getSeconds(), "Bearer", termsExpired);
+                user.getId(),
+                accessToken,
+                refreshToken,
+                jwtProps.accessTokenTtl().getSeconds(),
+                "Bearer",
+                termsExpired);
     }
 
     /** Creates refresh token for OAuth login. */

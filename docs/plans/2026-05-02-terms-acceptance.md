@@ -323,25 +323,7 @@ public ApiResponse<LoginResponse> acceptTerms(
 }
 ```
 
-**状态**: ❌ 待新增
-
-### 4.4 UserService 新增 acceptTerms 方法
-
-**文件**: `src/main/java/com/ahogek/cttserver/user/service/UserService.java`
-
-```java
-@Transactional
-public void acceptTerms(UUID userId, String termsVersion) {
-    User user = userRepository.findById(userId)
-        .orElseThrow(() -> new NotFoundException(ErrorCode.USER_004, "User not found"));
-    
-    user.setTermsAcceptedAt(Instant.now());
-    user.setTermsVersion(termsVersion);
-    userRepository.save(user);
-}
-```
-
-**状态**: ❌ 待新增
+**状态**: ✅ 已新增
 
 ---
 
@@ -425,8 +407,8 @@ public void acceptTerms(UUID userId, String termsVersion) {
 |------|------|--------|
 | ~~JWT 编码 termsVersion~~ | ~~`JwtTokenProvider.java`~~ | ~~P1~~ ✅ |
 | ~~新增 TermsCheckFilter~~ | ~~`auth/filter/TermsCheckFilter.java`~~ | ~~P1~~ ✅ |
-| 新增 POST /terms/accept | `AuthController.java` | P1 |
-| 新增 UserService.acceptTerms | `UserService.java` | P1 |
+| ~~新增 POST /terms/accept~~ | ~~`AuthController.java`~~ | ~~P1~~ ✅ |
+| ~~新增 UserService.acceptTerms~~ | ~~`UserService.java`~~ | ~~P1~~ ✅ |
 
 ---
 
@@ -438,15 +420,15 @@ public void acceptTerms(UUID userId, String termsVersion) {
 |------|------|
 | `UserValidatorTest` | `assertTermsVersionValid` 正常/版本不匹配 |
 | `UserServiceTest` | `registerUser` 设置 terms 字段 |
-| `LoginResponseTest` | `termsExpired` 字段序列化 |
+| ~~`LoginResponseTest`~~ | ~~`termsExpired` 字段序列化~~ | ✅ |
 
 ### 10.2 集成测试
 
 | 测试 | 说明 |
 |------|------|
-| `RegistrationAndVerificationIntegrationTest` | 注册流程包含 `termsVersion` |
-| `AuthControllerTest` | 注册 API 返回 `termsExpired` |
-| `TermsCheckFilterTest` | 条款过期拦截 |
+| ~~`RegistrationAndVerificationIntegrationTest`~~ | ~~注册流程包含 `termsVersion`~~ | ✅ |
+| ~~`AuthControllerTest`~~ | ~~注册 API 返回 `termsExpired`~~ | ✅ |
+| ~~`TermsCheckFilterTest`~~ | ~~条款过期拦截~~ | ✅ |
 
 ### 10.3 手动 QA
 
