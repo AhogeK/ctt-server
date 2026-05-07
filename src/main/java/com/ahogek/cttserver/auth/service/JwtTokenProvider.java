@@ -61,7 +61,9 @@ public class JwtTokenProvider {
                         .claim("email", user.getEmail())
                         .claim("status", user.getStatus().name())
                         .claim("authorities", DEFAULT_ROLE)
-                        .claim("termsVersion", user.getTermsVersion() != null ? user.getTermsVersion() : "")
+                        .claim(
+                                "termsVersion",
+                                user.getTermsVersion() != null ? user.getTermsVersion() : "")
                         .build();
 
         JwsHeader jwsHeader = JwsHeader.with(MacAlgorithm.HS256).build();

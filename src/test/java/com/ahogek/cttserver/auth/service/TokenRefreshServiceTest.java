@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
@@ -62,6 +63,7 @@ class TokenRefreshServiceTest {
     @Mock private AuditLogService auditLogService;
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
+    @Mock private TermsProperties termsProperties;
 
     private TokenRefreshService tokenRefreshService;
 
@@ -70,6 +72,7 @@ class TokenRefreshServiceTest {
         when(securityProperties.jwt()).thenReturn(jwtProps);
         when(jwtProps.accessTokenTtl()).thenReturn(ACCESS_TOKEN_TTL);
         when(jwtProps.refreshTokenTtlWeb()).thenReturn(REFRESH_TOKEN_TTL);
+        when(termsProperties.currentVersion()).thenReturn("1.0.0");
 
         tokenRefreshService =
                 new TokenRefreshService(
@@ -77,7 +80,8 @@ class TokenRefreshServiceTest {
                         userRepository,
                         jwtTokenProvider,
                         auditLogService,
-                        securityProperties);
+                        securityProperties,
+                        termsProperties);
     }
 
     @Nested
@@ -104,6 +108,7 @@ class TokenRefreshServiceTest {
             assertThat(response.accessToken()).isEqualTo(NEW_ACCESS_TOKEN);
             assertThat(response.refreshToken()).isNotBlank();
             assertThat(response.expiresIn()).isEqualTo(ACCESS_TOKEN_TTL.getSeconds());
+            assertThat(response.termsExpired()).isFalse();
             assertThat(refreshToken.getRevokedAt()).isNotNull();
 
             verify(auditLogService)
@@ -254,6 +259,7 @@ class TokenRefreshServiceTest {
         user.setEmail("test@example.com");
         user.setDisplayName("Test User");
         org.springframework.test.util.ReflectionTestUtils.setField(user, "status", status);
+        user.setTermsVersion("1.0.0");
         return user;
     }
 

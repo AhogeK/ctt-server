@@ -37,7 +37,8 @@ public class ConfigController {
 
     @Operation(
             summary = "Get public configuration",
-            description = "Returns public application configuration including the current terms of service version")
+            description =
+                    "Returns public application configuration including the current terms of service version")
     @ApiResponses(
             value = {
                 @ApiResponse(

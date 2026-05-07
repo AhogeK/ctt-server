@@ -84,7 +84,9 @@ public class UserValidator {
      */
     public void assertTermsVersionValid(String termsVersion) {
         if (!termsProperties.currentVersion().equals(termsVersion)) {
-            throw new ValidationException(ErrorCode.USER_008, "Terms version mismatch. Please refresh the page and try again.");
+            throw new ValidationException(
+                    ErrorCode.USER_008,
+                    "Terms version mismatch. Please refresh the page and try again.");
         }
     }
 }

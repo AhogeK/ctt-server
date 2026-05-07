@@ -3,8 +3,13 @@ package com.ahogek.cttserver.user.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
+import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.common.utils.TokenUtils.EmailVerificationTokenPair;
 import com.ahogek.cttserver.mail.service.MailOutboxService;
@@ -18,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * User application service.
@@ -47,6 +53,8 @@ public class UserService {
     private final AuditLogService auditLogService;
     private final EmailVerificationTokenRepository tokenRepository;
     private final MailOutboxService mailOutboxService;
+    private final UserLoginService userLoginService;
+    private final TermsProperties termsProperties;
 
     public UserService(
             UserRepository userRepository,
@@ -54,13 +62,17 @@ public class UserService {
             PasswordEncoder passwordEncoder,
             AuditLogService auditLogService,
             EmailVerificationTokenRepository tokenRepository,
-            MailOutboxService mailOutboxService) {
+            MailOutboxService mailOutboxService,
+            UserLoginService userLoginService,
+            TermsProperties termsProperties) {
         this.userRepository = userRepository;
         this.userValidator = userValidator;
         this.passwordEncoder = passwordEncoder;
         this.auditLogService = auditLogService;
         this.tokenRepository = tokenRepository;
         this.mailOutboxService = mailOutboxService;
+        this.userLoginService = userLoginService;
+        this.termsProperties = termsProperties;
     }
 
     /**
@@ -114,5 +126,43 @@ public class UserService {
                 AuditAction.REGISTER_REQUESTED,
                 ResourceType.USER,
                 savedUser.getId().toString());
+    }
+
+    /**
+     * Accepts terms of service and issues new JWT tokens atomically.
+     *
+     * <p>This method performs the following operations in a single transaction:
+     *
+     * <ol>
+     *   <li>Find user by ID (throws NotFoundException if not found)
+     *   <li>Update termsAcceptedAt and termsVersion
+     *   <li>Issue new JWT access and refresh tokens
+     *   <li>Log TERMS_ACCEPTED audit event
+     * </ol>
+     *
+     * @param userId the user ID
+     * @return LoginResponse containing new JWT tokens
+     * @throws NotFoundException if user is not found
+     */
+    @Transactional
+    public LoginResponse acceptTermsAndIssueTokens(UUID userId) {
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(() -> new NotFoundException(ErrorCode.USER_004));
+
+        user.setTermsAcceptedAt(Instant.now());
+        user.setTermsVersion(termsProperties.currentVersion());
+        userRepository.save(user);
+
+        LoginResponse response = userLoginService.issueTokens(user);
+
+        auditLogService.logSuccess(
+                user.getId(),
+                AuditAction.TERMS_ACCEPTED,
+                ResourceType.USER,
+                user.getId().toString());
+
+        return response;
     }
 }

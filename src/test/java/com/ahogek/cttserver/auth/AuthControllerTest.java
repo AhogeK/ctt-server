@@ -1,29 +1,39 @@
 package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
+import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
-import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.service.UserService;
 
 import org.junit.jupiter.api.DisplayName;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
@@ -54,6 +64,18 @@ class AuthControllerTest {
     @MockitoBean private LogoutService logoutService;
 
     @MockitoBean private PasswordResetService passwordResetService;
+
+    private Authentication createAuth(UUID userId) {
+        CurrentUser currentUser =
+                new CurrentUser(
+                        userId,
+                        "test@example.com",
+                        UserStatus.ACTIVE,
+                        Set.of("ROLE_USER"),
+                        CurrentUser.AuthenticationType.WEB_SESSION);
+        return new UsernamePasswordAuthenticationToken(
+                currentUser, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+    }
 
     @Nested
     @DisplayName("POST /api/v1/auth/register - User Registration")
@@ -349,6 +371,71 @@ class AuthControllerTest {
                     .bodyJson()
                     .extractingPath("$.code")
                     .isEqualTo("COMMON_003");
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/v1/auth/terms/accept - Terms Acceptance")
+    class AcceptTermsTests {
+
+        @Test
+        @DisplayName("Should accept terms successfully and return new tokens")
+        void shouldAcceptTermsSuccessfully_andReturnTokens() {
+            UUID userId = UUID.randomUUID();
+            LoginResponse mockResponse =
+                    new LoginResponse(userId, "new-access-token", "new-refresh-token", 3600L);
+
+            BDDMockito.given(userService.acceptTermsAndIssueTokens(userId))
+                    .willReturn(mockResponse);
+
+            var result =
+                    mvc.post()
+                            .uri("/api/v1/auth/terms/accept")
+                            .with(csrf())
+                            .with(authentication(createAuth(userId)))
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.userId")
+                    .isEqualTo(userId.toString());
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.accessToken")
+                    .isEqualTo("new-access-token");
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.refreshToken")
+                    .isEqualTo("new-refresh-token");
+            assertThat(result).bodyJson().extractingPath("$.data.expiresIn").isEqualTo(3600);
+
+            BDDMockito.then(userService).should().acceptTermsAndIssueTokens(userId);
+        }
+
+        @Test
+        @DisplayName("Should return 404 Not Found when user does not exist")
+        void shouldReturn404_whenUserNotFound() {
+            UUID userId = UUID.randomUUID();
+
+            BDDMockito.given(userService.acceptTermsAndIssueTokens(userId))
+                    .willThrow(new NotFoundException(ErrorCode.USER_004));
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/terms/accept")
+                                    .with(csrf())
+                                    .with(authentication(createAuth(userId))))
+                    .hasStatus(404)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("USER_004");
+        }
+
+        @Test
+        @DisplayName("Should return 401 Unauthorized when no authentication provided")
+        void shouldReturn401_whenNoAuthentication() {
+            assertThat(mvc.post().uri("/api/v1/auth/terms/accept").with(csrf())).hasStatus(401);
         }
     }
 }

@@ -1,20 +1,22 @@
 package com.ahogek.cttserver.auth.controller;
 
 import com.ahogek.cttserver.auth.AuthController;
+import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
-import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.config.properties.TermsProperties;
+import com.ahogek.cttserver.user.repository.UserRepository;
 import com.ahogek.cttserver.user.service.UserService;
 
 import org.junit.jupiter.api.DisplayName;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -51,6 +53,10 @@ class AuthControllerMalformedInputTest {
     @MockitoBean private LogoutService logoutService;
 
     @MockitoBean private PasswordResetService passwordResetService;
+
+    @MockitoBean private UserRepository userRepository;
+
+    @MockitoBean private TermsProperties termsProperties;
 
     @Nested
     @DisplayName("POST /api/v1/auth/login - Malformed Input Handling")

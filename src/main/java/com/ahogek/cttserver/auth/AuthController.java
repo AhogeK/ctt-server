@@ -733,4 +733,92 @@ public class AuthController {
                         EmptyResponse.ok(
                                 "Password has been reset successfully. All existing sessions have been terminated.")));
     }
+
+    /**
+     * Accepts terms of service and issues new JWT tokens.
+     *
+     * <p>Delegates to UserService for atomic terms acceptance + token issuance + audit logging.
+     *
+     * @param currentUser current authenticated user
+     * @return new JWT access token and refresh token
+     */
+    @Operation(
+            summary = "Accept terms of service",
+            description =
+                    "Accepts the current terms of service version and issues new JWT tokens. "
+                            + "Requires authentication. Returns new access and refresh tokens.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Terms accepted - returns new JWT tokens",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - invalid or expired JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_002",
+                                                                  "message": "Invalid or expired JWT token",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
+                @ApiResponse(
+                        responseCode = "404",
+                        description = "User not found",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "user-not-found",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "USER_004",
+                                                                  "message": "User not found",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 404,
+                                                                  "timestamp": "2026-04-10T03:23:12Z"
+                                                                }"""))),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "Rate limit exceeded",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rate-limited",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_002",
+                                                                  "message": "Rate limit exceeded",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 429,
+                                                                  "timestamp": "2026-04-10T03:23:12Z",
+                                                                  "retryAfter": "2026-04-10T03:33:12Z"
+                                                                }""")))
+            })
+    @SecurityRequirement(name = "bearerAuth")
+    @RateLimit(type = RateLimitType.USER, limit = 5, windowSeconds = 60)
+    @PostMapping("/terms/accept")
+    public ResponseEntity<RestApiResponse<LoginResponse>> acceptTerms(
+            @AuthenticationPrincipal CurrentUser currentUser) {
+        LoginResponse response = userService.acceptTermsAndIssueTokens(currentUser.id());
+        return ResponseEntity.ok(RestApiResponse.ok(response));
+    }
 }

@@ -96,8 +96,31 @@ public class UserLoginService {
                 ResourceType.USER,
                 user.getId().toString());
 
-        boolean termsExpired =
-                !termsProperties.currentVersion().equals(user.getTermsVersion());
+        boolean termsExpired = !termsProperties.currentVersion().equals(user.getTermsVersion());
+
+        return new LoginResponse(
+                user.getId(),
+                accessToken,
+                refreshToken,
+                jwtProps.accessTokenTtl().getSeconds(),
+                "Bearer",
+                termsExpired);
+    }
+
+    /**
+     * Issues JWT tokens for an authenticated user.
+     *
+     * <p>Generates a new access token and refresh token without performing authentication. Used for
+     * token refresh and terms acceptance flows where the user is already validated.
+     *
+     * @param user the authenticated user entity
+     * @return LoginResponse containing access token, refresh token, and terms expiration status
+     */
+    public LoginResponse issueTokens(User user) {
+        String accessToken = jwtTokenProvider.generateAccessToken(user);
+        String refreshToken = createRefreshToken(user.getId(), null);
+
+        boolean termsExpired = !termsProperties.currentVersion().equals(user.getTermsVersion());
 
         return new LoginResponse(
                 user.getId(),

@@ -28,8 +28,8 @@ public final class ValidationConstants {
             "^[\\u4e00-\\u9fa5\\u3040-\\u309f\\u30a0-\\u30ff\\uac00-\\ud7afa-zA-Z0-9_-]{2,50}$";
 
     /**
-     * Allowed password characters: printable ASCII non-space (0x21-0x7E).
-     * This is a regex pattern, not a hard-coded password.
+     * Allowed password characters: printable ASCII non-space (0x21-0x7E). This is a regex pattern,
+     * not a hard-coded password.
      */
     @SuppressWarnings("java:S2068")
     public static final String REGEX_PASSWORD_CHARS = "^[!-~]+$";
