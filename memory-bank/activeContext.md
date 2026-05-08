@@ -1,4 +1,11 @@
 # Active Context
+- [2026-05-08] - Terms Acceptance 功能完成（测试 + 文档 + 版本号）
+    - 测试覆盖: 8个测试（JwtTokenProviderTest 2个 + UserServiceTest 2个 + UserValidatorTest 4个）
+    - 文档完善: README.md 特性概述 + docs/developer-handbook.md USER_008/AUTH_019错误码 + docs/api-governance.md 端点分类
+    - 版本号: 0.25.1-SNAPSHOT → 0.25.1（移除 -SNAPSHOT，功能完成）
+    - 文件: 6个测试文件 + 3个文档文件 + 1个版本号文件
+    - 测试状态: 全量测试通过
+
 - [2026-05-07] - Terms Acceptance Code Review 修复 + 版本升级
     - 背景: Oracle/Momus 代码审查发现 16 个 P0/P1/P2 问题
     - 修复: P0(4项) SecurityConfig 注册 TermsCheckFilter + OAuth termsVersion + TokenRefreshService termsExpired 逻辑 + 测试覆盖

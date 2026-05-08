@@ -2,6 +2,12 @@
 
 ## 已完成 ✅
 
+- [x] Terms Acceptance 功能完成（测试 + 文档 + 版本号）
+    - 测试覆盖: 8个测试验证 termsVersion claim + registerUser terms fields + assertTermsVersionValid
+    - 文档完善: README + developer-handbook + api-governance
+    - 版本号: 0.25.1-SNAPSHOT → 0.25.1
+    - 审查: code-reviewer 通过，全量测试通过
+
 - [x] 密码字符白名单 REGEX_PASSWORD_CHARS 补充约束
     - 新增 REGEX_PASSWORD_CHARS = "^[!-~]+$"（所有可打印 ASCII 非空格字符）
     - 新增 MSG_PASSWORD_CHARS 错误消息
