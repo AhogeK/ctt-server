@@ -214,6 +214,62 @@ class JwtTokenProviderTest {
         assertThat((String) claims.getClaim("authorities")).isEqualTo("ROLE_USER");
     }
 
+    @Test
+    @DisplayName("should include termsVersion claim when user has accepted terms")
+    void shouldIncludeTermsVersionClaim_whenUserHasAcceptedTerms() {
+        // Given
+        User user = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", UUID.randomUUID());
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                user, "email", "test@example.com");
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                user, "status", UserStatus.ACTIVE);
+        user.setTermsVersion("2.0.0");
+
+        Jwt mockJwt = mock(Jwt.class);
+        when(mockJwt.getTokenValue()).thenReturn(TEST_TOKEN_VALUE);
+        when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
+
+        // When
+        provider.generateAccessToken(user);
+
+        // Then
+        ArgumentCaptor<JwtEncoderParameters> captor =
+                ArgumentCaptor.forClass(JwtEncoderParameters.class);
+        verify(jwtEncoder).encode(captor.capture());
+
+        JwtClaimsSet claims = captor.getValue().getClaims();
+        assertThat((String) claims.getClaim("termsVersion")).isEqualTo("2.0.0");
+    }
+
+    @Test
+    @DisplayName("should include empty termsVersion claim when user has not accepted terms")
+    void shouldIncludeEmptyTermsVersionClaim_whenUserHasNotAcceptedTerms() {
+        // Given
+        User user = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", UUID.randomUUID());
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                user, "email", "test@example.com");
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                user, "status", UserStatus.ACTIVE);
+        // termsVersion is null by default
+
+        Jwt mockJwt = mock(Jwt.class);
+        when(mockJwt.getTokenValue()).thenReturn(TEST_TOKEN_VALUE);
+        when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
+
+        // When
+        provider.generateAccessToken(user);
+
+        // Then
+        ArgumentCaptor<JwtEncoderParameters> captor =
+                ArgumentCaptor.forClass(JwtEncoderParameters.class);
+        verify(jwtEncoder).encode(captor.capture());
+
+        JwtClaimsSet claims = captor.getValue().getClaims();
+        assertThat((String) claims.getClaim("termsVersion")).isEmpty();
+    }
+
     private User createTestUser() {
         User user = new User();
         org.springframework.test.util.ReflectionTestUtils.setField(user, "id", UUID.randomUUID());

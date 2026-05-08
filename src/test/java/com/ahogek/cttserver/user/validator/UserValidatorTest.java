@@ -3,7 +3,9 @@ package com.ahogek.cttserver.user.validator;
 import com.ahogek.cttserver.common.BaseRepositoryTest;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.fixtures.UserFixtures;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -162,6 +165,43 @@ class UserValidatorTest {
             assertThatThrownBy(() -> userValidator.assertUserExists(nonExistentEmail))
                     .isInstanceOf(NotFoundException.class)
                     .hasMessageContaining("User not found");
+        }
+    }
+
+    @Nested
+    @DisplayName("assertTermsVersionValid() - Terms Version Validation")
+    class AssertTermsVersionValidTests {
+
+        @Test
+        @DisplayName("Should pass when terms version matches current version")
+        void shouldPass_whenTermsVersionMatchesCurrentVersion() {
+            assertThatCode(() -> userValidator.assertTermsVersionValid("1.0.0"))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("Should throw ValidationException when terms version is outdated")
+        void shouldThrowValidationException_whenTermsVersionIsOutdated() {
+            assertThatThrownBy(() -> userValidator.assertTermsVersionValid("0.9.0"))
+                    .isInstanceOf(ValidationException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_008)
+                    .hasMessageContaining("Terms version mismatch");
+        }
+
+        @Test
+        @DisplayName("Should throw ValidationException when terms version is null")
+        void shouldThrowValidationException_whenTermsVersionIsNull() {
+            assertThatThrownBy(() -> userValidator.assertTermsVersionValid(null))
+                    .isInstanceOf(ValidationException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_008);
+        }
+
+        @Test
+        @DisplayName("Should throw ValidationException when terms version is empty")
+        void shouldThrowValidationException_whenTermsVersionIsEmpty() {
+            assertThatThrownBy(() -> userValidator.assertTermsVersionValid(""))
+                    .isInstanceOf(ValidationException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_008);
         }
     }
 }

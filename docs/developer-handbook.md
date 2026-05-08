@@ -815,6 +815,81 @@ Both endpoints use `@AuthenticationPrincipal CurrentUser` for user identity extr
 
 ---
 
+## Terms Acceptance
+
+### Overview
+
+Users must accept the current terms version before accessing protected endpoints. The accepted version is tracked in the JWT, and a filter validates it on each request.
+
+### Architecture
+
+```
+User accesses protected endpoint
+        ↓
+JwtTermsVersionFilter checks JWT claims
+        ↓
+termsVersion matches current config?
+        ├── Yes → Continue to endpoint
+        └── No  → 403 USER_008 (Terms acceptance required)
+        ↓
+POST /api/v1/auth/terms/accept {"termsVersion": "1.0"}
+        ↓
+UserService.acceptTerms(userId, termsVersion)
+        ↓
+1. Validate termsVersion matches current config
+2. Update user.termsAcceptedAt and user.termsVersion
+3. Return 200
+```
+
+### Endpoints
+
+| Endpoint                         | Method | Description                                                                 |
+|----------------------------------|--------|-----------------------------------------------------------------------------|
+| `POST /api/v1/auth/terms/accept` | POST   | Accept current terms version — body: `{"termsVersion": "1.0"}` → 200 or 400 |
+
+### Error Handling
+
+| Scenario                          | Error Code | HTTP Status |
+|-----------------------------------|------------|-------------|
+| Terms not accepted (filter)       | `USER_008` | 403         |
+| Terms version expired             | `AUTH_019` | 403         |
+| Invalid terms version             | `USER_008` | 400         |
+
+### Error Response Examples
+
+**USER_008 — Terms acceptance required**:
+```json
+{
+  "code": "USER_008",
+  "message": "Terms acceptance required",
+  "details": [],
+  "traceId": "...",
+  "httpStatus": 403,
+  "timestamp": "2026-05-08T..."
+}
+```
+
+**AUTH_019 — Terms version expired**:
+```json
+{
+  "code": "AUTH_019",
+  "message": "Terms version expired",
+  "details": [],
+  "traceId": "...",
+  "httpStatus": 403,
+  "timestamp": "2026-05-08T..."
+}
+```
+
+### Key Design Decisions
+
+1. **JWT-Based Tracking**: Terms version stored in JWT claims, validated by filter on each request
+2. **Version Comparison**: Filter compares JWT `termsVersion` against current config value
+3. **Graceful Enforcement**: Only protected endpoints blocked; public endpoints (login, register) remain accessible
+4. **Audit Trail**: Terms acceptance logged with `TERMS_ACCEPTED` audit action
+
+---
+
 ## Idempotent Skip Behavior
 
 ### Overview
@@ -823,20 +898,20 @@ Both endpoints use `@AuthenticationPrincipal CurrentUser` for user identity extr
 
 ### Mechanism
 
-| Component          | Value                                              |
-|--------------------|----------------------------------------------------|
-| Window Duration    | 10 minutes (`IDEMPOTENT_WINDOW = Duration.ofMinutes(10)`) |
-| Check Condition    | Same user + same business type + same recipient + active status (PENDING/SENDING/SENT) + record exists within window |
-| Response           | `EmptyResponse.ok(true)` with `idempotentSkip=true` |
-| HTTP Status        | 200 (user-friendly, no error thrown)              |
-| Audit Event        | `MAIL_IDEMPOTENT_SKIP` logged when skip occurs     |
+| Component       | Value                                                                                                                |
+|-----------------|----------------------------------------------------------------------------------------------------------------------|
+| Window Duration | 10 minutes (`IDEMPOTENT_WINDOW = Duration.ofMinutes(10)`)                                                            |
+| Check Condition | Same user + same business type + same recipient + active status (PENDING/SENDING/SENT) + record exists within window |
+| Response        | `EmptyResponse.ok(true)` with `idempotentSkip=true`                                                                  |
+| HTTP Status     | 200 (user-friendly, no error thrown)                                                                                 |
+| Audit Event     | `MAIL_IDEMPOTENT_SKIP` logged when skip occurs                                                                       |
 
 ### Affected APIs
 
-| Endpoint                              | Business Type          |
-|---------------------------------------|------------------------|
-| `POST /api/v1/auth/resend-verification` | `EMAIL_VERIFICATION`   |
-| `POST /api/v1/auth/password-reset/request` | `PASSWORD_RESET`       |
+| Endpoint                                   | Business Type        |
+|--------------------------------------------|----------------------|
+| `POST /api/v1/auth/resend-verification`    | `EMAIL_VERIFICATION` |
+| `POST /api/v1/auth/password-reset/request` | `PASSWORD_RESET`     |
 
 ### Implementation Flow
 

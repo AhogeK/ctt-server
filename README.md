@@ -17,6 +17,7 @@ CTT Server provides:
 - **OWASP Security Headers**: X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP
 - **Account Lockout Strategy**: Brute-force attack protection with automatic temporary lockout
 - **Password Reset**: Token-based password recovery with mail outbox delivery, session revocation (Kill Switch), and automatic account unlock
+- **Terms Acceptance**: Users must accept current terms version before accessing protected endpoints; version tracked in JWT
 
 ## Tech Stack
 
@@ -261,6 +262,7 @@ railway variables set RESEND_API_KEY=re_xxx
 | `/api/v1/auth/logout-all`             | POST   | **Kill Switch**: Revoke all active sessions (requires JWT, 5/min per user) |
 | `/api/v1/auth/password-reset/request` | POST   | Request password reset (rate limited: 3/10min per email)                   |
 | `/api/v1/auth/password-reset/confirm` | POST   | Confirm password reset (rate limited: 15/10min per IP)                     |
+| `/api/v1/auth/terms/accept`           | POST   | Accept current terms version (requires JWT)                                |
 
 ### GitHub OAuth
 
@@ -279,6 +281,12 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 ```
 
 **Error Handling**: All OAuth errors redirect to `{frontendUrl}/oauth/error?code={errorCode}`.
+
+### Public Configuration
+
+| Endpoint                | Method | Description                                          |
+|-------------------------|--------|------------------------------------------------------|
+| `/api/v1/config/public` | GET    | Get public app config (current terms version, etc.)  |
 
 ### Email Verification Flow
 
