@@ -174,6 +174,57 @@ class UserServiceTest {
 
             // Then - assertions are in the mock answer
         }
+
+        @Test
+        @DisplayName("Should validate terms version during registration")
+        void shouldValidateTermsVersionDuringRegistration() {
+            // Given
+            String termsVersion = "1.0.0";
+            UUID userId = UUID.randomUUID();
+            UserRegisterRequest request =
+                    new UserRegisterRequest(
+                            "test@example.com", "Test User", "Test@1234", termsVersion);
+
+            User savedUser = new User();
+            org.springframework.test.util.ReflectionTestUtils.setField(savedUser, "id", userId);
+
+            when(passwordEncoder.encode("Test@1234")).thenReturn("$2a$12$encoded");
+            when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+            // When
+            userService.registerUser(request);
+
+            // Then
+            verify(userValidator).assertTermsVersionValid(termsVersion);
+        }
+
+        @Test
+        @DisplayName("Should set termsAcceptedAt and termsVersion on registered user")
+        void shouldSetTermsFieldsOnRegisteredUser() {
+            // Given
+            String termsVersion = "1.0.0";
+            UUID userId = UUID.randomUUID();
+            UserRegisterRequest request =
+                    new UserRegisterRequest(
+                            "test@example.com", "Test User", "Test@1234", termsVersion);
+
+            when(passwordEncoder.encode("Test@1234")).thenReturn("$2a$12$encoded");
+            when(userRepository.save(any(User.class)))
+                    .thenAnswer(
+                            invocation -> {
+                                User user = invocation.getArgument(0);
+                                assertThat(user.getTermsAcceptedAt()).isNotNull();
+                                assertThat(user.getTermsVersion()).isEqualTo(termsVersion);
+                                org.springframework.test.util.ReflectionTestUtils.setField(
+                                        user, "id", userId);
+                                return user;
+                            });
+
+            // When
+            userService.registerUser(request);
+
+            // Then - assertions are in the mock answer
+        }
     }
 
     @Nested

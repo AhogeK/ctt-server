@@ -15,6 +15,7 @@ Endpoints accessible without any authentication. High risk of abuse.
     *   `POST /api/v1/auth/register`
     *   `POST /api/v1/auth/login`
     *   `POST /api/v1/auth/refresh`
+    *   `GET  /api/v1/config/public`
     *   `GET  /actuator/health/liveness` (Spring Boot Actuator)
 *   **Authentication**: None.
 *   **Rate Limiting**: Strictly enforced by **IP Address**.
@@ -29,6 +30,7 @@ Endpoints accessed via browser using JWT. Standard user operations.
     *   `GET  /api/v1/users/me`
     *   `POST /api/v1/apikeys`
     *   `GET  /api/v1/stats/dashboard`
+    *   `POST /api/v1/auth/terms/accept`
 *   **Authentication**: Required (`CurrentUserProvider.getCurrentUserRequired()`).
     Token must be `WEB_SESSION`.
 *   **Rate Limiting**: Enforced by **User ID**.
