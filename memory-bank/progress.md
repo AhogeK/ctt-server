@@ -2,6 +2,13 @@
 
 ## 已完成 ✅
 
+- [x] TermsCheckFilter 修复 + OAuthCallbackController 修复
+    - 根因: authentication.getCredentials() 返回 null，filter 放行
+    - 修复: 改为从 Authorization 请求头提取 JWT
+    - 修复: OAuth 重定向补充 termsExpired 参数
+    - 文档: 新增前端集成指南
+    - 版本: 0.25.1 → 0.25.2
+
 - [x] Terms Acceptance 功能完成（测试 + 文档 + 版本号）
     - 测试覆盖: 8个测试验证 termsVersion claim + registerUser terms fields + assertTermsVersionValid
     - 文档完善: README + developer-handbook + api-governance

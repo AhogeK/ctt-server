@@ -1,4 +1,12 @@
 # Active Context
+- [2026-05-23] - TermsCheckFilter 修复 + OAuthCallbackController 修复
+    - 根因: `authentication.getCredentials()` 在 Spring Security 认证成功后返回 null，导致 filter 放行
+    - 修复: TermsCheckFilter 改为从 Authorization 请求头提取 JWT（BEARER_PREFIX 常量 + request.getHeader）
+    - 修复: OAuthCallbackController OAuth 重定向补充 termsExpired 参数
+    - 测试: TermsCheckFilterTest 6 个测试适配新 mock 方式
+    - 文档: 新增 docs/terms-acceptance-frontend-guide.md 前端集成指南
+    - 版本: 0.25.1 → 0.25.2 (PATCH: bug fix)
+
 - [2026-05-08] - Terms Acceptance 功能完成（测试 + 文档 + 版本号）
     - 测试覆盖: 8个测试（JwtTokenProviderTest 2个 + UserServiceTest 2个 + UserValidatorTest 4个）
     - 文档完善: README.md 特性概述 + docs/developer-handbook.md USER_008/AUTH_019错误码 + docs/api-governance.md 端点分类
