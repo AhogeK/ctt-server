@@ -221,6 +221,7 @@ public class OAuthCallbackController {
                         .path("/oauth/callback")
                         .queryParam("accessToken", loginResponse.accessToken())
                         .queryParam("refreshToken", loginResponse.refreshToken())
+                        .queryParam("termsExpired", loginResponse.termsExpired())
                         .toUriString();
 
         response.sendRedirect(redirectUrl);

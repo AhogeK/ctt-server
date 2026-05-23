@@ -45,6 +45,7 @@ public class TermsCheckFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(TermsCheckFilter.class);
 
+    private static final String BEARER_PREFIX = "Bearer ";
     private static final Set<String> SKIP_PREFIXES =
             Set.of("/error", "/actuator/", "/swagger-ui/", "/v3/api-docs/");
 
@@ -82,11 +83,12 @@ public class TermsCheckFilter extends OncePerRequestFilter {
             return;
         }
 
-        Object credentials = authentication.getCredentials();
-        if (!(credentials instanceof String tokenValue)) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
             chain.doFilter(request, response);
             return;
         }
+        String tokenValue = authHeader.substring(BEARER_PREFIX.length());
 
         try {
             Jwt jwt = jwtDecoder.decode(tokenValue);
