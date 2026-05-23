@@ -102,6 +102,7 @@ class TermsCheckFilterTest {
 
         when(termsProperties.currentVersion()).thenReturn(currentVersion);
         when(request.getServletPath()).thenReturn("/api/v1/protected/resource");
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + tokenValue);
 
         Jwt jwt = mock(Jwt.class);
         when(jwt.getClaimAsString("termsVersion")).thenReturn(currentVersion);
@@ -130,6 +131,7 @@ class TermsCheckFilterTest {
 
         when(termsProperties.currentVersion()).thenReturn(currentVersion);
         when(request.getServletPath()).thenReturn("/api/v1/protected/resource");
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + tokenValue);
 
         Jwt jwt = mock(Jwt.class);
         when(jwt.getClaimAsString("termsVersion")).thenReturn(null);
@@ -158,6 +160,7 @@ class TermsCheckFilterTest {
 
         when(termsProperties.currentVersion()).thenReturn(currentVersion);
         when(request.getServletPath()).thenReturn("/api/v1/protected/resource");
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + tokenValue);
 
         Jwt jwt = mock(Jwt.class);
         when(jwt.getClaimAsString("termsVersion")).thenReturn("");
@@ -187,6 +190,7 @@ class TermsCheckFilterTest {
 
         when(termsProperties.currentVersion()).thenReturn(currentVersion);
         when(request.getServletPath()).thenReturn("/api/v1/protected/resource");
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + tokenValue);
 
         Jwt jwt = mock(Jwt.class);
         when(jwt.getClaimAsString("termsVersion")).thenReturn(oldVersion);
@@ -277,8 +281,8 @@ class TermsCheckFilterTest {
     }
 
     @Test
-    @DisplayName("Should pass when credentials is not a string token")
-    void shouldPass_whenCredentialsNotStringToken() throws Exception {
+    @DisplayName("Should pass when Authorization header is missing")
+    void shouldPass_whenAuthorizationHeaderMissing() throws Exception {
         // Given
         Authentication auth =
                 new UsernamePasswordAuthenticationToken("user", null, Collections.emptyList());
@@ -288,6 +292,7 @@ class TermsCheckFilterTest {
 
         when(termsProperties.currentVersion()).thenReturn("1.0.0");
         when(request.getServletPath()).thenReturn("/api/v1/protected/resource");
+        when(request.getHeader("Authorization")).thenReturn(null);
 
         // When
         filter.doFilterInternal(request, response, filterChain);
@@ -312,6 +317,7 @@ class TermsCheckFilterTest {
 
         when(termsProperties.currentVersion()).thenReturn(currentVersion);
         when(request.getServletPath()).thenReturn("/api/v1/protected/resource");
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + tokenValue);
         when(jwtDecoder.decode(tokenValue)).thenThrow(new RuntimeException("Invalid token"));
 
         // When
