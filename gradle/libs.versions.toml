@@ -3,12 +3,13 @@
 appVersion = "0.26.0"
 springBoot = "4.0.6"
 springDependencyManagement = "1.1.7"
-spotless = "8.4.0"
+spotless = "8.5.1"
 greenmail = "2.1.8"
 springOpenapi = "3.0.3"
 benManes = "0.54.0"
-flyway = "12.5.0"
+flyway = "12.6.2"
 postgresql = "42.7.11"
+junitPlatformLauncher = "6.1.0"
 
 [libraries]
 
@@ -16,6 +17,7 @@ springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openap
 greenmail = { module = "com.icegreen:greenmail", version.ref = "greenmail" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 org-postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatformLauncher"}
 
 [plugins]
 
