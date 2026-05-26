@@ -86,7 +86,7 @@ class LockoutIntegrationTest {
     }
 
     private String loginRequestJson(String email, String password) throws Exception {
-        LoginRequest request = new LoginRequest(email, password, DEVICE_ID);
+        LoginRequest request = new LoginRequest(email, password, DEVICE_ID, null);
         return objectMapper.writeValueAsString(request);
     }
 

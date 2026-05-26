@@ -103,7 +103,7 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
 
-            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
+            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
             LoginResponse response = loginService.login(request);
 
             assertThat(response.userId()).isEqualTo(user.getId());
@@ -120,7 +120,7 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
 
-            loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null));
+            loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
 
             verify(loginAttemptService).recordSuccess(TEST_EMAIL);
         }
@@ -133,7 +133,7 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
 
-            loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null));
+            loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
 
             verify(auditLogService)
                     .logSuccess(
@@ -153,7 +153,7 @@ class UserLoginServiceTest {
         void shouldThrowAuth001_whenUserNotFound() {
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.empty());
 
-            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
+            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
             assertThatThrownBy(() -> loginService.login(request))
                     .isInstanceOf(UnauthorizedException.class)
@@ -167,7 +167,7 @@ class UserLoginServiceTest {
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(false);
 
-            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
+            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
             assertThatThrownBy(() -> loginService.login(request))
                     .isInstanceOf(UnauthorizedException.class)
@@ -182,7 +182,7 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(false);
 
             try {
-                loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null));
+                loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
             } catch (UnauthorizedException _) {
                 // expected
             }
@@ -198,7 +198,7 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(false);
 
             try {
-                loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null));
+                loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
             } catch (UnauthorizedException _) {
                 // expected
             }
@@ -223,7 +223,7 @@ class UserLoginServiceTest {
             User user = createUserWithStatus(UserStatus.PENDING_VERIFICATION);
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
 
-            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
+            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
             assertThatThrownBy(() -> loginService.login(request))
                     .isInstanceOf(ForbiddenException.class)
@@ -239,7 +239,7 @@ class UserLoginServiceTest {
                     .when(loginAttemptService)
                     .checkLockStatus(any(User.class));
 
-            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
+            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
             assertThatThrownBy(() -> loginService.login(request))
                     .isInstanceOf(ForbiddenException.class)
@@ -252,7 +252,7 @@ class UserLoginServiceTest {
             User user = createUserWithStatus(UserStatus.SUSPENDED);
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
 
-            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
+            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
             assertThatThrownBy(() -> loginService.login(request))
                     .isInstanceOf(ForbiddenException.class)
@@ -265,7 +265,7 @@ class UserLoginServiceTest {
             User user = createUserWithStatus(UserStatus.DELETED);
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
 
-            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null);
+            LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
             assertThatThrownBy(() -> loginService.login(request))
                     .isInstanceOf(ForbiddenException.class)

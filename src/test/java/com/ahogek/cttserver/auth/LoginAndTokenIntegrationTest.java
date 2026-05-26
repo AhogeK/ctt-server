@@ -74,7 +74,7 @@ class LoginAndTokenIntegrationTest {
 
     private String loginRequestJson(String email, String password) throws Exception {
         LoginRequest request =
-                new LoginRequest(email, password, LoginAndTokenIntegrationTest.DEVICE_ID);
+                new LoginRequest(email, password, LoginAndTokenIntegrationTest.DEVICE_ID, null);
         return objectMapper.writeValueAsString(request);
     }
 

@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * Forgot password request carrier.
  *
  * @param email the email address to send reset link to
+ * @param captchaToken optional hCaptcha verification token
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-04-07
  */
@@ -19,4 +20,6 @@ public record ForgotPasswordRequest(
                         example = "user@example.com")
                 @NotBlank(message = "Email cannot be blank")
                 @Email(message = "Invalid email format")
-                String email) {}
+                String email,
+        @Schema(description = "hCaptcha verification token", example = "10000000-ffff-ffff-ffff-000000000001")
+                String captchaToken) {}

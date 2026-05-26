@@ -48,6 +48,10 @@ ctt:
     rate-limit:
       # Disable rate limiting in tests to avoid interference
       enabled: false
+    hcaptcha:
+      # Disable captcha in tests (graceful degradation when site-key is blank)
+      site-key:
+      secret-key:
     oauth:
       frontend-url: "http://localhost:5173"
       # Test-only AES-256 key (Base64-encoded 32 bytes)

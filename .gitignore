@@ -45,3 +45,8 @@ src/main/resources/application-local.properties
 !.env.example
 *.env
 .gstack/
+
+
+.opencode/node_modules
+.opencode/package-lock.json
+.omo

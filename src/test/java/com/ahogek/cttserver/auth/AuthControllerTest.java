@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.auth.captcha.CaptchaService;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
@@ -64,6 +65,8 @@ class AuthControllerTest {
     @MockitoBean private LogoutService logoutService;
 
     @MockitoBean private PasswordResetService passwordResetService;
+
+    @MockitoBean private CaptchaService captchaService;
 
     private Authentication createAuth(UUID userId) {
         CurrentUser currentUser =

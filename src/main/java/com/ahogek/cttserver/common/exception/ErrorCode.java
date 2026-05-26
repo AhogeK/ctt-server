@@ -89,6 +89,8 @@ public enum ErrorCode {
     SECURITY_003("IP blocked", HttpStatus.FORBIDDEN),
     SECURITY_004("Invalid origin", HttpStatus.FORBIDDEN),
     SECURITY_005("Password compromised", HttpStatus.FORBIDDEN),
+    SECURITY_006("Captcha verification failed", HttpStatus.FORBIDDEN),
+    SECURITY_007("Captcha service unavailable", HttpStatus.SERVICE_UNAVAILABLE),
 
     // =========================================================================
     // LEADERBOARD - Leaderboard and ranking errors

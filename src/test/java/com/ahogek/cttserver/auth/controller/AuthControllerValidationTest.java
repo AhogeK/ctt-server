@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth.controller;
 import com.ahogek.cttserver.auth.AuthController;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.service.LogoutService;
+import com.ahogek.cttserver.auth.captcha.CaptchaService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
@@ -49,6 +50,8 @@ class AuthControllerValidationTest {
     @MockitoBean private LogoutService logoutService;
 
     @MockitoBean private PasswordResetService passwordResetService;
+
+    @MockitoBean private CaptchaService captchaService;
 
     @MockitoBean private UserRepository userRepository;
 
