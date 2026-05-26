@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param email the user's email address
  * @param password the user's password
  * @param deviceId device ID for device binding
+ * @param captchaToken optional hCaptcha verification token
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-23
  */
@@ -30,7 +31,9 @@ public record LoginRequest(
                 String password,
         @Schema(description = "Device identifier for tracking", example = "device-123")
                 @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
-                String deviceId) {
+                String deviceId,
+        @Schema(description = "hCaptcha verification token", example = "10000000-ffff-ffff-ffff-000000000001")
+                String captchaToken) {
 
     public LoginRequest {
         email = (email == null) ? null : email.trim().toLowerCase();

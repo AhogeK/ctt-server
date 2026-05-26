@@ -85,7 +85,7 @@ class LogoutIntegrationTest {
 
     private LoginTokens loginAndGetTokens(String email, String deviceName) throws Exception {
         LoginRequest request =
-                new LoginRequest(email, LogoutIntegrationTest.TEST_PASSWORD, deviceName);
+                new LoginRequest(email, LogoutIntegrationTest.TEST_PASSWORD, deviceName, null);
         String loginBody =
                 mockMvc.perform(
                                 post("/api/v1/auth/login")

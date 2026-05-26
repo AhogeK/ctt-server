@@ -79,7 +79,7 @@ class UserServiceTest {
             UUID userId = UUID.randomUUID();
 
             UserRegisterRequest request =
-                    new UserRegisterRequest("test@example.com", "Test User", rawPassword, "1.0.0");
+                    new UserRegisterRequest("test@example.com", "Test User", rawPassword, "1.0.0", null);
 
             User savedUser = new User();
             savedUser.setEmail(request.email());
@@ -105,7 +105,7 @@ class UserServiceTest {
             // Given
             UserRegisterRequest request =
                     new UserRegisterRequest(
-                            "duplicate@example.com", "Test User", "Test@1234", "1.0.0");
+                            "duplicate@example.com", "Test User", "Test@1234", "1.0.0", null);
 
             doThrow(new ConflictException(ErrorCode.AUTH_002, "Email is already registered"))
                     .when(userValidator)
@@ -129,7 +129,7 @@ class UserServiceTest {
             UUID userId = UUID.randomUUID();
 
             UserRegisterRequest request =
-                    new UserRegisterRequest("test@example.com", "Test User", rawPassword, "1.0.0");
+                    new UserRegisterRequest("test@example.com", "Test User", rawPassword, "1.0.0", null);
 
             when(passwordEncoder.encode(rawPassword)).thenReturn(encodedPassword);
             when(userRepository.save(any(User.class)))
@@ -155,7 +155,7 @@ class UserServiceTest {
             // Given
             UUID userId = UUID.randomUUID();
             UserRegisterRequest request =
-                    new UserRegisterRequest("test@example.com", "Test User", "Test@1234", "1.0.0");
+                    new UserRegisterRequest("test@example.com", "Test User", "Test@1234", "1.0.0", null);
 
             when(passwordEncoder.encode("Test@1234")).thenReturn("$2a$12$encoded");
             when(userRepository.save(any(User.class)))
@@ -183,7 +183,7 @@ class UserServiceTest {
             UUID userId = UUID.randomUUID();
             UserRegisterRequest request =
                     new UserRegisterRequest(
-                            "test@example.com", "Test User", "Test@1234", termsVersion);
+                            "test@example.com", "Test User", "Test@1234", termsVersion, null);
 
             User savedUser = new User();
             org.springframework.test.util.ReflectionTestUtils.setField(savedUser, "id", userId);
@@ -206,7 +206,7 @@ class UserServiceTest {
             UUID userId = UUID.randomUUID();
             UserRegisterRequest request =
                     new UserRegisterRequest(
-                            "test@example.com", "Test User", "Test@1234", termsVersion);
+                            "test@example.com", "Test User", "Test@1234", termsVersion, null);
 
             when(passwordEncoder.encode("Test@1234")).thenReturn("$2a$12$encoded");
             when(userRepository.save(any(User.class)))

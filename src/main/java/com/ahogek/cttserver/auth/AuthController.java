@@ -8,6 +8,7 @@ import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
 import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.auth.captcha.CaptchaService;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
@@ -71,18 +72,21 @@ public class AuthController {
     private final TokenRefreshService tokenRefreshService;
     private final LogoutService logoutService;
     private final PasswordResetService passwordResetService;
+    private final CaptchaService captchaService;
 
     public AuthController(
             UserService userService,
             UserLoginService userLoginService,
             TokenRefreshService tokenRefreshService,
             LogoutService logoutService,
-            PasswordResetService passwordResetService) {
+            PasswordResetService passwordResetService,
+            CaptchaService captchaService) {
         this.userService = userService;
         this.userLoginService = userLoginService;
         this.tokenRefreshService = tokenRefreshService;
         this.logoutService = logoutService;
         this.passwordResetService = passwordResetService;
+        this.captchaService = captchaService;
     }
 
     /**
@@ -162,6 +166,7 @@ public class AuthController {
     public ResponseEntity<RestApiResponse<EmptyResponse>> register(
             @Valid @RequestBody UserRegisterRequest request) {
 
+        captchaService.verifyCaptcha(request.captchaToken());
         userService.registerUser(request);
 
         return ResponseEntity.ok(
@@ -252,6 +257,7 @@ public class AuthController {
     public ResponseEntity<RestApiResponse<LoginResponse>> login(
             @Valid @RequestBody LoginRequest request) {
 
+        captchaService.verifyCaptcha(request.captchaToken());
         LoginResponse response = userLoginService.login(request);
 
         return ResponseEntity.ok(RestApiResponse.ok(response));
@@ -593,6 +599,7 @@ public class AuthController {
     public ResponseEntity<RestApiResponse<EmptyResponse>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
 
+        captchaService.verifyCaptcha(request.captchaToken());
         String ip = IpUtils.getRealIp(httpRequest);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 

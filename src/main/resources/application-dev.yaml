@@ -52,6 +52,10 @@ ctt:
     retry:
       base-delay-seconds: ${MAIL_RETRY_BASE_DELAY_SECONDS:5}
       max-attempts: ${MAIL_RETRY_MAX_ATTEMPTS:3}
+  security:
+    hcaptcha:
+      site-key: ${HCAPTCHA_SITE_KEY:}
+      secret-key: ${HCAPTCHA_SECRET_KEY:}
 
 logging:
   level:

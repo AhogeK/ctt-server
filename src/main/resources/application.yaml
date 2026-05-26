@@ -117,6 +117,12 @@ ctt:
         client-id: "${GITHUB_CLIENT_ID:}"
         client-secret: "${GITHUB_CLIENT_SECRET:}"
 
+    hcaptcha:
+      site-key: ${HCAPTCHA_SITE_KEY:}
+      secret-key: ${HCAPTCHA_SECRET_KEY:}
+      verify-url: https://api.hcaptcha.com/siteverify
+      timeout: 5s
+
   mail:
     from:
       address: ${MAIL_FROM_ADDRESS:noreply@localhost}

@@ -36,7 +36,9 @@ public record UserRegisterRequest(
                 String password,
         @Schema(description = "Terms version accepted by user", example = "1.0.0")
                 @NotBlank(message = "Terms version is required")
-                String termsVersion) {
+                String termsVersion,
+        @Schema(description = "hCaptcha verification token", example = "10000000-ffff-ffff-ffff-000000000001")
+                String captchaToken) {
 
     /**
      * Compact constructor for normalization.
@@ -47,6 +49,7 @@ public record UserRegisterRequest(
      * @param displayName the display name
      * @param password the password
      * @param termsVersion the terms version accepted by user
+     * @param captchaToken optional hCaptcha verification token
      */
     public UserRegisterRequest {
         email = (email == null) ? null : email.trim().toLowerCase();

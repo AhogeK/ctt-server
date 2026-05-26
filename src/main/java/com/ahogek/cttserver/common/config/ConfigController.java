@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.common.config;
 
+import com.ahogek.cttserver.common.config.properties.HcaptchaProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
@@ -30,9 +31,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class ConfigController {
 
     private final TermsProperties termsProperties;
+    private final HcaptchaProperties hcaptchaProperties;
 
-    public ConfigController(TermsProperties termsProperties) {
+    public ConfigController(TermsProperties termsProperties, HcaptchaProperties hcaptchaProperties) {
         this.termsProperties = termsProperties;
+        this.hcaptchaProperties = hcaptchaProperties;
     }
 
     @Operation(
@@ -51,11 +54,18 @@ public class ConfigController {
     @GetMapping("/public")
     public ResponseEntity<RestApiResponse<PublicConfigResponse>> getPublicConfig() {
         return ResponseEntity.ok(
-                RestApiResponse.ok(new PublicConfigResponse(termsProperties.currentVersion())));
+                RestApiResponse.ok(
+                        new PublicConfigResponse(
+                                termsProperties.currentVersion(),
+                                hcaptchaProperties.siteKey())));
     }
 
     @Schema(description = "Public application configuration")
     public record PublicConfigResponse(
             @Schema(description = "Current active terms of service version", example = "1.0.0")
-                    String termsVersion) {}
+                    String termsVersion,
+            @Schema(
+                            description = "hCaptcha site key for frontend widget rendering",
+                            example = "10000000-ffff-ffff-ffff-000000000001")
+                    String captchaSiteKey) {}
 }

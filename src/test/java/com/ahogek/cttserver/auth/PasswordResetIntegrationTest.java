@@ -87,7 +87,7 @@ class PasswordResetIntegrationTest {
 
     private String loginRequestJson(String email, String password) throws Exception {
         LoginRequest request =
-                new LoginRequest(email, password, "test-device-" + UUID.randomUUID());
+                new LoginRequest(email, password, "test-device-" + UUID.randomUUID(), null);
         return objectMapper.writeValueAsString(request);
     }
 
