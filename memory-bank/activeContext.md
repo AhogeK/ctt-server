@@ -1,4 +1,26 @@
 # Active Context
+- [2026-05-23] - hCaptcha 后端集成完成
+    - 新增: HcaptchaProperties.java (@ConfigurationProperties, ctt.security.hcaptcha prefix)
+    - 新增: CaptchaService.java (RestClient 验证, 5s timeout, 优雅降级)
+    - 新增: CaptchaServiceTest.java (7 个测试, MockRestServiceServer)
+    - 新增: ErrorCode SECURITY_006 (captcha验证失败, 403) + SECURITY_007 (服务不可用, 502)
+    - 修改: LoginRequest, UserRegisterRequest, ForgotPasswordRequest 新增 captchaToken 字段
+    - 修改: AuthController register/login/forgotPassword 首行调用 verifyCaptcha()
+    - 修改: ConfigController GET /api/v1/config/public 返回 captchaSiteKey
+    - 修改: application.yaml + local + dev 配置 hCaptcha (dev/local 用官方测试密钥)
+    - 修改: 7+ 测试文件适配 captchaToken 构造函数变更
+    - 修复: application-dev.yaml 重复 ctt key 合并
+    - 安全: secret-key 仅服务端使用, 优雅降级 (siteKey 为空跳过验证)
+    - 版本: 0.25.2 → 待 bump
+
+- [2026-05-23] - AuthController + ConfigController 集成 Captcha 验证
+    - AuthController: 注入 CaptchaService，register/login/forgotPassword 首行调用 captchaService.verifyCaptcha()
+    - ConfigController: 注入 HcaptchaProperties，PublicConfigResponse 新增 captchaSiteKey 字段
+    - 未添加: refreshToken/logoutAll/confirmPasswordReset/acceptTerms（不需要人机验证）
+    - CaptchaService 由并行任务创建，HcaptchaProperties 已存在
+    - 文件: AuthController.java, ConfigController.java
+    - 版本: 待 bump
+
 - [2026-05-23] - TermsCheckFilter 修复 + OAuthCallbackController 修复
     - 根因: `authentication.getCredentials()` 在 Spring Security 认证成功后返回 null，导致 filter 放行
     - 修复: TermsCheckFilter 改为从 Authorization 请求头提取 JWT（BEARER_PREFIX 常量 + request.getHeader）

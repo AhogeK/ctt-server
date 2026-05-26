@@ -2,6 +2,15 @@
 
 ## 已完成 ✅
 
+- [x] hCaptcha 后端集成
+    - HcaptchaProperties (@ConfigurationProperties, ctt.security.hcaptcha)
+    - CaptchaService (RestClient + 5s timeout + 优雅降级)
+    - ErrorCode SECURITY_006/007
+    - DTO 新增 captchaToken (LoginRequest, UserRegisterRequest, ForgotPasswordRequest)
+    - AuthController 首行验证 + ConfigController 暴露 captchaSiteKey
+    - 7 个单元测试 + yaml 配置 (dev/local 用官方测试密钥)
+    - 版本: 0.25.2 → 待 bump
+
 - [x] TermsCheckFilter 修复 + OAuthCallbackController 修复
     - 根因: authentication.getCredentials() 返回 null，filter 放行
     - 修复: 改为从 Authorization 请求头提取 JWT
