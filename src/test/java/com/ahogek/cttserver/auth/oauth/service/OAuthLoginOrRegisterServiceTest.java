@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -145,7 +146,14 @@ class OAuthLoginOrRegisterServiceTest {
             GitHubUserInfo userInfo = createGitHubUserInfo();
             oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
 
-            verify(oauthAccountRepository).save(any(UserOAuthAccount.class));
+            ArgumentCaptor<UserOAuthAccount> accountCaptor =
+                    ArgumentCaptor.forClass(UserOAuthAccount.class);
+            verify(oauthAccountRepository).save(accountCaptor.capture());
+
+            UserOAuthAccount savedAccount = accountCaptor.getValue();
+            assertThat(savedAccount.getAccessToken()).isEqualTo(TEST_GITHUB_ACCESS_TOKEN);
+            assertThat(savedAccount.getProviderLogin()).isEqualTo(GITHUB_LOGIN);
+            assertThat(savedAccount.getProviderEmail()).isEqualTo(TEST_EMAIL);
         }
 
         @Test
@@ -257,7 +265,15 @@ class OAuthLoginOrRegisterServiceTest {
             GitHubUserInfo userInfo = createGitHubUserInfo();
             oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
 
-            verify(userRepository).save(any(User.class));
+            ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+            verify(userRepository).save(userCaptor.capture());
+
+            User savedUser = userCaptor.getValue();
+            assertThat(savedUser.getStatus()).isEqualTo(UserStatus.ACTIVE);
+            assertThat(savedUser.getPasswordHash()).isNull();
+            assertThat(savedUser.getEmail()).isEqualTo(TEST_EMAIL);
+            assertThat(savedUser.getEmailVerified()).isTrue();
+            assertThat(savedUser.getDisplayName()).isEqualTo(GITHUB_NAME);
         }
 
         @Test
@@ -275,7 +291,12 @@ class OAuthLoginOrRegisterServiceTest {
                             GITHUB_USER_ID, GITHUB_LOGIN, null, GITHUB_AVATAR_URL, TEST_EMAIL);
             oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
 
-            verify(userRepository).save(any(User.class));
+            ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+            verify(userRepository).save(userCaptor.capture());
+
+            User savedUser = userCaptor.getValue();
+            assertThat(savedUser.getDisplayName()).isEqualTo(GITHUB_LOGIN);
+            assertThat(savedUser.getStatus()).isEqualTo(UserStatus.ACTIVE);
         }
     }
 
