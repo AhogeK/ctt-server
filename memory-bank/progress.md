@@ -2,6 +2,13 @@
 
 ## 已完成 ✅
 
+- [x] OAuth 测试增强 + 文档审查
+    - OAuthCallbackControllerMockMvcTest: 7 个 MockMvc HTTP 测试 (authorize/callback/redirect/错误路径)
+    - ArgumentCaptor 断言深化: accessToken 存储、providerLogin 标记、status/displayName 验证
+    - 3 个 OAuth 文档审查通过 (oauth-manual-test / github-app-setup / frontend-integration)
+    - 814 全量测试通过
+    - 版本: 0.26.0
+
 - [x] hCaptcha 后端集成
     - HcaptchaProperties (@ConfigurationProperties, ctt.security.hcaptcha)
     - CaptchaService (RestClient + 5s timeout + 优雅降级)

@@ -1,4 +1,12 @@
 # Active Context
+- [2026-05-27] - OAuth 测试增强 + 文档审查完成
+    - 新增: OAuthCallbackControllerMockMvcTest.java (7 个 MockMvc HTTP 测试)
+    - 增强: OAuthLoginOrRegisterServiceTest 3 个 ArgumentCaptor 断言 (accessToken, status=ACTIVE, displayName)
+    - 审查: docs/oauth/* 3 个文档全部 PASS, 无需修正
+    - 修复: MockMvc 测试 TermsCheckFilter exclude + @WithMockUser 适配
+    - 测试: 814 全量测试通过
+    - 版本: 0.26.0 (不变)
+
 - [2026-05-23] - hCaptcha 后端集成完成
     - 新增: HcaptchaProperties.java (@ConfigurationProperties, ctt.security.hcaptcha prefix)
     - 新增: CaptchaService.java (RestClient 验证, 5s timeout, 优雅降级)
