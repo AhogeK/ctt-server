@@ -232,5 +232,5 @@ FRONTEND_BASE_URL=http://localhost:5173
 
 ## 相关文档
 
-- [开发者手册](../developer-handbook.md) - 错误码、审计事件、异常处理完整参考
-- [API 治理](../api-governance.md) - API 安全等级、限流、幂等性规范
+- [开发者手册](../../docs/developer-handbook.md) - 错误码、审计事件、异常处理完整参考
+- [API 治理](../../docs/api-governance.md) - API 安全等级、限流、幂等性规范

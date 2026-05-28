@@ -397,4 +397,4 @@ docker compose down && docker compose up -d --build
 
 - [GitHub OAuth 文档](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)
 - [CTT Server README](../../README.md)
-- [CTT Server 开发者手册](../developer-handbook.md)
+- [CTT Server 开发者手册](../../docs/developer-handbook.md)
