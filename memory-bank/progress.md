@@ -2,6 +2,11 @@
 
 ## 已完成 ✅
 
+- [x] OAuth 开发文档移至 dev-docs 目录
+    - 移动 3 个 OAuth 文档到 dev-docs/oauth/
+    - 修复相对链接（../../docs/ 前缀）
+    - 版本: 0.26.1 → 0.26.2
+
 - [x] OAuth 测试增强 + 文档审查
     - OAuthCallbackControllerMockMvcTest: 7 个 MockMvc HTTP 测试 (authorize/callback/redirect/错误路径)
     - ArgumentCaptor 断言深化: accessToken 存储、providerLogin 标记、status/displayName 验证

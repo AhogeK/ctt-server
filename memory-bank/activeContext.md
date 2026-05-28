@@ -1,4 +1,12 @@
 # Active Context
+- [2026-05-28] - OAuth 开发文档移至 dev-docs 目录
+    - 移动: docs/qa/oauth-manual-test.md → dev-docs/oauth/oauth-manual-test.md
+    - 移动: docs/oauth/github-app-setup.md → dev-docs/oauth/github-app-setup.md
+    - 移动: docs/oauth/frontend-integration.md → dev-docs/oauth/frontend-integration.md
+    - 修复: 相对链接更新为 ../../docs/ 前缀
+    - 原因: 分离开发/测试文档与正式项目文档
+    - 版本: 0.26.1 → 0.26.2
+
 - [2026-05-27] - OAuth 测试增强 + 文档审查完成
     - 新增: OAuthCallbackControllerMockMvcTest.java (7 个 MockMvc HTTP 测试)
     - 增强: OAuthLoginOrRegisterServiceTest 3 个 ArgumentCaptor 断言 (accessToken, status=ACTIVE, displayName)
