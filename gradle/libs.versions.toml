@@ -1,10 +1,10 @@
 [versions]
 
 appVersion = "0.26.2"
-springBoot = "4.0.6"
+springBoot = "4.1.0"
 springDependencyManagement = "1.1.7"
-spotless = "8.5.1"
-greenmail = "2.1.8"
+spotless = "8.7.0"
+greenmail = "2.1.9"
 springOpenapi = "3.0.3"
 benManes = "0.54.0"
 flyway = "12.8.1"
