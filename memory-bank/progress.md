@@ -2,6 +2,15 @@
 
 ## 已完成 ✅
 
+- [x] OAuth 绑定状态查询 API (ctt-web /settings/profile 改造支撑)
+    - 新增 OAuthAccountsResponse + OAuthAccountBinding records
+    - 新增 OAuthAccountController (GET /api/v1/auth/oauth/accounts)
+    - 新增 OAuthAccountControllerMockMvcTest (4 个测试: 空列表/字段映射/敏感字段不泄露/未鉴权 401)
+    - 注入 CurrentUserProvider + UserOAuthAccountRepository (与 OAuthCallbackController 解耦)
+    - 响应不含 accessToken/refreshToken/providerUserId (doesNotHavePath 断言验证)
+    - @SecurityRequirement(bearerAuth) 标记鉴权要求
+    - 版本: 0.26.2 → 0.27.0 (MINOR: 新查询端点)
+
 - [x] OAuth 开发文档移至 dev-docs 目录
     - 移动 3 个 OAuth 文档到 dev-docs/oauth/
     - 修复相对链接（../../docs/ 前缀）

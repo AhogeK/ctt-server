@@ -1,4 +1,14 @@
 # Active Context
+- [2026-06-28] - OAuth 绑定状态查询 API (ctt-web /settings/profile "Connected Accounts" 改造支撑)
+    - 新增: OAuthAccountsResponse + OAuthAccountBinding records (auth.oauth.dto)
+    - 新增: OAuthAccountController (GET /api/v1/auth/oauth/accounts)
+    - 新增: OAuthAccountControllerMockMvcTest (4 个测试: 空列表/字段映射/敏感字段不泄露/未鉴权 401)
+    - 设计: 注入 CurrentUserProvider + UserOAuthAccountRepository (与 OAuthCallbackController 解耦)
+    - 安全: 响应不含 accessToken/refreshToken/providerUserId (验证通过 doesNotHavePath 断言)
+    - 安全: @SecurityRequirement(bearerAuth) 标记鉴权要求
+    - 测试: 4/4 通过，MockMvcTester + @MockitoBean + @WithMockUser 模式
+    - 版本: 0.26.2 → 0.27.0 (MINOR: 新查询端点)
+
 - [2026-05-28] - OAuth 开发文档移至 dev-docs 目录
     - 移动: docs/qa/oauth-manual-test.md → dev-docs/oauth/oauth-manual-test.md
     - 移动: docs/oauth/github-app-setup.md → dev-docs/oauth/github-app-setup.md
