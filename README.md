@@ -270,6 +270,7 @@ railway variables set RESEND_API_KEY=re_xxx
 |---------------------------------------|--------|----------------------------------------------------------------------------------------------------------------------------------|
 | `/api/v1/auth/oauth/github/authorize` | GET    | Generate CSRF state, return GitHub authorization URL (public, 30/hour)                                                           |
 | `/api/v1/auth/oauth/github/callback`  | GET    | Handle OAuth callback: validate state → exchange token → login/register → 302 redirect to frontend with tokens (public, 60/hour) |
+| `/api/v1/auth/oauth/accounts`         | GET    | List current user's OAuth account bindings (requires JWT) — never exposes tokens, returns empty array when no bindings           |
 
 **OAuth Flow**:
 ```

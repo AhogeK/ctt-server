@@ -206,6 +206,7 @@ Body: { "refreshToken": "xxx" }
 |------|------|------|-------------|
 | `/api/v1/auth/oauth/github/authorize` | GET | 获取 GitHub 授权地址 | 是 |
 | `/api/v1/auth/oauth/github/callback` | GET | 处理 GitHub 回调 | 否（GitHub → 后端 → 前端重定向） |
+| `/api/v1/auth/oauth/accounts` | GET | 查询当前用户已绑定的 OAuth 账号列表 | 是 |
 | `/api/v1/auth/refresh` | POST | 刷新 access token | 是（token 过期时） |
 
 ## 注意事项
