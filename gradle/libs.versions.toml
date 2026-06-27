@@ -7,7 +7,7 @@ spotless = "8.7.0"
 greenmail = "2.1.9"
 springOpenapi = "3.0.3"
 benManes = "0.54.0"
-flyway = "12.8.1"
+flyway = "12.9.0"
 postgresql = "42.7.11"
 junitPlatformLauncher = "6.1.0"
 
