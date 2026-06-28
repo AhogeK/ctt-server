@@ -2,17 +2,49 @@ package com.ahogek.cttserver.auth.oauth.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import java.util.UUID;
+
 /**
  * OAuth state payload carrying context for the authorization callback.
  *
- * @param action operation type: LOGIN (unauthenticated OAuth) or BIND (authenticated linking)
- * @param redirectUri frontend callback URI to prevent redirect tampering
- * @param userId target user ID when action is BIND; null for LOGIN
+ * <p>Stored in Redis under {@code oauth:state:<uuid>} with a 10-minute TTL and consumed atomically
+ * (GETDEL) on callback. The payload survives the GitHub round-trip so the callback knows whether
+ * it is performing a LOGIN or a BIND operation, and which user (if any) initiated the request.
+ *
+ * <p><b>Session invariant</b> (enforced by the callback controller): the BIND flow must never issue
+ * a new CTT access/refresh token — the user's browser tokens remain byte-identical before and
+ * after a successful bind. The LOGIN flow, by contrast, always issues fresh tokens.
+ *
+ * @param action the operation type: LOGIN (unauthenticated) or BIND (authenticated linking)
+ * @param currentUserId the user performing the bind (required for {@link Action#BIND}, must be
+ *     {@code null} for {@link Action#LOGIN})
+ * @param redirectUrl the frontend route to redirect to after a successful bind (optional, defaults
+ *     to {@code null}; BIND callers typically pass {@code "/settings/profile"})
+ * @author AhogeK [ahogek@gmail.com]
+ * @since 2026-06-28
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record OAuthStatePayload(Action action, String redirectUri, String userId) {
+public record OAuthStatePayload(
+        Action action, UUID currentUserId, String redirectUrl) {
     public enum Action {
         LOGIN,
         BIND
+    }
+
+    /**
+     * Canonical constructor with payload invariant validation.
+     *
+     * @throws IllegalArgumentException if {@link Action#BIND} is supplied without a {@code
+     *     currentUserId}; a bind without a target user is meaningless and indicates a caller bug
+     */
+    public OAuthStatePayload {
+        if (action == Action.BIND && currentUserId == null) {
+            throw new IllegalArgumentException(
+                    "BIND action requires currentUserId in payload");
+        }
+        if (action == Action.LOGIN && currentUserId != null) {
+            throw new IllegalArgumentException(
+                    "LOGIN action must not have currentUserId in payload");
+        }
     }
 }

@@ -12,8 +12,10 @@ import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
+import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
+import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.utils.TokenUtils;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
@@ -38,7 +40,7 @@ import java.util.UUID;
  *   <li>New user registration: create OAuth-only user (ACTIVE, no password)
  * </ul>
  *
- * @author AhogeK
+ * @author AhogeK [ahogek@gmail.com]
  * @since 2026-04-22
  */
 @Service
@@ -237,5 +239,72 @@ public class OAuthLoginOrRegisterService {
                         userId, ISSUED_FOR_WEB, ttl, null, refreshTokenRepository);
 
         return tokenPair.rawToken();
+    }
+
+    /**
+     * Attaches a third-party OAuth account to an existing local user (BIND flow).
+     *
+     * <p><b>Session invariant</b>: this method does NOT issue new CTT access/refresh tokens. The
+     * user's existing session ({@code ctt_access_token} / {@code ctt_refresh_token} in browser
+     * storage) remains valid and unchanged after a successful bind. Browser-side tokens are
+     * byte-for-byte identical before and after the operation.
+     *
+     * <p>If the bind fails (conflict, validation, etc.), no state mutation occurs and the session
+     * is likewise unaffected.
+     *
+     * @param currentUserId the user performing the binding (from {@link
+     *     com.ahogek.cttserver.auth.oauth.model.OAuthStatePayload})
+     * @param provider the OAuth provider (e.g. {@link OAuthProvider#GITHUB})
+     * @param accessToken the OAuth access token from the provider
+     * @param userInfo the GitHub user info returned by the provider
+     * @throws NotFoundException ({@code USER_004}) if no user exists with the given id
+     * @throws ForbiddenException ({@code AUTH_006}) if the user is not in {@link UserStatus#ACTIVE}
+     * @throws ConflictException ({@code AUTH_016}) if the provider user ID is already linked to a
+     *     different user, or if the current user already has a binding for the given provider
+     * @since 2026-06-28
+     */
+    @Transactional
+    public void attachToExistingUser(
+            UUID currentUserId,
+            OAuthProvider provider,
+            String accessToken,
+            GitHubUserInfo userInfo) {
+        User user =
+                userRepository
+                        .findById(currentUserId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                ErrorCode.USER_004, "User not found"));
+
+        validateUserStatus(user);
+
+        String providerUserId = String.valueOf(userInfo.id());
+
+        oauthAccountRepository
+                .findByProviderAndProviderUserId(provider, providerUserId)
+                .ifPresent(
+                        existing -> {
+                            if (!existing.getUser().getId().equals(currentUserId)) {
+                                throw new ConflictException(
+                                        ErrorCode.AUTH_016,
+                                        "OAuth account already linked to another user");
+                            }
+                        });
+
+        if (oauthAccountRepository.existsByUserIdAndProvider(currentUserId, provider)) {
+            throw new ConflictException(
+                    ErrorCode.AUTH_016, "Provider already linked to current user");
+        }
+
+        UserOAuthAccount account =
+                createOAuthAccountEntity(user, provider, accessToken, userInfo);
+        oauthAccountRepository.save(account);
+
+        auditLogService.logSuccess(
+                currentUserId,
+                AuditAction.OAUTH_ACCOUNT_LINKED,
+                ResourceType.USER,
+                currentUserId.toString());
     }
 }

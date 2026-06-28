@@ -56,6 +56,27 @@ class OAuthAccountQueryServiceTest {
         return binding;
     }
 
+    private UserOAuthAccount stubGithubEntityWith(
+            String providerLogin, String providerEmail) {
+        User user = new User();
+        user.setId(USER_ID);
+        user.setEmail("test@example.com");
+        user.setDisplayName("Test User");
+
+        UserOAuthAccount binding = new UserOAuthAccount();
+        binding.setId(UUID.randomUUID());
+        binding.setUser(user);
+        binding.setProvider(OAuthProvider.GITHUB);
+        binding.setProviderUserId("12345");
+        binding.setProviderLogin(providerLogin);
+        binding.setProviderEmail(providerEmail);
+        binding.setAccessToken("encrypted");
+        binding.setRefreshToken("encrypted");
+        binding.setCreatedAt(CREATED_AT);
+        binding.setUpdatedAt(UPDATED_AT);
+        return binding;
+    }
+
     @Nested
     @DisplayName("listBindings")
     class ListBindings {
@@ -135,6 +156,64 @@ class OAuthAccountQueryServiceTest {
                             "octocat@example.com",
                             CREATED_AT,
                             UPDATED_AT);
+        }
+    }
+
+    @Nested
+    @DisplayName("Fallback Chain")
+    class FallbackChain {
+
+        @Test
+        @DisplayName("Should fall back to email local-part when providerLogin is null")
+        void shouldFallbackToEmailLocalPart_whenProviderLoginIsNull() {
+            UserOAuthAccount entity = stubGithubEntityWith(null, "torvalds@example.com");
+
+            OAuthAccountBinding dto = OAuthAccountBinding.fromEntity(entity);
+
+            assertThat(dto.providerLogin()).isEqualTo("torvalds");
+            assertThat(dto.providerEmail()).isEqualTo("torvalds@example.com");
+        }
+
+        @Test
+        @DisplayName("Should fall back to providerUserId when both providerLogin and providerEmail are null")
+        void shouldFallbackToProviderUserId_whenBothLoginAndEmailAreNull() {
+            UserOAuthAccount entity = stubGithubEntityWith(null, null);
+
+            OAuthAccountBinding dto = OAuthAccountBinding.fromEntity(entity);
+
+            assertThat(dto.providerLogin()).isEqualTo("12345");
+            assertThat(dto.providerEmail()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should fall back to providerUserId when email exists but lacks '@' delimiter")
+        void shouldFallbackToProviderUserId_whenEmailLacksAtDelimiter() {
+            UserOAuthAccount entity = stubGithubEntityWith(null, "malformed-email");
+
+            OAuthAccountBinding dto = OAuthAccountBinding.fromEntity(entity);
+
+            assertThat(dto.providerLogin()).isEqualTo("12345");
+        }
+
+        @Test
+        @DisplayName("Should trim whitespace from providerLogin when present")
+        void shouldTrimWhitespaceFromProviderLogin() {
+            UserOAuthAccount entity =
+                    stubGithubEntityWith("  octocat  ", "octocat@example.com");
+
+            OAuthAccountBinding dto = OAuthAccountBinding.fromEntity(entity);
+
+            assertThat(dto.providerLogin()).isEqualTo("octocat");
+        }
+
+        @Test
+        @DisplayName("Should fall back to providerUserId when email local-part is empty")
+        void shouldFallbackToProviderUserId_whenEmailLocalPartIsEmpty() {
+            UserOAuthAccount entity = stubGithubEntityWith(null, "@example.com");
+
+            OAuthAccountBinding dto = OAuthAccountBinding.fromEntity(entity);
+
+            assertThat(dto.providerLogin()).isEqualTo("12345");
         }
     }
 }

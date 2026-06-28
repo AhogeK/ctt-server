@@ -204,10 +204,56 @@ Body: { "refreshToken": "xxx" }
 
 | 接口 | 方法 | 说明 | 前端是否调用 |
 |------|------|------|-------------|
-| `/api/v1/auth/oauth/github/authorize` | GET | 获取 GitHub 授权地址 | 是 |
+| `/api/v1/auth/oauth/github/authorize` | GET | 获取 GitHub 授权地址。支持 `?action=login`（默认，公开）或 `?action=bind`（需 JWT） | 是 |
 | `/api/v1/auth/oauth/github/callback` | GET | 处理 GitHub 回调 | 否（GitHub → 后端 → 前端重定向） |
 | `/api/v1/auth/oauth/accounts` | GET | 查询当前用户已绑定的 OAuth 账号列表 | 是 |
 | `/api/v1/auth/refresh` | POST | 刷新 access token | 是（token 过期时） |
+
+## GitHub Account Binding Flow (BIND)
+
+### 适用场景
+
+已登录用户在 `/settings/profile` 页面点击「连接 GitHub」按钮，授权后将 GitHub 账号绑定到当前本地账号。**不会修改浏览器中的 ctt_access_token / ctt_refresh_token**，用户保持登录状态不变。
+
+### 流程
+
+1. 前端带 JWT 调用 `GET /api/v1/auth/oauth/github/authorize?action=bind`
+2. 后端校验 JWT，从 SecurityContext 提取 currentUserId
+3. 后端生成 state（payload = `(BIND, currentUserId, "/settings/profile")`），返回 GitHub authUrl
+4. 前端跳转到 GitHub 授权
+5. GitHub 回调到 `/api/v1/auth/oauth/github/callback?code=...&state=...`
+6. 后端校验 state，调用 `loginOrRegisterService.attachToExistingUser(currentUserId, ...)`
+7. 后端 302 重定向到 `{frontendUrl}/settings/profile?linked=github`（成功）或 `?linked=github&error={code}`（失败）
+
+### 前端集成示例
+
+```typescript
+// 调用 authorize with action=bind（需携带 JWT）
+const response = await fetch(
+  '/api/v1/auth/oauth/github/authorize?action=bind',
+  { headers: { 'Authorization': `Bearer ${accessToken}` } }
+);
+const { data } = await response.json();
+window.location.href = data.authUrl;
+```
+
+### 错误码 → Toast 映射
+
+BIND 流程的错误最终都通过 query 参数回传到 `/settings/profile?linked=github&error={code}`，前端读取 `error` 参数展示对应提示：
+
+| 后端错误码 | 前端 Toast |
+|---|---|
+| `AUTH_001` | 请先登录后再连接 GitHub |
+| `AUTH_004` | 账号已锁定，请稍后重试 |
+| `AUTH_005` | 账号已停用，请联系客服 |
+| `AUTH_006` | 账号未激活，请先验证邮箱 |
+| `AUTH_013` | 授权请求已过期，请重试 |
+| `AUTH_016` | 该 GitHub 账号已绑定其他用户 |
+| `USER_004` | 用户不存在，请重新登录 |
+| `OAUTH_PROVIDER_ERROR` | GitHub 授权失败 |
+| `MISSING_OAUTH_PARAMS` | 授权请求异常，请重试 |
+| `INVALID_STATE_ACTION` | 授权请求异常，请重试 |
+| `OAUTH_INTERNAL_ERROR` | 服务异常，请稍后重试 |
 
 ## 注意事项
 

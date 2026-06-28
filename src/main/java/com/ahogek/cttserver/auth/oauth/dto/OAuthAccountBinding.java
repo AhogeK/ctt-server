@@ -38,13 +38,35 @@ public record OAuthAccountBinding(
      *
      * <p>Intentionally excludes sensitive fields (access token, refresh token, provider user ID).
      *
+     * <p>The {@code providerLogin} fallback chain guarantees a non-blank display handle for the
+     * UI:
+     *
+     * <ol>
+     *   <li>Stored {@code providerLogin} (the GitHub handle at last sync)
+     *   <li>Local-part of {@code providerEmail} (e.g. {@code "octocat"} from {@code
+     *       "octocat@example.com"})
+     *   <li>{@code providerUserId} (last-resort; guaranteed non-null per DB NOT NULL)
+     * </ol>
+     *
      * @param entity the UserOAuthAccount entity
      * @return the DTO representation
      */
     public static OAuthAccountBinding fromEntity(UserOAuthAccount entity) {
+        String login = entity.getProviderLogin();
+        String email = entity.getProviderEmail();
+
+        String displayName = (login != null && !login.isBlank()) ? login.trim() : null;
+        if (displayName == null) {
+            if (email != null && email.contains("@")) {
+                String localPart = email.substring(0, email.indexOf('@')).trim();
+                displayName = localPart.isEmpty() ? entity.getProviderUserId() : localPart;
+            } else {
+                displayName = entity.getProviderUserId();
+            }
+        }
         return new OAuthAccountBinding(
                 entity.getProvider().getValue(),
-                entity.getProviderLogin(),
+                displayName,
                 entity.getProviderEmail(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt());
