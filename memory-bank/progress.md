@@ -2,6 +2,20 @@
 
 ## 已完成 ✅
 
+- [x] OAuth BIND 流程（修复已登录用户绑定 GitHub 时被强制登出 bug）
+    - 新增 OAuthStatePayload.Action.BIND + currentUserId + redirectUrl 字段；canonical constructor 双向校验
+    - 新增 OAuthLoginOrRegisterService.attachToExistingUser — 校验 + 冲突检查 + 插入 + 审计；**不发 token** (Session invariant 3 处显式声明)
+    - 修改 OAuthCallbackController.authorize 接受 ?action=login|bind；callback 分支处理 BIND
+    - 修改 OAuthCallbackController callback 加 state UUID 格式校验（defense-in-depth）
+    - 修改 OAuthCallbackController.handleOAuthBusinessException 用 HandlerMethod 区分 authorize (JSON 401) vs callback (302)
+    - 修改 OAuthAccountBinding.fromEntity 加 providerLogin 三级兜底 (trim + email local-part + providerUserId)
+    - 修改 GlobalExceptionHandler uk_user_oauth_* 错误码从 USER_001 改为 AUTH_016
+    - 22 个新测试（OAuthStatePayloadTest 9 + OAuthStateServiceTest round-trip 2 + OAuthLoginOrRegisterServiceTest 6 + OAuthCallbackController MockMvc 14 + OAuthAccountQueryServiceTest fallback 5）
+    - OAuth 模块 97/97 PASS；全量 852/852 PASS（之前 819）
+    - 文档: dev-docs/oauth/frontend-integration.md BIND 流程 + error code 映射表；README OAuth 端点表更新
+    - 规则: AGENTS.md R8.5 新增 OAuthStatePayload.Action 枚举使用约定（独立 AI commit）
+    - 版本: 0.27.0 → 0.28.0 (MINOR: 新 BIND 流程 + BUG 修复)
+
 - [x] OAuth 绑定状态查询 API (ctt-web /settings/profile 改造支撑)
     - 新增 OAuthAccountsResponse + OAuthAccountBinding records
     - 新增 OAuthAccountController (GET /api/v1/auth/oauth/accounts)
