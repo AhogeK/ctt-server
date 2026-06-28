@@ -2,10 +2,14 @@ package com.ahogek.cttserver.auth.oauth.controller;
 
 import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
+import com.ahogek.cttserver.common.security.annotation.PublicApi;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.Authentication;
+
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.lang.reflect.Method;
 
@@ -18,6 +22,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("OAuthCallbackController Annotation Tests")
 class OAuthCallbackControllerTest {
 
+    private static final Class<?>[] AUTHORIZE_PARAMS =
+            new Class<?>[] {OAuthProvider.class, String.class, Authentication.class};
+
+    private static final Class<?>[] CALLBACK_PARAMS =
+            new Class<?>[] {
+                OAuthProvider.class, String.class, String.class, String.class, String.class,
+                HttpServletResponse.class
+            };
+
     @Nested
     @DisplayName("Endpoint Annotations")
     class EndpointAnnotations {
@@ -26,38 +39,23 @@ class OAuthCallbackControllerTest {
         @DisplayName("authorize endpoint should have @PublicApi")
         void authorizeEndpoint_shouldHavePublicApi() throws NoSuchMethodException {
             Method method =
-                    OAuthCallbackController.class.getMethod("authorize", OAuthProvider.class);
-            assertThat(
-                            method.getAnnotation(
-                                    com.ahogek.cttserver.common.security.annotation.PublicApi
-                                            .class))
-                    .isNotNull();
+                    OAuthCallbackController.class.getMethod("authorize", AUTHORIZE_PARAMS);
+            assertThat(method.getAnnotation(PublicApi.class)).isNotNull();
         }
 
         @Test
         @DisplayName("callback endpoint should have @PublicApi")
         void callbackEndpoint_shouldHavePublicApi() throws NoSuchMethodException {
             Method method =
-                    OAuthCallbackController.class.getMethod(
-                            "callback",
-                            OAuthProvider.class,
-                            String.class,
-                            String.class,
-                            String.class,
-                            String.class,
-                            jakarta.servlet.http.HttpServletResponse.class);
-            assertThat(
-                            method.getAnnotation(
-                                    com.ahogek.cttserver.common.security.annotation.PublicApi
-                                            .class))
-                    .isNotNull();
+                    OAuthCallbackController.class.getMethod("callback", CALLBACK_PARAMS);
+            assertThat(method.getAnnotation(PublicApi.class)).isNotNull();
         }
 
         @Test
         @DisplayName("authorize endpoint should have @RateLimit(30/hour)")
         void authorizeEndpoint_shouldHaveRateLimit() throws NoSuchMethodException {
             Method method =
-                    OAuthCallbackController.class.getMethod("authorize", OAuthProvider.class);
+                    OAuthCallbackController.class.getMethod("authorize", AUTHORIZE_PARAMS);
             RateLimit rateLimit = method.getAnnotation(RateLimit.class);
             assertThat(rateLimit).isNotNull();
             assertThat(rateLimit.limit()).isEqualTo(30);
@@ -68,14 +66,7 @@ class OAuthCallbackControllerTest {
         @DisplayName("callback endpoint should have @RateLimit(60/hour)")
         void callbackEndpoint_shouldHaveRateLimit() throws NoSuchMethodException {
             Method method =
-                    OAuthCallbackController.class.getMethod(
-                            "callback",
-                            OAuthProvider.class,
-                            String.class,
-                            String.class,
-                            String.class,
-                            String.class,
-                            jakarta.servlet.http.HttpServletResponse.class);
+                    OAuthCallbackController.class.getMethod("callback", CALLBACK_PARAMS);
             RateLimit rateLimit = method.getAnnotation(RateLimit.class);
             assertThat(rateLimit).isNotNull();
             assertThat(rateLimit.limit()).isEqualTo(60);
@@ -91,7 +82,7 @@ class OAuthCallbackControllerTest {
         @DisplayName("authorize endpoint should have @Operation")
         void authorizeEndpoint_shouldHaveOperation() throws NoSuchMethodException {
             Method method =
-                    OAuthCallbackController.class.getMethod("authorize", OAuthProvider.class);
+                    OAuthCallbackController.class.getMethod("authorize", AUTHORIZE_PARAMS);
 
             Operation operation = method.getAnnotation(Operation.class);
             assertThat(operation).isNotNull();
@@ -103,11 +94,11 @@ class OAuthCallbackControllerTest {
         @DisplayName("authorize endpoint should have @ApiResponses")
         void authorizeEndpoint_shouldHaveApiResponses() throws NoSuchMethodException {
             Method method =
-                    OAuthCallbackController.class.getMethod("authorize", OAuthProvider.class);
+                    OAuthCallbackController.class.getMethod("authorize", AUTHORIZE_PARAMS);
 
             ApiResponses apiResponses = method.getAnnotation(ApiResponses.class);
             assertThat(apiResponses).isNotNull();
-            assertThat(apiResponses.value()).hasSize(2);
+            assertThat(apiResponses.value()).hasSize(3);
 
             ApiResponse okResponse = apiResponses.value()[0];
             assertThat(okResponse.responseCode()).isEqualTo("200");
@@ -118,14 +109,7 @@ class OAuthCallbackControllerTest {
         @DisplayName("callback endpoint should have @Operation")
         void callbackEndpoint_shouldHaveOperation() throws NoSuchMethodException {
             Method method =
-                    OAuthCallbackController.class.getMethod(
-                            "callback",
-                            OAuthProvider.class,
-                            String.class,
-                            String.class,
-                            String.class,
-                            String.class,
-                            jakarta.servlet.http.HttpServletResponse.class);
+                    OAuthCallbackController.class.getMethod("callback", CALLBACK_PARAMS);
 
             Operation operation = method.getAnnotation(Operation.class);
             assertThat(operation).isNotNull();
@@ -137,14 +121,7 @@ class OAuthCallbackControllerTest {
         @DisplayName("callback endpoint should have @ApiResponses")
         void callbackEndpoint_shouldHaveApiResponses() throws NoSuchMethodException {
             Method method =
-                    OAuthCallbackController.class.getMethod(
-                            "callback",
-                            OAuthProvider.class,
-                            String.class,
-                            String.class,
-                            String.class,
-                            String.class,
-                            jakarta.servlet.http.HttpServletResponse.class);
+                    OAuthCallbackController.class.getMethod("callback", CALLBACK_PARAMS);
 
             ApiResponses apiResponses = method.getAnnotation(ApiResponses.class);
             assertThat(apiResponses).isNotNull();

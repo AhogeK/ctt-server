@@ -12,8 +12,10 @@ import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
+import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
+import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -39,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -386,6 +389,135 @@ class OAuthLoginOrRegisterServiceTest {
                                             userInfo))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_006);
+        }
+    }
+
+    @Nested
+    @DisplayName("attachToExistingUser (BIND flow)")
+    class AttachToExistingUser {
+
+        @Test
+        @DisplayName("should attach new binding when provider user id is not linked")
+        void shouldAttachNewBinding_whenProviderNotLinked() {
+            User user = createActiveUser();
+            when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+            when(oauthAccountRepository.findByProviderAndProviderUserId(
+                            OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+                    .thenReturn(Optional.empty());
+            when(oauthAccountRepository.existsByUserIdAndProvider(
+                            user.getId(), OAuthProvider.GITHUB))
+                    .thenReturn(false);
+
+            GitHubUserInfo userInfo = createGitHubUserInfo();
+            oauthLoginService.attachToExistingUser(
+                    user.getId(), OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+
+            ArgumentCaptor<UserOAuthAccount> accountCaptor =
+                    ArgumentCaptor.forClass(UserOAuthAccount.class);
+            verify(oauthAccountRepository).save(accountCaptor.capture());
+            UserOAuthAccount savedAccount = accountCaptor.getValue();
+
+            assertThat(savedAccount.getUser()).isEqualTo(user);
+            assertThat(savedAccount.getProvider()).isEqualTo(OAuthProvider.GITHUB);
+            assertThat(savedAccount.getProviderUserId())
+                    .isEqualTo(String.valueOf(GITHUB_USER_ID));
+            assertThat(savedAccount.getAccessToken()).isEqualTo(TEST_GITHUB_ACCESS_TOKEN);
+        }
+
+        @Test
+        @DisplayName("should throw ConflictException(AUTH_016) when provider user id is linked to"
+                + " another user")
+        void shouldThrowConflict_whenProviderLinkedToAnotherUser() {
+            User currentUser = createActiveUser();
+            User otherUser = createActiveUser();
+            UserOAuthAccount existingBinding = createOAuthAccount(otherUser);
+            when(userRepository.findById(currentUser.getId())).thenReturn(Optional.of(currentUser));
+            when(oauthAccountRepository.findByProviderAndProviderUserId(
+                            OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+                    .thenReturn(Optional.of(existingBinding));
+
+            GitHubUserInfo userInfo = createGitHubUserInfo();
+
+            assertThatThrownBy(() -> oauthLoginService.attachToExistingUser(currentUser.getId(), OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo))
+                    .isInstanceOf(ConflictException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_016);
+
+            verify(oauthAccountRepository, never()).save(any(UserOAuthAccount.class));
+        }
+
+        @Test
+        @DisplayName("should throw ConflictException(AUTH_016) when current user already has a"
+                + " binding for the same provider")
+        void shouldThrowConflict_whenSameProviderAlreadyLinkedToCurrentUser() {
+            User currentUser = createActiveUser();
+            UserOAuthAccount ownBinding = createOAuthAccount(currentUser);
+            when(userRepository.findById(currentUser.getId())).thenReturn(Optional.of(currentUser));
+            when(oauthAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+                    .thenReturn(Optional.of(ownBinding));
+            when(oauthAccountRepository.existsByUserIdAndProvider(currentUser.getId(), OAuthProvider.GITHUB))
+                    .thenReturn(true);
+
+            GitHubUserInfo userInfo = createGitHubUserInfo();
+
+            assertThatThrownBy(() -> oauthLoginService.attachToExistingUser(currentUser.getId(), OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo))
+                    .isInstanceOf(ConflictException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_016);
+
+            verify(oauthAccountRepository, never()).save(any(UserOAuthAccount.class));
+        }
+
+        @Test
+        @DisplayName("should throw ForbiddenException(AUTH_006) when user is PENDING_VERIFICATION")
+        void shouldThrowForbidden_whenUserNotActive() {
+            User pendingUser = createUserWithStatus(UserStatus.PENDING_VERIFICATION);
+            when(userRepository.findById(pendingUser.getId())).thenReturn(Optional.of(pendingUser));
+
+            GitHubUserInfo userInfo = createGitHubUserInfo();
+
+            assertThatThrownBy(() -> oauthLoginService.attachToExistingUser(pendingUser.getId(), OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_006);
+
+            verify(oauthAccountRepository, never()).save(any(UserOAuthAccount.class));
+        }
+
+        @Test
+        @DisplayName("should throw NotFoundException(USER_004) when user does not exist")
+        void shouldThrowNotFound_whenUserMissing() {
+            UUID missingUserId = UUID.randomUUID();
+            when(userRepository.findById(missingUserId)).thenReturn(Optional.empty());
+
+            GitHubUserInfo userInfo = createGitHubUserInfo();
+
+            assertThatThrownBy(() -> oauthLoginService.attachToExistingUser(missingUserId, OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
+
+            verify(oauthAccountRepository, never()).save(any(UserOAuthAccount.class));
+        }
+
+        @Test
+        @DisplayName("should log OAUTH_ACCOUNT_LINKED audit on successful bind")
+        void shouldLogAuditEvent_onSuccessfulBind() {
+            User user = createActiveUser();
+            when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+            when(oauthAccountRepository.findByProviderAndProviderUserId(
+                            OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+                    .thenReturn(Optional.empty());
+            when(oauthAccountRepository.existsByUserIdAndProvider(
+                            user.getId(), OAuthProvider.GITHUB))
+                    .thenReturn(false);
+
+            GitHubUserInfo userInfo = createGitHubUserInfo();
+            oauthLoginService.attachToExistingUser(
+                    user.getId(), OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+
+            verify(auditLogService)
+                    .logSuccess(
+                            user.getId(),
+                            AuditAction.OAUTH_ACCOUNT_LINKED,
+                            ResourceType.USER,
+                            user.getId().toString());
         }
     }
 

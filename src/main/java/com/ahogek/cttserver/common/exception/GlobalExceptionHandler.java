@@ -419,10 +419,9 @@ public final class GlobalExceptionHandler {
             return ErrorCode.SYSTEM_001;
         }
         return switch (constraintName) {
-            case "uk_users_email_lower",
-                    "uk_user_oauth_provider_uid",
-                    "uk_user_oauth_user_provider" ->
-                    ErrorCode.USER_001;
+            case "uk_users_email_lower" -> ErrorCode.USER_001;
+            case "uk_user_oauth_provider_uid", "uk_user_oauth_user_provider" ->
+                    ErrorCode.AUTH_016;
             case "uk_refresh_tokens_token_hash",
                     "uk_email_verification_token_hash",
                     "uk_password_reset_token_hash" ->

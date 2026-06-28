@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.auth.oauth.controller;
 
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.oauth.client.GitHubOAuthClient;
 import com.ahogek.cttserver.auth.oauth.dto.AuthorizeResponse;
 import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
@@ -11,6 +12,10 @@ import com.ahogek.cttserver.auth.oauth.service.OAuthLoginOrRegisterService;
 import com.ahogek.cttserver.auth.oauth.service.OAuthStateService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.BusinessException;
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.ForbiddenException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.ErrorResponse;
@@ -19,9 +24,12 @@ import com.ahogek.cttserver.common.security.annotation.PublicApi;
 
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -55,6 +64,14 @@ public class OAuthCallbackController {
 
     private static final Logger log = LoggerFactory.getLogger(OAuthCallbackController.class);
 
+    private static final String BIND_REDIRECT_PATH = "/settings/profile";
+    private static final String LOGIN_REDIRECT_PATH = "/oauth/callback";
+    private static final String ERROR_REDIRECT_PATH = "/oauth/error";
+
+    private static final java.util.regex.Pattern STATE_UUID_PATTERN =
+            java.util.regex.Pattern.compile(
+                    "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+
     private final OAuthStateService stateService;
     private final GitHubOAuthClient githubClient;
     private final OAuthLoginOrRegisterService loginOrRegisterService;
@@ -76,7 +93,10 @@ public class OAuthCallbackController {
             description =
                     """
                     Generates a CSRF-protected state and returns the GitHub authorization URL. \
-                    The client should redirect the user to this URL to begin the OAuth flow.
+                    The client should redirect the user to this URL to begin the OAuth flow. \
+                    Use `?action=login` (default, public) for unauthenticated login/registration, \
+                    or `?action=bind` (requires JWT) to attach a GitHub account to the \
+                    authenticated user without issuing new tokens.
                     """)
     @ApiResponses(
             value = {
@@ -110,6 +130,28 @@ public class OAuthCallbackController {
                                                                   "httpStatus": 400,
                                                                   "timestamp": "2026-04-22T10:00:00Z"
                                                                 }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description =
+                                "Authentication required for action=bind - AUTH_001: Missing or invalid JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "bind-unauthenticated",
+                                                        summary = "Bind requires JWT",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_001",
+                                                                  "message": "Authentication required for bind action",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-06-28T10:00:00Z"
+                                                                }
                                                                 """)))
             })
     @PublicApi(reason = "OAuth authorization initiation - redirects user to provider")
@@ -118,11 +160,14 @@ public class OAuthCallbackController {
     public ResponseEntity<RestApiResponse<AuthorizeResponse>> authorize(
             // Parameter kept for future multi-provider support (currently only GitHub is
             // implemented)
-            @SuppressWarnings("unused") @PathVariable OAuthProvider provider) {
+            @SuppressWarnings("unused") @PathVariable OAuthProvider provider,
+            @RequestParam(name = "action", defaultValue = "login") String action,
+            Authentication authentication) {
 
-        String stateId =
-                stateService.generateAndSaveState(
-                        new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, null));
+        OAuthStatePayload.Action oauthAction = parseAction(action);
+
+        OAuthStatePayload payload = getOAuthStatePayload(authentication, oauthAction);
+        String stateId = stateService.generateAndSaveState(payload);
 
         String authUrl =
                 UriComponentsBuilder.fromUriString("https://github.com/login/oauth/authorize")
@@ -134,20 +179,40 @@ public class OAuthCallbackController {
         return ResponseEntity.ok(RestApiResponse.ok(new AuthorizeResponse(authUrl)));
     }
 
+    private static @NonNull OAuthStatePayload getOAuthStatePayload(Authentication authentication, OAuthStatePayload.Action oauthAction) {
+        UUID currentUserId = null;
+        String redirectUrl = null;
+
+        if (oauthAction == OAuthStatePayload.Action.BIND) {
+            if (authentication == null
+                    || !(authentication.getPrincipal() instanceof CurrentUser cu)) {
+                throw new UnauthorizedException(
+                        ErrorCode.AUTH_001, "Authentication required for bind action");
+            }
+            currentUserId = cu.id();
+            redirectUrl = BIND_REDIRECT_PATH;
+        }
+
+        return new OAuthStatePayload(oauthAction, currentUserId, redirectUrl);
+    }
+
     @Operation(
             summary = "Handle OAuth callback",
             description =
                     """
                     Receives the OAuth provider callback, validates state, exchanges code for token, \
-                    fetches user info, and performs login or registration. Redirects to frontend \
-                    with access/refresh tokens on success, or to error page on failure.
+                    fetches user info, and performs login, registration, or BIND. Redirects to frontend \
+                    with access/refresh tokens on LOGIN success, to the bind redirect URL on BIND \
+                    success, or to an error page on failure. The BIND path never issues new tokens; \
+                    the caller's browser tokens remain byte-identical.
                     """)
     @ApiResponses(
             value = {
                 @ApiResponse(
                         responseCode = "302",
                         description =
-                                "Redirect to frontend with tokens on success, or error page on failure",
+                                "Redirect to frontend with tokens on LOGIN success, to bind"
+                                        + " redirect URL on BIND success, or to error page on failure",
                         content = @Content),
                 @ApiResponse(
                         responseCode = "403",
@@ -200,12 +265,15 @@ public class OAuthCallbackController {
             return;
         }
 
-        // IntelliJ taint analysis false positive:
-        // 'state' is validated by OAuthStateService (Redis key prefix + UUID format check).
-        // objectMapper.readValue() is JSON deserialization, not file system path traversal.
+        if (!STATE_UUID_PATTERN.matcher(state).matches()) {
+            log.warn("OAuth callback state has invalid UUID format: {}", state);
+            redirectError(response, "MISSING_OAUTH_PARAMS");
+            return;
+        }
         OAuthStatePayload payload = stateService.consumeState(state);
-        if (payload.action() != OAuthStatePayload.Action.LOGIN) {
-            log.warn("OAuth state action mismatch: expected LOGIN, got {}", payload.action());
+        if (payload.action() != OAuthStatePayload.Action.LOGIN
+                && payload.action() != OAuthStatePayload.Action.BIND) {
+            log.warn("OAuth state action invalid: {}", payload.action());
             redirectError(response, "INVALID_STATE_ACTION");
             return;
         }
@@ -213,25 +281,65 @@ public class OAuthCallbackController {
         GitHubTokenResponse tokenResponse = githubClient.exchangeCodeForToken(code, state);
         GitHubUserInfo userInfo = githubClient.getUserInfo(tokenResponse.accessToken());
 
-        LoginResponse loginResponse =
-                loginOrRegisterService.process(provider, tokenResponse.accessToken(), userInfo);
+        if (payload.action() == OAuthStatePayload.Action.LOGIN) {
+            LoginResponse loginResponse =
+                    loginOrRegisterService.process(
+                            provider, tokenResponse.accessToken(), userInfo);
 
-        String redirectUrl =
-                UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
-                        .path("/oauth/callback")
-                        .queryParam("accessToken", loginResponse.accessToken())
-                        .queryParam("refreshToken", loginResponse.refreshToken())
-                        .queryParam("termsExpired", loginResponse.termsExpired())
-                        .toUriString();
+            String redirectUrl =
+                    UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
+                            .path(LOGIN_REDIRECT_PATH)
+                            .queryParam("accessToken", loginResponse.accessToken())
+                            .queryParam("refreshToken", loginResponse.refreshToken())
+                            .queryParam("termsExpired", loginResponse.termsExpired())
+                            .toUriString();
 
-        response.sendRedirect(redirectUrl);
+            response.sendRedirect(redirectUrl);
+        } else {
+            if (payload.currentUserId() == null) {
+                log.error("BIND state payload has null currentUserId despite canonical validation");
+                throw new ForbiddenException(ErrorCode.AUTH_013);
+            }
+            try {
+                loginOrRegisterService.attachToExistingUser(
+                        payload.currentUserId(),
+                        provider,
+                        tokenResponse.accessToken(),
+                        userInfo);
+
+                String redirectUrl =
+                        buildBindSuccessRedirect(payload.redirectUrl(), provider);
+                response.sendRedirect(redirectUrl);
+            } catch (BusinessException e) {
+                log.warn("OAuth BIND callback business error: code={}", e.errorCode().name());
+                String errorRedirect =
+                        buildBindErrorRedirect(
+                                payload.redirectUrl(), provider, e.errorCode().name());
+                response.sendRedirect(errorRedirect);
+            }
+        }
     }
 
     @ExceptionHandler(BusinessException.class)
-    public void handleOAuthCallbackError(BusinessException exception, HttpServletResponse response)
+    public ResponseEntity<ErrorResponse> handleOAuthBusinessException(
+            BusinessException exception,
+            HandlerMethod handlerMethod,
+            HttpServletResponse response)
             throws IOException {
+        // authorize endpoint is a JSON API — return JSON error response
+        // callback endpoint is browser-facing — redirect to error page
+        if (!"callback".equals(handlerMethod.getMethod().getName())) {
+            log.warn(
+                    "OAuth authorize business error: code={}, message={}",
+                    exception.errorCode().name(),
+                    exception.getMessage());
+            ErrorResponse errorBody =
+                    ErrorResponse.of(exception.errorCode(), exception.getMessage());
+            return ResponseEntity.status(exception.errorCode().httpStatus()).body(errorBody);
+        }
         log.warn("OAuth callback business error: code={}", exception.errorCode().name());
         redirectError(response, exception.errorCode().name());
+        return null;
     }
 
     @ExceptionHandler(Exception.class)
@@ -241,10 +349,43 @@ public class OAuthCallbackController {
         redirectError(response, "OAUTH_INTERNAL_ERROR");
     }
 
+    private OAuthStatePayload.Action parseAction(String action) {
+        try {
+            return OAuthStatePayload.Action.valueOf(action.toUpperCase());
+        } catch (IllegalArgumentException _) {
+            throw new ValidationException(
+                    ErrorCode.COMMON_001, "Unsupported action: " + action);
+        }
+    }
+
+    private String buildBindSuccessRedirect(String redirectUrl, OAuthProvider provider) {
+        String base =
+                (redirectUrl != null && !redirectUrl.isBlank())
+                        ? redirectUrl
+                        : BIND_REDIRECT_PATH;
+        return UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
+                .path(base)
+                .queryParam("linked", provider.getValue())
+                .toUriString();
+    }
+
+    private String buildBindErrorRedirect(
+            String redirectUrl, OAuthProvider provider, String errorCode) {
+        String base =
+                (redirectUrl != null && !redirectUrl.isBlank())
+                        ? redirectUrl
+                        : BIND_REDIRECT_PATH;
+        return UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
+                .path(base)
+                .queryParam("linked", provider.getValue())
+                .queryParam("error", errorCode)
+                .toUriString();
+    }
+
     private void redirectError(HttpServletResponse response, String errorCode) throws IOException {
         String redirectUrl =
                 UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
-                        .path("/oauth/error")
+                        .path(ERROR_REDIRECT_PATH)
                         .queryParam("code", errorCode)
                         .toUriString();
 
