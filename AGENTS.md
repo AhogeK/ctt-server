@@ -133,6 +133,8 @@
 
 发现冲突 → 暂停 → grep搜索现有模式 → 向用户确认 → 按项目一致性调整
 
+- **OAuthStatePayload.Action 枚举使用约定**：扩展 Action 时必须同步更新三处：(1) OAuthStatePayload canonical constructor 校验；(2) OAuthCallbackController authorize + callback 分支；(3) 至少三个测试文件（OAuthStatePayloadTest + OAuthStateServiceTest + OAuthCallbackControllerMockMvcTest + OAuthLoginOrRegisterServiceTest）
+
 ### R9: 代码规范
 
 - **语言**：代码/注释/日志强制英文，仅 `.md` 可中文
