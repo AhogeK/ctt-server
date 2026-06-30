@@ -7,7 +7,11 @@ import com.ahogek.cttserver.auth.oauth.dto.OAuthAccountBinding;
 import com.ahogek.cttserver.auth.oauth.entity.UserOAuthAccount;
 import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
 import com.ahogek.cttserver.auth.oauth.service.OAuthAccountQueryService;
+import com.ahogek.cttserver.auth.oauth.service.OAuthLoginOrRegisterService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.idempotent.IdempotentAspect;
 import com.ahogek.cttserver.common.ratelimit.RateLimitAspect;
 import com.ahogek.cttserver.user.entity.User;
@@ -30,6 +34,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
  * OAuthAccountController HTTP business logic tests.
@@ -57,6 +62,7 @@ class OAuthAccountControllerMockMvcTest {
     @Autowired private MockMvcTester mvc;
 
     @MockitoBean private OAuthAccountQueryService oauthAccountQueryService;
+    @MockitoBean private OAuthLoginOrRegisterService oauthLoginOrRegisterService;
     @MockitoBean private CurrentUserProvider currentUserProvider;
 
     private CurrentUser currentUser() {
@@ -191,6 +197,129 @@ class OAuthAccountControllerMockMvcTest {
             BDDMockito.then(oauthAccountQueryService)
                     .should(BDDMockito.never())
                     .listBindings(OTHER_USER_ID);
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /api/v1/auth/oauth/accounts/{provider}")
+    class UnbindAccountTests {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 204 when user has password and unbinds GitHub")
+        void shouldReturn204_whenUserHasPasswordAndGithubBinding() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willDoNothing()
+                    .given(oauthLoginOrRegisterService)
+                    .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
+
+            assertThat(mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                    .with(csrf())
+                    .exchange())
+                    .hasStatus(204);
+
+            BDDMockito.then(oauthLoginOrRegisterService)
+                    .should()
+                    .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 204 when user has multiple OAuth bindings (not last)")
+        void shouldReturn204_whenUserHasMultipleOAuthBindings() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willDoNothing()
+                    .given(oauthLoginOrRegisterService)
+                    .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
+
+            assertThat(mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                    .with(csrf())
+                    .exchange())
+                    .hasStatus(204);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 409 AUTH_018 when binding is the only login method")
+        void shouldReturn409_whenLastLoginMethod() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willThrow(new ConflictException(ErrorCode.AUTH_018))
+                    .given(oauthLoginOrRegisterService)
+                    .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
+
+            assertThat(mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                    .with(csrf())
+                    .exchange())
+                    .hasStatus(409)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_018");
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 404 AUTH_017 when user is not linked to the provider (also: non-idempotent, second DELETE returns same)")
+        void shouldReturn404_whenProviderNotLinked() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willThrow(new NotFoundException(ErrorCode.AUTH_017))
+                    .given(oauthLoginOrRegisterService)
+                    .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
+
+            assertThat(mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                    .with(csrf())
+                    .exchange())
+                    .hasStatus(404)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_017");
+        }
+
+        @Test
+        @DisplayName("Should return 401 when no authentication is provided")
+        void shouldReturn401_whenUnbindNotAuthenticated() {
+            assertThat(mvc.delete()
+                    .uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                    .with(csrf())
+                    .exchange())
+                    .hasStatus(401);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 400 COMMON_001 for unsupported provider")
+        void shouldReturn400_whenProviderIsUnsupported() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+
+            assertThat(mvc.delete()
+                    .uri("/api/v1/auth/oauth/accounts/{provider}", "google")
+                    .with(csrf())
+                    .exchange())
+                    .hasStatus(400)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("COMMON_001");
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should pass authenticated user id to service layer")
+        void shouldPassAuthenticatedUserIdToService() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willDoNothing()
+                    .given(oauthLoginOrRegisterService)
+                    .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
+
+            mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github").with(csrf()).exchange();
+
+            BDDMockito.then(oauthLoginOrRegisterService)
+                    .should()
+                    .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
         }
     }
 }

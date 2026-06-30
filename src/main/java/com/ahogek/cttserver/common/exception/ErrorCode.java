@@ -44,8 +44,8 @@ public enum ErrorCode {
     AUTH_014("Token creation failed", HttpStatus.CONFLICT),
     AUTH_015("OAuth provider error", HttpStatus.BAD_GATEWAY),
     AUTH_016("OAuth account already linked", HttpStatus.CONFLICT),
-    AUTH_017("OAuth account not linked", HttpStatus.BAD_REQUEST),
-    AUTH_018("Cannot unlink last credential", HttpStatus.BAD_REQUEST),
+    AUTH_017("OAuth account not linked", HttpStatus.NOT_FOUND),
+    AUTH_018("Cannot unlink last credential", HttpStatus.CONFLICT),
     AUTH_019("Terms version expired, please re-accept", HttpStatus.FORBIDDEN),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),

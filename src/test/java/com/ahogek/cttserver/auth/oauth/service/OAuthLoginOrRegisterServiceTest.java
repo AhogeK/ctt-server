@@ -521,6 +521,121 @@ class OAuthLoginOrRegisterServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("unbindFromExistingUser (UNBIND flow)")
+    class UnbindFromExistingUser {
+
+        @Test
+        @DisplayName("should delete binding and audit on success when user has password")
+        void shouldUnbind_whenUserHasPassword() {
+            User user = createActiveUser();
+            user.setPasswordHash("hashed-password");
+            UserOAuthAccount binding = createOAuthAccount(user);
+            when(oauthAccountRepository.findByUserIdAndProvider(
+                            user.getId(), OAuthProvider.GITHUB))
+                    .thenReturn(Optional.of(binding));
+            when(oauthAccountRepository.countByUserId(user.getId())).thenReturn(1L);
+
+            oauthLoginService.unbindFromExistingUser(user.getId(), OAuthProvider.GITHUB);
+
+            verify(oauthAccountRepository).delete(binding);
+            verify(auditLogService)
+                    .logSuccess(
+                            user.getId(),
+                            AuditAction.OAUTH_ACCOUNT_UNLINKED,
+                            ResourceType.USER,
+                            user.getId().toString());
+        }
+
+        @Test
+        @DisplayName("should allow unbind when user has multiple OAuth bindings even without password")
+        void shouldUnbind_whenUserHasMultipleOAuthBindings() {
+            User user = createActiveUser();
+            user.setPasswordHash(null);
+            UserOAuthAccount binding = createOAuthAccount(user);
+            when(oauthAccountRepository.findByUserIdAndProvider(
+                            user.getId(), OAuthProvider.GITHUB))
+                    .thenReturn(Optional.of(binding));
+            when(oauthAccountRepository.countByUserId(user.getId())).thenReturn(2L);
+
+            oauthLoginService.unbindFromExistingUser(user.getId(), OAuthProvider.GITHUB);
+
+            verify(oauthAccountRepository).delete(binding);
+        }
+
+        @Test
+        @DisplayName("should throw NotFoundException(AUTH_017) when binding does not exist")
+        void shouldThrowNotFound_whenBindingMissing() {
+            User user = createActiveUser();
+            user.setPasswordHash("hashed-password");
+            when(oauthAccountRepository.findByUserIdAndProvider(
+                            user.getId(), OAuthProvider.GITHUB))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(
+                            () ->
+                                    oauthLoginService.unbindFromExistingUser(
+                                            user.getId(), OAuthProvider.GITHUB))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_017);
+
+            verify(oauthAccountRepository, never()).delete(any(UserOAuthAccount.class));
+            verify(auditLogService, never())
+                    .logSuccess(
+                            any(UUID.class),
+                            any(AuditAction.class),
+                            any(ResourceType.class),
+                            any(String.class));
+        }
+
+        @Test
+        @DisplayName("should throw ConflictException(AUTH_018) when last login method")
+        void shouldThrowConflict_whenLastLoginMethod() {
+            User user = createActiveUser();
+            user.setPasswordHash(null);
+            UserOAuthAccount binding = createOAuthAccount(user);
+            when(oauthAccountRepository.findByUserIdAndProvider(
+                            user.getId(), OAuthProvider.GITHUB))
+                    .thenReturn(Optional.of(binding));
+            when(oauthAccountRepository.countByUserId(user.getId())).thenReturn(1L);
+
+            assertThatThrownBy(
+                            () ->
+                                    oauthLoginService.unbindFromExistingUser(
+                                            user.getId(), OAuthProvider.GITHUB))
+                    .isInstanceOf(ConflictException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_018);
+
+            verify(oauthAccountRepository, never()).delete(any(UserOAuthAccount.class));
+        }
+
+        @Test
+        @DisplayName("should not log audit on failed unbind")
+        void shouldNotLogAudit_onFailedUnbind() {
+            User user = createActiveUser();
+            user.setPasswordHash(null);
+            UserOAuthAccount binding = createOAuthAccount(user);
+            when(oauthAccountRepository.findByUserIdAndProvider(
+                            user.getId(), OAuthProvider.GITHUB))
+                    .thenReturn(Optional.of(binding));
+            when(oauthAccountRepository.countByUserId(user.getId())).thenReturn(1L);
+
+            assertThatThrownBy(
+                            () ->
+                                    oauthLoginService.unbindFromExistingUser(
+                                            user.getId(), OAuthProvider.GITHUB))
+                    .isInstanceOf(ConflictException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_018);
+
+            verify(auditLogService, never())
+                    .logSuccess(
+                            any(UUID.class),
+                            any(AuditAction.class),
+                            any(ResourceType.class),
+                            any(String.class));
+        }
+    }
+
     private User createActiveUser() {
         return createUserWithStatus(UserStatus.ACTIVE);
     }
