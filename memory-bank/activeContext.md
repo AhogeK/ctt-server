@@ -1,4 +1,25 @@
 # Active Context
+- [2026-07-01] - OAuth UNBIND 流程（PR-B 解除已绑定 GitHub 账号 + last-login-method 防御）
+    - 新增: OAuthLoginOrRegisterService.unbindFromExistingUser(currentUserId, provider) — 校验 binding 存在 (AUTH_017 404) + last-method 守卫 (AUTH_018 409: 无密码且唯一 OAuth 时禁止解绑) + delete UserOAuthAccount + 审计 OAUTH_ACCOUNT_UNLINKED；**session 不变**（不撤销/重发 token，user 保持已登录）
+    - 新增: UserOAuthAccountRepository.countByUserId(UUID) — last-method 守卫用，索引 user_oauth_accounts.user_id
+    - 新增: OAuthAccountController.unbindAccount @DeleteMapping("/{provider}") 返回 204 No Content
+    - 新增: OAuthAccountController.handlePathVariableConversion @ExceptionHandler — invalid provider 路径变量 → 400 + COMMON_001（带 traceId）
+    - 修改: ErrorCode AUTH_017 HTTP 400 → 404 (资源未找到); AUTH_018 HTTP 400 → 409 (冲突：解绑后无任何登录方式)
+    - 修改: ErrorCodeTest 同步 HTTP 状态码断言
+    - 安全: 非幂等设计 (与 BIND 一致) — 第二次 DELETE 同一 provider 返回 404 + AUTH_017
+    - 安全: 并发场景宽容幂等 — 两个并发 DELETE 都会返回 204，DB 实际只删一次（DELETE WHERE id=X 影响 0 行无错）
+    - 设计: last-method 守卫的不可达分支 (password=null && count=0 / password!=null && count=0) 已被前置 findByUserIdAndProvider 拦截
+    - 设计: Session invariant 显式声明 (unbindFromExistingUser Javadoc 第 4 条) — 与 BIND 保持对称
+    - 测试: 13 新增（OAuthAccountControllerMockMvcTest 11 包括 multi-OAuth + 重复删除去重; OAuthLoginOrRegisterServiceTest 5; ErrorCodeTest 更新）；去重 1 个（shouldReturn404_whenUnbindTwice 与 shouldReturn404_whenProviderNotLinked 行为完全相同）
+    - OAuth 模块 96/96 PASS；全量 865/865 PASS（之前 852）
+    - 文档: dev-docs/oauth/frontend-integration.md 新增 "GitHub Account Unbinding Flow (UNBIND)" 章节含业务规则 + 调用示例 + 错误码映射表 + 幂等性说明
+    - 文档: README.md OAuth 端点表新增 DELETE 行
+    - 限制: 缺 OAuthUnbindIntegrationTest（@SpringBootTest 级别 E2E），与 BIND 一致未补，可未来 hardening
+    - 限制: 未给 ErrorCode 常量加 Javadoc 说明语义归属（pre-existing pattern，PR-B 未引入新违规）
+    - 限制: docs/developer-handbook.md Error Code Registry 表缺 AUTH_017/018 条目（与 BIND 时漏的对称问题）
+    - 风格遗留: 6 处 SonarQube java:S5778 lambda 警告（在 OAuthLoginOrRegisterServiceTest 中 assertThatThrownBy 模式），按用户决定不修不抑制
+    - 版本: 0.28.0 → 0.29.0 (MINOR: 新 UNBIND endpoint)
+
 - [2026-06-28] - OAuth BIND 流程（修复已登录用户绑定 GitHub 时被强制登出 bug）
     - 新增: OAuthStatePayload.Action.BIND + currentUserId(UUID) + redirectUrl 字段；canonical constructor 校验 BIND 必须 currentUserId + LOGIN 必须 currentUserId == null
     - 新增: OAuthLoginOrRegisterService.attachToExistingUser(currentUserId, provider, accessToken, userInfo) — 校验 user ACTIVE + providerUserId 未被其他用户占用 (AUTH_016) + (user, provider) 未绑定 (AUTH_016) + UserOAuthAccount 插入 + 审计 OAUTH_ACCOUNT_LINKED；**不发 token**

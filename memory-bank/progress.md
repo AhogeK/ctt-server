@@ -2,6 +2,19 @@
 
 ## 已完成 ✅
 
+- [x] OAuth UNBIND 流程（PR-B 解除已绑定 GitHub + last-login-method 防御）
+    - 新增 OAuthLoginOrRegisterService.unbindFromExistingUser — 校验 + last-method 守卫 + delete + 审计；**session 不变** (Session invariant 显式声明)
+    - 新增 UserOAuthAccountRepository.countByUserId — last-method 守卫
+    - 新增 OAuthAccountController.unbindAccount @DeleteMapping + handlePathVariableConversion
+    - 修改 ErrorCode AUTH_017 (404 资源未找到) + AUTH_018 (409 冲突)
+    - 修改 ErrorCodeTest 同步 HTTP 状态码
+    - 13 个新测试（OAuthAccountControllerMockMvcTest 11 + OAuthLoginOrRegisterServiceTest 5 + ErrorCodeTest 更新），去重 1 个
+    - OAuth 模块 96/96 PASS；全量 865/865 PASS（之前 852）
+    - 文档: dev-docs/oauth/frontend-integration.md UNBIND 流程章节 + error code 映射；README OAuth 端点表新增 DELETE
+    - 限制: 缺 OAuthUnbindIntegrationTest（与 BIND 对称，可未来补）
+    - 限制: docs/developer-handbook.md 缺 AUTH_017/018 条目
+    - 版本: 0.28.0 → 0.29.0 (MINOR: 新 UNBIND endpoint)
+
 - [x] OAuth BIND 流程（修复已登录用户绑定 GitHub 时被强制登出 bug）
     - 新增 OAuthStatePayload.Action.BIND + currentUserId + redirectUrl 字段；canonical constructor 双向校验
     - 新增 OAuthLoginOrRegisterService.attachToExistingUser — 校验 + 冲突检查 + 插入 + 审计；**不发 token** (Session invariant 3 处显式声明)
