@@ -84,10 +84,10 @@ async function loginWithGitHub() {
 
 参数说明：
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `accessToken` | string | JWT 访问令牌，用于后续 API 调用 |
-| `refreshToken` | string | 刷新令牌，用于续期 accessToken |
+| 参数             | 类型      | 说明                    |
+|----------------|---------|-----------------------|
+| `accessToken`  | string  | JWT 访问令牌，用于后续 API 调用  |
+| `refreshToken` | string  | 刷新令牌，用于续期 accessToken |
 | `termsExpired` | boolean | `true` 表示用户需要重新接受服务条款 |
 
 ### 失败时的重定向地址
@@ -184,30 +184,30 @@ Body: { "refreshToken": "xxx" }
 
 后端在回调失败时会重定向到 `/oauth/error?code=xxx`。以下是所有可能出现的错误码：
 
-| 错误码 | 含义 | 前端处理建议 |
-|--------|------|-------------|
-| `AUTH_013` | OAuth state 校验失败（过期或不存在） | 提示用户重新登录，state 有效期 10 分钟 |
-| `AUTH_015` | GitHub API 调用失败（code 换 token 失败、获取用户信息失败等） | 提示「GitHub 授权失败，请重试」 |
-| `AUTH_016` | 该 GitHub 账号已绑定其他用户 | 提示「该 GitHub 账号已被其他账号绑定，请使用已有账号登录」 |
-| `AUTH_017` | GitHub 账号未绑定（仅在解绑场景出现） | 提示「该 GitHub 账号未绑定任何用户」 |
-| `AUTH_018` | 无法解绑最后一个凭证 | 提示「无法解绑，至少需要保留一种登录方式」 |
-| `AUTH_004` | 账号被锁定（多次登录失败） | 提示「账号已锁定，请稍后重试」 |
-| `AUTH_005` | 账号被停用/删除 | 提示「账号已停用，请联系客服」 |
-| `AUTH_006` | 邮箱未验证 | 提示「请先验证邮箱」 |
-| `AUTH_019` | 服务条款版本过期 | 跳转到条款接受页面 |
-| `OAUTH_PROVIDER_ERROR` | GitHub 返回了错误（用户拒绝授权等） | 提示「GitHub 授权被取消或失败」 |
-| `MISSING_OAUTH_PARAMS` | 回调缺少必要参数 | 提示「授权请求异常，请重试」 |
-| `INVALID_STATE_ACTION` | state 中的 action 不匹配 | 提示「授权请求异常，请重试」 |
-| `OAUTH_INTERNAL_ERROR` | 后端内部错误 | 提示「服务异常，请稍后重试」 |
+| 错误码                    | 含义                                         | 前端处理建议                            |
+|------------------------|--------------------------------------------|-----------------------------------|
+| `AUTH_013`             | OAuth state 校验失败（过期或不存在）                   | 提示用户重新登录，state 有效期 10 分钟          |
+| `AUTH_015`             | GitHub API 调用失败（code 换 token 失败、获取用户信息失败等） | 提示「GitHub 授权失败，请重试」               |
+| `AUTH_016`             | 该 GitHub 账号已绑定其他用户                         | 提示「该 GitHub 账号已被其他账号绑定，请使用已有账号登录」 |
+| `AUTH_017`             | GitHub 账号未绑定（仅在解绑场景出现）                     | 提示「该 GitHub 账号未绑定任何用户」            |
+| `AUTH_018`             | 无法解绑最后一个凭证                                 | 提示「无法解绑，至少需要保留一种登录方式」             |
+| `AUTH_004`             | 账号被锁定（多次登录失败）                              | 提示「账号已锁定，请稍后重试」                   |
+| `AUTH_005`             | 账号被停用/删除                                   | 提示「账号已停用，请联系客服」                   |
+| `AUTH_006`             | 邮箱未验证                                      | 提示「请先验证邮箱」                        |
+| `AUTH_019`             | 服务条款版本过期                                   | 跳转到条款接受页面                         |
+| `OAUTH_PROVIDER_ERROR` | GitHub 返回了错误（用户拒绝授权等）                      | 提示「GitHub 授权被取消或失败」               |
+| `MISSING_OAUTH_PARAMS` | 回调缺少必要参数                                   | 提示「授权请求异常，请重试」                    |
+| `INVALID_STATE_ACTION` | state 中的 action 不匹配                        | 提示「授权请求异常，请重试」                    |
+| `OAUTH_INTERNAL_ERROR` | 后端内部错误                                     | 提示「服务异常，请稍后重试」                    |
 
 ## 接口速查
 
-| 接口 | 方法 | 说明 | 前端是否调用 |
-|------|------|------|-------------|
-| `/api/v1/auth/oauth/github/authorize` | GET | 获取 GitHub 授权地址。支持 `?action=login`（默认，公开）或 `?action=bind`（需 JWT） | 是 |
-| `/api/v1/auth/oauth/github/callback` | GET | 处理 GitHub 回调 | 否（GitHub → 后端 → 前端重定向） |
-| `/api/v1/auth/oauth/accounts` | GET | 查询当前用户已绑定的 OAuth 账号列表 | 是 |
-| `/api/v1/auth/refresh` | POST | 刷新 access token | 是（token 过期时） |
+| 接口                                    | 方法   | 说明                                                              | 前端是否调用                 |
+|---------------------------------------|------|-----------------------------------------------------------------|------------------------|
+| `/api/v1/auth/oauth/github/authorize` | GET  | 获取 GitHub 授权地址。支持 `?action=login`（默认，公开）或 `?action=bind`（需 JWT） | 是                      |
+| `/api/v1/auth/oauth/github/callback`  | GET  | 处理 GitHub 回调                                                    | 否（GitHub → 后端 → 前端重定向） |
+| `/api/v1/auth/oauth/accounts`         | GET  | 查询当前用户已绑定的 OAuth 账号列表                                           | 是                      |
+| `/api/v1/auth/refresh`                | POST | 刷新 access token                                                 | 是（token 过期时）           |
 
 ## GitHub Account Binding Flow (BIND)
 
@@ -241,19 +241,77 @@ window.location.href = data.authUrl;
 
 BIND 流程的错误最终都通过 query 参数回传到 `/settings/profile?linked=github&error={code}`，前端读取 `error` 参数展示对应提示：
 
-| 后端错误码 | 前端 Toast |
-|---|---|
-| `AUTH_001` | 请先登录后再连接 GitHub |
-| `AUTH_004` | 账号已锁定，请稍后重试 |
-| `AUTH_005` | 账号已停用，请联系客服 |
-| `AUTH_006` | 账号未激活，请先验证邮箱 |
-| `AUTH_013` | 授权请求已过期，请重试 |
-| `AUTH_016` | 该 GitHub 账号已绑定其他用户 |
-| `USER_004` | 用户不存在，请重新登录 |
-| `OAUTH_PROVIDER_ERROR` | GitHub 授权失败 |
-| `MISSING_OAUTH_PARAMS` | 授权请求异常，请重试 |
-| `INVALID_STATE_ACTION` | 授权请求异常，请重试 |
-| `OAUTH_INTERNAL_ERROR` | 服务异常，请稍后重试 |
+| 后端错误码                  | 前端 Toast           |
+|------------------------|--------------------|
+| `AUTH_001`             | 请先登录后再连接 GitHub    |
+| `AUTH_004`             | 账号已锁定，请稍后重试        |
+| `AUTH_005`             | 账号已停用，请联系客服        |
+| `AUTH_006`             | 账号未激活，请先验证邮箱       |
+| `AUTH_013`             | 授权请求已过期，请重试        |
+| `AUTH_016`             | 该 GitHub 账号已绑定其他用户 |
+| `USER_004`             | 用户不存在，请重新登录        |
+| `OAUTH_PROVIDER_ERROR` | GitHub 授权失败        |
+| `MISSING_OAUTH_PARAMS` | 授权请求异常，请重试         |
+| `INVALID_STATE_ACTION` | 授权请求异常，请重试         |
+| `OAUTH_INTERNAL_ERROR` | 服务异常，请稍后重试         |
+
+## GitHub Account Unbinding Flow (UNBIND)
+
+已绑定 GitHub 的用户可以在 ProfileView 选择"Disconnect"按钮解除绑定。解除绑定**不会**撤销 GitHub 侧的 OAuth 授权（仅本端单向解绑），**不会**修改用户的 JWT / refresh token（用户继续已登录状态）。
+
+### Endpoint
+
+```
+DELETE /api/v1/auth/oauth/accounts/{provider}
+Headers: Authorization: Bearer <accessToken>
+```
+
+成功响应：**204 No Content**（无 body）。
+
+### 业务规则
+
+用户拥有的"登录方式" = 1 (password, 如果设置了) + N (OAuth accounts)。
+
+- 用户**有密码**或**绑定了多个 OAuth provider** → 可以自由解绑任一 OAuth
+- 用户**无密码**且**只绑了 1 个 OAuth**（要解绑的就是那唯一的一个）→ 409 + AUTH_018（前端引导用户先设置密码）
+
+### 调用示例
+
+```typescript
+const response = await fetch(
+  '/api/v1/auth/oauth/accounts/github',
+  {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${accessToken}` }
+  }
+);
+if (response.status === 204) {
+  // 成功：触发 refetch 列表
+  refetchAccounts();
+}
+```
+
+成功后前端应调用现有 `GET /api/v1/auth/oauth/accounts` 触发 refetch 检查状态变化。
+
+### 错误码 → Toast 映射
+
+| HTTP 状态 | 后端错误码        | 触发场景                          | 前端 Toast              |
+|---------|--------------|-------------------------------|-----------------------|
+| 204     | —            | 成功                            | 不显示（静默）               |
+| 401     | `AUTH_002`   | 无 JWT / JWT 过期                | "请重新登录"               |
+| 400     | `COMMON_001` | provider 不在 OAuthProvider 枚举中 | "暂不支持的 OAuth 提供商"     |
+| 404     | `AUTH_017`   | 用户未绑定该 provider（防御性兜底）        | "该 GitHub 账号未绑定到您的账号" |
+| 409     | `AUTH_018`   | 解绑会导致用户失去所有登录方式               | "无法解绑最后一种登录方式，请先设置密码" |
+| 5xx     | —            | 后端异常                          | "服务异常，请稍后重试"          |
+
+### 幂等性
+
+UNBIND 与 BIND 一致——**非幂等设计**：
+
+- 第一次 DELETE 成功 → 204
+- 第二次 DELETE 同一 provider → 404 + AUTH_017
+
+前端应在 UI 上隐藏已解绑 provider 的"Disconnect"按钮（依赖 `GET /accounts` 列表的真实状态），避免重复调用。
 
 ## 注意事项
 

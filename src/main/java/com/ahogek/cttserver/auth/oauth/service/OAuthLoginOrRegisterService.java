@@ -307,4 +307,59 @@ public class OAuthLoginOrRegisterService {
                 ResourceType.USER,
                 currentUserId.toString());
     }
+
+    /**
+     * Detaches a third-party OAuth account from the current user (UNBIND flow).
+     *
+     * <p>Removes the {@link UserOAuthAccount} row matching {@code (currentUserId, provider)}.
+     * The provider-side OAuth grant is left untouched (this is a local unbind only).
+     *
+     * <p><b>Last-login-method guard</b>: a user must always retain at least one credential
+     * (password or OAuth). Unbinding is rejected with {@link ErrorCode#AUTH_018} when:
+     *
+     * <ul>
+     *   <li>the user has no password set ({@code passwordHash == null}), AND
+     *   <li>this OAuth binding is the only one they have
+     * </ul>
+     *
+     * <p><b>Session invariant</b>: this method does NOT issue or revoke CTT tokens. The user's
+     * existing session ({@code ctt_access_token} / {@code ctt_refresh_token} in browser storage)
+     * remains valid and unchanged after a successful unbind. The user stays logged in via their
+     * remaining credentials.
+     *
+     * <p>Audit log emits {@link AuditAction#OAUTH_ACCOUNT_UNLINKED} on success.
+     *
+     * @param currentUserId the user performing the unbind
+     * @param provider the OAuth provider to unbind
+     * @throws NotFoundException ({@code AUTH_017}) if no binding exists for this user and provider
+     * @throws ConflictException ({@code AUTH_018}) if unbinding would leave the user with no
+     *     credentials
+     * @since 2026-06-29
+     */
+    @Transactional
+    public void unbindFromExistingUser(UUID currentUserId, OAuthProvider provider) {
+        UserOAuthAccount binding =
+                oauthAccountRepository
+                        .findByUserIdAndProvider(currentUserId, provider)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                ErrorCode.AUTH_017,
+                                                "OAuth account not linked to this user"));
+
+        boolean userHasPassword = binding.getUser().getPasswordHash() != null;
+        long oauthCount = oauthAccountRepository.countByUserId(currentUserId);
+        if (!userHasPassword && oauthCount <= 1) {
+            throw new ConflictException(
+                    ErrorCode.AUTH_018, "Cannot unlink the last login method");
+        }
+
+        oauthAccountRepository.delete(binding);
+
+        auditLogService.logSuccess(
+                currentUserId,
+                AuditAction.OAUTH_ACCOUNT_UNLINKED,
+                ResourceType.USER,
+                currentUserId.toString());
+    }
 }
