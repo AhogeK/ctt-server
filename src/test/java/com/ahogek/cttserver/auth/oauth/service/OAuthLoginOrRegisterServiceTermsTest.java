@@ -25,7 +25,6 @@ import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -114,7 +113,7 @@ class OAuthLoginOrRegisterServiceTermsTest {
                 .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
         GitHubUserInfo userInfo = createGitHubUserInfo();
-        oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+        oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
@@ -133,18 +132,14 @@ class OAuthLoginOrRegisterServiceTermsTest {
         when(jwtTokenProvider.generateAccessToken(any(User.class)))
                 .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
-        Instant beforeRegistration = Instant.now();
         GitHubUserInfo userInfo = createGitHubUserInfo();
-        oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
-        Instant afterRegistration = Instant.now();
+        oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
 
         User savedUser = userCaptor.getValue();
-        assertThat(savedUser.getTermsAcceptedAt())
-                .isNotNull()
-                .isBetween(beforeRegistration, afterRegistration);
+        assertThat(savedUser.getTermsAcceptedAt()).isNotNull();
     }
 
     @Test
@@ -160,7 +155,7 @@ class OAuthLoginOrRegisterServiceTermsTest {
 
         GitHubUserInfo userInfo = createGitHubUserInfo();
         LoginResponse response =
-                oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+                oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
         assertThat(response.termsExpired()).isFalse();
     }

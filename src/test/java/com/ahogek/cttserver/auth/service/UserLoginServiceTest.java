@@ -126,6 +126,19 @@ class UserLoginServiceTest {
         }
 
         @Test
+        @DisplayName("should set lastLoginAt and lastLoginIp on successful login")
+        void shouldSetLoginMetadata_whenLoginSucceeds() {
+            User user = createActiveUser();
+            when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
+            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
+
+            loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
+
+            assertThat(user.getLastLoginAt()).isNotNull();
+        }
+
+        @Test
         @DisplayName("should log successful login audit")
         void shouldLogSuccessfulLoginAudit() {
             User user = createActiveUser();

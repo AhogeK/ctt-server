@@ -2,6 +2,8 @@ package com.ahogek.cttserver.user.dto;
 
 import com.ahogek.cttserver.user.entity.User;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,7 +21,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param displayName the user's display name
  * @param emailVerified whether the user's email has been verified
  * @param createdAt the account creation timestamp
- * @param lastLoginAt the last login timestamp (null if never logged in)
+ * @param lastLoginAt the last login timestamp (null for newly registered OAuth users who have not
+ *     performed a traditional login, or users who registered but never logged in)
  * @param termsVersion the version of terms the user accepted
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-07-01
@@ -40,6 +43,7 @@ public record UserProfileResponse(
                         description = "Last login timestamp",
                         example = "2026-07-01T09:15:00Z",
                         nullable = true)
+                @JsonInclude(JsonInclude.Include.ALWAYS)
                 Instant lastLoginAt,
         @Schema(description = "Version of terms the user accepted", example = "1.0.0")
                 String termsVersion) {

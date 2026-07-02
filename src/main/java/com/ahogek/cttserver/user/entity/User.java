@@ -239,6 +239,10 @@ public class User {
         return lastLoginAt;
     }
 
+    public void setLastLoginAt(Instant lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
+    }
+
     public String getLastLoginIp() {
         return lastLoginIp;
     }

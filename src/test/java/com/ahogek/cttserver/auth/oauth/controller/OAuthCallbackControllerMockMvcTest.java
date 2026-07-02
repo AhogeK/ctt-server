@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
@@ -131,7 +132,12 @@ class OAuthCallbackControllerMockMvcTest {
             BDDMockito.then(stateService)
                     .should()
                     .generateAndSaveState(
-                            eq(new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, null)));
+                            ArgumentMatchers.argThat(
+                                    payload ->
+                                            payload.action()
+                                                    == OAuthStatePayload.Action.LOGIN
+                                                    && payload.currentUserId() == null
+                                                    && payload.clientIp() != null));
         }
 
         @Test
@@ -158,11 +164,14 @@ class OAuthCallbackControllerMockMvcTest {
             BDDMockito.then(stateService)
                     .should()
                     .generateAndSaveState(
-                            eq(
-                                    new OAuthStatePayload(
-                                            OAuthStatePayload.Action.BIND,
-                                            USER_ID,
-                                            "/settings/profile")));
+                            ArgumentMatchers.argThat(
+                                    payload ->
+                                            payload.action()
+                                                    == OAuthStatePayload.Action.BIND
+                                                    && payload.currentUserId().equals(USER_ID)
+                                                    && "/settings/profile".equals(
+                                                            payload.redirectUrl())
+                                                    && payload.clientIp() != null));
         }
 
         @Test
@@ -233,7 +242,7 @@ class OAuthCallbackControllerMockMvcTest {
 
         private void stubSuccessfulCallbackChain() {
             OAuthStatePayload payload =
-                    new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, null);
+                    new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, null, null);
             BDDMockito.given(stateService.consumeState(STATE)).willReturn(payload);
 
             GitHubTokenResponse tokenResponse =
@@ -249,7 +258,8 @@ class OAuthCallbackControllerMockMvcTest {
             LoginResponse loginResponse =
                     new LoginResponse(CALLBACK_USER_ID, ACCESS_TOKEN, REFRESH_TOKEN, 3600L);
             BDDMockito.given(
-                            loginOrRegisterService.process(any(), eq(ACCESS_TOKEN), eq(userInfo)))
+                            loginOrRegisterService.process(
+                                    any(), eq(ACCESS_TOKEN), eq(userInfo), any()))
                     .willReturn(loginResponse);
         }
 
@@ -346,7 +356,7 @@ class OAuthCallbackControllerMockMvcTest {
         void shouldRedirectToProfileWithLinked_whenBindSucceeds() {
             OAuthStatePayload bindPayload =
                     new OAuthStatePayload(
-                            OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile");
+                            OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile", null);
             BDDMockito.given(stateService.consumeState(STATE)).willReturn(bindPayload);
 
             GitHubTokenResponse tokenResponse =
@@ -375,7 +385,7 @@ class OAuthCallbackControllerMockMvcTest {
                             eq(USER_ID), eq(OAuthProvider.GITHUB), eq(ACCESS_TOKEN), eq(userInfo));
             BDDMockito.then(loginOrRegisterService)
                     .should(BDDMockito.never())
-                    .process(any(), anyString(), any(GitHubUserInfo.class));
+                    .process(any(), anyString(), any(GitHubUserInfo.class), any());
         }
 
         @Test
@@ -384,7 +394,7 @@ class OAuthCallbackControllerMockMvcTest {
         void shouldRedirectToProfileWithError_whenBindConflictsWithAuth016() {
             OAuthStatePayload bindPayload =
                     new OAuthStatePayload(
-                            OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile");
+                            OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile", null);
             BDDMockito.given(stateService.consumeState(STATE)).willReturn(bindPayload);
 
             GitHubTokenResponse tokenResponse =
@@ -421,7 +431,7 @@ class OAuthCallbackControllerMockMvcTest {
         void shouldNotIncludeAccessTokenInRedirect_whenBindAction() {
             OAuthStatePayload bindPayload =
                     new OAuthStatePayload(
-                            OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile");
+                            OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile", null);
             BDDMockito.given(stateService.consumeState(STATE)).willReturn(bindPayload);
 
             GitHubTokenResponse tokenResponse =
