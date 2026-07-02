@@ -284,6 +284,23 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 
 **Error Handling**: All OAuth errors redirect to `{frontendUrl}/oauth/error?code={errorCode}`.
 
+### User Profile
+
+| Endpoint           | Method | Description                                                                                                              |
+|--------------------|--------|--------------------------------------------------------------------------------------------------------------------------|
+| `/api/v1/users/me` | GET    | Get current authenticated user's profile (requires JWT) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
+
+**Response Fields**:
+- `id` (UUID)
+- `email` (String)
+- `displayName` (String)
+- `emailVerified` (boolean, derived from `emailVerifiedAt != null`)
+- `createdAt` (Instant, ISO 8601)
+- `lastLoginAt` (Instant, ISO 8601, nullable)
+- `termsVersion` (String)
+
+**Avatar**: Avatar is not stored on the backend. Frontend should generate avatars from `md5(userId)` or similar client-side logic.
+
 ### Public Configuration
 
 | Endpoint                | Method | Description                                          |

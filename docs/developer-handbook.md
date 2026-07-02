@@ -309,6 +309,12 @@ public class UserController {
 }
 ```
 
+**Current Protected Endpoints**:
+
+| Endpoint               | Auth | Description                                                                                                                                                         | Since  |
+|------------------------|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
+| `GET /api/v1/users/me` | JWT  | Current user profile (id, email, displayName, emailVerified, createdAt, lastLoginAt, termsVersion). Excludes sensitive fields (passwordHash, lastLoginIp, version). | 0.30.0 |
+
 **Step 3**: Add Security Tests
 
 ```java

@@ -152,6 +152,7 @@ public class User {
         this.displayName = "Deleted User";
         this.passwordHash = null;
         this.emailVerified = false;
+        this.emailVerifiedAt = null;
     }
 
     // ==========================================

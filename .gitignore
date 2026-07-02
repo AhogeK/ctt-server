@@ -50,3 +50,6 @@ src/main/resources/application-local.properties
 .opencode/node_modules
 .opencode/package-lock.json
 .omo
+
+# AI plan files (internal, not for public docs)
+.sisyphus/
