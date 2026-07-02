@@ -128,7 +128,7 @@ class OAuthLoginOrRegisterServiceTest {
             GitHubUserInfo userInfo = createGitHubUserInfo();
             LoginResponse response =
                     oauthLoginService.process(
-                            OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+                            OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             assertThat(response.userId()).isEqualTo(user.getId());
             assertThat(response.accessToken()).isEqualTo(TEST_CTT_ACCESS_TOKEN);
@@ -147,7 +147,7 @@ class OAuthLoginOrRegisterServiceTest {
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             ArgumentCaptor<UserOAuthAccount> accountCaptor =
                     ArgumentCaptor.forClass(UserOAuthAccount.class);
@@ -157,6 +157,38 @@ class OAuthLoginOrRegisterServiceTest {
             assertThat(savedAccount.getAccessToken()).isEqualTo(TEST_GITHUB_ACCESS_TOKEN);
             assertThat(savedAccount.getProviderLogin()).isEqualTo(GITHUB_LOGIN);
             assertThat(savedAccount.getProviderEmail()).isEqualTo(TEST_EMAIL);
+        }
+
+        @Test
+        @DisplayName("should set lastLoginAt on successful OAuth login")
+        void shouldSetLastLoginAt_onSuccessfulLogin() {
+            User user = createActiveUser();
+            UserOAuthAccount account = createOAuthAccount(user);
+            when(oauthAccountRepository.findByProviderAndProviderUserId(
+                            OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+                    .thenReturn(Optional.of(account));
+            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
+
+            oauthLoginService.process(
+                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, createGitHubUserInfo(), null);
+
+            assertThat(user.getLastLoginAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("should set lastLoginIp when clientIp is provided")
+        void shouldSetLastLoginIp_whenClientIpProvided() {
+            User user = createActiveUser();
+            UserOAuthAccount account = createOAuthAccount(user);
+            when(oauthAccountRepository.findByProviderAndProviderUserId(
+                            OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+                    .thenReturn(Optional.of(account));
+            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
+
+            oauthLoginService.process(
+                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, createGitHubUserInfo(), "192.168.1.1");
+
+            assertThat(user.getLastLoginIp()).isEqualTo("192.168.1.1");
         }
 
         @Test
@@ -170,7 +202,7 @@ class OAuthLoginOrRegisterServiceTest {
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             verify(auditLogService)
                     .logSuccess(
@@ -200,7 +232,7 @@ class OAuthLoginOrRegisterServiceTest {
             GitHubUserInfo userInfo = createGitHubUserInfo();
             LoginResponse response =
                     oauthLoginService.process(
-                            OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+                            OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             assertThat(response.userId()).isEqualTo(existingUser.getId());
             assertThat(response.accessToken()).isEqualTo(TEST_CTT_ACCESS_TOKEN);
@@ -219,7 +251,7 @@ class OAuthLoginOrRegisterServiceTest {
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             verify(auditLogService)
                     .logSuccess(
@@ -245,7 +277,7 @@ class OAuthLoginOrRegisterServiceTest {
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             verify(auditLogService)
                     .logSuccess(
@@ -266,7 +298,7 @@ class OAuthLoginOrRegisterServiceTest {
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
             verify(userRepository).save(userCaptor.capture());
@@ -292,7 +324,7 @@ class OAuthLoginOrRegisterServiceTest {
             GitHubUserInfo userInfo =
                     new GitHubUserInfo(
                             GITHUB_USER_ID, GITHUB_LOGIN, null, GITHUB_AVATAR_URL, TEST_EMAIL);
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo);
+            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
             verify(userRepository).save(userCaptor.capture());
@@ -323,7 +355,8 @@ class OAuthLoginOrRegisterServiceTest {
                                     oauthLoginService.process(
                                             OAuthProvider.GITHUB,
                                             TEST_GITHUB_ACCESS_TOKEN,
-                                            userInfo))
+                                            userInfo,
+                                            null))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_004);
         }
@@ -344,7 +377,8 @@ class OAuthLoginOrRegisterServiceTest {
                                     oauthLoginService.process(
                                             OAuthProvider.GITHUB,
                                             TEST_GITHUB_ACCESS_TOKEN,
-                                            userInfo))
+                                            userInfo,
+                                            null))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_005);
         }
@@ -365,7 +399,8 @@ class OAuthLoginOrRegisterServiceTest {
                                     oauthLoginService.process(
                                             OAuthProvider.GITHUB,
                                             TEST_GITHUB_ACCESS_TOKEN,
-                                            userInfo))
+                                            userInfo,
+                                            null))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_005);
         }
@@ -386,7 +421,8 @@ class OAuthLoginOrRegisterServiceTest {
                                     oauthLoginService.process(
                                             OAuthProvider.GITHUB,
                                             TEST_GITHUB_ACCESS_TOKEN,
-                                            userInfo))
+                                            userInfo,
+                                            null))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_006);
         }

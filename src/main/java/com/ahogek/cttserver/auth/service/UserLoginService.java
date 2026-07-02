@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -86,6 +87,10 @@ public class UserLoginService {
 
         // Only reached on successful authentication (handleFailedLogin throws)
         loginAttemptService.recordSuccess(user.getEmail());
+
+        String clientIp = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
+        user.setLastLoginAt(Instant.now());
+        user.setLastLoginIp(clientIp);
 
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = createRefreshToken(user.getId(), request.deviceId());

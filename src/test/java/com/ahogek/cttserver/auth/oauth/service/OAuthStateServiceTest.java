@@ -60,7 +60,7 @@ class OAuthStateServiceTest {
         @Test
         @DisplayName("should generate UUID state and store serialized payload in Redis with TTL")
         void shouldGenerateUuidAndStorePayloadInRedisWithTtl() throws JsonProcessingException {
-            OAuthStatePayload payload = new OAuthStatePayload(Action.LOGIN, null, null);
+            OAuthStatePayload payload = new OAuthStatePayload(Action.LOGIN, null, null, null);
             String serializedJson = "{\"action\":\"LOGIN\"}";
 
             when(mockObjectMapper.writeValueAsString(payload)).thenReturn(serializedJson);
@@ -85,7 +85,7 @@ class OAuthStateServiceTest {
         @Test
         @DisplayName("should return different UUIDs on consecutive calls")
         void shouldReturnDifferentUuidsOnConsecutiveCalls() throws JsonProcessingException {
-            OAuthStatePayload payload = new OAuthStatePayload(Action.LOGIN, null, null);
+            OAuthStatePayload payload = new OAuthStatePayload(Action.LOGIN, null, null, null);
             when(mockObjectMapper.writeValueAsString(any())).thenReturn("{}");
 
             String stateId1 = stateService.generateAndSaveState(payload);
@@ -98,7 +98,7 @@ class OAuthStateServiceTest {
         @DisplayName("should throw InternalServerErrorException when serialization fails")
         void shouldThrowInternalServerErrorException_whenSerializationFails()
                 throws JsonProcessingException {
-            OAuthStatePayload payload = new OAuthStatePayload(Action.LOGIN, null, null);
+            OAuthStatePayload payload = new OAuthStatePayload(Action.LOGIN, null, null, null);
             when(mockObjectMapper.writeValueAsString(payload))
                     .thenThrow(new JsonProcessingException("broken") {});
 
@@ -113,7 +113,7 @@ class OAuthStateServiceTest {
         @DisplayName("should store BIND action payload with currentUserId and redirectUrl")
         void shouldStoreBindActionPayloadWithUserId() throws JsonProcessingException {
             OAuthStatePayload payload =
-                    new OAuthStatePayload(Action.BIND, USER_ID, REDIRECT_URL);
+                    new OAuthStatePayload(Action.BIND, USER_ID, REDIRECT_URL, null);
             when(mockObjectMapper.writeValueAsString(payload)).thenReturn("{}");
 
             String stateId = stateService.generateAndSaveState(payload);
@@ -132,7 +132,7 @@ class OAuthStateServiceTest {
         void shouldReturnPayloadAndDeleteState_onValidConsumption() throws JsonProcessingException {
             String stateId = "valid-uuid-123";
             String serializedJson = "{\"action\":\"LOGIN\"}";
-            OAuthStatePayload expectedPayload = new OAuthStatePayload(Action.LOGIN, null, null);
+            OAuthStatePayload expectedPayload = new OAuthStatePayload(Action.LOGIN, null, null, null);
 
             when(mockValueOps.getAndDelete("oauth:state:" + stateId)).thenReturn(serializedJson);
             when(mockObjectMapper.readValue(serializedJson, OAuthStatePayload.class))
@@ -169,7 +169,7 @@ class OAuthStateServiceTest {
                     .thenReturn("{\"action\":\"LOGIN\"}")
                     .thenReturn(null);
             when(mockObjectMapper.readValue(anyString(), eq(OAuthStatePayload.class)))
-                    .thenReturn(new OAuthStatePayload(Action.LOGIN, null, null));
+                    .thenReturn(new OAuthStatePayload(Action.LOGIN, null, null, null));
 
             OAuthStatePayload first = stateService.consumeState(stateId);
             assertThat(first.action()).isEqualTo(Action.LOGIN);
@@ -214,7 +214,7 @@ class OAuthStateServiceTest {
             String serializedJson =
                     "{\"action\":\"BIND\",\"currentUserId\":\"550e8400-e29b-41d4-a716-446655440000\",\"redirectUrl\":\"/settings/profile\"}";
             OAuthStatePayload expectedPayload =
-                    new OAuthStatePayload(Action.BIND, USER_ID, REDIRECT_URL);
+                    new OAuthStatePayload(Action.BIND, USER_ID, REDIRECT_URL, null);
 
             when(mockValueOps.getAndDelete("oauth:state:" + stateId)).thenReturn(serializedJson);
             when(mockObjectMapper.readValue(serializedJson, OAuthStatePayload.class))
@@ -234,7 +234,7 @@ class OAuthStateServiceTest {
         void shouldDeserializeOldFormatJson_withMissingFields() throws JsonProcessingException {
             String stateId = "legacy-uuid";
             String legacyJson = "{\"action\":\"LOGIN\"}";
-            OAuthStatePayload expectedPayload = new OAuthStatePayload(Action.LOGIN, null, null);
+            OAuthStatePayload expectedPayload = new OAuthStatePayload(Action.LOGIN, null, null, null);
 
             when(mockValueOps.getAndDelete("oauth:state:" + stateId)).thenReturn(legacyJson);
             when(mockObjectMapper.readValue(legacyJson, OAuthStatePayload.class))
@@ -251,7 +251,7 @@ class OAuthStateServiceTest {
         @DisplayName("should round-trip BIND payload (UUID + redirectUrl) through serialize+deserialize")
         void shouldRoundTripActionBindPayload() throws JsonProcessingException {
             OAuthStatePayload original =
-                    new OAuthStatePayload(Action.BIND, USER_ID, REDIRECT_URL);
+                    new OAuthStatePayload(Action.BIND, USER_ID, REDIRECT_URL, null);
             String serialized =
                     "{\"action\":\"BIND\",\"currentUserId\":\""
                             + USER_ID

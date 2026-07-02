@@ -16,7 +16,7 @@ class OAuthStatePayloadTest {
     @DisplayName("should throw IllegalArgumentException when action=BIND and currentUserId is null")
     void shouldThrowIllegalArgument_whenBindActionWithoutUserId() {
         assertThatThrownBy(
-                        () -> new OAuthStatePayload(OAuthStatePayload.Action.BIND, null, null))
+                        () -> new OAuthStatePayload(OAuthStatePayload.Action.BIND, null, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("BIND action requires currentUserId");
     }
@@ -28,7 +28,7 @@ class OAuthStatePayloadTest {
         assertThatThrownBy(
                         () ->
                                 new OAuthStatePayload(
-                                        OAuthStatePayload.Action.BIND, null, "/settings/profile"))
+                                        OAuthStatePayload.Action.BIND, null, "/settings/profile", null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -36,7 +36,7 @@ class OAuthStatePayloadTest {
     @DisplayName("should accept payload when action=LOGIN and currentUserId is null")
     void shouldAccept_whenLoginActionWithNullUserId() {
         OAuthStatePayload payload =
-                new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, null);
+                new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, null, null);
 
         assertThat(payload.action()).isEqualTo(OAuthStatePayload.Action.LOGIN);
         assertThat(payload.currentUserId()).isNull();
@@ -47,7 +47,7 @@ class OAuthStatePayloadTest {
     @DisplayName("should accept payload when action=LOGIN and redirectUrl is set")
     void shouldAccept_whenLoginActionWithRedirectUrl() {
         OAuthStatePayload payload =
-                new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, "/oauth/callback");
+                new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, "/oauth/callback", null);
 
         assertThat(payload.action()).isEqualTo(OAuthStatePayload.Action.LOGIN);
         assertThat(payload.currentUserId()).isNull();
@@ -59,7 +59,7 @@ class OAuthStatePayloadTest {
     void shouldAccept_whenBindActionWithUserId() {
         OAuthStatePayload payload =
                 new OAuthStatePayload(
-                        OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile");
+                        OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile", null);
 
         assertThat(payload.action()).isEqualTo(OAuthStatePayload.Action.BIND);
         assertThat(payload.currentUserId()).isEqualTo(USER_ID);
@@ -70,7 +70,7 @@ class OAuthStatePayloadTest {
     @DisplayName("should accept payload when action=BIND with currentUserId and null redirectUrl")
     void shouldAccept_whenBindActionWithUserIdAndNullRedirectUrl() {
         OAuthStatePayload payload =
-                new OAuthStatePayload(OAuthStatePayload.Action.BIND, USER_ID, null);
+                new OAuthStatePayload(OAuthStatePayload.Action.BIND, USER_ID, null, null);
 
         assertThat(payload.action()).isEqualTo(OAuthStatePayload.Action.BIND);
         assertThat(payload.currentUserId()).isEqualTo(USER_ID);
@@ -82,7 +82,7 @@ class OAuthStatePayloadTest {
             + " controller default)")
     void shouldAccept_whenRedirectUrlIsBlank() {
         OAuthStatePayload blankRedirect =
-                new OAuthStatePayload(OAuthStatePayload.Action.BIND, USER_ID, "");
+                new OAuthStatePayload(OAuthStatePayload.Action.BIND, USER_ID, "", null);
 
         assertThat(blankRedirect.redirectUrl()).isEmpty();
         assertThat(blankRedirect.currentUserId()).isEqualTo(USER_ID);
@@ -92,8 +92,30 @@ class OAuthStatePayloadTest {
     @DisplayName("Should throw when LOGIN action is supplied with non-null currentUserId")
     void shouldThrowIllegalArgument_whenLoginActionWithNonNullUserId() {
         assertThatThrownBy(
-                        () -> new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, USER_ID, null))
+                        () -> new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, USER_ID, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("LOGIN action must not have currentUserId");
+    }
+
+    @Test
+    @DisplayName("should accept payload with clientIp set")
+    void shouldAccept_whenClientIpProvided() {
+        OAuthStatePayload payload =
+                new OAuthStatePayload(OAuthStatePayload.Action.BIND, USER_ID, "/settings/profile", "192.168.1.1");
+
+        assertThat(payload.action()).isEqualTo(OAuthStatePayload.Action.BIND);
+        assertThat(payload.currentUserId()).isEqualTo(USER_ID);
+        assertThat(payload.redirectUrl()).isEqualTo("/settings/profile");
+        assertThat(payload.clientIp()).isEqualTo("192.168.1.1");
+    }
+
+    @Test
+    @DisplayName("should accept payload with null clientIp")
+    void shouldAccept_whenClientIpNull() {
+        OAuthStatePayload payload =
+                new OAuthStatePayload(OAuthStatePayload.Action.LOGIN, null, null, null);
+
+        assertThat(payload.action()).isEqualTo(OAuthStatePayload.Action.LOGIN);
+        assertThat(payload.clientIp()).isNull();
     }
 }

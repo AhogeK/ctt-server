@@ -91,19 +91,28 @@ public class OAuthLoginOrRegisterService {
      */
     @Transactional
     public LoginResponse process(
-            OAuthProvider provider, String accessToken, GitHubUserInfo userInfo) {
+            OAuthProvider provider,
+            String accessToken,
+            GitHubUserInfo userInfo,
+            String clientIp) {
         return oauthAccountRepository
                 .findByProviderAndProviderUserId(provider, String.valueOf(userInfo.id()))
-                .map(account -> handleExistingBinding(account, accessToken, userInfo))
-                .orElseGet(() -> handleNewBinding(provider, accessToken, userInfo));
+                .map(account -> handleExistingBinding(account, accessToken, userInfo, clientIp))
+                .orElseGet(() -> handleNewBinding(provider, accessToken, userInfo, clientIp));
     }
 
     /** Handles existing OAuth binding: validate status, update tokens, issue credentials. */
     private LoginResponse handleExistingBinding(
-            UserOAuthAccount account, String accessToken, GitHubUserInfo userInfo) {
+            UserOAuthAccount account,
+            String accessToken,
+            GitHubUserInfo userInfo,
+            String clientIp) {
         User user = account.getUser();
 
         validateUserStatus(user);
+
+        user.setLastLoginAt(Instant.now());
+        user.setLastLoginIp(clientIp);
 
         account.setAccessToken(accessToken);
         account.setProviderLogin(userInfo.login());
@@ -123,18 +132,29 @@ public class OAuthLoginOrRegisterService {
 
     /** Handles new OAuth binding: email merge or new user registration. */
     private LoginResponse handleNewBinding(
-            OAuthProvider provider, String accessToken, GitHubUserInfo userInfo) {
+            OAuthProvider provider, String accessToken, GitHubUserInfo userInfo, String clientIp) {
         return userRepository
                 .findByEmailIgnoreCase(userInfo.email())
                 .map(
                         existingUser ->
-                                linkToExistingUser(existingUser, provider, accessToken, userInfo))
-                .orElseGet(() -> registerNewUser(provider, accessToken, userInfo));
+                                linkToExistingUser(
+                                        existingUser, provider, accessToken, userInfo, clientIp))
+                .orElseGet(() -> registerNewUser(provider, accessToken, userInfo, clientIp));
     }
 
-    /** Links OAuth account to existing local user by email. */
+    /**
+     * Links OAuth account to existing local user by email merge, then performs login.
+     *
+     * <p>Creates the OAuth binding and delegates to {@link #handleExistingBinding} which issues
+     * CTT tokens and sets {@code lastLoginAt}. This is a login flow (not just binding) because the
+     * user receives new authentication tokens.
+     */
     private LoginResponse linkToExistingUser(
-            User user, OAuthProvider provider, String accessToken, GitHubUserInfo userInfo) {
+            User user,
+            OAuthProvider provider,
+            String accessToken,
+            GitHubUserInfo userInfo,
+            String clientIp) {
         UserOAuthAccount newAccount =
                 createOAuthAccountEntity(user, provider, accessToken, userInfo);
         oauthAccountRepository.save(newAccount);
@@ -145,12 +165,12 @@ public class OAuthLoginOrRegisterService {
                 ResourceType.USER,
                 user.getId().toString());
 
-        return handleExistingBinding(newAccount, accessToken, userInfo);
+        return handleExistingBinding(newAccount, accessToken, userInfo, clientIp);
     }
 
     /** Registers new OAuth-only user (ACTIVE status, no password, email verified). */
     private LoginResponse registerNewUser(
-            OAuthProvider provider, String accessToken, GitHubUserInfo userInfo) {
+            OAuthProvider provider, String accessToken, GitHubUserInfo userInfo, String clientIp) {
         User newUser = new User();
         newUser.setEmail(userInfo.email());
         newUser.setDisplayName(userInfo.name() != null ? userInfo.name() : userInfo.login());
@@ -162,6 +182,8 @@ public class OAuthLoginOrRegisterService {
         // Set terms acceptance for new OAuth users (same as email-verified users)
         newUser.setTermsAcceptedAt(Instant.now());
         newUser.setTermsVersion(termsProperties.currentVersion());
+        newUser.setLastLoginAt(Instant.now());
+        newUser.setLastLoginIp(clientIp);
 
         userRepository.save(newUser);
 

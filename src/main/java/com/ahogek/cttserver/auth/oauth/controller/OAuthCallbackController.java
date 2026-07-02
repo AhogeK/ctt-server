@@ -11,6 +11,8 @@ import com.ahogek.cttserver.auth.oauth.model.OAuthStatePayload;
 import com.ahogek.cttserver.auth.oauth.service.OAuthLoginOrRegisterService;
 import com.ahogek.cttserver.auth.oauth.service.OAuthStateService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.exception.BusinessException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
@@ -165,8 +167,9 @@ public class OAuthCallbackController {
             Authentication authentication) {
 
         OAuthStatePayload.Action oauthAction = parseAction(action);
+        String clientIp = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
 
-        OAuthStatePayload payload = getOAuthStatePayload(authentication, oauthAction);
+        OAuthStatePayload payload = getOAuthStatePayload(authentication, oauthAction, clientIp);
         String stateId = stateService.generateAndSaveState(payload);
 
         String authUrl =
@@ -179,7 +182,8 @@ public class OAuthCallbackController {
         return ResponseEntity.ok(RestApiResponse.ok(new AuthorizeResponse(authUrl)));
     }
 
-    private static @NonNull OAuthStatePayload getOAuthStatePayload(Authentication authentication, OAuthStatePayload.Action oauthAction) {
+    private static @NonNull OAuthStatePayload getOAuthStatePayload(
+            Authentication authentication, OAuthStatePayload.Action oauthAction, String clientIp) {
         UUID currentUserId = null;
         String redirectUrl = null;
 
@@ -193,7 +197,7 @@ public class OAuthCallbackController {
             redirectUrl = BIND_REDIRECT_PATH;
         }
 
-        return new OAuthStatePayload(oauthAction, currentUserId, redirectUrl);
+        return new OAuthStatePayload(oauthAction, currentUserId, redirectUrl, clientIp);
     }
 
     @Operation(
@@ -284,7 +288,7 @@ public class OAuthCallbackController {
         if (payload.action() == OAuthStatePayload.Action.LOGIN) {
             LoginResponse loginResponse =
                     loginOrRegisterService.process(
-                            provider, tokenResponse.accessToken(), userInfo);
+                            provider, tokenResponse.accessToken(), userInfo, payload.clientIp());
 
             String redirectUrl =
                     UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())

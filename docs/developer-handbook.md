@@ -941,6 +941,21 @@ MailOutboxService.queueEmail()
 
 ---
 
+## Login Metadata Implementation Checklist
+
+When implementing a new login/registration flow, verify that User entity timestamp fields are updated:
+
+| Field | Type | When to Set | Where to Set |
+|---|---|---|---|
+| `lastLoginAt` | `Instant` | Every successful login/registration | Service layer after authentication |
+| `lastLoginIp` | `String` (IPv4/IPv6) | Email/password login only | Service layer using `RequestContext.current().map(RequestInfo::clientIp)` |
+| `emailVerifiedAt` | `Instant` | Email verification completed | `User.verifyEmail()` entity method |
+| `termsAcceptedAt` | `Instant` | Terms accepted | Service layer after terms validation |
+
+**Common mistake**: Implementing authentication + token generation + audit logging but forgetting to update `lastLoginAt`. Always check `User.java` getters/setters after implementing a new login flow.
+
+---
+
 ## Quick Reference
 
 ### Operation Entry Points

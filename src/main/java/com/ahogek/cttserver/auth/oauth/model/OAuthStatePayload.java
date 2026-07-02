@@ -20,12 +20,16 @@ import java.util.UUID;
  *     {@code null} for {@link Action#LOGIN})
  * @param redirectUrl the frontend route to redirect to after a successful bind (optional, defaults
  *     to {@code null}; BIND callers typically pass {@code "/settings/profile"})
+ * @param clientIp the client IP address captured at authorize time (IPv4/IPv6, nullable); used to
+ *     set {@code lastLoginAt} on the user entity at callback time. For OAuth flows the callback
+ *     request originates from the provider's servers, so the real client IP must be captured at
+ *     authorize and forwarded through the state payload.
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-06-28
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record OAuthStatePayload(
-        Action action, UUID currentUserId, String redirectUrl) {
+        Action action, UUID currentUserId, String redirectUrl, String clientIp) {
     public enum Action {
         LOGIN,
         BIND

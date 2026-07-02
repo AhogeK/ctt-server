@@ -159,6 +159,22 @@ class UserControllerMockMvcTest {
 
         @Test
         @WithMockUser
+        @DisplayName("Should include lastLoginAt in response even when null (JsonInclude ALWAYS)")
+        void shouldIncludeLastLoginAt_evenWhenNull() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.given(userProfileService.getCurrentUserProfile(USER_ID))
+                    .willReturn(unverifiedProfile());
+
+            assertThat(mvc.get().uri("/api/v1/users/me").exchange())
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.data.lastLoginAt")
+                    .isNull();
+        }
+
+        @Test
+        @WithMockUser
         @DisplayName("Should never expose passwordHash, lastLoginIp, or version in response")
         void shouldNeverExposeSensitiveFields_inResponse() {
             BDDMockito.given(currentUserProvider.getCurrentUserRequired())
