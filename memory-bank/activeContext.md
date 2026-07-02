@@ -1,4 +1,21 @@
 # Active Context
+- [2026-07-01] - OAuth User Profile Endpoint (PR-C, GET /api/v1/users/me, ctt-web AppHeader dropdown 支撑)
+    - 新增: UserProfileResponse record (auth.user.dto) - 7 字段 DTO: id/email/displayName/emailVerified/createdAt/lastLoginAt/termsVersion
+    - 新增: UserProfileService - read-only, @Transactional(readOnly=true), getCurrentUserProfile(UUID) 调用 UserRepository.findById + UserProfileResponse.fromEntity
+    - 新增: UserController @GetMapping("/me") - currentUserProvider.getCurrentUserRequired().id() 提取 userId (与 OAuthAccountController 模式一致)
+    - 安全: 故意不暴露 passwordHash / lastLoginIp / version / emailVerifiedAt / termsAcceptedAt / updatedAt
+    - 设计: emailVerified 派生自 User.emailVerifiedAt != null (而非 User.emailVerified Boolean 字段，避免双源不一致)
+    - 设计: avatar 不存储 (用户决定 avatar = id hash 由前端生成，后端零工作量)
+    - Swagger: @SecurityRequirement("bearerAuth") + @ApiResponses 200 (RestApiResponse) + 401 (ErrorResponse + AUTH_002 独立 @ExampleObject) + @Tag("User")
+    - 测试: 9 新增 (UserProfileServiceTest 4 + UserControllerMockMvcTest 5 含敏感字段不暴露 doesNotHavePath 断言)
+    - 文档: README.md API 端点表新增 GET /users/me 行 + Avatar 字段说明
+    - 文档: .sisyphus/plan/2026-07-01-user-profile.md (AI 内部 plan，不入 docs/)
+    - 工程: .gitignore 添加 .sisyphus/ (AI plan 内部目录，不污染版本控制)
+    - 限制: 缺 OAuthUserProfileIntegrationTest (与 PR-A/B 对称未补，可未来 hardening)
+    - 限制: docs/developer-handbook.md 缺 GET /users/me 条目 (与之前 AUTH_017/018 同样遗留)
+    - 全量测试: 874/874 PASS (之前 865)，0 回归
+    - 版本: 0.29.0 → 0.30.0 (MINOR: 新 endpoint)
+
 - [2026-07-01] - OAuth UNBIND 流程（PR-B 解除已绑定 GitHub 账号 + last-login-method 防御）
     - 新增: OAuthLoginOrRegisterService.unbindFromExistingUser(currentUserId, provider) — 校验 binding 存在 (AUTH_017 404) + last-method 守卫 (AUTH_018 409: 无密码且唯一 OAuth 时禁止解绑) + delete UserOAuthAccount + 审计 OAUTH_ACCOUNT_UNLINKED；**session 不变**（不撤销/重发 token，user 保持已登录）
     - 新增: UserOAuthAccountRepository.countByUserId(UUID) — last-method 守卫用，索引 user_oauth_accounts.user_id

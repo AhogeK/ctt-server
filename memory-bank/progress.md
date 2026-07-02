@@ -2,6 +2,19 @@
 
 ## 已完成 ✅
 
+- [x] OAuth User Profile Endpoint (PR-C, GET /api/v1/users/me, ctt-web AppHeader dropdown 支撑)
+    - 新增 UserProfileResponse record (7 字段 DTO) + UserProfileService (read-only) + UserController (@GetMapping /me)
+    - 安全: 不暴露 passwordHash/lastLoginIp/version 等敏感字段
+    - 设计: emailVerified 派生自 User.emailVerifiedAt != null
+    - 设计: avatar 不存储 (前端用 id hash 生成)
+    - Swagger: 完整注解 (bearerAuth, 200/401 examples, @Tag)
+    - 9 个新测试 (UserProfileServiceTest 4 + UserControllerMockMvcTest 5)
+    - 文档: README.md API 端点表 + Avatar 字段说明; .gitignore 添加 .sisyphus/
+    - 限制: 缺 IntegrationTest (与 PR-A/B 对称)
+    - 限制: docs/developer-handbook.md 缺 GET /users/me 条目
+    - 全量测试 874/874 PASS
+    - 版本: 0.29.0 → 0.30.0 (MINOR: 新 endpoint)
+
 - [x] OAuth UNBIND 流程（PR-B 解除已绑定 GitHub + last-login-method 防御）
     - 新增 OAuthLoginOrRegisterService.unbindFromExistingUser — 校验 + last-method 守卫 + delete + 审计；**session 不变** (Session invariant 显式声明)
     - 新增 UserOAuthAccountRepository.countByUserId — last-method 守卫
