@@ -54,6 +54,20 @@ X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP。
 - 遵循 AGENTS.md R12（禁止擅自添加依赖）
 - AssertJ `then()` 与 `assertThat()` 功能相同，无实际改进价值
 
+## 登录元数据设置模式
+
+登录成功后必须同步更新 User 实体的 `lastLoginAt` 和 `lastLoginIp` 字段：
+
+| 登录流程 | lastLoginAt | lastLoginIp | 位置 |
+|---|---|---|---|
+| 邮箱密码登录 | `Instant.now()` | `RequestContext.current().map(RequestInfo::clientIp)` | `UserLoginService.login()` |
+| OAuth 已有绑定登录 | `Instant.now()` | `clientIp`（从 state payload 取得，authorize 时捕获） | `OAuthLoginOrRegisterService.handleExistingBinding()` |
+| OAuth 新用户注册 | `Instant.now()` | `clientIp`（同上） | `OAuthLoginOrRegisterService.registerNewUser()` |
+| BIND 流程 | 不设置（不是登录） | 不设置 | — |
+| UNBIND 流程 | 不设置（不是登录） | 不设置 | — |
+
+**防复发检查清单**：实现新登录/注册流程时，必须检查 User 实体的时间戳字段是否需要同步更新。
+
 ## 详细文档
 
 - [时间策略](../docs/time-strategy.md)

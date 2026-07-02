@@ -2,6 +2,16 @@
 
 ## 已完成 ✅
 
+- [x] lastLoginAt / lastLoginIp 登录元数据补全（修复 /api/v1/users/me 响应缺失 lastLoginAt）
+    - 根因: User 实体字段存在但登录流程从未设置
+    - 修复: UserLoginService.login() 设置 lastLoginAt + lastLoginIp
+    - 修复: OAuthLoginOrRegisterService.handleExistingBinding() 设置 lastLoginAt
+    - 修复: OAuthLoginOrRegisterService.registerNewUser() 设置 lastLoginAt
+    - 修复: User.java 补充 setLastLoginAt setter
+    - 防复发: systemPatterns.md 新增登录元数据模式 + developer-handbook.md 新增检查清单
+    - 全量测试 874/874 PASS
+    - 版本: 0.30.0 → 0.30.1 (PATCH: bug fix)
+
 - [x] OAuth User Profile Endpoint (PR-C, GET /api/v1/users/me, ctt-web AppHeader dropdown 支撑)
     - 新增 UserProfileResponse record (7 字段 DTO) + UserProfileService (read-only) + UserController (@GetMapping /me)
     - 安全: 不暴露 passwordHash/lastLoginIp/version 等敏感字段

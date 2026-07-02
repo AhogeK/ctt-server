@@ -1,4 +1,15 @@
 # Active Context
+- [2026-07-03] - lastLoginAt / lastLoginIp 登录元数据补全（修复 /api/v1/users/me 响应缺失 lastLoginAt 字段 bug）
+    - 根因: User 实体有 lastLoginAt / lastLoginIp 字段（DB schema + time-strategy.md 明确定义），但 UserLoginService.login() 和 OAuthLoginOrRegisterService 的登录流程从未设置
+    - 修复: UserLoginService.login() 成功后设置 user.setLastLoginAt(Instant.now()) + user.setLastLoginIp(clientIp)
+    - 修复: OAuthLoginOrRegisterService.handleExistingBinding() 设置 user.setLastLoginAt(Instant.now()) + user.setLastLoginIp(clientIp)（clientIp 从 state payload 取得，authorize 时捕获）
+    - 修复: OAuthLoginOrRegisterService.registerNewUser() 设置 newUser.setLastLoginAt(Instant.now()) + newUser.setLastLoginIp(clientIp)（OAuth 新用户首次登录）
+    - 修复: User.java 补充缺失的 setLastLoginAt(Instant) setter 方法
+    - 保留: UserProfileResponse.lastLoginAt 的 @JsonInclude(ALWAYS) 兜底（新注册但未登录的用户字段为 null）
+    - 防复发: systemPatterns.md 新增 "Login Metadata Setting" 模式 + developer-handbook.md 新增登录元数据实现检查清单
+    - 全量测试: 876/876 PASS（3 新增测试：shouldSetLoginMetadata_whenLoginSucceeds + shouldSetLastLoginAt_onSuccessfulLogin + shouldRedirectToError_whenStateIsNotUuidFormat）
+    - 版本: 0.30.0 → 0.30.1（PATCH: bug fix）
+
 - [2026-07-01] - OAuth User Profile Endpoint (PR-C, GET /api/v1/users/me, ctt-web AppHeader dropdown 支撑)
     - 新增: UserProfileResponse record (auth.user.dto) - 7 字段 DTO: id/email/displayName/emailVerified/createdAt/lastLoginAt/termsVersion
     - 新增: UserProfileService - read-only, @Transactional(readOnly=true), getCurrentUserProfile(UUID) 调用 UserRepository.findById + UserProfileResponse.fromEntity
