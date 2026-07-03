@@ -45,6 +45,15 @@ public class EmailVerificationToken extends AbstractToken {
     @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;
 
+    @Column(name = "old_email")
+    private String oldEmail;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status = "PENDING";
+
+    @Column(name = "attempts", nullable = false)
+    private int attempts = 0;
+
     public EmailVerificationToken() {
         super();
     }
@@ -83,6 +92,38 @@ public class EmailVerificationToken extends AbstractToken {
             throw new IllegalStateException(
                     "Token is not valid for revocation: " + determineStatus());
         }
+        this.revokedAt = Instant.now();
+    }
+
+    public void incrementAttempts() {
+        this.attempts++;
+    }
+
+    public boolean isPending() {
+        return "PENDING".equals(this.status);
+    }
+
+    public boolean isCompleted() {
+        return "COMPLETED".equals(this.status);
+    }
+
+    public boolean isCancelled() {
+        return "CANCELLED".equals(this.status);
+    }
+
+    public void complete() {
+        if (!isPending()) {
+            throw new IllegalStateException("Token is not pending: " + this.status);
+        }
+        this.status = "COMPLETED";
+        this.consumedAt = Instant.now();
+    }
+
+    public void cancel() {
+        if (!isPending()) {
+            throw new IllegalStateException("Token is not pending: " + this.status);
+        }
+        this.status = "CANCELLED";
         this.revokedAt = Instant.now();
     }
 
@@ -140,5 +181,29 @@ public class EmailVerificationToken extends AbstractToken {
 
     public void setUserAgent(String userAgent) {
         this.userAgent = userAgent;
+    }
+
+    public String getOldEmail() {
+        return oldEmail;
+    }
+
+    public void setOldEmail(String oldEmail) {
+        this.oldEmail = oldEmail;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public int getAttempts() {
+        return attempts;
+    }
+
+    public void setAttempts(int attempts) {
+        this.attempts = attempts;
     }
 }

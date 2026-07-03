@@ -110,9 +110,7 @@ class CaptchaServiceTest {
         @Test
         @DisplayName("shouldThrowValidationException_whenCaptchaApiReturnsNull")
         void shouldThrowValidationException_whenCaptchaApiReturnsNull() {
-            mockServer
-                    .expect(requestTo(TEST_VERIFY_URL))
-                    .andRespond(withSuccess());
+            mockServer.expect(requestTo(TEST_VERIFY_URL)).andRespond(withSuccess());
 
             assertThatThrownBy(() -> captchaService.verifyCaptcha(TEST_TOKEN))
                     .isInstanceOf(ValidationException.class)
@@ -144,8 +142,7 @@ class CaptchaServiceTest {
                             thrown -> {
                                 BadGatewayException ex = (BadGatewayException) thrown;
                                 assertThat(ex.errorCode()).isEqualTo(ErrorCode.SECURITY_007);
-                                assertThat(ex.getMessage())
-                                        .contains("Captcha service unreachable");
+                                assertThat(ex.getMessage()).contains("Captcha service unreachable");
                             });
 
             mockServer.verify();
@@ -179,8 +176,7 @@ class CaptchaServiceTest {
                             thrown -> {
                                 ValidationException ex = (ValidationException) thrown;
                                 assertThat(ex.errorCode()).isEqualTo(ErrorCode.SECURITY_006);
-                                assertThat(ex.getMessage())
-                                        .contains("Captcha token is required");
+                                assertThat(ex.getMessage()).contains("Captcha token is required");
                             });
         }
 
@@ -193,8 +189,7 @@ class CaptchaServiceTest {
                             thrown -> {
                                 ValidationException ex = (ValidationException) thrown;
                                 assertThat(ex.errorCode()).isEqualTo(ErrorCode.SECURITY_006);
-                                assertThat(ex.getMessage())
-                                        .contains("Captcha token is required");
+                                assertThat(ex.getMessage()).contains("Captcha token is required");
                             });
         }
     }

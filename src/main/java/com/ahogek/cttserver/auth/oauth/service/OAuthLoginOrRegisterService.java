@@ -91,10 +91,7 @@ public class OAuthLoginOrRegisterService {
      */
     @Transactional
     public LoginResponse process(
-            OAuthProvider provider,
-            String accessToken,
-            GitHubUserInfo userInfo,
-            String clientIp) {
+            OAuthProvider provider, String accessToken, GitHubUserInfo userInfo, String clientIp) {
         return oauthAccountRepository
                 .findByProviderAndProviderUserId(provider, String.valueOf(userInfo.id()))
                 .map(account -> handleExistingBinding(account, accessToken, userInfo, clientIp))
@@ -145,9 +142,9 @@ public class OAuthLoginOrRegisterService {
     /**
      * Links OAuth account to existing local user by email merge, then performs login.
      *
-     * <p>Creates the OAuth binding and delegates to {@link #handleExistingBinding} which issues
-     * CTT tokens and sets {@code lastLoginAt}. This is a login flow (not just binding) because the
-     * user receives new authentication tokens.
+     * <p>Creates the OAuth binding and delegates to {@link #handleExistingBinding} which issues CTT
+     * tokens and sets {@code lastLoginAt}. This is a login flow (not just binding) because the user
+     * receives new authentication tokens.
      */
     private LoginResponse linkToExistingUser(
             User user,
@@ -295,9 +292,7 @@ public class OAuthLoginOrRegisterService {
                 userRepository
                         .findById(currentUserId)
                         .orElseThrow(
-                                () ->
-                                        new NotFoundException(
-                                                ErrorCode.USER_004, "User not found"));
+                                () -> new NotFoundException(ErrorCode.USER_004, "User not found"));
 
         validateUserStatus(user);
 
@@ -319,8 +314,7 @@ public class OAuthLoginOrRegisterService {
                     ErrorCode.AUTH_016, "Provider already linked to current user");
         }
 
-        UserOAuthAccount account =
-                createOAuthAccountEntity(user, provider, accessToken, userInfo);
+        UserOAuthAccount account = createOAuthAccountEntity(user, provider, accessToken, userInfo);
         oauthAccountRepository.save(account);
 
         auditLogService.logSuccess(
@@ -333,8 +327,8 @@ public class OAuthLoginOrRegisterService {
     /**
      * Detaches a third-party OAuth account from the current user (UNBIND flow).
      *
-     * <p>Removes the {@link UserOAuthAccount} row matching {@code (currentUserId, provider)}.
-     * The provider-side OAuth grant is left untouched (this is a local unbind only).
+     * <p>Removes the {@link UserOAuthAccount} row matching {@code (currentUserId, provider)}. The
+     * provider-side OAuth grant is left untouched (this is a local unbind only).
      *
      * <p><b>Last-login-method guard</b>: a user must always retain at least one credential
      * (password or OAuth). Unbinding is rejected with {@link ErrorCode#AUTH_018} when:
@@ -372,8 +366,7 @@ public class OAuthLoginOrRegisterService {
         boolean userHasPassword = binding.getUser().getPasswordHash() != null;
         long oauthCount = oauthAccountRepository.countByUserId(currentUserId);
         if (!userHasPassword && oauthCount <= 1) {
-            throw new ConflictException(
-                    ErrorCode.AUTH_018, "Cannot unlink the last login method");
+            throw new ConflictException(ErrorCode.AUTH_018, "Cannot unlink the last login method");
         }
 
         oauthAccountRepository.delete(binding);

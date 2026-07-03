@@ -3,7 +3,9 @@ package com.ahogek.cttserver.auth.repository;
 import com.ahogek.cttserver.auth.entity.EmailVerificationToken;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -104,4 +106,75 @@ public interface EmailVerificationTokenRepository
      * @return number of tokens deleted
      */
     long deleteByUserId(UUID userId);
+
+    /**
+     * Finds the pending email-change token for a user, if any.
+     *
+     * <p>Matches tokens with purpose {@code CHANGE_EMAIL}, status {@code PENDING}, not revoked, and
+     * not yet expired. Used by the email-change flow to detect and replace an existing pending
+     * request before issuing a new one. Uses composite index idx_email_verification_lookup
+     * (leftmost prefix: user_id, purpose).
+     *
+     * @param userId the user ID
+     * @param now the current timestamp for expiration check
+     * @return Optional containing the pending token if one exists
+     */
+    @Query(
+            """
+            SELECT t FROM EmailVerificationToken t
+            WHERE t.userId = :userId
+              AND t.purpose = 'CHANGE_EMAIL'
+              AND t.status = 'PENDING'
+              AND t.revokedAt IS NULL
+              AND t.expiresAt > :now
+            """)
+    Optional<EmailVerificationToken> findPendingChangeEmailTokenByUserId(
+            @Param("userId") UUID userId, @Param("now") Instant now);
+
+    /**
+     * Checks whether a pending email-change token exists for a user.
+     *
+     * <p>Fast existence check used to decide whether the email-change request can proceed (e.g., to
+     * enforce a "one pending change at a time" invariant). Uses composite index
+     * idx_email_verification_lookup.
+     *
+     * @param userId the user ID
+     * @param now the current timestamp for expiration check
+     * @return true if a pending, non-revoked, non-expired CHANGE_EMAIL token exists
+     */
+    @Query(
+            """
+            SELECT COUNT(t) > 0 FROM EmailVerificationToken t
+            WHERE t.userId = :userId
+              AND t.purpose = 'CHANGE_EMAIL'
+              AND t.status = 'PENDING'
+              AND t.revokedAt IS NULL
+              AND t.expiresAt > :now
+            """)
+    boolean existsPendingChangeEmailTokenByUserId(
+            @Param("userId") UUID userId, @Param("now") Instant now);
+
+    /**
+     * Cancels all pending email-change tokens for a user.
+     *
+     * <p>Sets status to {@code CANCELLED} and revokedAt to {@code now} for every matching token.
+     * Used before issuing a new email-change token to ensure only one pending request is active at
+     * a time. This is a bulk update that bypasses the entity lifecycle.
+     *
+     * @param userId the user ID
+     * @param now the timestamp recorded as revokedAt
+     * @return number of tokens cancelled
+     */
+    @Modifying
+    @Query(
+            """
+            UPDATE EmailVerificationToken t
+            SET t.status = 'CANCELLED', t.revokedAt = :now
+            WHERE t.userId = :userId
+              AND t.purpose = 'CHANGE_EMAIL'
+              AND t.status = 'PENDING'
+              AND t.revokedAt IS NULL
+            """)
+    int cancelPendingChangeEmailTokensByUserId(
+            @Param("userId") UUID userId, @Param("now") Instant now);
 }

@@ -38,8 +38,7 @@ public record OAuthAccountBinding(
      *
      * <p>Intentionally excludes sensitive fields (access token, refresh token, provider user ID).
      *
-     * <p>The {@code providerLogin} fallback chain guarantees a non-blank display handle for the
-     * UI:
+     * <p>The {@code providerLogin} fallback chain guarantees a non-blank display handle for the UI:
      *
      * <ol>
      *   <li>Stored {@code providerLogin} (the GitHub handle at last sync)

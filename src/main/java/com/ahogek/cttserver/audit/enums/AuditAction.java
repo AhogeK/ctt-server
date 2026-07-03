@@ -81,6 +81,22 @@ public enum AuditAction {
     EMAIL_VERIFICATION_FAILED("Email verification failed"),
 
     // ==========================================
+    // Email Change Workflow
+    // ==========================================
+
+    /** Email change requested, verification sent to new address. */
+    EMAIL_CHANGE_REQUESTED("Email change requested, verification sent to new address"),
+
+    /** Email address changed successfully. */
+    EMAIL_CHANGE_COMPLETED("Email address changed successfully"),
+
+    /** Email change request cancelled. */
+    EMAIL_CHANGE_CANCELLED("Email change request cancelled"),
+
+    /** Email change failed. */
+    EMAIL_CHANGE_FAILED("Email change failed"),
+
+    // ==========================================
     // Credential Management
     // ==========================================
 

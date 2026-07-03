@@ -155,7 +155,8 @@ class OAuthLoginOrRegisterServiceTermsTest {
 
         GitHubUserInfo userInfo = createGitHubUserInfo();
         LoginResponse response =
-                oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+                oauthLoginService.process(
+                        OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
         assertThat(response.termsExpired()).isFalse();
     }

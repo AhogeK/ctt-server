@@ -14,9 +14,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Service for verifying hCaptcha tokens via the hCaptcha verification API.
@@ -87,16 +87,14 @@ public class CaptchaService {
                         response != null ? response.errorCodes() : List.of("unknown-error");
                 log.warn("Captcha verification failed: {}", errorCodes);
                 throw new ValidationException(
-                        ErrorCode.SECURITY_006,
-                        "Captcha verification failed: " + errorCodes);
+                        ErrorCode.SECURITY_006, "Captcha verification failed: " + errorCodes);
             }
         } catch (Exception e) {
             if (e instanceof ValidationException) {
                 throw e;
             }
             log.error("Failed to reach hCaptcha service: {}", e.getMessage());
-            throw new BadGatewayException(
-                    ErrorCode.SECURITY_007, "Captcha service unreachable");
+            throw new BadGatewayException(ErrorCode.SECURITY_007, "Captcha service unreachable");
         }
     }
 
@@ -106,7 +104,5 @@ public class CaptchaService {
      * @param success whether the captcha verification succeeded
      * @param errorCodes list of error codes if verification failed
      */
-    record CaptchaResponse(
-            boolean success,
-            @JsonProperty("error-codes") List<String> errorCodes) {}
+    record CaptchaResponse(boolean success, @JsonProperty("error-codes") List<String> errorCodes) {}
 }

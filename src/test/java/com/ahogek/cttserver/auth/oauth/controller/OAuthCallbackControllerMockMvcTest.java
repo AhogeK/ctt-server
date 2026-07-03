@@ -53,17 +53,21 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * <p>Covers authorize and callback endpoints using MockMvc slice testing with mocked dependencies.
  *
  * <p>Test setup note: {@code @WebMvcTest} does not initialize {@link
- * com.ahogek.cttserver.auth.infrastructure.security.PublicApiEndpointRegistry}, so {@code
- * @PublicApi} whitelisting is bypassed. Anonymous requests are rejected by Spring Security with
- * {@code 401} before reaching the controller. Tests that exercise public endpoint logic therefore
- * use {@code @WithMockUser} to satisfy the security filter chain.
+ * com.ahogek.cttserver.auth.infrastructure.security.PublicApiEndpointRegistry}, so
+ * {@code @PublicApi} whitelisting is bypassed. Anonymous requests are rejected by Spring Security
+ * with {@code 401} before reaching the controller. Tests that exercise public endpoint logic
+ * therefore use {@code @WithMockUser} to satisfy the security filter chain.
  */
 @BaseControllerSliceTest(
         value = OAuthCallbackController.class,
         excludeFilters =
                 @ComponentScan.Filter(
                         type = FilterType.ASSIGNABLE_TYPE,
-                        classes = {RateLimitAspect.class, IdempotentAspect.class, TermsCheckFilter.class}))
+                        classes = {
+                            RateLimitAspect.class,
+                            IdempotentAspect.class,
+                            TermsCheckFilter.class
+                        }))
 @DisplayName("OAuthCallbackController MockMvc Tests")
 class OAuthCallbackControllerMockMvcTest {
 
@@ -109,7 +113,8 @@ class OAuthCallbackControllerMockMvcTest {
     class AuthorizeTests {
 
         @Test
-        @DisplayName("Should return 200 OK with GitHub authorization URL when action=login (default)")
+        @DisplayName(
+                "Should return 200 OK with GitHub authorization URL when action=login (default)")
         void shouldReturnAuthUrl_whenActionIsLogin() {
             String stateId = UUID.randomUUID().toString();
             BDDMockito.given(stateService.generateAndSaveState(any(OAuthStatePayload.class)))
@@ -134,8 +139,7 @@ class OAuthCallbackControllerMockMvcTest {
                     .generateAndSaveState(
                             ArgumentMatchers.argThat(
                                     payload ->
-                                            payload.action()
-                                                    == OAuthStatePayload.Action.LOGIN
+                                            payload.action() == OAuthStatePayload.Action.LOGIN
                                                     && payload.currentUserId() == null
                                                     && payload.clientIp() != null));
         }
@@ -166,11 +170,10 @@ class OAuthCallbackControllerMockMvcTest {
                     .generateAndSaveState(
                             ArgumentMatchers.argThat(
                                     payload ->
-                                            payload.action()
-                                                    == OAuthStatePayload.Action.BIND
+                                            payload.action() == OAuthStatePayload.Action.BIND
                                                     && payload.currentUserId().equals(USER_ID)
-                                                    && "/settings/profile".equals(
-                                                            payload.redirectUrl())
+                                                    && "/settings/profile"
+                                                            .equals(payload.redirectUrl())
                                                     && payload.clientIp() != null));
         }
 
@@ -284,11 +287,7 @@ class OAuthCallbackControllerMockMvcTest {
         @Test
         @DisplayName("Should redirect to error page when state is missing")
         void shouldRedirectToError_whenStateIsMissing() {
-            assertThat(
-                            mvc.get()
-                                    .uri(
-                                            "/api/v1/auth/oauth/github/callback?code=%s"
-                                                    .formatted(CODE)))
+            assertThat(mvc.get().uri("/api/v1/auth/oauth/github/callback?code=%s".formatted(CODE)))
                     .hasStatus(302)
                     .redirectedUrl()
                     .contains("code=MISSING_OAUTH_PARAMS");

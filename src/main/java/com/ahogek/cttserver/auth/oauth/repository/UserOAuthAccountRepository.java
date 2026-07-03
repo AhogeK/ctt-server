@@ -83,8 +83,8 @@ public interface UserOAuthAccountRepository extends JpaRepository<UserOAuthAccou
     /**
      * Counts the total number of OAuth account bindings for a user.
      *
-     * <p>Used in the unbind flow to enforce the "last login method" constraint: a user must
-     * keep at least one credential (password or OAuth) to remain able to log in.
+     * <p>Used in the unbind flow to enforce the "last login method" constraint: a user must keep at
+     * least one credential (password or OAuth) to remain able to log in.
      *
      * @param userId the core user ID
      * @return the number of OAuth account bindings for the user (0 or more)

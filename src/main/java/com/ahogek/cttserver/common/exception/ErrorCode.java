@@ -61,6 +61,11 @@ public enum ErrorCode {
     USER_006("Cannot delete own account", HttpStatus.FORBIDDEN),
     USER_007("Email already verified", HttpStatus.CONFLICT),
     USER_008("Terms version mismatch", HttpStatus.BAD_REQUEST),
+    USER_009("Email change already pending", HttpStatus.CONFLICT),
+    USER_010("Email change token expired", HttpStatus.GONE),
+    USER_011("Email change token invalid", HttpStatus.BAD_REQUEST),
+    USER_013("Password verification required", HttpStatus.FORBIDDEN),
+    USER_014("Invalid password", HttpStatus.UNAUTHORIZED),
 
     // =========================================================================
     // MAIL - Email delivery errors

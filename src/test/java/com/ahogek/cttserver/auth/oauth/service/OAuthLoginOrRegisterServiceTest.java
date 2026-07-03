@@ -147,7 +147,8 @@ class OAuthLoginOrRegisterServiceTest {
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+            oauthLoginService.process(
+                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             ArgumentCaptor<UserOAuthAccount> accountCaptor =
                     ArgumentCaptor.forClass(UserOAuthAccount.class);
@@ -186,7 +187,10 @@ class OAuthLoginOrRegisterServiceTest {
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             oauthLoginService.process(
-                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, createGitHubUserInfo(), "192.168.1.1");
+                    OAuthProvider.GITHUB,
+                    TEST_GITHUB_ACCESS_TOKEN,
+                    createGitHubUserInfo(),
+                    "192.168.1.1");
 
             assertThat(user.getLastLoginIp()).isEqualTo("192.168.1.1");
         }
@@ -202,7 +206,8 @@ class OAuthLoginOrRegisterServiceTest {
             when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+            oauthLoginService.process(
+                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             verify(auditLogService)
                     .logSuccess(
@@ -251,7 +256,8 @@ class OAuthLoginOrRegisterServiceTest {
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+            oauthLoginService.process(
+                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             verify(auditLogService)
                     .logSuccess(
@@ -277,7 +283,8 @@ class OAuthLoginOrRegisterServiceTest {
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+            oauthLoginService.process(
+                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             verify(auditLogService)
                     .logSuccess(
@@ -298,7 +305,8 @@ class OAuthLoginOrRegisterServiceTest {
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+            oauthLoginService.process(
+                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
             verify(userRepository).save(userCaptor.capture());
@@ -324,7 +332,8 @@ class OAuthLoginOrRegisterServiceTest {
             GitHubUserInfo userInfo =
                     new GitHubUserInfo(
                             GITHUB_USER_ID, GITHUB_LOGIN, null, GITHUB_AVATAR_URL, TEST_EMAIL);
-            oauthLoginService.process(OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+            oauthLoginService.process(
+                    OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
 
             ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
             verify(userRepository).save(userCaptor.capture());
@@ -455,14 +464,14 @@ class OAuthLoginOrRegisterServiceTest {
 
             assertThat(savedAccount.getUser()).isEqualTo(user);
             assertThat(savedAccount.getProvider()).isEqualTo(OAuthProvider.GITHUB);
-            assertThat(savedAccount.getProviderUserId())
-                    .isEqualTo(String.valueOf(GITHUB_USER_ID));
+            assertThat(savedAccount.getProviderUserId()).isEqualTo(String.valueOf(GITHUB_USER_ID));
             assertThat(savedAccount.getAccessToken()).isEqualTo(TEST_GITHUB_ACCESS_TOKEN);
         }
 
         @Test
-        @DisplayName("should throw ConflictException(AUTH_016) when provider user id is linked to"
-                + " another user")
+        @DisplayName(
+                "should throw ConflictException(AUTH_016) when provider user id is linked to"
+                        + " another user")
         void shouldThrowConflict_whenProviderLinkedToAnotherUser() {
             User currentUser = createActiveUser();
             User otherUser = createActiveUser();
@@ -474,7 +483,13 @@ class OAuthLoginOrRegisterServiceTest {
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
 
-            assertThatThrownBy(() -> oauthLoginService.attachToExistingUser(currentUser.getId(), OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo))
+            assertThatThrownBy(
+                            () ->
+                                    oauthLoginService.attachToExistingUser(
+                                            currentUser.getId(),
+                                            OAuthProvider.GITHUB,
+                                            TEST_GITHUB_ACCESS_TOKEN,
+                                            userInfo))
                     .isInstanceOf(ConflictException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_016);
 
@@ -482,20 +497,29 @@ class OAuthLoginOrRegisterServiceTest {
         }
 
         @Test
-        @DisplayName("should throw ConflictException(AUTH_016) when current user already has a"
-                + " binding for the same provider")
+        @DisplayName(
+                "should throw ConflictException(AUTH_016) when current user already has a"
+                        + " binding for the same provider")
         void shouldThrowConflict_whenSameProviderAlreadyLinkedToCurrentUser() {
             User currentUser = createActiveUser();
             UserOAuthAccount ownBinding = createOAuthAccount(currentUser);
             when(userRepository.findById(currentUser.getId())).thenReturn(Optional.of(currentUser));
-            when(oauthAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+            when(oauthAccountRepository.findByProviderAndProviderUserId(
+                            OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.of(ownBinding));
-            when(oauthAccountRepository.existsByUserIdAndProvider(currentUser.getId(), OAuthProvider.GITHUB))
+            when(oauthAccountRepository.existsByUserIdAndProvider(
+                            currentUser.getId(), OAuthProvider.GITHUB))
                     .thenReturn(true);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
 
-            assertThatThrownBy(() -> oauthLoginService.attachToExistingUser(currentUser.getId(), OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo))
+            assertThatThrownBy(
+                            () ->
+                                    oauthLoginService.attachToExistingUser(
+                                            currentUser.getId(),
+                                            OAuthProvider.GITHUB,
+                                            TEST_GITHUB_ACCESS_TOKEN,
+                                            userInfo))
                     .isInstanceOf(ConflictException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_016);
 
@@ -510,7 +534,13 @@ class OAuthLoginOrRegisterServiceTest {
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
 
-            assertThatThrownBy(() -> oauthLoginService.attachToExistingUser(pendingUser.getId(), OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo))
+            assertThatThrownBy(
+                            () ->
+                                    oauthLoginService.attachToExistingUser(
+                                            pendingUser.getId(),
+                                            OAuthProvider.GITHUB,
+                                            TEST_GITHUB_ACCESS_TOKEN,
+                                            userInfo))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_006);
 
@@ -525,7 +555,13 @@ class OAuthLoginOrRegisterServiceTest {
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
 
-            assertThatThrownBy(() -> oauthLoginService.attachToExistingUser(missingUserId, OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo))
+            assertThatThrownBy(
+                            () ->
+                                    oauthLoginService.attachToExistingUser(
+                                            missingUserId,
+                                            OAuthProvider.GITHUB,
+                                            TEST_GITHUB_ACCESS_TOKEN,
+                                            userInfo))
                     .isInstanceOf(NotFoundException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
 
@@ -567,8 +603,7 @@ class OAuthLoginOrRegisterServiceTest {
             User user = createActiveUser();
             user.setPasswordHash("hashed-password");
             UserOAuthAccount binding = createOAuthAccount(user);
-            when(oauthAccountRepository.findByUserIdAndProvider(
-                            user.getId(), OAuthProvider.GITHUB))
+            when(oauthAccountRepository.findByUserIdAndProvider(user.getId(), OAuthProvider.GITHUB))
                     .thenReturn(Optional.of(binding));
             when(oauthAccountRepository.countByUserId(user.getId())).thenReturn(1L);
 
@@ -584,13 +619,13 @@ class OAuthLoginOrRegisterServiceTest {
         }
 
         @Test
-        @DisplayName("should allow unbind when user has multiple OAuth bindings even without password")
+        @DisplayName(
+                "should allow unbind when user has multiple OAuth bindings even without password")
         void shouldUnbind_whenUserHasMultipleOAuthBindings() {
             User user = createActiveUser();
             user.setPasswordHash(null);
             UserOAuthAccount binding = createOAuthAccount(user);
-            when(oauthAccountRepository.findByUserIdAndProvider(
-                            user.getId(), OAuthProvider.GITHUB))
+            when(oauthAccountRepository.findByUserIdAndProvider(user.getId(), OAuthProvider.GITHUB))
                     .thenReturn(Optional.of(binding));
             when(oauthAccountRepository.countByUserId(user.getId())).thenReturn(2L);
 
@@ -604,8 +639,7 @@ class OAuthLoginOrRegisterServiceTest {
         void shouldThrowNotFound_whenBindingMissing() {
             User user = createActiveUser();
             user.setPasswordHash("hashed-password");
-            when(oauthAccountRepository.findByUserIdAndProvider(
-                            user.getId(), OAuthProvider.GITHUB))
+            when(oauthAccountRepository.findByUserIdAndProvider(user.getId(), OAuthProvider.GITHUB))
                     .thenReturn(Optional.empty());
 
             assertThatThrownBy(
@@ -630,8 +664,7 @@ class OAuthLoginOrRegisterServiceTest {
             User user = createActiveUser();
             user.setPasswordHash(null);
             UserOAuthAccount binding = createOAuthAccount(user);
-            when(oauthAccountRepository.findByUserIdAndProvider(
-                            user.getId(), OAuthProvider.GITHUB))
+            when(oauthAccountRepository.findByUserIdAndProvider(user.getId(), OAuthProvider.GITHUB))
                     .thenReturn(Optional.of(binding));
             when(oauthAccountRepository.countByUserId(user.getId())).thenReturn(1L);
 
@@ -651,8 +684,7 @@ class OAuthLoginOrRegisterServiceTest {
             User user = createActiveUser();
             user.setPasswordHash(null);
             UserOAuthAccount binding = createOAuthAccount(user);
-            when(oauthAccountRepository.findByUserIdAndProvider(
-                            user.getId(), OAuthProvider.GITHUB))
+            when(oauthAccountRepository.findByUserIdAndProvider(user.getId(), OAuthProvider.GITHUB))
                     .thenReturn(Optional.of(binding));
             when(oauthAccountRepository.countByUserId(user.getId())).thenReturn(1L);
 

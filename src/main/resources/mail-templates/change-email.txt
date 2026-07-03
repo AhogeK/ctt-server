@@ -1,0 +1,11 @@
+Confirm Email Change, [(${username})]
+
+We received a request to change the email address on your account to [(${newEmail})]. Click the link below to confirm this change:
+
+[(${verificationLink})]
+
+This verification link will expire in [(${expirationMinutes})] minutes.
+
+If you didn't request this email change, you can safely ignore this email. Your email address will remain unchanged.
+
+© 2026 CTT Server. All rights reserved.

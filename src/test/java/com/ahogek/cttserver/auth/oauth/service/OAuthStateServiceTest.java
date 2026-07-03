@@ -132,7 +132,8 @@ class OAuthStateServiceTest {
         void shouldReturnPayloadAndDeleteState_onValidConsumption() throws JsonProcessingException {
             String stateId = "valid-uuid-123";
             String serializedJson = "{\"action\":\"LOGIN\"}";
-            OAuthStatePayload expectedPayload = new OAuthStatePayload(Action.LOGIN, null, null, null);
+            OAuthStatePayload expectedPayload =
+                    new OAuthStatePayload(Action.LOGIN, null, null, null);
 
             when(mockValueOps.getAndDelete("oauth:state:" + stateId)).thenReturn(serializedJson);
             when(mockObjectMapper.readValue(serializedJson, OAuthStatePayload.class))
@@ -234,7 +235,8 @@ class OAuthStateServiceTest {
         void shouldDeserializeOldFormatJson_withMissingFields() throws JsonProcessingException {
             String stateId = "legacy-uuid";
             String legacyJson = "{\"action\":\"LOGIN\"}";
-            OAuthStatePayload expectedPayload = new OAuthStatePayload(Action.LOGIN, null, null, null);
+            OAuthStatePayload expectedPayload =
+                    new OAuthStatePayload(Action.LOGIN, null, null, null);
 
             when(mockValueOps.getAndDelete("oauth:state:" + stateId)).thenReturn(legacyJson);
             when(mockObjectMapper.readValue(legacyJson, OAuthStatePayload.class))
@@ -248,7 +250,8 @@ class OAuthStateServiceTest {
         }
 
         @Test
-        @DisplayName("should round-trip BIND payload (UUID + redirectUrl) through serialize+deserialize")
+        @DisplayName(
+                "should round-trip BIND payload (UUID + redirectUrl) through serialize+deserialize")
         void shouldRoundTripActionBindPayload() throws JsonProcessingException {
             OAuthStatePayload original =
                     new OAuthStatePayload(Action.BIND, USER_ID, REDIRECT_URL, null);
@@ -264,8 +267,7 @@ class OAuthStateServiceTest {
                     .thenReturn(original);
 
             String stateId = stateService.generateAndSaveState(original);
-            verify(mockValueOps)
-                    .set("oauth:state:" + stateId, serialized, Duration.ofMinutes(10));
+            verify(mockValueOps).set("oauth:state:" + stateId, serialized, Duration.ofMinutes(10));
 
             when(mockRedisTemplate.opsForValue()).thenReturn(mockValueOps);
             when(mockValueOps.getAndDelete("oauth:state:" + stateId)).thenReturn(serialized);
