@@ -18,6 +18,7 @@ CTT Server provides:
 - **Account Lockout Strategy**: Brute-force attack protection with automatic temporary lockout
 - **Password Reset**: Token-based password recovery with mail outbox delivery, session revocation (Kill Switch), and automatic account unlock
 - **Terms Acceptance**: Users must accept current terms version before accessing protected endpoints; version tracked in JWT
+- **Email Change**: Secure email address change with verification, cancellation, and brute-force protection
 
 ## Tech Stack
 
@@ -300,6 +301,29 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 - `termsVersion` (String)
 
 **Avatar**: Avatar is not stored on the backend. Frontend should generate avatars from `md5(userId)` or similar client-side logic.
+
+**Response Fields** (v0.31.0+):
+- `emailChangePending` (boolean) — whether an email change request is pending
+
+### Email Change
+
+| Endpoint                                  | Method | Description                                                                                           |
+|-------------------------------------------|--------|-------------------------------------------------------------------------------------------------------|
+| `/api/v1/users/me/email/change-request`   | POST   | Request email change — sends verification to new address (requires JWT, rate limited: 3/10min per email) |
+| `/api/v1/users/me/email/change-confirm`   | POST   | Confirm email change via verification token (public, rate limited: 15/10min per IP)                   |
+| `/api/v1/users/me/email/change-request`   | DELETE | Cancel pending email change request (requires JWT)                                                    |
+| `/api/v1/users/me/email/status`           | GET    | Get email status including pending change info (requires JWT)                                         |
+
+**Email Change Flow**:
+```
+User → POST /change-request {newEmail, password?} → System sends verification to new email
+                                                          ↓
+                                                  User clicks link
+                                                          ↓
+                                    POST /change-confirm {token} → Email changed, verification reset
+```
+
+**Security**: Password required if user has password set. OAuth-only users skip password verification. Token expires in 1 hour, max 5 attempts per token.
 
 ### Public Configuration
 
