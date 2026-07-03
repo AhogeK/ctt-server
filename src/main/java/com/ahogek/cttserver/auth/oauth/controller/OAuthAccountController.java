@@ -124,11 +124,13 @@ public class OAuthAccountController {
                     """)
     @ApiResponses(
             value = {
-                @ApiResponse(responseCode = "204", description = "OAuth binding removed", content = @Content),
+                @ApiResponse(
+                        responseCode = "204",
+                        description = "OAuth binding removed",
+                        content = @Content),
                 @ApiResponse(
                         responseCode = "400",
-                        description =
-                                "Invalid provider - COMMON_001: Unsupported OAuth provider",
+                        description = "Invalid provider - COMMON_001: Unsupported OAuth provider",
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
@@ -205,7 +207,8 @@ public class OAuthAccountController {
                                         examples =
                                                 @ExampleObject(
                                                         name = "last-method",
-                                                        summary = "User would lose all login methods",
+                                                        summary =
+                                                                "User would lose all login methods",
                                                         value =
                                                                 """
                                                                 {

@@ -56,8 +56,7 @@ class OAuthAccountQueryServiceTest {
         return binding;
     }
 
-    private UserOAuthAccount stubGithubEntityWith(
-            String providerLogin, String providerEmail) {
+    private UserOAuthAccount stubGithubEntityWith(String providerLogin, String providerEmail) {
         User user = new User();
         user.setId(USER_ID);
         user.setEmail("test@example.com");
@@ -82,7 +81,8 @@ class OAuthAccountQueryServiceTest {
     class ListBindings {
 
         @Test
-        @DisplayName("should return single GitHub binding with all required fields mapped correctly")
+        @DisplayName(
+                "should return single GitHub binding with all required fields mapped correctly")
         void shouldReturnSingleBinding_whenUserHasOneGithubBinding() {
             UserOAuthAccount entity = stubGithubEntity("octocat");
             when(oauthAccountRepository.findAllByUserId(USER_ID)).thenReturn(List.of(entity));
@@ -175,7 +175,8 @@ class OAuthAccountQueryServiceTest {
         }
 
         @Test
-        @DisplayName("Should fall back to providerUserId when both providerLogin and providerEmail are null")
+        @DisplayName(
+                "Should fall back to providerUserId when both providerLogin and providerEmail are null")
         void shouldFallbackToProviderUserId_whenBothLoginAndEmailAreNull() {
             UserOAuthAccount entity = stubGithubEntityWith(null, null);
 
@@ -198,8 +199,7 @@ class OAuthAccountQueryServiceTest {
         @Test
         @DisplayName("Should trim whitespace from providerLogin when present")
         void shouldTrimWhitespaceFromProviderLogin() {
-            UserOAuthAccount entity =
-                    stubGithubEntityWith("  octocat  ", "octocat@example.com");
+            UserOAuthAccount entity = stubGithubEntityWith("  octocat  ", "octocat@example.com");
 
             OAuthAccountBinding dto = OAuthAccountBinding.fromEntity(entity);
 

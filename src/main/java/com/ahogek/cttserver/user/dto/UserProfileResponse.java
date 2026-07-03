@@ -2,11 +2,10 @@ package com.ahogek.cttserver.user.dto;
 
 import com.ahogek.cttserver.user.entity.User;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-
 import java.time.Instant;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -20,6 +19,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param email the user's email address
  * @param displayName the user's display name
  * @param emailVerified whether the user's email has been verified
+ * @param emailChangePending whether an email change request is pending verification
  * @param createdAt the account creation timestamp
  * @param lastLoginAt the last login timestamp (null for newly registered OAuth users who have not
  *     performed a traditional login, or users who registered but never logged in)
@@ -37,6 +37,8 @@ public record UserProfileResponse(
         @Schema(description = "User's display name", example = "John Doe") String displayName,
         @Schema(description = "Whether the user's email has been verified", example = "true")
                 boolean emailVerified,
+        @Schema(description = "Whether an email change request is pending", example = "false")
+                boolean emailChangePending,
         @Schema(description = "Account creation timestamp", example = "2026-01-15T10:30:00Z")
                 Instant createdAt,
         @Schema(
@@ -55,14 +57,16 @@ public record UserProfileResponse(
      * emailVerifiedAt, termsAcceptedAt, updatedAt).
      *
      * @param user the User entity
+     * @param emailChangePending whether an email change request is currently pending verification
      * @return the DTO representation
      */
-    public static UserProfileResponse fromEntity(User user) {
+    public static UserProfileResponse fromEntity(User user, boolean emailChangePending) {
         return new UserProfileResponse(
                 user.getId(),
                 user.getEmail(),
                 user.getDisplayName(),
                 user.getEmailVerifiedAt() != null,
+                emailChangePending,
                 user.getCreatedAt(),
                 user.getLastLoginAt(),
                 user.getTermsVersion());

@@ -154,8 +154,11 @@ CREATE TABLE email_verification_tokens
     id          UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
     user_id     UUID         NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     email       VARCHAR(255) NOT NULL,
+    old_email   VARCHAR(255),
     token_hash  VARCHAR(64)  NOT NULL,
     purpose     VARCHAR(30)  NOT NULL DEFAULT 'REGISTER_VERIFY',
+    status      VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+    attempts    INTEGER      NOT NULL DEFAULT 0,
     expires_at  TIMESTAMPTZ  NOT NULL,
     consumed_at TIMESTAMPTZ,
     revoked_at  TIMESTAMPTZ,
@@ -164,7 +167,9 @@ CREATE TABLE email_verification_tokens
     user_agent  TEXT,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_email_verification_purpose
-        CHECK (purpose IN ('REGISTER_VERIFY', 'CHANGE_EMAIL'))
+        CHECK (purpose IN ('REGISTER_VERIFY', 'CHANGE_EMAIL')),
+    CONSTRAINT chk_email_verification_status
+        CHECK (status IN ('PENDING', 'COMPLETED', 'CANCELLED', 'EXPIRED'))
 );
 
 COMMENT ON TABLE email_verification_tokens IS 'One-time email verification tokens';
@@ -177,6 +182,9 @@ COMMENT ON COLUMN email_verification_tokens.revoked_at IS 'Timestamp when token 
 COMMENT ON COLUMN email_verification_tokens.sent_at IS 'Timestamp when the verification email was sent';
 COMMENT ON COLUMN email_verification_tokens.request_ip IS 'IP address from which the request originated (IPv4/IPv6)';
 COMMENT ON COLUMN email_verification_tokens.user_agent IS 'User agent from which the request originated';
+COMMENT ON COLUMN email_verification_tokens.old_email IS 'Current email of the user before the change request (null for REGISTER_VERIFY purpose)';
+COMMENT ON COLUMN email_verification_tokens.status IS 'Token lifecycle status: PENDING, COMPLETED, CANCELLED, EXPIRED';
+COMMENT ON COLUMN email_verification_tokens.attempts IS 'Brute-force protection counter for token validation attempts';
 
 CREATE UNIQUE INDEX uk_email_verification_token_hash
     ON email_verification_tokens (token_hash);
@@ -184,6 +192,9 @@ CREATE INDEX idx_email_verification_lookup
     ON email_verification_tokens (user_id, purpose, expires_at, consumed_at, revoked_at);
 CREATE INDEX idx_email_verification_email
     ON email_verification_tokens ((LOWER(email)));
+CREATE INDEX idx_email_verification_change_email_lookup
+    ON email_verification_tokens (user_id, purpose, status)
+    WHERE purpose = 'CHANGE_EMAIL';
 
 -- ------------------------------------------------------------------------------
 -- 5. Password reset tokens table

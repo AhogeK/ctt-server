@@ -69,6 +69,7 @@ class UserControllerMockMvcTest {
                 "test@example.com",
                 "Test User",
                 true,
+                false,
                 Instant.parse("2026-01-15T10:30:00Z"),
                 Instant.parse("2026-07-01T09:15:00Z"),
                 "1.0.0");
@@ -79,6 +80,7 @@ class UserControllerMockMvcTest {
                 USER_ID,
                 "test@example.com",
                 "Test User",
+                false,
                 false,
                 Instant.parse("2026-01-15T10:30:00Z"),
                 null,

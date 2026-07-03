@@ -32,7 +32,9 @@ public record LoginRequest(
         @Schema(description = "Device identifier for tracking", example = "device-123")
                 @NotBlank(message = ValidationConstants.MSG_NOT_BLANK)
                 String deviceId,
-        @Schema(description = "hCaptcha verification token", example = "10000000-ffff-ffff-ffff-000000000001")
+        @Schema(
+                        description = "hCaptcha verification token",
+                        example = "10000000-ffff-ffff-ffff-000000000001")
                 String captchaToken) {
 
     public LoginRequest {

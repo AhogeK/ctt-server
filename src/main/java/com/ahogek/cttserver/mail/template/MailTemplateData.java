@@ -12,7 +12,7 @@ import java.util.Map;
  * @since 2026-03-19
  */
 public sealed interface MailTemplateData
-        permits EmailVerificationTemplateData, PasswordResetTemplateData {
+        permits EmailVerificationTemplateData, PasswordResetTemplateData, ChangeEmailTemplateData {
 
     /**
      * Returns the template name without extension.

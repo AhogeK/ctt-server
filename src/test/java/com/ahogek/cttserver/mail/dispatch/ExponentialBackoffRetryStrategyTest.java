@@ -39,7 +39,8 @@ class ExponentialBackoffRetryStrategyTest {
                         new CttMailProperties.Frontend(
                                 "http://localhost:5173",
                                 "/auth/verify-email",
-                                "/auth/reset-password"));
+                                "/auth/reset-password",
+                                "/auth/change-email"));
 
         strategy = new ExponentialBackoffRetryStrategy(properties);
     }

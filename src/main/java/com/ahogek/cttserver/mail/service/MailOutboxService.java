@@ -16,6 +16,7 @@ import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
 import com.ahogek.cttserver.mail.enums.MailOutboxStatus;
 import com.ahogek.cttserver.mail.repository.MailOutboxRepository;
+import com.ahogek.cttserver.mail.template.ChangeEmailTemplateData;
 import com.ahogek.cttserver.mail.template.EmailVerificationTemplateData;
 import com.ahogek.cttserver.mail.template.MailTemplateRenderer;
 import com.ahogek.cttserver.mail.template.PasswordResetTemplateData;
@@ -49,12 +50,15 @@ public class MailOutboxService {
 
     private static final String BIZ_TYPE_VERIFICATION = "REGISTER_VERIFY";
     private static final String BIZ_TYPE_PASSWORD_RESET = "RESET_PASSWORD";
+    private static final String BIZ_TYPE_CHANGE_EMAIL = "CHANGE_EMAIL";
 
     private static final Duration VERIFICATION_TOKEN_TTL = Duration.ofHours(24);
     private static final Duration PASSWORD_RESET_TOKEN_TTL = Duration.ofMinutes(30);
+    private static final Duration CHANGE_EMAIL_TOKEN_TTL = Duration.ofHours(1);
 
     private static final Duration VERIFICATION_RATE_WINDOW = Duration.ofMinutes(1);
     private static final Duration PASSWORD_RESET_RATE_WINDOW = Duration.ofMinutes(5);
+    private static final Duration CHANGE_EMAIL_RATE_WINDOW = Duration.ofMinutes(10);
     private static final int RATE_LIMIT_THRESHOLD = 3;
 
     private static final Duration IDEMPOTENT_WINDOW = Duration.ofMinutes(10);
@@ -162,6 +166,48 @@ public class MailOutboxService {
         return EmptyResponse.ok("Email queued successfully");
     }
 
+    /**
+     * Enqueues an email change verification email for delivery.
+     *
+     * <p>Rate-limited to 3 requests per 10-minute window. Pre-renders HTML and text templates
+     * before persistence.
+     *
+     * @param userId the user's unique identifier
+     * @param username the user's display name for email personalization
+     * @param newEmail the new email address to verify
+     * @param token the email change verification token
+     * @return {@link EmptyResponse} indicating success, with {@code idempotentSkip=true} if the
+     *     request was deduplicated within the idempotent window
+     * @throws TooManyRequestsException if rate limit is exceeded (ErrorCode.MAIL_004)
+     */
+    @Transactional
+    public EmptyResponse enqueueChangeEmailVerification(
+            UUID userId, String username, String newEmail, String token) {
+        if (isIdempotentSkip(userId, newEmail, BIZ_TYPE_CHANGE_EMAIL)) {
+            return EmptyResponse.ok(true);
+        }
+
+        checkRateLimit(newEmail, BIZ_TYPE_CHANGE_EMAIL, CHANGE_EMAIL_RATE_WINDOW);
+
+        String link = buildChangeEmailLink(token);
+        var data = new ChangeEmailTemplateData(username, newEmail, link, CHANGE_EMAIL_TOKEN_TTL);
+
+        MailOutbox outbox =
+                buildOutboxEntity(
+                        userId,
+                        newEmail,
+                        BIZ_TYPE_CHANGE_EMAIL,
+                        "Confirm Your Email Change",
+                        data.getTemplateName(),
+                        renderer.renderHtml(data),
+                        renderer.renderText(data),
+                        data.getVariables());
+
+        repository.save(outbox);
+        logMailEnqueued(outbox);
+        return EmptyResponse.ok("Email change verification email queued successfully");
+    }
+
     private void checkRateLimit(String email, String bizType, Duration window) {
         Instant windowStart = Instant.now().minus(window);
         long count = repository.countDuplicates(email, bizType, ACTIVE_STATUSES, windowStart);
@@ -232,6 +278,14 @@ public class MailOutboxService {
     private String buildPasswordResetLink(String token) {
         return UriComponentsBuilder.fromUriString(properties.frontend().baseUrl())
                 .path(properties.frontend().resetPasswordPath())
+                .queryParam("token", token)
+                .build()
+                .toUriString();
+    }
+
+    private String buildChangeEmailLink(String token) {
+        return UriComponentsBuilder.fromUriString(properties.frontend().baseUrl())
+                .path(properties.frontend().changeEmailPath())
                 .queryParam("token", token)
                 .build()
                 .toUriString();

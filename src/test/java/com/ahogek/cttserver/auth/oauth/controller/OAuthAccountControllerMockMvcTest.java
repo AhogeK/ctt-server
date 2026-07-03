@@ -57,7 +57,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 class OAuthAccountControllerMockMvcTest {
 
     private static final UUID USER_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
-    private static final UUID OTHER_USER_ID = UUID.fromString("660e8400-e29b-41d4-a716-446655440001");
+    private static final UUID OTHER_USER_ID =
+            UUID.fromString("660e8400-e29b-41d4-a716-446655440001");
 
     @Autowired private MockMvcTester mvc;
 
@@ -67,7 +68,7 @@ class OAuthAccountControllerMockMvcTest {
 
     private CurrentUser currentUser() {
         return new CurrentUser(
-            OAuthAccountControllerMockMvcTest.USER_ID,
+                OAuthAccountControllerMockMvcTest.USER_ID,
                 "test@example.com",
                 UserStatus.ACTIVE,
                 Set.of("ROLE_USER"),
@@ -77,7 +78,7 @@ class OAuthAccountControllerMockMvcTest {
     private OAuthAccountBinding githubBindingFor() {
         return new OAuthAccountBinding(
                 OAuthProvider.GITHUB.getValue(),
-            "octocat",
+                "octocat",
                 "octocat" + "@example.com",
                 OffsetDateTime.parse("2026-04-22T10:00:00Z"),
                 OffsetDateTime.parse("2026-06-28T12:00:00Z"));
@@ -176,10 +177,7 @@ class OAuthAccountControllerMockMvcTest {
             BDDMockito.given(oauthAccountQueryService.listBindings(USER_ID))
                     .willReturn(List.of(githubBindingFor()));
             BDDMockito.given(oauthAccountQueryService.listBindings(OTHER_USER_ID))
-                    .willReturn(
-                            List.of(
-                                    OAuthAccountBinding.fromEntity(
-                                            stubGithubEntity())));
+                    .willReturn(List.of(OAuthAccountBinding.fromEntity(stubGithubEntity())));
 
             var result = mvc.get().uri("/api/v1/auth/oauth/accounts").exchange();
 
@@ -214,9 +212,11 @@ class OAuthAccountControllerMockMvcTest {
                     .given(oauthLoginOrRegisterService)
                     .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
 
-            assertThat(mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github")
-                    .with(csrf())
-                    .exchange())
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                                    .with(csrf())
+                                    .exchange())
                     .hasStatus(204);
 
             BDDMockito.then(oauthLoginOrRegisterService)
@@ -234,9 +234,11 @@ class OAuthAccountControllerMockMvcTest {
                     .given(oauthLoginOrRegisterService)
                     .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
 
-            assertThat(mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github")
-                    .with(csrf())
-                    .exchange())
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                                    .with(csrf())
+                                    .exchange())
                     .hasStatus(204);
         }
 
@@ -250,9 +252,11 @@ class OAuthAccountControllerMockMvcTest {
                     .given(oauthLoginOrRegisterService)
                     .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
 
-            assertThat(mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github")
-                    .with(csrf())
-                    .exchange())
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                                    .with(csrf())
+                                    .exchange())
                     .hasStatus(409)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -261,7 +265,8 @@ class OAuthAccountControllerMockMvcTest {
 
         @Test
         @WithMockUser
-        @DisplayName("Should return 404 AUTH_017 when user is not linked to the provider (also: non-idempotent, second DELETE returns same)")
+        @DisplayName(
+                "Should return 404 AUTH_017 when user is not linked to the provider (also: non-idempotent, second DELETE returns same)")
         void shouldReturn404_whenProviderNotLinked() {
             BDDMockito.given(currentUserProvider.getCurrentUserRequired())
                     .willReturn(currentUser());
@@ -269,9 +274,11 @@ class OAuthAccountControllerMockMvcTest {
                     .given(oauthLoginOrRegisterService)
                     .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
 
-            assertThat(mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github")
-                    .with(csrf())
-                    .exchange())
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                                    .with(csrf())
+                                    .exchange())
                     .hasStatus(404)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -281,10 +288,11 @@ class OAuthAccountControllerMockMvcTest {
         @Test
         @DisplayName("Should return 401 when no authentication is provided")
         void shouldReturn401_whenUnbindNotAuthenticated() {
-            assertThat(mvc.delete()
-                    .uri("/api/v1/auth/oauth/accounts/{provider}", "github")
-                    .with(csrf())
-                    .exchange())
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                                    .with(csrf())
+                                    .exchange())
                     .hasStatus(401);
         }
 
@@ -295,10 +303,11 @@ class OAuthAccountControllerMockMvcTest {
             BDDMockito.given(currentUserProvider.getCurrentUserRequired())
                     .willReturn(currentUser());
 
-            assertThat(mvc.delete()
-                    .uri("/api/v1/auth/oauth/accounts/{provider}", "google")
-                    .with(csrf())
-                    .exchange())
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/oauth/accounts/{provider}", "google")
+                                    .with(csrf())
+                                    .exchange())
                     .hasStatus(400)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -315,7 +324,10 @@ class OAuthAccountControllerMockMvcTest {
                     .given(oauthLoginOrRegisterService)
                     .unbindFromExistingUser(USER_ID, OAuthProvider.GITHUB);
 
-            mvc.delete().uri("/api/v1/auth/oauth/accounts/{provider}", "github").with(csrf()).exchange();
+            mvc.delete()
+                    .uri("/api/v1/auth/oauth/accounts/{provider}", "github")
+                    .with(csrf())
+                    .exchange();
 
             BDDMockito.then(oauthLoginOrRegisterService)
                     .should()

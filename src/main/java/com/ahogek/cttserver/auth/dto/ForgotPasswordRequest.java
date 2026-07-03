@@ -21,5 +21,7 @@ public record ForgotPasswordRequest(
                 @NotBlank(message = "Email cannot be blank")
                 @Email(message = "Invalid email format")
                 String email,
-        @Schema(description = "hCaptcha verification token", example = "10000000-ffff-ffff-ffff-000000000001")
+        @Schema(
+                        description = "hCaptcha verification token",
+                        example = "10000000-ffff-ffff-ffff-000000000001")
                 String captchaToken) {}

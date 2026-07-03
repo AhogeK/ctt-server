@@ -33,7 +33,8 @@ public class ConfigController {
     private final TermsProperties termsProperties;
     private final HcaptchaProperties hcaptchaProperties;
 
-    public ConfigController(TermsProperties termsProperties, HcaptchaProperties hcaptchaProperties) {
+    public ConfigController(
+            TermsProperties termsProperties, HcaptchaProperties hcaptchaProperties) {
         this.termsProperties = termsProperties;
         this.hcaptchaProperties = hcaptchaProperties;
     }
@@ -56,8 +57,7 @@ public class ConfigController {
         return ResponseEntity.ok(
                 RestApiResponse.ok(
                         new PublicConfigResponse(
-                                termsProperties.currentVersion(),
-                                hcaptchaProperties.siteKey())));
+                                termsProperties.currentVersion(), hcaptchaProperties.siteKey())));
     }
 
     @Schema(description = "Public application configuration")

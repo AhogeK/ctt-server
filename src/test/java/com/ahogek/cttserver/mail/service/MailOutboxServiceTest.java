@@ -68,7 +68,10 @@ class MailOutboxServiceTest {
                         new CttMailProperties.Outbox(5000, 50, 300, 120000),
                         new CttMailProperties.Retry(10, 2.0, 3600, MAX_RETRIES, 0.1),
                         new CttMailProperties.Frontend(
-                                FRONTEND_BASE_URL, VERIFY_EMAIL_PATH, RESET_PASSWORD_PATH));
+                                FRONTEND_BASE_URL,
+                                VERIFY_EMAIL_PATH,
+                                RESET_PASSWORD_PATH,
+                                "/auth/change-email"));
 
         service = new MailOutboxService(repository, renderer, properties, auditLog);
 
@@ -615,7 +618,10 @@ class MailOutboxServiceTest {
                             new CttMailProperties.Outbox(5000, 50, 300, 120000),
                             new CttMailProperties.Retry(10, 2.0, 3600, MAX_RETRIES, 0.1),
                             new CttMailProperties.Frontend(
-                                    CUSTOM_BASE_URL, CUSTOM_VERIFY_PATH, CUSTOM_RESET_PATH));
+                                    CUSTOM_BASE_URL,
+                                    CUSTOM_VERIFY_PATH,
+                                    CUSTOM_RESET_PATH,
+                                    "/auth/change-email"));
             return new MailOutboxService(repository, renderer, customProperties, auditLog);
         }
 

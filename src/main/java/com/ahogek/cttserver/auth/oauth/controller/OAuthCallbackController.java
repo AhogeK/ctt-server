@@ -31,13 +31,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
@@ -306,13 +306,9 @@ public class OAuthCallbackController {
             }
             try {
                 loginOrRegisterService.attachToExistingUser(
-                        payload.currentUserId(),
-                        provider,
-                        tokenResponse.accessToken(),
-                        userInfo);
+                        payload.currentUserId(), provider, tokenResponse.accessToken(), userInfo);
 
-                String redirectUrl =
-                        buildBindSuccessRedirect(payload.redirectUrl(), provider);
+                String redirectUrl = buildBindSuccessRedirect(payload.redirectUrl(), provider);
                 response.sendRedirect(redirectUrl);
             } catch (BusinessException e) {
                 log.warn("OAuth BIND callback business error: code={}", e.errorCode().name());
@@ -326,9 +322,7 @@ public class OAuthCallbackController {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleOAuthBusinessException(
-            BusinessException exception,
-            HandlerMethod handlerMethod,
-            HttpServletResponse response)
+            BusinessException exception, HandlerMethod handlerMethod, HttpServletResponse response)
             throws IOException {
         // authorize endpoint is a JSON API — return JSON error response
         // callback endpoint is browser-facing — redirect to error page
@@ -357,16 +351,13 @@ public class OAuthCallbackController {
         try {
             return OAuthStatePayload.Action.valueOf(action.toUpperCase());
         } catch (IllegalArgumentException _) {
-            throw new ValidationException(
-                    ErrorCode.COMMON_001, "Unsupported action: " + action);
+            throw new ValidationException(ErrorCode.COMMON_001, "Unsupported action: " + action);
         }
     }
 
     private String buildBindSuccessRedirect(String redirectUrl, OAuthProvider provider) {
         String base =
-                (redirectUrl != null && !redirectUrl.isBlank())
-                        ? redirectUrl
-                        : BIND_REDIRECT_PATH;
+                (redirectUrl != null && !redirectUrl.isBlank()) ? redirectUrl : BIND_REDIRECT_PATH;
         return UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
                 .path(base)
                 .queryParam("linked", provider.getValue())
@@ -376,9 +367,7 @@ public class OAuthCallbackController {
     private String buildBindErrorRedirect(
             String redirectUrl, OAuthProvider provider, String errorCode) {
         String base =
-                (redirectUrl != null && !redirectUrl.isBlank())
-                        ? redirectUrl
-                        : BIND_REDIRECT_PATH;
+                (redirectUrl != null && !redirectUrl.isBlank()) ? redirectUrl : BIND_REDIRECT_PATH;
         return UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
                 .path(base)
                 .queryParam("linked", provider.getValue())

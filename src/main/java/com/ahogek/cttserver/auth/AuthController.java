@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.auth;
 
+import com.ahogek.cttserver.auth.captcha.CaptchaService;
 import com.ahogek.cttserver.auth.dto.ForgotPasswordRequest;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
@@ -8,7 +9,6 @@ import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
 import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.model.CurrentUser;
-import com.ahogek.cttserver.auth.captcha.CaptchaService;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;

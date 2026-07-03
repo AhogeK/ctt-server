@@ -37,7 +37,9 @@ public record UserRegisterRequest(
         @Schema(description = "Terms version accepted by user", example = "1.0.0")
                 @NotBlank(message = "Terms version is required")
                 String termsVersion,
-        @Schema(description = "hCaptcha verification token", example = "10000000-ffff-ffff-ffff-000000000001")
+        @Schema(
+                        description = "hCaptcha verification token",
+                        example = "10000000-ffff-ffff-ffff-000000000001")
                 String captchaToken) {
 
     /**

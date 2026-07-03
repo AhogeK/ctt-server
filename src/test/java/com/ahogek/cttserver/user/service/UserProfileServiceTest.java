@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.user.service;
 
+import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.user.dto.UserProfileResponse;
@@ -21,14 +22,15 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link UserProfileService}.
  *
- * <p>Validates read-only profile retrieval: happy path, boundary conditions
- * (null emailVerifiedAt, null lastLoginAt), and the defensive NotFoundException
- * thrown when the user no longer exists.
+ * <p>Validates read-only profile retrieval: happy path, boundary conditions (null emailVerifiedAt,
+ * null lastLoginAt), and the defensive NotFoundException thrown when the user no longer exists.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-07-01
@@ -43,6 +45,7 @@ class UserProfileServiceTest {
     private static final Instant TEST_INSTANT = Instant.parse("2026-01-15T10:30:00Z");
 
     @Mock private UserRepository userRepository;
+    @Mock private EmailVerificationTokenRepository emailVerificationTokenRepository;
 
     @InjectMocks private UserProfileService userProfileService;
 
@@ -70,6 +73,9 @@ class UserProfileServiceTest {
         void shouldReturnProfile_whenUserExists() {
             User user = createActiveUser();
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(emailVerificationTokenRepository.existsPendingChangeEmailTokenByUserId(
+                            eq(USER_ID), any(Instant.class)))
+                    .thenReturn(false);
 
             UserProfileResponse result = userProfileService.getCurrentUserProfile(USER_ID);
 
@@ -87,6 +93,9 @@ class UserProfileServiceTest {
         void shouldReturnFalseEmailVerified_whenEmailVerifiedAtIsNull() {
             User user = createUserWithEmailVerified(null);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(emailVerificationTokenRepository.existsPendingChangeEmailTokenByUserId(
+                            eq(USER_ID), any(Instant.class)))
+                    .thenReturn(false);
 
             UserProfileResponse result = userProfileService.getCurrentUserProfile(USER_ID);
 
@@ -99,6 +108,9 @@ class UserProfileServiceTest {
             User user = createActiveUser();
             ReflectionTestUtils.setField(user, "lastLoginAt", null);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(emailVerificationTokenRepository.existsPendingChangeEmailTokenByUserId(
+                            eq(USER_ID), any(Instant.class)))
+                    .thenReturn(false);
 
             UserProfileResponse result = userProfileService.getCurrentUserProfile(USER_ID);
 

@@ -43,11 +43,13 @@ public record CttMailProperties(
      * @param baseUrl Frontend application base URL (e.g., https://app.cttserver.com)
      * @param verifyEmailPath Path for email verification link (e.g., /auth/verify-email)
      * @param resetPasswordPath Path for password reset link (e.g., /auth/reset-password)
+     * @param changeEmailPath Path for email change verification link (e.g., /auth/change-email)
      */
     public record Frontend(
             @NotBlank String baseUrl,
             @NotBlank @Pattern(regexp = "^/.*") String verifyEmailPath,
-            @NotBlank @Pattern(regexp = "^/.*") String resetPasswordPath) {}
+            @NotBlank @Pattern(regexp = "^/.*") String resetPasswordPath,
+            @NotBlank @Pattern(regexp = "^/.*") String changeEmailPath) {}
 
     /**
      * Outbox scheduler configuration.

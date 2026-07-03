@@ -235,6 +235,10 @@ public class User {
         return emailVerifiedAt;
     }
 
+    public void setEmailVerifiedAt(Instant emailVerifiedAt) {
+        this.emailVerifiedAt = emailVerifiedAt;
+    }
+
     public Instant getLastLoginAt() {
         return lastLoginAt;
     }

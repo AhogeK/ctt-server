@@ -57,7 +57,8 @@ class MailOutboxPollerTest {
                         new CttMailProperties.Frontend(
                                 "http://localhost:5173",
                                 "/auth/verify-email",
-                                "/auth/reset-password"));
+                                "/auth/reset-password",
+                                "/auth/change-email"));
 
         poller = new MailOutboxPoller(outboxRepository, outboxProcessor, properties);
     }
@@ -189,7 +190,8 @@ class MailOutboxPollerTest {
                             new CttMailProperties.Frontend(
                                     "http://localhost:5173",
                                     "/auth/verify-email",
-                                    "/auth/reset-password"));
+                                    "/auth/reset-password",
+                                    "/auth/change-email"));
 
             return new MailOutboxPoller(outboxRepository, outboxProcessor, smallBatchProperties);
         }

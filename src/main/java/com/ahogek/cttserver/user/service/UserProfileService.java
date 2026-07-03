@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.user.service;
 
+import com.ahogek.cttserver.auth.repository.EmailVerificationTokenRepository;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.user.dto.UserProfileResponse;
@@ -9,6 +10,7 @@ import com.ahogek.cttserver.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -27,9 +29,13 @@ import java.util.UUID;
 public class UserProfileService {
 
     private final UserRepository userRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
 
-    public UserProfileService(UserRepository userRepository) {
+    public UserProfileService(
+            UserRepository userRepository,
+            EmailVerificationTokenRepository emailVerificationTokenRepository) {
         this.userRepository = userRepository;
+        this.emailVerificationTokenRepository = emailVerificationTokenRepository;
     }
 
     /**
@@ -45,6 +51,9 @@ public class UserProfileService {
                 userRepository
                         .findById(userId)
                         .orElseThrow(() -> new NotFoundException(ErrorCode.USER_004));
-        return UserProfileResponse.fromEntity(user);
+        boolean emailChangePending =
+                emailVerificationTokenRepository.existsPendingChangeEmailTokenByUserId(
+                        userId, Instant.now());
+        return UserProfileResponse.fromEntity(user, emailChangePending);
     }
 }
