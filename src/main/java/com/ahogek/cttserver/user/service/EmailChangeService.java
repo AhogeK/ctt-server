@@ -53,6 +53,7 @@ public class EmailChangeService {
     private static final Logger log = LoggerFactory.getLogger(EmailChangeService.class);
     private static final Duration TOKEN_TTL = Duration.ofHours(1);
     private static final int MAX_ATTEMPTS = 5;
+    private static final String USER_NOT_FOUND = "User not found";
 
     private final UserRepository userRepository;
     private final EmailVerificationTokenRepository tokenRepository;
@@ -108,7 +109,7 @@ public class EmailChangeService {
                 userRepository
                         .findById(userId)
                         .orElseThrow(
-                                () -> new NotFoundException(ErrorCode.USER_004, "User not found"));
+                                () -> new NotFoundException(ErrorCode.USER_004, USER_NOT_FOUND));
 
         userValidator.assertEmailUnique(newEmail);
 
@@ -213,7 +214,7 @@ public class EmailChangeService {
                 userRepository
                         .findById(token.getUserId())
                         .orElseThrow(
-                                () -> new NotFoundException(ErrorCode.USER_004, "User not found"));
+                                () -> new NotFoundException(ErrorCode.USER_004, USER_NOT_FOUND));
 
         String newEmail = token.getEmail();
         userValidator.assertEmailUnique(newEmail);
@@ -259,6 +260,61 @@ public class EmailChangeService {
     }
 
     /**
+     * Re-sends the verification email for a pending email change request.
+     *
+     * <p>Rotates the existing pending CHANGE_EMAIL token (new raw token, new hash) so the previous
+     * link in any earlier email becomes invalid, then re-enqueues the verification email to the
+     * pending new address. Does not create a new token record.
+     *
+     * @param userId the authenticated user's ID
+     * @param ip the client IP address for audit logging
+     * @param userAgent the client User-Agent for audit logging
+     * @return EmptyResponse indicating success
+     * @throws ConflictException if no pending CHANGE_EMAIL token exists for the user (USER_009)
+     */
+    @Transactional
+    public EmptyResponse resendEmailChangeVerification(UUID userId, String ip, String userAgent) {
+        Instant now = Instant.now();
+        EmailVerificationToken pendingToken =
+                tokenRepository
+                        .findPendingChangeEmailTokenByUserId(userId, now)
+                        .orElseThrow(
+                                () ->
+                                        new ConflictException(
+                                                ErrorCode.USER_009,
+                                                "No pending email change request"));
+
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(
+                                () -> new NotFoundException(ErrorCode.USER_004, USER_NOT_FOUND));
+
+        String newRawToken = TokenUtils.generateRawToken();
+        String newTokenHash = TokenUtils.hashToken(newRawToken);
+
+        pendingToken.setTokenHash(newTokenHash);
+        pendingToken.setSentAt(now);
+        pendingToken.setRequestIp(ip);
+        pendingToken.setUserAgent(userAgent);
+        tokenRepository.save(pendingToken);
+
+        EmptyResponse mailResponse =
+                mailOutboxService.enqueueChangeEmailVerification(
+                        userId, user.getDisplayName(), pendingToken.getEmail(), newRawToken);
+
+        auditLogService.logSuccess(
+                userId, AuditAction.EMAIL_CHANGE_RESENT, ResourceType.USER, userId.toString());
+
+        log.info(
+                "Email change verification resent for user {}, target email: {}",
+                userId,
+                maskEmail(pendingToken.getEmail()));
+
+        return mailResponse;
+    }
+
+    /**
      * Gets the current email status for the authenticated user.
      *
      * @param userId the authenticated user's ID
@@ -271,7 +327,7 @@ public class EmailChangeService {
                 userRepository
                         .findById(userId)
                         .orElseThrow(
-                                () -> new NotFoundException(ErrorCode.USER_004, "User not found"));
+                                () -> new NotFoundException(ErrorCode.USER_004, USER_NOT_FOUND));
 
         Instant now = Instant.now();
         Optional<EmailVerificationToken> pendingToken =

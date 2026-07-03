@@ -307,12 +307,13 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 
 ### Email Change
 
-| Endpoint                                  | Method | Description                                                                                           |
-|-------------------------------------------|--------|-------------------------------------------------------------------------------------------------------|
-| `/api/v1/users/me/email/change-request`   | POST   | Request email change — sends verification to new address (requires JWT, rate limited: 3/10min per email) |
-| `/api/v1/users/me/email/change-confirm`   | POST   | Confirm email change via verification token (public, rate limited: 15/10min per IP)                   |
-| `/api/v1/users/me/email/change-request`   | DELETE | Cancel pending email change request (requires JWT)                                                    |
-| `/api/v1/users/me/email/status`           | GET    | Get email status including pending change info (requires JWT)                                         |
+| Endpoint                                     | Method | Description                                                                                              |
+|----------------------------------------------|--------|----------------------------------------------------------------------------------------------------------|
+| `/api/v1/users/me/email/change-request`      | POST   | Request email change — sends verification to new address (requires JWT, rate limited: 3/10min per email) |
+| `/api/v1/users/me/email/change-confirm`      | POST   | Confirm email change via verification token (public, rate limited: 15/10min per IP)                      |
+| `/api/v1/users/me/email/change-request`      | DELETE | Cancel pending email change request (requires JWT)                                                       |
+| `/api/v1/users/me/email/resend-verification` | POST   | Resend verification for pending email change (requires JWT, rate limited: 1/60s per user)                |
+| `/api/v1/users/me/email/status`              | GET    | Get email status including pending change info (requires JWT)                                            |
 
 **Email Change Flow**:
 ```

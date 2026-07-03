@@ -93,6 +93,9 @@ public enum AuditAction {
     /** Email change request cancelled. */
     EMAIL_CHANGE_CANCELLED("Email change request cancelled"),
 
+    /** Email change verification resent. */
+    EMAIL_CHANGE_RESENT("Email change verification resent"),
+
     /** Email change failed. */
     EMAIL_CHANGE_FAILED("Email change failed"),
 

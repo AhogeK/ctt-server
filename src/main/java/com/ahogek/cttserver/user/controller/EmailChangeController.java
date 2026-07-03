@@ -1,6 +1,8 @@
 package com.ahogek.cttserver.user.controller;
 
 import com.ahogek.cttserver.auth.CurrentUserProvider;
+import com.ahogek.cttserver.common.ratelimit.RateLimit;
+import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
@@ -383,5 +385,102 @@ public class EmailChangeController {
         UUID userId = currentUserProvider.getCurrentUserRequired().id();
         EmailStatusResponse status = emailChangeService.getEmailStatus(userId);
         return ResponseEntity.ok(RestApiResponse.ok(status));
+    }
+
+    @Operation(
+            summary = "Resend email change verification",
+            description =
+                    """
+                    Re-sends the verification email for an existing pending email change request. \
+                    Rotates the verification token so any previously sent link becomes invalid, \
+                    then enqueues a new email to the pending target address. \
+                    Returns USER_009 when no pending CHANGE_EMAIL token exists for the user.
+                    """)
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Email change verification resent",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid JWT",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_001",
+                                                                  "message": "Authentication required",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-07-04T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "409",
+                        description =
+                                "No pending email change request - USER_009 when the user has no"
+                                        + " active CHANGE_EMAIL token to resend",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "noPendingChange",
+                                                        summary = "No pending email change",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "USER_009",
+                                                                  "message": "No pending email change request",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 409,
+                                                                  "timestamp": "2026-07-04T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "429",
+                        description =
+                                "Rate limit exceeded - COMMON_002: More than 1 request per 60 seconds per user",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rateLimited",
+                                                        summary = "Rate limit exceeded",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_002",
+                                                                  "message": "Rate limit exceeded",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 429,
+                                                                  "timestamp": "2026-07-04T10:00:00Z",
+                                                                  "retryAfter": "2026-07-04T10:01:00Z"
+                                                                }
+                                                                """)))
+            })
+    @SecurityRequirement(name = "bearerAuth")
+    @RateLimit(type = RateLimitType.USER, limit = 1, windowSeconds = 60)
+    @PostMapping("/resend-verification")
+    public ResponseEntity<RestApiResponse<EmptyResponse>> resendEmailChangeVerification(
+            HttpServletRequest httpRequest) {
+        UUID userId = currentUserProvider.getCurrentUserRequired().id();
+        String ip = IpUtils.getRealIp(httpRequest);
+        String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
+        EmptyResponse response =
+                emailChangeService.resendEmailChangeVerification(userId, ip, userAgent);
+        return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 }
