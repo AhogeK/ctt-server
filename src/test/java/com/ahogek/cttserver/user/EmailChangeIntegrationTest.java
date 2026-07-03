@@ -394,4 +394,52 @@ class EmailChangeIntegrationTest {
             assertThat(mvc.get().uri("/api/v1/users/me/email/status")).hasStatus(401);
         }
     }
+
+    @Nested
+    @DisplayName("POST /api/v1/users/me/email/resend-verification")
+    class ResendVerification {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 200 when pending token exists")
+        void shouldReturn200_whenPendingTokenExists() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.given(
+                            emailChangeService.resendEmailChangeVerification(
+                                    BDDMockito.eq(USER_ID), BDDMockito.any(), BDDMockito.any()))
+                    .willReturn(EmptyResponse.ok());
+
+            assertThat(mvc.post().uri("/api/v1/users/me/email/resend-verification").with(csrf()))
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.success")
+                    .isEqualTo(true);
+        }
+
+        @Test
+        @DisplayName("Should return 401 when no authentication provided")
+        void shouldReturn401_whenNoAuthentication() {
+            assertThat(mvc.post().uri("/api/v1/users/me/email/resend-verification").with(csrf()))
+                    .hasStatus(401);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 409 when no pending token")
+        void shouldReturn409_whenNoPendingToken() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.given(
+                            emailChangeService.resendEmailChangeVerification(
+                                    BDDMockito.eq(USER_ID), BDDMockito.any(), BDDMockito.any()))
+                    .willThrow(new ConflictException(ErrorCode.USER_009));
+
+            assertThat(mvc.post().uri("/api/v1/users/me/email/resend-verification").with(csrf()))
+                    .hasStatus(409)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("USER_009");
+        }
+    }
 }

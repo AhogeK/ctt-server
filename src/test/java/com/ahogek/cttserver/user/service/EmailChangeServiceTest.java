@@ -44,6 +44,11 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class EmailChangeServiceTest {
 
+    private static final Instant FIXED_NOW = Instant.now();
+    private static final Instant ONE_HOUR_LATER = FIXED_NOW.plus(Duration.ofHours(1));
+    private static final Instant ONE_HOUR_AGO = FIXED_NOW.minus(Duration.ofHours(1));
+    private static final Instant THIRTY_DAYS_AGO = FIXED_NOW.minus(Duration.ofDays(30));
+
     @Mock private UserRepository userRepository;
     @Mock private EmailVerificationTokenRepository tokenRepository;
     @Mock private MailOutboxService mailOutboxService;
@@ -65,20 +70,20 @@ class EmailChangeServiceTest {
                         userValidator);
     }
 
-    private User createUserWithPassword(UUID userId, String email, String displayName) {
+    private User createUserWithPassword(UUID userId, String email) {
         User user = new User();
         org.springframework.test.util.ReflectionTestUtils.setField(user, "id", userId);
         user.setEmail(email);
-        user.setDisplayName(displayName);
+        user.setDisplayName("Test User");
         user.setPasswordHash("encodedPassword");
         return user;
     }
 
-    private User createOAuthUser(UUID userId, String email, String displayName) {
+    private User createOAuthUser(UUID userId) {
         User user = new User();
         org.springframework.test.util.ReflectionTestUtils.setField(user, "id", userId);
-        user.setEmail(email);
-        user.setDisplayName(displayName);
+        user.setEmail("old@example.com");
+        user.setDisplayName("OAuth User");
         // OAuth users have no password hash
         return user;
     }
@@ -90,7 +95,7 @@ class EmailChangeServiceTest {
         token.setEmail(newEmail);
         token.setPurpose(EmailVerificationToken.PURPOSE_CHANGE_EMAIL);
         token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
+        token.setExpiresAt(ONE_HOUR_LATER);
         return token;
     }
 
@@ -101,7 +106,7 @@ class EmailChangeServiceTest {
         token.setEmail(newEmail);
         token.setPurpose(EmailVerificationToken.PURPOSE_CHANGE_EMAIL);
         token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().minus(Duration.ofHours(1)));
+        token.setExpiresAt(ONE_HOUR_AGO);
         return token;
     }
 
@@ -112,7 +117,7 @@ class EmailChangeServiceTest {
         token.setEmail(newEmail);
         token.setPurpose(EmailVerificationToken.PURPOSE_CHANGE_EMAIL);
         token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
+        token.setExpiresAt(ONE_HOUR_LATER);
         token.cancel();
         return token;
     }
@@ -124,7 +129,7 @@ class EmailChangeServiceTest {
         token.setEmail(newEmail);
         token.setPurpose(EmailVerificationToken.PURPOSE_CHANGE_EMAIL);
         token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
+        token.setExpiresAt(ONE_HOUR_LATER);
         token.complete();
         return token;
     }
@@ -136,7 +141,7 @@ class EmailChangeServiceTest {
         token.setEmail(newEmail);
         token.setPurpose(EmailVerificationToken.PURPOSE_CHANGE_EMAIL);
         token.setTokenHash(tokenHash);
-        token.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
+        token.setExpiresAt(ONE_HOUR_LATER);
         token.setAttempts(5);
         return token;
     }
@@ -154,7 +159,7 @@ class EmailChangeServiceTest {
             String ip = "192.168.1.1";
             String userAgent = "Mozilla/5.0";
 
-            User user = createUserWithPassword(userId, "old@example.com", "Test User");
+            User user = createUserWithPassword(userId, "old@example.com");
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(password, "encodedPassword")).thenReturn(true);
@@ -183,7 +188,7 @@ class EmailChangeServiceTest {
             assertThat(savedToken.getPurpose())
                     .isEqualTo(EmailVerificationToken.PURPOSE_CHANGE_EMAIL);
             assertThat(savedToken.getTokenHash()).isNotBlank();
-            assertThat(savedToken.getExpiresAt()).isAfter(Instant.now());
+            assertThat(savedToken.getExpiresAt()).isAfter(FIXED_NOW);
             assertThat(savedToken.getRequestIp()).isEqualTo(ip);
             assertThat(savedToken.getUserAgent()).isEqualTo(userAgent);
 
@@ -211,7 +216,7 @@ class EmailChangeServiceTest {
             String ip = "192.168.1.1";
             String userAgent = "Mozilla/5.0";
 
-            User user = createUserWithPassword(userId, "old@example.com", "Test User");
+            User user = createUserWithPassword(userId, "old@example.com");
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             doThrow(new ConflictException(ErrorCode.USER_001, "Email already registered"))
@@ -240,7 +245,7 @@ class EmailChangeServiceTest {
             String ip = "192.168.1.1";
             String userAgent = "Mozilla/5.0";
 
-            User user = createUserWithPassword(userId, "old@example.com", "Test User");
+            User user = createUserWithPassword(userId, "old@example.com");
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
@@ -272,7 +277,7 @@ class EmailChangeServiceTest {
             String ip = "192.168.1.1";
             String userAgent = "Mozilla/5.0";
 
-            User user = createUserWithPassword(userId, "old@example.com", "Test User");
+            User user = createUserWithPassword(userId, "old@example.com");
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(wrongPassword, "encodedPassword")).thenReturn(false);
@@ -299,7 +304,7 @@ class EmailChangeServiceTest {
             String ip = "192.168.1.1";
             String userAgent = "Mozilla/5.0";
 
-            User user = createUserWithPassword(userId, "old@example.com", "Test User");
+            User user = createUserWithPassword(userId, "old@example.com");
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(password, "encodedPassword")).thenReturn(true);
@@ -324,7 +329,7 @@ class EmailChangeServiceTest {
             String ip = "192.168.1.1";
             String userAgent = "Mozilla/5.0";
 
-            User user = createOAuthUser(userId, "old@example.com", "OAuth User");
+            User user = createOAuthUser(userId);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(tokenRepository.cancelPendingChangeEmailTokensByUserId(
@@ -379,9 +384,9 @@ class EmailChangeServiceTest {
             String ip = "192.168.1.1";
             String userAgent = "Mozilla/5.0";
 
-            User user = createUserWithPassword(userId, "old@example.com", "Test User");
+            User user = createUserWithPassword(userId, "old@example.com");
             user.setEmailVerified(true);
-            user.setEmailVerifiedAt(Instant.now().minus(Duration.ofDays(30)));
+            user.setEmailVerifiedAt(THIRTY_DAYS_AGO);
 
             EmailVerificationToken token = createValidChangeEmailToken(userId, newEmail, tokenHash);
 
@@ -420,9 +425,9 @@ class EmailChangeServiceTest {
             String ip = "192.168.1.1";
             String userAgent = "Mozilla/5.0";
 
-            User user = createUserWithPassword(userId, "old@example.com", "Test User");
+            User user = createUserWithPassword(userId, "old@example.com");
             user.setEmailVerified(true);
-            user.setEmailVerifiedAt(Instant.now().minus(Duration.ofDays(30)));
+            user.setEmailVerifiedAt(THIRTY_DAYS_AGO);
 
             EmailVerificationToken token = createValidChangeEmailToken(userId, newEmail, tokenHash);
 
@@ -604,7 +609,7 @@ class EmailChangeServiceTest {
         void shouldReturnStatus_whenNoPendingChange() {
             UUID userId = UUID.randomUUID();
 
-            User user = createUserWithPassword(userId, "user@example.com", "Test User");
+            User user = createUserWithPassword(userId, "user@example.com");
             user.setEmailVerified(true);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
@@ -625,13 +630,13 @@ class EmailChangeServiceTest {
         void shouldReturnStatus_withPendingChange() {
             UUID userId = UUID.randomUUID();
 
-            User user = createUserWithPassword(userId, "old@example.com", "Test User");
+            User user = createUserWithPassword(userId, "old@example.com");
             user.setEmailVerified(true);
 
             EmailVerificationToken pendingToken = new EmailVerificationToken();
             pendingToken.setEmail("new@example.com");
             pendingToken.setPurpose(EmailVerificationToken.PURPOSE_CHANGE_EMAIL);
-            pendingToken.setExpiresAt(Instant.now().plus(Duration.ofHours(1)));
+            pendingToken.setExpiresAt(ONE_HOUR_LATER);
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(tokenRepository.findPendingChangeEmailTokenByUserId(
@@ -659,6 +664,108 @@ class EmailChangeServiceTest {
                     .hasMessageContaining("User not found");
 
             verify(tokenRepository, never()).findPendingChangeEmailTokenByUserId(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("resendEmailChangeVerification")
+    class ResendEmailChangeVerification {
+
+        @Test
+        @DisplayName("should rotate token and resend verification when pending token exists")
+        void shouldResendVerification_whenPendingTokenExists() {
+            UUID userId = UUID.randomUUID();
+            String existingHash = "existingHashValue";
+            String newEmail = "new@example.com";
+            String ip = "192.168.1.1";
+            String userAgent = "Mozilla/5.0";
+
+            User user = createUserWithPassword(userId, "old@example.com");
+            EmailVerificationToken pendingToken =
+                    createValidChangeEmailToken(userId, newEmail, existingHash);
+
+            when(tokenRepository.findPendingChangeEmailTokenByUserId(
+                            eq(userId), any(Instant.class)))
+                    .thenReturn(Optional.of(pendingToken));
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(mailOutboxService.enqueueChangeEmailVerification(
+                            eq(userId), eq("Test User"), eq(newEmail), any(String.class)))
+                    .thenReturn(EmptyResponse.ok(false));
+
+            EmptyResponse response = service.resendEmailChangeVerification(userId, ip, userAgent);
+
+            assertThat(response.success()).isTrue();
+
+            ArgumentCaptor<EmailVerificationToken> tokenCaptor =
+                    ArgumentCaptor.forClass(EmailVerificationToken.class);
+            verify(tokenRepository).save(tokenCaptor.capture());
+            EmailVerificationToken savedToken = tokenCaptor.getValue();
+
+            assertThat(savedToken.getTokenHash()).isNotBlank();
+            assertThat(savedToken.getTokenHash()).isNotEqualTo(existingHash);
+            assertThat(savedToken.getSentAt()).isNotNull();
+            assertThat(savedToken.getRequestIp()).isEqualTo(ip);
+            assertThat(savedToken.getUserAgent()).isEqualTo(userAgent);
+
+            verify(mailOutboxService)
+                    .enqueueChangeEmailVerification(
+                            eq(userId), eq("Test User"), eq(newEmail), any(String.class));
+            verify(auditLogService)
+                    .logSuccess(
+                            userId,
+                            AuditAction.EMAIL_CHANGE_RESENT,
+                            ResourceType.USER,
+                            userId.toString());
+        }
+
+        @Test
+        @DisplayName("should throw ConflictException when no pending token")
+        void shouldThrowConflictException_whenNoPendingToken() {
+            UUID userId = UUID.randomUUID();
+            String ip = "192.168.1.1";
+            String userAgent = "Mozilla/5.0";
+
+            when(tokenRepository.findPendingChangeEmailTokenByUserId(
+                            eq(userId), any(Instant.class)))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.resendEmailChangeVerification(userId, ip, userAgent))
+                    .isInstanceOf(ConflictException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_009)
+                    .hasMessageContaining("No pending email change request");
+
+            verify(userRepository, never()).findById(any());
+            verify(tokenRepository, never()).save(any());
+            verify(mailOutboxService, never())
+                    .enqueueChangeEmailVerification(any(), any(), any(), any());
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("should throw NotFoundException when user not found")
+        void shouldThrowNotFoundException_whenUserNotFound() {
+            UUID userId = UUID.randomUUID();
+            String ip = "192.168.1.1";
+            String userAgent = "Mozilla/5.0";
+            String newEmail = "new@example.com";
+
+            EmailVerificationToken pendingToken =
+                    createValidChangeEmailToken(userId, newEmail, "existingHash");
+
+            when(tokenRepository.findPendingChangeEmailTokenByUserId(
+                            eq(userId), any(Instant.class)))
+                    .thenReturn(Optional.of(pendingToken));
+            when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.resendEmailChangeVerification(userId, ip, userAgent))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004)
+                    .hasMessageContaining("User not found");
+
+            verify(tokenRepository, never()).save(any());
+            verify(mailOutboxService, never())
+                    .enqueueChangeEmailVerification(any(), any(), any(), any());
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
         }
     }
 }
