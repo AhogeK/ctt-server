@@ -2,6 +2,15 @@
 
 ## 已完成 ✅
 
+- [x] Resend Verification 端点 + 代码质量修复
+    - 新增: POST /api/v1/users/me/email/resend-verification（重发验证邮件，60秒/次限流）
+    - 新增: AuditAction.EMAIL_CHANGE_RESENT 审计动作
+    - 重构: EmailChangeService 提取 USER_NOT_FOUND 常量
+    - 修复: EmailChangeServiceTest Instant.now() 警告
+    - 测试: 3 单元测试 + 3 集成测试
+    - 验证: 912+ tests PASS
+    - 版本: 0.31.1 → 0.31.2 (PATCH)
+
 - [x] Email Change Feature（企业级邮箱管理架构）
     - 前端方案评估 → 后端实施计划 → 12 个任务全部完成
     - 架构: 复用 email_verification_tokens 表（purpose=CHANGE_EMAIL），新增 old_email/status/attempts

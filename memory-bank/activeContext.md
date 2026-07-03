@@ -1,4 +1,14 @@
 # Active Context
+- [2026-07-04] - Resend Verification 端点 + 代码质量修复
+    - 新增: POST /api/v1/users/me/email/resend-verification（重发验证邮件，60秒/次限流）
+    - 新增: AuditAction.EMAIL_CHANGE_RESENT 审计动作
+    - 重构: EmailChangeService 提取 USER_NOT_FOUND 常量，消除 4 处字符串重复
+    - 修复: EmailChangeServiceTest Instant.now() 警告（使用 FIXED_NOW 常量）
+    - 测试: 3 单元测试 + 3 集成测试
+    - 验证: ./gradlew test — 912+ tests PASS
+    - 版本: 0.31.1 → 0.31.2 (PATCH: 新端点 + 质量修复)
+    - 提交: develop + master (cherry-pick) 已推送
+
 - [2026-07-03] - Email Change Feature 审查修复（ErrorCode USER_012 去重）
     - 问题: USER_012 ("Email already registered") 与 USER_001 重复
     - 修复: 删除 USER_012，所有引用替换为 USER_001
