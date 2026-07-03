@@ -1,4 +1,23 @@
 # Active Context
+- [2026-07-03] - Email Change Feature 审查修复（ErrorCode USER_012 去重）
+    - 问题: USER_012 ("Email already registered") 与 USER_001 重复
+    - 修复: 删除 USER_012，所有引用替换为 USER_001
+    - 文件: ErrorCode.java (删除 USER_012) + EmailChangeServiceTest.java (2 处引用替换)
+    - 验证: ./gradlew test — 912 tests PASS, 0 failures
+    - 版本: 0.31.0 → 0.31.1 (PATCH: 去重修复)
+
+- [2026-07-03] - Email Change Feature 全部 12 个任务完成 ✅
+    - 实施: 企业级邮箱管理架构（前端方案 → 后端实现）
+    - 架构: 复用 email_verification_tokens 表，新增 old_email/status/attempts 3 列
+    - 新增文件: EmailChangeService / EmailChangeController / 3 DTOs / 2 邮件模板 / 1 Migration
+    - 修改文件: EmailVerificationToken entity / EmailVerificationTokenRepository / ErrorCode / AuditAction / MailOutboxService / CttMailProperties / UserProfileResponse / UserProfileService / User entity
+    - 测试: EmailChangeServiceTest (19 tests) + EmailChangeIntegrationTest (13 tests) + 修复预存编译错误
+    - 验证: ./gradlew build — BUILD SUCCESSFUL (912 tests, 0 failures)
+    - API 端点: POST /change-request, POST /change-confirm, DELETE /change-request, GET /status
+    - 错误码: USER_009~011, USER_013~014, 审计: EMAIL_CHANGE_*
+    - 版本: 0.30.1 → 0.31.1 (MINOR: 新功能 + PATCH: 去重修复)
+    - 待提交: 用户处理 commit/push
+
 - [2026-07-03] - lastLoginAt / lastLoginIp 登录元数据补全（修复 /api/v1/users/me 响应缺失 lastLoginAt 字段 bug）
     - 根因: User 实体有 lastLoginAt / lastLoginIp 字段（DB schema + time-strategy.md 明确定义），但 UserLoginService.login() 和 OAuthLoginOrRegisterService 的登录流程从未设置
     - 修复: UserLoginService.login() 成功后设置 user.setLastLoginAt(Instant.now()) + user.setLastLoginIp(clientIp)

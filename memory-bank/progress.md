@@ -2,6 +2,17 @@
 
 ## 已完成 ✅
 
+- [x] Email Change Feature（企业级邮箱管理架构）
+    - 前端方案评估 → 后端实施计划 → 12 个任务全部完成
+    - 架构: 复用 email_verification_tokens 表（purpose=CHANGE_EMAIL），新增 old_email/status/attempts
+    - 新增: EmailChangeService / EmailChangeController / 3 DTOs / 2 邮件模板 / 1 Migration
+    - 修改: EmailVerificationToken / EmailVerificationTokenRepository / ErrorCode / AuditAction / MailOutboxService / CttMailProperties / UserProfileResponse / UserProfileService / User
+    - 测试: EmailChangeServiceTest (19) + EmailChangeIntegrationTest (13) + 修复预存编译错误
+    - 验证: ./gradlew build — 912 tests PASS, 0 failures
+    - API: POST/DELETE /users/me/email/change-request, POST /change-confirm, GET /status
+    - 审查修复: 删除重复 ErrorCode USER_012 → 复用 USER_001
+    - 版本: 0.30.1 → 0.31.1 (MINOR: 新功能 + PATCH: 去重修复)
+
 - [x] lastLoginAt / lastLoginIp 登录元数据补全（修复 /api/v1/users/me 响应缺失 lastLoginAt）
     - 根因: User 实体字段存在但登录流程从未设置
     - 修复: UserLoginService.login() 设置 lastLoginAt + lastLoginIp
