@@ -66,6 +66,7 @@ public enum ErrorCode {
     USER_011("Email change token invalid", HttpStatus.BAD_REQUEST),
     USER_013("Password verification required", HttpStatus.FORBIDDEN),
     USER_014("Invalid password", HttpStatus.UNAUTHORIZED),
+    USER_015("Password already set", HttpStatus.CONFLICT),
 
     // =========================================================================
     // MAIL - Email delivery errors
