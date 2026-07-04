@@ -1,4 +1,39 @@
 # Active Context
+- [2026-07-04] - Security improvements review fixes (cleared cookie SameSite + CORS allowed-headers allowlist)
+    - 修复: CookieHelper.buildClearedCookie() — 新增 sameSite 参数，cleared cookie 也设置 SameSite 属性（与 normal cookie 对称：access=Lax, refresh=Strict）
+    - 修复: application.yaml CORS allowed-headers — `- "*"` → 显式 allowlist (Authorization / Content-Type / X-Requested-With / Accept / Origin)
+    - 测试: CookieHelperTest shouldClearAccessTokenCookieWithMaxAgeZero + shouldClearRefreshTokenCookieWithMaxAgeZero — 各新增 1 行 SameSite 断言
+    - 验证: ./gradlew spotlessCheck — PASS；./gradlew test --tests "*CookieHelper*" --tests "*SecurityConfigHeadersTest*" — 12 tests PASS（CookieHelperTest 6/6 + SecurityConfigHeadersTest 6/6 含 1 pre-existing skip）；./gradlew build — BUILD SUCCESSFUL
+    - 版本: 0.33.0 → 0.33.1 (PATCH: review fixes)
+    - 未提交: 待用户处理 commit/push
+
+- [2026-07-04] - Security improvements (JWT cookies, CORS, Referrer-Policy, CSP for hCaptcha)
+    - Add CookieHelper utility for JWT cookie management
+    - Add CorsConfig with CORS properties (SecurityProperties.Cors record)
+    - Update SecurityConfig: add CORS, Referrer-Policy: no-referrer, update CSP for hCaptcha
+    - AuthController: inject cookies in login, refresh, terms-accept; support cookie-based refresh token
+    - LogoutController: clear JWT cookies on logout
+    - OAuthCallbackController: set cookies before redirect
+    - Add unit tests for CookieHelper (6 tests)
+    - Version: 0.32.0 → 0.33.0 (MINOR: new security features)
+    - Status: implementation complete, awaiting user commit authorization
+
+- [2026-07-04] - LogoutController 清除 JWT cookies（修复 OAuth 登录 cookie 残留 bug）
+    - 修改: LogoutController.java — logout endpoint 新增 HttpServletResponse 参数 + 调用 CookieHelper.clearCookiesFromResponse(httpResponse) + Javadoc @param httpResponse
+    - 修改: LogoutControllerTest.java — 2 处反射方法签名查找追加 HttpServletResponse.class；新增 CookieClearingTests 嵌套类验证 access/refresh cookie 均被清除 (maxAge=0)
+    - 根因: OAuthCallbackController 调用 CookieHelper.addCookiesToResponse 设置 JWT cookies，但 LogoutController 从未清除，导致登出后浏览器仍持有旧 token（安全风险）
+    - 验证: ./gradlew compileJava --no-daemon — BUILD SUCCESSFUL；./gradlew test --tests "*Logout*" — 36/36 PASS（含新 CookieClearingTests）
+    - 版本: 0.32.0 → 0.32.1 (PATCH: bug fix)
+    - 未提交: 待用户处理 commit/push
+
+- [2026-07-04] - SecurityConfig 强化（CORS + Referrer-Policy + hCaptcha CSP）
+    - 修改: SecurityConfig.java — 注入 CorsConfigurationSource bean + 启用 .cors() + 新 Referrer-Policy + 新 CSP（hCaptcha 白名单）
+    - 修改: SecurityConfigHeadersTest.java — CSP 测试断言新策略 + 新增 Referrer-Policy 测试
+    - 修复: AesGcmTokenEncryptorTest.java + GitHubOAuthClientTest.java — SecurityProperties 构造函数适配（Cors record 已加入，CorsConfig.java 已存在但测试遗漏）
+    - 验证: ./gradlew test --tests "SecurityConfigHeadersTest" — 6 tests PASS（1 skipped 因 HTTP 非 HTTPS）
+    - 响应头确认: Content-Security-Policy / Referrer-Policy: no-referrer / X-Content-Type-Options / X-XSS-Protection / X-Frame-Options 全部正确
+    - 未提交: 待用户处理 commit/push
+
 - [2026-07-04] - OAuth Set Password API 实现完成 ✅
     - 新增: POST /api/v1/users/me/password/set — OAuth 用户首次设置密码
     - 新增文件: PasswordService / PasswordController / SetPasswordRequest DTO / 2 测试文件
