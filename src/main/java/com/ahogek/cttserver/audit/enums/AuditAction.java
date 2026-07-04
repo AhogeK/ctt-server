@@ -118,6 +118,9 @@ public enum AuditAction {
     /** Password updated via user profile settings. */
     PASSWORD_CHANGED("Password updated via user profile"),
 
+    /** OAuth user set password for the first time. */
+    PASSWORD_SET("OAuth user set password for the first time"),
+
     /** Terms of service accepted by user. */
     TERMS_ACCEPTED("Terms of service accepted by user"),
 

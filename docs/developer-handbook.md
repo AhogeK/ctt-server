@@ -48,6 +48,7 @@ public enum ErrorCode {
 | Error Code | HTTP Status | Description                  | Added In |
 |------------|-------------|------------------------------|----------|
 | AUTH_013   | 403         | OAuth state validation failed | Week 3   |
+| USER_015   | Password already set | CONFLICT (409) |
 ```
 
 **Important**: Do NOT use HTTP status codes as error codes. Frontend needs precise error handling (e.g., distinguish "password wrong" vs "account locked" - both return 403).
@@ -70,6 +71,12 @@ public enum ErrorCode {
 
 - `PASSWORD_RESET_REQUESTED` - Password reset token generated and requested
 - `PASSWORD_RESET_EMAIL_NOT_FOUND` - Password reset requested for non-existent or inactive email (anti-enumeration)
+
+### Set Password Audit Events
+
+| Audit Action | Description |
+|--------------|-------------|
+| PASSWORD_SET | OAuth user set password for the first time |
 
 ### Standard Steps
 
