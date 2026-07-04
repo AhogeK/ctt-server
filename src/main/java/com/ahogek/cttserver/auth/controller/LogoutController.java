@@ -3,9 +3,12 @@ package com.ahogek.cttserver.auth.controller;
 import com.ahogek.cttserver.auth.dto.LogoutRequest;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
+import com.ahogek.cttserver.auth.util.CookieHelper;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
@@ -31,9 +34,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class LogoutController {
 
     private final LogoutService logoutService;
+    private final SecurityProperties securityProperties;
 
-    public LogoutController(LogoutService logoutService) {
+    public LogoutController(LogoutService logoutService, SecurityProperties securityProperties) {
         this.logoutService = logoutService;
+        this.securityProperties = securityProperties;
+    }
+
+    private String refreshTokenPath() {
+        return securityProperties.cookie().refreshTokenPath();
     }
 
     /**
@@ -41,6 +50,7 @@ public class LogoutController {
      *
      * @param currentUser current authenticated user (auto-injected by Spring Security)
      * @param request Logout request containing refresh token
+     * @param httpResponse HTTP response used to clear authentication cookies
      */
     @Operation(
             summary = "Logout user",
@@ -102,9 +112,11 @@ public class LogoutController {
     @PostMapping("/logout")
     public ResponseEntity<RestApiResponse<Void>> logout(
             @AuthenticationPrincipal CurrentUser currentUser,
-            @Valid @RequestBody LogoutRequest request) {
+            @Valid @RequestBody LogoutRequest request,
+            HttpServletResponse httpResponse) {
 
         logoutService.logout(currentUser.id(), request.refreshToken());
+        CookieHelper.clearCookiesFromResponse(httpResponse, refreshTokenPath());
 
         return ResponseEntity.ok(RestApiResponse.ok());
     }

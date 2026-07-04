@@ -196,7 +196,7 @@ class AuditEventListenerIntegrationTest {
 
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
-                        UUID.randomUUID(),
+                        null,
                         AuditAction.LOGIN_SUCCESS,
                         ResourceType.USER,
                         "user-123",

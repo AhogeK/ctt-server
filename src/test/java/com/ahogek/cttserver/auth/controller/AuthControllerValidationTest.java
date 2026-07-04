@@ -8,15 +8,18 @@ import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.user.repository.UserRepository;
 import com.ahogek.cttserver.user.service.UserService;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
@@ -56,6 +59,14 @@ class AuthControllerValidationTest {
     @MockitoBean private UserRepository userRepository;
 
     @MockitoBean private TermsProperties termsProperties;
+
+    @MockitoBean private SecurityProperties securityProps;
+
+    @BeforeEach
+    void setUpSecurityProperties() {
+        BDDMockito.given(securityProps.cookie())
+                .willReturn(new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
+    }
 
     @Nested
     @DisplayName("POST /api/v1/auth/login - Parameter Validation")

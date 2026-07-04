@@ -2,19 +2,23 @@ package com.ahogek.cttserver.auth.controller;
 
 import com.ahogek.cttserver.auth.AuthController;
 import com.ahogek.cttserver.auth.captcha.CaptchaService;
+import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.user.repository.UserRepository;
 import com.ahogek.cttserver.user.service.UserService;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
@@ -23,7 +27,11 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
@@ -60,6 +68,14 @@ class AuthControllerMalformedInputTest {
     @MockitoBean private UserRepository userRepository;
 
     @MockitoBean private TermsProperties termsProperties;
+
+    @MockitoBean private SecurityProperties securityProps;
+
+    @BeforeEach
+    void setUpSecurityProperties() {
+        BDDMockito.given(securityProps.cookie())
+                .willReturn(new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
+    }
 
     @Nested
     @DisplayName("POST /api/v1/auth/login - Malformed Input Handling")
@@ -137,6 +153,10 @@ class AuthControllerMalformedInputTest {
         @WithMockUser
         @DisplayName("Should handle unknown field gracefully (Spring Boot ignores by default)")
         void shouldHandleUnknownFieldGracefully() {
+            LoginResponse mockResponse =
+                    new LoginResponse(UUID.randomUUID(), "access-token", "refresh-token", 3600L);
+            given(userLoginService.login(any())).willReturn(mockResponse);
+
             String request =
                     """
                     {

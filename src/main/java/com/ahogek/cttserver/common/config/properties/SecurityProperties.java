@@ -2,6 +2,7 @@ package com.ahogek.cttserver.common.config.properties;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -30,7 +31,9 @@ public record SecurityProperties(
         @NotNull PasswordProperties password,
         @NotNull RateLimitProperties rateLimit,
         @NotNull AuditProperties audit,
-        @NotNull OAuthProperties oauth) {
+        @NotNull Cors cors,
+        @NotNull OAuthProperties oauth,
+        @NotNull CookieProperties cookie) {
 
     /** JWT and session configuration. */
     public record JwtProperties(
@@ -86,4 +89,33 @@ public record SecurityProperties(
                 @DefaultValue("https://api.github.com/user/emails") String userEmailsUri,
                 @DefaultValue("read:user,user:email") String scope) {}
     }
+
+    /**
+     * Cross-Origin Resource Sharing (CORS) policy.
+     *
+     * <p>Defines which origins, methods, and headers are allowed to access the API. Applied to all
+     * {@code /api/**} endpoints via {@link com.ahogek.cttserver.common.config.CorsConfig}.
+     *
+     * <p><strong>Production Note:</strong> Configure {@code allowedOrigins} and {@code
+     * allowedOriginPatterns} restrictively to prevent unauthorized cross-origin access. When {@code
+     * allowCredentials} is true, wildcard {@code "*"} origins are disallowed by the browser.
+     */
+    public record Cors(
+            @NotEmpty List<String> allowedOrigins,
+            @NotEmpty List<String> allowedOriginPatterns,
+            @NotEmpty List<String> allowedMethods,
+            @NotEmpty List<String> allowedHeaders,
+            @NotEmpty List<String> exposedHeaders,
+            boolean allowCredentials,
+            long maxAge) {}
+
+    /**
+     * Cookie configuration for authentication tokens.
+     *
+     * <p>Defines the {@code Path} attribute used when setting authentication cookies. The refresh
+     * token cookie path is scoped narrowly to the refresh endpoint so the browser only sends the
+     * cookie to that endpoint, reducing the blast radius if the cookie is leaked by other paths.
+     */
+    public record CookieProperties(
+            @NotBlank @DefaultValue("/api/v1/auth/refresh") String refreshTokenPath) {}
 }

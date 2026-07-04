@@ -13,6 +13,8 @@ import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.auth.util.CookieHelper;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
@@ -24,7 +26,9 @@ import com.ahogek.cttserver.common.security.annotation.PublicApi;
 import com.ahogek.cttserver.common.utils.IpUtils;
 import com.ahogek.cttserver.user.service.UserService;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpHeaders;
@@ -73,6 +77,7 @@ public class AuthController {
     private final LogoutService logoutService;
     private final PasswordResetService passwordResetService;
     private final CaptchaService captchaService;
+    private final SecurityProperties securityProperties;
 
     public AuthController(
             UserService userService,
@@ -80,13 +85,19 @@ public class AuthController {
             TokenRefreshService tokenRefreshService,
             LogoutService logoutService,
             PasswordResetService passwordResetService,
-            CaptchaService captchaService) {
+            CaptchaService captchaService,
+            SecurityProperties securityProperties) {
         this.userService = userService;
         this.userLoginService = userLoginService;
         this.tokenRefreshService = tokenRefreshService;
         this.logoutService = logoutService;
         this.passwordResetService = passwordResetService;
         this.captchaService = captchaService;
+        this.securityProperties = securityProperties;
+    }
+
+    private String refreshTokenPath() {
+        return securityProperties.cookie().refreshTokenPath();
     }
 
     /**
@@ -255,12 +266,17 @@ public class AuthController {
     @RateLimit(limit = 30, windowSeconds = 3600)
     @PostMapping("/login")
     public ResponseEntity<RestApiResponse<LoginResponse>> login(
-            @Valid @RequestBody LoginRequest request) {
+            @Valid @RequestBody LoginRequest request, HttpServletResponse httpResponse) {
 
         captchaService.verifyCaptcha(request.captchaToken());
         LoginResponse response = userLoginService.login(request);
 
-        return ResponseEntity.ok(RestApiResponse.ok(response));
+        CookieHelper.addCookiesToResponse(
+                httpResponse, response.accessToken(), response.refreshToken(), refreshTokenPath());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + response.accessToken())
+                .body(RestApiResponse.ok(response));
     }
 
     /**
@@ -348,14 +364,22 @@ public class AuthController {
     @RateLimit(limit = 120, windowSeconds = 3600)
     @PostMapping("/refresh")
     public ResponseEntity<RestApiResponse<LoginResponse>> refresh(
-            @Valid @RequestBody RefreshTokenRequest request, HttpServletRequest httpRequest) {
+            @Valid @RequestBody RefreshTokenRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
 
         String ip = IpUtils.getRealIp(httpRequest);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 
-        LoginResponse response = tokenRefreshService.refresh(request.refreshToken(), ip, userAgent);
+        String refreshToken = readRefreshToken(httpRequest, request);
+        LoginResponse response = tokenRefreshService.refresh(refreshToken, ip, userAgent);
 
-        return ResponseEntity.ok(RestApiResponse.ok(response));
+        CookieHelper.addCookiesToResponse(
+                httpResponse, response.accessToken(), response.refreshToken(), refreshTokenPath());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + response.accessToken())
+                .body(RestApiResponse.ok(response));
     }
 
     /**
@@ -824,8 +848,28 @@ public class AuthController {
     @RateLimit(type = RateLimitType.USER, limit = 5, windowSeconds = 60)
     @PostMapping("/terms/accept")
     public ResponseEntity<RestApiResponse<LoginResponse>> acceptTerms(
-            @AuthenticationPrincipal CurrentUser currentUser) {
+            @AuthenticationPrincipal CurrentUser currentUser, HttpServletResponse httpResponse) {
         LoginResponse response = userService.acceptTermsAndIssueTokens(currentUser.id());
-        return ResponseEntity.ok(RestApiResponse.ok(response));
+
+        CookieHelper.addCookiesToResponse(
+                httpResponse, response.accessToken(), response.refreshToken(), refreshTokenPath());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + response.accessToken())
+                .body(RestApiResponse.ok(response));
+    }
+
+    private String readRefreshToken(HttpServletRequest request, RefreshTokenRequest body) {
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if (CookieHelper.REFRESH_TOKEN_COOKIE.equals(cookie.getName())) {
+                    String value = cookie.getValue();
+                    if (value != null && !value.isBlank()) {
+                        return value;
+                    }
+                }
+            }
+        }
+        return body != null ? body.refreshToken() : null;
     }
 }

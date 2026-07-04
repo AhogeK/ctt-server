@@ -27,6 +27,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -142,6 +143,7 @@ class PasswordResetIntegrationTest {
             String loginBody =
                     mockMvc.perform(
                                     post("/api/v1/auth/login")
+                                            .with(csrf())
                                             .contentType(MediaType.APPLICATION_JSON)
                                             .content(loginRequestJson(email, OLD_PASSWORD)))
                             .andExpect(status().isOk())
@@ -158,6 +160,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/password-reset/request")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(passwordResetRequestJson(email)))
                     .hasStatus(200);
@@ -170,6 +173,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/password-reset/confirm")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(
                                             resetPasswordConfirmRequestJson(
@@ -185,6 +189,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/refresh")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content("{\"refreshToken\": \"" + refreshToken + "\"}"))
                     .hasStatus(403)
@@ -196,6 +201,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/login")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(loginRequestJson(email, OLD_PASSWORD)))
                     .hasStatus(401);
@@ -204,6 +210,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/login")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(loginRequestJson(email, NEW_PASSWORD)))
                     .hasStatus(200)
@@ -215,6 +222,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/password-reset/confirm")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(
                                             resetPasswordConfirmRequestJson(
@@ -241,6 +249,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/password-reset/request")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(passwordResetRequestJson(email)))
                     .hasStatus(200);
@@ -260,6 +269,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/password-reset/confirm")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(
                                             resetPasswordConfirmRequestJson(
@@ -285,6 +295,7 @@ class PasswordResetIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/password-reset/request")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(passwordResetRequestJson(nonExistentEmail)))
                     .hasStatus(200);

@@ -10,6 +10,7 @@ import com.ahogek.cttserver.auth.oauth.model.GitHubUserInfo;
 import com.ahogek.cttserver.auth.oauth.model.OAuthStatePayload;
 import com.ahogek.cttserver.auth.oauth.service.OAuthLoginOrRegisterService;
 import com.ahogek.cttserver.auth.oauth.service.OAuthStateService;
+import com.ahogek.cttserver.auth.util.CookieHelper;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
@@ -289,6 +290,12 @@ public class OAuthCallbackController {
             LoginResponse loginResponse =
                     loginOrRegisterService.process(
                             provider, tokenResponse.accessToken(), userInfo, payload.clientIp());
+
+            CookieHelper.addCookiesToResponse(
+                    response,
+                    loginResponse.accessToken(),
+                    loginResponse.refreshToken(),
+                    securityProps.cookie().refreshTokenPath());
 
             String redirectUrl =
                     UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())

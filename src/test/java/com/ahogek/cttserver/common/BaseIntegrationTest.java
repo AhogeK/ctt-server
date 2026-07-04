@@ -75,5 +75,6 @@ import java.lang.annotation.Target;
 @AutoConfigureMockMvc
 @Import({TestcontainersConfiguration.class, GreenMailTestConfiguration.class, TestConfig.class})
 @ActiveProfiles("test")
-@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=validate")
+@TestPropertySource(
+        properties = {"spring.jpa.hibernate.ddl-auto=validate", "ctt.security.hcaptcha.site-key="})
 public @interface BaseIntegrationTest {}

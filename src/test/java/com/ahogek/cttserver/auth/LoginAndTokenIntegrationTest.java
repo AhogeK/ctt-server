@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.HttpHeaders.USER_AGENT;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -99,6 +100,7 @@ class LoginAndTokenIntegrationTest {
             String loginBody =
                     mockMvc.perform(
                                     post("/api/v1/auth/login")
+                                            .with(csrf())
                                             .contentType(MediaType.APPLICATION_JSON)
                                             .content(
                                                     loginRequestJson(
@@ -117,6 +119,7 @@ class LoginAndTokenIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout-all")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + accessToken))
                     .hasStatus(200);
         }
@@ -136,6 +139,7 @@ class LoginAndTokenIntegrationTest {
             for (int i = 0; i < 5; i++) {
                 mockMvc.perform(
                                 post("/api/v1/auth/login")
+                                        .with(csrf())
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(loginRequestJson(user.getEmail(), WRONG_PASSWORD)))
                         .andExpect(status().isUnauthorized())
@@ -146,6 +150,7 @@ class LoginAndTokenIntegrationTest {
             String lockedBody =
                     mockMvc.perform(
                                     post("/api/v1/auth/login")
+                                            .with(csrf())
                                             .contentType(MediaType.APPLICATION_JSON)
                                             .content(
                                                     loginRequestJson(
@@ -186,6 +191,7 @@ class LoginAndTokenIntegrationTest {
             String loginBody =
                     mockMvc.perform(
                                     post("/api/v1/auth/login")
+                                            .with(csrf())
                                             .contentType(MediaType.APPLICATION_JSON)
                                             .content(
                                                     loginRequestJson(
@@ -203,6 +209,7 @@ class LoginAndTokenIntegrationTest {
             String refreshBody =
                     mockMvc.perform(
                                     post("/api/v1/auth/refresh")
+                                            .with(csrf())
                                             .header(USER_AGENT, TEST_USER_AGENT)
                                             .contentType(MediaType.APPLICATION_JSON)
                                             .content(refreshTokenRequestJson(rt1)))
@@ -219,6 +226,7 @@ class LoginAndTokenIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/refresh")
+                                    .with(csrf())
                                     .header(USER_AGENT, TEST_USER_AGENT)
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(refreshTokenRequestJson(rt1)))
@@ -251,6 +259,7 @@ class LoginAndTokenIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/refresh")
+                                    .with(csrf())
                                     .header(USER_AGENT, TEST_USER_AGENT)
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(refreshTokenRequestJson(rt2)))

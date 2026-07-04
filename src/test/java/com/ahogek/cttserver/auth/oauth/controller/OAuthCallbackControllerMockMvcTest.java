@@ -93,6 +93,8 @@ class OAuthCallbackControllerMockMvcTest {
                         "read:user,user:email");
         OAuthProperties oauthProps = new OAuthProperties(FRONTEND_URL, null, githubProps);
         BDDMockito.given(securityProps.oauth()).willReturn(oauthProps);
+        BDDMockito.given(securityProps.cookie())
+                .willReturn(new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
     }
 
     private Authentication currentUserAuth() {
