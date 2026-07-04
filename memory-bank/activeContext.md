@@ -1,4 +1,28 @@
 # Active Context
+- [2026-07-04] - OAuth Set Password API 实现完成 ✅
+    - 新增: POST /api/v1/users/me/password/set — OAuth 用户首次设置密码
+    - 新增文件: PasswordService / PasswordController / SetPasswordRequest DTO / 2 测试文件
+    - 修改文件: ErrorCode (USER_015) / AuditAction (PASSWORD_SET) / developer-handbook.md
+    - 模式: 复用 EmailChangeController/EmailChangeService 模式
+    - 验证: ./gradlew build — BUILD SUCCESSFUL, 全量测试通过
+    - 版本: 0.31.2 → 0.32.0 (MINOR: 新功能)
+    - 待提交: 用户处理 commit/push
+
+- [2026-07-04] - developer-handbook.md 同步更新（OAuth Set Password API 文档登记）
+    - 变更: Error Code Registry 新增 USER_015 (Password already set / CONFLICT 409)
+    - 变更: 新增 "Set Password Audit Events" 子章节 + PASSWORD_SET 审计动作
+    - 验证: ./gradlew compileJava → BUILD SUCCESSFUL
+    - 未提交: 待 OAuth Set Password API 实施完成统一提交
+
+- [2026-07-04] - OAuth Set Password API 实现计划创建
+    - 需求: POST /api/v1/users/me/password/set — OAuth 用户首次设置密码
+    - 计划: .sisyphus/plans/2026-07-04-set-password-api.md (7 个任务，TDD 方式)
+    - 新增文件: SetPasswordRequest DTO / PasswordService / PasswordController / 2 测试文件
+    - 修改文件: ErrorCode (USER_015) / AuditAction (PASSWORD_SET) / developer-handbook.md
+    - 模式: 复用 EmailChangeController/EmailChangeService 模式（子控制器 + 服务层）
+    - 验证: @StrongPassword 校验 + BCryptPasswordEncoder 编码 + 审计日志
+    - 状态: 计划已完成，待用户选择执行方式
+
 - [2026-07-04] - Resend Verification 端点 + 代码质量修复
     - 新增: POST /api/v1/users/me/email/resend-verification（重发验证邮件，60秒/次限流）
     - 新增: AuditAction.EMAIL_CHANGE_RESENT 审计动作
