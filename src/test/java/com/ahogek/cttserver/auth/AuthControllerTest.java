@@ -9,11 +9,13 @@ import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.service.UserService;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -67,6 +69,14 @@ class AuthControllerTest {
     @MockitoBean private PasswordResetService passwordResetService;
 
     @MockitoBean private CaptchaService captchaService;
+
+    @MockitoBean private SecurityProperties securityProps;
+
+    @BeforeEach
+    void setUpSecurityProperties() {
+        BDDMockito.given(securityProps.cookie())
+                .willReturn(new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
+    }
 
     private Authentication createAuth(UUID userId) {
         CurrentUser currentUser =

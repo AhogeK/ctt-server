@@ -30,6 +30,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -102,6 +103,7 @@ class LockoutIntegrationTest {
             for (int i = 0; i < 5; i++) {
                 mockMvc.perform(
                                 post("/api/v1/auth/login")
+                                        .with(csrf())
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(loginRequestJson(testEmail, WRONG_PASSWORD)))
                         .andExpect(status().isUnauthorized())
@@ -110,6 +112,7 @@ class LockoutIntegrationTest {
 
             mockMvc.perform(
                             post("/api/v1/auth/login")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(loginRequestJson(testEmail, TEST_PASSWORD)))
                     .andExpect(status().isForbidden())
@@ -139,6 +142,7 @@ class LockoutIntegrationTest {
 
             mockMvc.perform(
                             post("/api/v1/auth/login")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(loginRequestJson(testEmail, TEST_PASSWORD)))
                     .andExpect(status().isOk())
@@ -165,6 +169,7 @@ class LockoutIntegrationTest {
 
             mockMvc.perform(
                             post("/api/v1/auth/login")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(loginRequestJson(testEmail, TEST_PASSWORD)))
                     .andExpect(status().isOk())
@@ -187,6 +192,7 @@ class LockoutIntegrationTest {
 
             mockMvc.perform(
                             post("/api/v1/auth/login")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(loginRequestJson(testEmail, TEST_PASSWORD)))
                     .andExpect(status().isOk());
@@ -194,6 +200,7 @@ class LockoutIntegrationTest {
             for (int i = 0; i < 5; i++) {
                 mockMvc.perform(
                                 post("/api/v1/auth/login")
+                                        .with(csrf())
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(loginRequestJson(testEmail, WRONG_PASSWORD)))
                         .andExpect(status().isUnauthorized());
@@ -201,6 +208,7 @@ class LockoutIntegrationTest {
 
             mockMvc.perform(
                             post("/api/v1/auth/login")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(loginRequestJson(testEmail, TEST_PASSWORD)))
                     .andExpect(status().isForbidden())
@@ -225,6 +233,7 @@ class LockoutIntegrationTest {
 
             mockMvc.perform(
                             post("/api/v1/auth/login")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(loginRequestJson(testEmail, TEST_PASSWORD)))
                     .andExpect(status().isForbidden())

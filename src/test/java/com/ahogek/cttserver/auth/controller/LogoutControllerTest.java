@@ -4,13 +4,21 @@ import com.ahogek.cttserver.auth.dto.LogoutRequest;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LogoutService;
+import com.ahogek.cttserver.auth.util.CookieHelper;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
+
+import org.assertj.core.groups.Tuple;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
@@ -46,6 +54,13 @@ class LogoutControllerTest {
     @Autowired private MockMvcTester mvc;
 
     @MockitoBean private LogoutService logoutService;
+    @MockitoBean private SecurityProperties securityProps;
+
+    @BeforeEach
+    void setUpSecurityProperties() {
+        BDDMockito.given(securityProps.cookie())
+                .willReturn(new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
+    }
 
     private Authentication createAuth(UUID userId) {
         CurrentUser currentUser =
@@ -181,11 +196,55 @@ class LogoutControllerTest {
         void shouldNotHaveRateLimiting() throws NoSuchMethodException {
             Method logoutMethod =
                     LogoutController.class.getMethod(
-                            "logout", CurrentUser.class, LogoutRequest.class);
+                            "logout",
+                            CurrentUser.class,
+                            LogoutRequest.class,
+                            HttpServletResponse.class);
 
             RateLimit rateLimitAnnotation = logoutMethod.getAnnotation(RateLimit.class);
 
             assertThat(rateLimitAnnotation).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/v1/auth/logout - Cookie Clearing Tests")
+    class CookieClearingTests {
+
+        @Test
+        @DisplayName("Should clear access and refresh token cookies on successful logout")
+        void shouldClearAuthCookies_onSuccessfulLogout() {
+            // Given
+            String refreshToken = "valid-refresh-token-abc123";
+            UUID userId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+            String request =
+                    """
+                {
+                    "refreshToken": "%s"
+                }
+                """
+                            .formatted(refreshToken);
+
+            // When & Then
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/auth/logout")
+                                    .with(csrf())
+                                    .with(authentication(createAuth(userId)))
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(request))
+                    .hasStatusOk()
+                    .satisfies(
+                            result ->
+                                    assertThat(result.getResponse().getCookies())
+                                            .extracting(Cookie::getName, Cookie::getMaxAge)
+                                            .containsExactlyInAnyOrder(
+                                                    Tuple.tuple(
+                                                            CookieHelper.ACCESS_TOKEN_COOKIE, 0),
+                                                    Tuple.tuple(
+                                                            CookieHelper.REFRESH_TOKEN_COOKIE, 0)));
+
+            verify(logoutService).logout(userId, refreshToken);
         }
     }
 
@@ -198,7 +257,10 @@ class LogoutControllerTest {
         void shouldHaveSwaggerAnnotations() throws NoSuchMethodException {
             Method logoutMethod =
                     LogoutController.class.getMethod(
-                            "logout", CurrentUser.class, LogoutRequest.class);
+                            "logout",
+                            CurrentUser.class,
+                            LogoutRequest.class,
+                            HttpServletResponse.class);
 
             Operation operation = logoutMethod.getAnnotation(Operation.class);
             assertThat(operation).isNotNull();

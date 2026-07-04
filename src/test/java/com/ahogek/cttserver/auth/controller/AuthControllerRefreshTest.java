@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
@@ -16,8 +17,10 @@ import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.repository.UserRepository;
 import com.ahogek.cttserver.user.service.UserService;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
@@ -68,6 +71,14 @@ class AuthControllerRefreshTest {
     @MockitoBean private UserRepository userRepository;
 
     @MockitoBean private TermsProperties termsProperties;
+
+    @MockitoBean private SecurityProperties securityProps;
+
+    @BeforeEach
+    void setUpSecurityProperties() {
+        BDDMockito.given(securityProps.cookie())
+                .willReturn(new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
+    }
 
     @Test
     @WithMockUser

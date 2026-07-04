@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -49,8 +51,24 @@ class GitHubOAuthClientTest {
                         "read:user,user:email");
         SecurityProperties.OAuthProperties oauthProps =
                 new SecurityProperties.OAuthProperties("https://example.com", "test-key", props);
+        SecurityProperties.Cors cors =
+                new SecurityProperties.Cors(
+                        List.of("http://localhost:5173"),
+                        List.of("http://localhost:5173"),
+                        List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"),
+                        List.of("*"),
+                        List.of("Authorization"),
+                        true,
+                        3600L);
         SecurityProperties securityProps =
-                new SecurityProperties(null, null, null, null, oauthProps);
+                new SecurityProperties(
+                        null,
+                        null,
+                        null,
+                        null,
+                        cors,
+                        oauthProps,
+                        new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
 
         RestClient.Builder builder = RestClient.builder();
         mockServer = MockRestServiceServer.bindTo(builder).build();

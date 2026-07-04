@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
  * End-to-end integration tests for the registration and email verification flow.
@@ -114,6 +115,7 @@ class RegistrationAndVerificationIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/register")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(registerRequestJson(email)))
                     .hasStatus(200)
@@ -153,6 +155,7 @@ class RegistrationAndVerificationIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/register")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(registerRequestJson(email)))
                     .hasStatus(200);
@@ -161,6 +164,7 @@ class RegistrationAndVerificationIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/register")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(registerRequestJson(email)))
                     .hasStatus(409)
@@ -184,6 +188,7 @@ class RegistrationAndVerificationIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/register")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(registerRequestJson(email)))
                     .hasStatus(200);
@@ -213,6 +218,7 @@ class RegistrationAndVerificationIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/resend-verification")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(resendRequestJson(email)))
                     .hasStatus(200)
@@ -269,6 +275,7 @@ class RegistrationAndVerificationIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/register")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(invalidRequest))
                     .hasStatus(400)

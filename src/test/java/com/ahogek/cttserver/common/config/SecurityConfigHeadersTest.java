@@ -81,7 +81,30 @@ class SecurityConfigHeadersTest {
                         result -> {
                             String value =
                                     result.getResponse().getHeader("Content-Security-Policy");
-                            assertThat(value).isEqualTo("default-src 'self'");
+                            assertThat(value)
+                                    .isEqualTo(
+                                            "default-src 'self'; "
+                                                    + "script-src 'self' 'https://hcaptcha.com' 'https://*.hcaptcha.com'; "
+                                                    + "frame-src 'self' 'https://*.hcaptcha.com'; "
+                                                    + "connect-src 'self' 'https://*.hcaptcha.com'; "
+                                                    + "img-src 'self' data: 'https://*.hcaptcha.com'; "
+                                                    + "style-src 'self' 'unsafe-inline'; "
+                                                    + "font-src 'self' data:; "
+                                                    + "object-src 'none'; "
+                                                    + "base-uri 'self'; "
+                                                    + "form-action 'self'; "
+                                                    + "frame-ancestors 'none'");
+                        });
+    }
+
+    @Test
+    @DisplayName("Should include Referrer-Policy: no-referrer header")
+    void shouldIncludeReferrerPolicyHeader() {
+        assertThat(mvc.get().uri("/actuator/health"))
+                .satisfies(
+                        result -> {
+                            String value = result.getResponse().getHeader("Referrer-Policy");
+                            assertThat(value).isEqualTo("no-referrer");
                         });
     }
 }

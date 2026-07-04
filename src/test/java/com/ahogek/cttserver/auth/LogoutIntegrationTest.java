@@ -26,6 +26,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -89,6 +90,7 @@ class LogoutIntegrationTest {
         String loginBody =
                 mockMvc.perform(
                                 post("/api/v1/auth/login")
+                                        .with(csrf())
                                         .contentType(MediaType.APPLICATION_JSON)
                                         .content(objectMapper.writeValueAsString(request)))
                         .andExpect(status().isOk())
@@ -140,6 +142,7 @@ class LogoutIntegrationTest {
         assertThat(
                         mvc.post()
                                 .uri("/api/v1/auth/refresh")
+                                .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(refreshTokenRequestJson(refreshToken)))
                 .hasStatus(403)
@@ -166,6 +169,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(logoutRequestJson(tokens.refreshToken())))
@@ -200,6 +204,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(logoutRequestJson(tokens.refreshToken())))
@@ -209,6 +214,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(logoutRequestJson(tokens.refreshToken())))
@@ -229,6 +235,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content("{\"refreshToken\": \"\"}"))
@@ -255,6 +262,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokensA.accessToken())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(logoutRequestJson(tokensB.refreshToken())))
@@ -286,6 +294,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(logoutRequestJson("completely-forged-token-xyz")))
@@ -314,6 +323,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(logoutRequestJson(tokens.refreshToken())))
@@ -334,6 +344,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content("{}"))
@@ -366,6 +377,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout-all")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens1.accessToken()))
                     .hasStatus(200);
 
@@ -398,6 +410,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout-all")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken()))
                     .hasStatus(200);
 
@@ -405,6 +418,7 @@ class LogoutIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout-all")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + tokens.accessToken()))
                     .hasStatus(200);
 
@@ -418,20 +432,20 @@ class LogoutIntegrationTest {
     class UnauthenticatedAccess {
 
         @Test
-        @DisplayName("should return 401 when logout without auth")
-        void shouldReturn401_whenLogoutWithoutAuth() {
+        @DisplayName("should return 403 when logout without auth (CSRF blocks first)")
+        void shouldReturn403_whenLogoutWithoutAuth() {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout")
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content("{\"refreshToken\": \"some-token\"}"))
-                    .hasStatus(401);
+                    .hasStatus(403);
         }
 
         @Test
         @DisplayName("should return 401 when logout all without auth")
         void shouldReturn401_whenLogoutAllWithoutAuth() {
-            assertThat(mvc.post().uri("/api/v1/auth/logout-all")).hasStatus(401);
+            assertThat(mvc.post().uri("/api/v1/auth/logout-all").with(csrf())).hasStatus(401);
         }
     }
 }

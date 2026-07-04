@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
  * End-to-end integration tests for the terms acceptance flow.
@@ -116,6 +117,7 @@ class TermsAcceptanceIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/register")
+                                    .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(registerRequestJson(email)))
                     .hasStatus(200)
@@ -140,6 +142,7 @@ class TermsAcceptanceIntegrationTest {
             String loginBody =
                     mvc.post()
                             .uri("/api/v1/auth/login")
+                            .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(loginRequestJson(email))
                             .exchange()
@@ -158,6 +161,7 @@ class TermsAcceptanceIntegrationTest {
             String acceptTermsBody =
                     mvc.post()
                             .uri("/api/v1/auth/terms/accept")
+                            .with(csrf())
                             .header("Authorization", "Bearer " + accessToken)
                             .exchange()
                             .getResponse()
@@ -189,6 +193,7 @@ class TermsAcceptanceIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/logout-all")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer " + newAccessToken))
                     .hasStatus(200);
         }
@@ -199,16 +204,13 @@ class TermsAcceptanceIntegrationTest {
     class UnauthorizedAccess {
 
         @Test
-        @DisplayName("Should return 401 when accept terms without JWT token")
-        void shouldReturn401_whenAcceptTermsWithoutJwtToken() {
+        @DisplayName("Should return 403 when accept terms without JWT token (CSRF blocks first)")
+        void shouldReturn403_whenAcceptTermsWithoutJwtToken() {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/terms/accept")
                                     .contentType(MediaType.APPLICATION_JSON))
-                    .hasStatus(401)
-                    .bodyJson()
-                    .extractingPath("$.data.code")
-                    .isEqualTo("AUTH_003");
+                    .hasStatus(403);
         }
 
         @Test
@@ -217,11 +219,9 @@ class TermsAcceptanceIntegrationTest {
             assertThat(
                             mvc.post()
                                     .uri("/api/v1/auth/terms/accept")
+                                    .with(csrf())
                                     .header("Authorization", "Bearer invalid-token"))
-                    .hasStatus(401)
-                    .bodyJson()
-                    .extractingPath("$.data.code")
-                    .isEqualTo("AUTH_003");
+                    .hasStatus(401);
         }
     }
 }

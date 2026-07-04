@@ -42,9 +42,27 @@ class AesGcmTokenEncryptorTest {
                 new SecurityProperties.RateLimitProperties(true, 200);
         SecurityProperties.AuditProperties audit =
                 new SecurityProperties.AuditProperties(true, List.of("password", "token"));
+        SecurityProperties.Cors cors = createCorsProperties();
 
         return new SecurityProperties(
-                jwt, password, rateLimit, audit, createOAuthProperties(base64Key));
+                jwt,
+                password,
+                rateLimit,
+                audit,
+                cors,
+                createOAuthProperties(base64Key),
+                new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
+    }
+
+    private SecurityProperties.Cors createCorsProperties() {
+        return new SecurityProperties.Cors(
+                List.of("http://localhost:5173"),
+                List.of("http://localhost:5173"),
+                List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"),
+                List.of("*"),
+                List.of("Authorization"),
+                true,
+                3600L);
     }
 
     private SecurityProperties.OAuthProperties createOAuthProperties(String base64Key) {

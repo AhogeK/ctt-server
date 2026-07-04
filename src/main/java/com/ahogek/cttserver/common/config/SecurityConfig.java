@@ -10,14 +10,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
 import org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
  * Security configuration with OWASP-compliant headers.
@@ -42,18 +45,21 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtToCurrentUserConverter jwtToCurrentUserConverter;
     private final TermsCheckFilter termsCheckFilter;
+    private final CorsConfigurationSource corsConfigurationSource;
 
     public SecurityConfig(
             PublicApiEndpointRegistry publicApiRegistry,
             SecurityProperties securityProperties,
             JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
             JwtToCurrentUserConverter jwtToCurrentUserConverter,
-            TermsCheckFilter termsCheckFilter) {
+            TermsCheckFilter termsCheckFilter,
+            CorsConfigurationSource corsConfigurationSource) {
         this.publicApiRegistry = publicApiRegistry;
         this.securityProperties = securityProperties;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.jwtToCurrentUserConverter = jwtToCurrentUserConverter;
         this.termsCheckFilter = termsCheckFilter;
+        this.corsConfigurationSource = corsConfigurationSource;
     }
 
     /**
@@ -65,7 +71,7 @@ public class SecurityConfig {
      * <ul>
      *   <li>All endpoints require authentication by default
      *   <li>Only @PublicApi marked endpoints are whitelisted
-     *   <li>CSRF disabled (stateless API architecture)
+     *   <li>CSRF protection via Double Submit Cookie pattern (exempt for public endpoints)
      *   <li>Session management set to STATELESS (JWT-based)
      * </ul>
      *
@@ -76,7 +82,8 @@ public class SecurityConfig {
      *   <li>X-XSS-Protection: 1; mode=block (XSS filter)
      *   <li>X-Frame-Options: DENY (prevent clickjacking)
      *   <li>Strict-Transport-Security: max-age=31536000; includeSubDomains (HSTS)
-     *   <li>Content-Security-Policy: default-src 'self' (CSP)
+     *   <li>Content-Security-Policy: restrict sources, allow hCaptcha (CSP)
+     *   <li>Referrer-Policy: no-referrer (prevent Referrer leakage)
      * </ul>
      *
      * @param http the HttpSecurity to configure
@@ -84,7 +91,13 @@ public class SecurityConfig {
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.csrf(
+                        csrf ->
+                                csrf.csrfTokenRepository(
+                                                CookieCsrfTokenRepository.withHttpOnlyFalse())
+                                        .csrfTokenRequestHandler(
+                                                new CsrfTokenRequestAttributeHandler())
+                                        .ignoringRequestMatchers(publicApiRegistry.getPublicUrls()))
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(
@@ -102,7 +115,24 @@ public class SecurityConfig {
                                                         hsts.includeSubDomains(true)
                                                                 .maxAgeInSeconds(31536000))
                                         .contentSecurityPolicy(
-                                                csp -> csp.policyDirectives("default-src 'self'")))
+                                                csp ->
+                                                        csp.policyDirectives(
+                                                                "default-src 'self'; "
+                                                                        + "script-src 'self' 'https://hcaptcha.com' 'https://*.hcaptcha.com'; "
+                                                                        + "frame-src 'self' 'https://*.hcaptcha.com'; "
+                                                                        + "connect-src 'self' 'https://*.hcaptcha.com'; "
+                                                                        + "img-src 'self' data: 'https://*.hcaptcha.com'; "
+                                                                        + "style-src 'self' 'unsafe-inline'; "
+                                                                        + "font-src 'self' data:; "
+                                                                        + "object-src 'none'; "
+                                                                        + "base-uri 'self'; "
+                                                                        + "form-action 'self'; "
+                                                                        + "frame-ancestors 'none'"))
+                                        .referrerPolicy(
+                                                referrer ->
+                                                        referrer.policy(
+                                                                ReferrerPolicy.NO_REFERRER)))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .addFilterAfter(termsCheckFilter, SecurityContextHolderAwareRequestFilter.class)
                 .oauth2ResourceServer(
                         oauth2 ->
