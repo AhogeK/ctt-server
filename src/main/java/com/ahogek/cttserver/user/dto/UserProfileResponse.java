@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param displayName the user's display name
  * @param emailVerified whether the user's email has been verified
  * @param emailChangePending whether an email change request is pending verification
+ * @param hasPassword whether the user has set a password (false for OAuth-only users)
  * @param createdAt the account creation timestamp
  * @param lastLoginAt the last login timestamp (null for newly registered OAuth users who have not
  *     performed a traditional login, or users who registered but never logged in)
@@ -39,6 +40,8 @@ public record UserProfileResponse(
                 boolean emailVerified,
         @Schema(description = "Whether an email change request is pending", example = "false")
                 boolean emailChangePending,
+        @Schema(description = "Whether the user has set a password", example = "true")
+                boolean hasPassword,
         @Schema(description = "Account creation timestamp", example = "2026-01-15T10:30:00Z")
                 Instant createdAt,
         @Schema(
@@ -67,6 +70,7 @@ public record UserProfileResponse(
                 user.getDisplayName(),
                 user.getEmailVerifiedAt() != null,
                 emailChangePending,
+                user.getPasswordHash() != null,
                 user.getCreatedAt(),
                 user.getLastLoginAt(),
                 user.getTermsVersion());

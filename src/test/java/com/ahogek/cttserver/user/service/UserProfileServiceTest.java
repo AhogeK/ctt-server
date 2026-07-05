@@ -72,6 +72,7 @@ class UserProfileServiceTest {
         @DisplayName("should return complete profile when user exists")
         void shouldReturnProfile_whenUserExists() {
             User user = createActiveUser();
+            user.setPasswordHash("$2a$10$hashedPassword");
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(emailVerificationTokenRepository.existsPendingChangeEmailTokenByUserId(
                             eq(USER_ID), any(Instant.class)))
@@ -83,9 +84,24 @@ class UserProfileServiceTest {
             assertThat(result.email()).isEqualTo(TEST_EMAIL);
             assertThat(result.displayName()).isEqualTo(TEST_DISPLAY_NAME);
             assertThat(result.emailVerified()).isTrue();
+            assertThat(result.hasPassword()).isTrue();
             assertThat(result.createdAt()).isEqualTo(user.getCreatedAt());
             assertThat(result.lastLoginAt()).isEqualTo(user.getLastLoginAt());
             assertThat(result.termsVersion()).isEqualTo(TEST_TERMS_VERSION);
+        }
+
+        @Test
+        @DisplayName("should return hasPassword false when user has no password set")
+        void shouldReturnHasPasswordFalse_whenNoPasswordSet() {
+            User user = createActiveUser();
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(emailVerificationTokenRepository.existsPendingChangeEmailTokenByUserId(
+                            eq(USER_ID), any(Instant.class)))
+                    .thenReturn(false);
+
+            UserProfileResponse result = userProfileService.getCurrentUserProfile(USER_ID);
+
+            assertThat(result.hasPassword()).isFalse();
         }
 
         @Test
