@@ -1,4 +1,21 @@
 # Active Context
+- [2026-07-05] - hasPassword 字段代码审查 + 文档更新
+    - 审查: code-reviewer 子agent 审查通过（PASS）
+    - 修复: Spotless 格式违规 — @Schema 注解多行→单行（已修复）
+    - 文档: README.md 新增 v0.34.0+ Response Fields 子章节（hasPassword 说明）
+    - 文档: developer-handbook.md 更新 GET /users/me 端点描述（9 个字段，版本 0.34.0）
+    - 验证: ./gradlew test — 933 tests PASS, 0 failures；./gradlew spotlessCheck — PASS；./gradlew build — BUILD SUCCESSFUL
+    - 状态: 审查完成，文档已更新，待用户处理 commit/push
+
+- [2026-07-05] - UserProfileResponse 新增 hasPassword 字段（前端 Set/Change Password 按钮文案支撑）
+    - 新增: UserProfileResponse record 添加 `hasPassword` boolean 字段
+    - 实现: fromEntity() 基于 `user.getPasswordHash() != null` 计算（OAuth 用户无密码返回 false）
+    - 测试: UserProfileServiceTest 新增 1 个测试（shouldReturnHasPasswordFalse_whenNoPasswordSet）+ 更新 1 个测试断言
+    - 测试: UserControllerMockMvcTest 更新 fullProfile()/unverifiedProfile() 构造函数 + hasPassword 断言
+    - 验证: ./gradlew test --tests "*UserProfileService*" --tests "*UserController*" — PASS
+    - 版本: 0.33.1 → 0.34.0 (MINOR: 新字段)
+    - 待提交: 用户处理 commit/push
+
 - [2026-07-04] - Security improvements review fixes (cleared cookie SameSite + CORS allowed-headers allowlist)
     - 修复: CookieHelper.buildClearedCookie() — 新增 sameSite 参数，cleared cookie 也设置 SameSite 属性（与 normal cookie 对称：access=Lax, refresh=Strict）
     - 修复: application.yaml CORS allowed-headers — `- "*"` → 显式 allowlist (Authorization / Content-Type / X-Requested-With / Accept / Origin)

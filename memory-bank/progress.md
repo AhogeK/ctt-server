@@ -2,6 +2,14 @@
 
 ## 已完成 ✅
 
+- [x] UserProfileResponse 新增 hasPassword 字段（前端 Set/Change Password 按钮文案支撑）
+    - 新增: UserProfileResponse record 添加 `hasPassword` boolean 字段
+    - 实现: fromEntity() 基于 `user.getPasswordHash() != null` 计算（OAuth 用户无密码返回 false）
+    - 测试: UserProfileServiceTest 新增 1 个测试 + 更新 1 个测试断言
+    - 测试: UserControllerMockMvcTest 更新 fullProfile()/unverifiedProfile() 构造函数 + hasPassword 断言
+    - 验证: ./gradlew test — PASS
+    - 版本: 0.33.1 → 0.34.0 (MINOR: 新字段)
+
 - [x] Resend Verification 端点 + 代码质量修复
     - 新增: POST /api/v1/users/me/email/resend-verification（重发验证邮件，60秒/次限流）
     - 新增: AuditAction.EMAIL_CHANGE_RESENT 审计动作
