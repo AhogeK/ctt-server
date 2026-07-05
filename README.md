@@ -305,6 +305,9 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 **Response Fields** (v0.31.0+):
 - `emailChangePending` (boolean) — whether an email change request is pending
 
+**Response Fields** (v0.34.0+):
+- `hasPassword` (boolean) — whether the user has a password set (false for OAuth-only users)
+
 ### Email Change
 
 | Endpoint                                     | Method | Description                                                                                              |

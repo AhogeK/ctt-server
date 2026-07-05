@@ -70,6 +70,7 @@ class UserControllerMockMvcTest {
                 "Test User",
                 true,
                 false,
+                true,
                 Instant.parse("2026-01-15T10:30:00Z"),
                 Instant.parse("2026-07-01T09:15:00Z"),
                 "1.0.0");
@@ -80,6 +81,7 @@ class UserControllerMockMvcTest {
                 USER_ID,
                 "test@example.com",
                 "Test User",
+                false,
                 false,
                 false,
                 Instant.parse("2026-01-15T10:30:00Z"),
@@ -93,7 +95,7 @@ class UserControllerMockMvcTest {
 
         @Test
         @WithMockUser
-        @DisplayName("Should return 200 with all 7 profile fields when authenticated")
+        @DisplayName("Should return 200 with all 8 profile fields when authenticated")
         void shouldReturn200_withFullProfile_whenAuthenticated() {
             BDDMockito.given(currentUserProvider.getCurrentUserRequired())
                     .willReturn(currentUser());
@@ -113,6 +115,7 @@ class UserControllerMockMvcTest {
                     .extractingPath("$.data.displayName")
                     .isEqualTo("Test User");
             assertThat(result).bodyJson().extractingPath("$.data.emailVerified").isEqualTo(true);
+            assertThat(result).bodyJson().extractingPath("$.data.hasPassword").isEqualTo(true);
             assertThat(result)
                     .bodyJson()
                     .extractingPath("$.data.createdAt")

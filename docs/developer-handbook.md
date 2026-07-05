@@ -320,7 +320,7 @@ public class UserController {
 
 | Endpoint               | Auth | Description                                                                                                                                                         | Since  |
 |------------------------|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
-| `GET /api/v1/users/me` | JWT  | Current user profile (id, email, displayName, emailVerified, createdAt, lastLoginAt, termsVersion). Excludes sensitive fields (passwordHash, lastLoginIp, version). | 0.30.0 |
+| `GET /api/v1/users/me` | JWT  | Current user profile (id, email, displayName, emailVerified, emailChangePending, hasPassword, createdAt, lastLoginAt, termsVersion). Excludes sensitive fields (passwordHash, lastLoginIp, version). | 0.34.0 |
 
 **Step 3**: Add Security Tests
 
