@@ -1,4 +1,45 @@
 # Active Context
+- [2026-07-05] - AesGcmTokenEncryptor 自动装配修复
+    - 问题: @Component 类有两个构造函数，Spring 无法确定使用哪个
+    - 修复: 给接收 SecurityProperties 的构造函数添加 @Autowired 注解
+    - 验证: ./gradlew test --tests "*TokenKeyRotationService*" — PASS
+    - 状态: ✅ 已修复
+
+- [2026-07-05] - TokenKeyRotationService 代码审查修复
+    - 审查: code-reviewer 子agent 审查发现 Critical bug — newEncryptor 从未被使用，轮换是空操作
+    - 修复: TokenKeyRotationService.rotateAccountTokens() — 显式使用 newEncryptor.encrypt(plaintext) 替代依赖 JPA converter
+    - 修复: TokenKeyRotationServiceTest — 添加 ArgumentCaptor 验证重新加密确实发生
+    - 修复: Spotless 格式违规 + 未使用的 import
+    - 验证: ./gradlew test --tests "*TokenKeyRotationService*" — PASS；./gradlew spotlessCheck — PASS
+    - 版本: 0.34.0 → 0.35.0 (MINOR: 新功能)
+    - 状态: ✅ 审查修复完成
+
+- [2026-07-05] - OAuth Token 密钥轮换服务实现完成
+    - 新增: TokenKeyRotationService — 批量解密再加密服务
+    - 新增: TokenKeyRotationServiceTest — 5 个测试用例
+    - 修改: AesGcmTokenEncryptor — 添加接受密钥参数的构造函数
+    - 验证: ./gradlew test --tests "*TokenKeyRotationService*" — PASS
+    - 状态: ✅ 已完成
+
+- [2026-07-05] - OAuth Token 生命周期管理验收报告创建
+    - 文件: docs/oauth-token-lifecycle-acceptance-report.md
+    - 结论: ✅ 核心业务通过验收，密钥轮换后台任务为预期的未实现项
+    - 验收项: 7 项（6 项通过，1 项预期的未实现项）
+    - 状态: ✅ 已完成
+
+- [2026-07-05] - Notion 开发计划页面更新（O：GitHub OAuth 核心流程实现验收完成）
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+    - 更新: 在页面末尾插入 GitHub OAuth 验收结论（2026-07-05）
+    - 内容: 验收项清单（9 项全部 ✅ 通过）+ 实现路径差异说明 + Token 加密链路确认
+    - 状态: ✅ 已完成
+
+- [2026-07-05] - hasPassword 字段提交完成
+    - Commit 1 (develop): `feat(user): add hasPassword field to user profile response` (508ab2d)
+    - Commit 2 (develop): `docs(memory-bank): record hasPassword field implementation` (c6a6142)
+    - Cherry-pick (master): `feat(user): add hasPassword field to user profile response` (0c0b10f)
+    - 推送: develop + master 已推送
+    - 验证: master 无 AI 文件（git ls-files 验证通过）
+
 - [2026-07-05] - hasPassword 字段代码审查 + 文档更新
     - 审查: code-reviewer 子agent 审查通过（PASS）
     - 修复: Spotless 格式违规 — @Schema 注解多行→单行（已修复）
