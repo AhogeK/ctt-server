@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth.oauth.crypto;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.InternalServerErrorException;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -35,11 +36,30 @@ public class AesGcmTokenEncryptor implements OAuthTokenEncryptor {
     private final SecretKey secretKey;
     private final SecureRandom secureRandom = new SecureRandom();
 
+    @Autowired
     public AesGcmTokenEncryptor(SecurityProperties properties) {
         String base64Key = properties.oauth().tokenEncryptionKey();
         if (!StringUtils.hasText(base64Key)) {
             throw new IllegalStateException(
                     "Missing required configuration: ctt.security.oauth.token-encryption-key");
+        }
+
+        byte[] decodedKey = Base64.getDecoder().decode(base64Key);
+        if (decodedKey.length != 32) {
+            throw new IllegalArgumentException(
+                    "OAuth token encryption key must be exactly 32 bytes (256 bits) for AES-256");
+        }
+        this.secretKey = new SecretKeySpec(decodedKey, "AES");
+    }
+
+    /**
+     * Creates an encryptor with a specific key (for key rotation).
+     *
+     * @param base64Key Base64-encoded 256-bit AES key
+     */
+    public AesGcmTokenEncryptor(String base64Key) {
+        if (!StringUtils.hasText(base64Key)) {
+            throw new IllegalArgumentException("Encryption key must not be blank");
         }
 
         byte[] decodedKey = Base64.getDecoder().decode(base64Key);
