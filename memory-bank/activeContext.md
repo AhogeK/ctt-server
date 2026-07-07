@@ -1,4 +1,86 @@
 # Active Context
+- [2026-07-07] - SKILL_GRAPH.md 最终确认：290 个技能全覆盖（五次验证）
+    - ~/.agents/skills/: 222 个 ✅
+    - ~/.config/opencode/skills/: 60 个 ✅
+    - 项目 .agents/skills/: 4 个 ✅
+    - 总计: 290 个技能，0 遗漏
+    - SKILL_GRAPH.md 位置: 项目根目录（与 AGENTS.md 同级）
+    - 状态: ✅ 已完成
+
+- [2026-07-07] - SKILL_GRAPH.md 最终确认：290 个技能全覆盖（四次验证）
+    - ~/.agents/skills/: 222 个 ✅
+    - ~/.config/opencode/skills/: 60 个 ✅
+    - 项目 .agents/skills/: 4 个 ✅
+    - cli-hub-matrix 技能: 5 个 ✅
+    - 其他工具技能: 2 个 ✅
+    - 总计: 290 个技能，0 遗漏
+    - SKILL_GRAPH.md 位置: 项目根目录（与 AGENTS.md 同级）
+    - 状态: ✅ 已完成
+
+- [2026-07-06] - SKILL_GRAPH.md 最终确认：290 个技能全覆盖（三次验证）
+    - ~/.agents/skills/: 222 个 ✅
+    - ~/.config/opencode/skills/: 60 个 ✅
+    - 项目 .agents/skills/: 4 个 ✅
+    - 总计: 290 个技能，0 遗漏
+    - SKILL_GRAPH.md 中记录: 290 个技能名（完全匹配）
+    - 修复遗漏: grill-with-docs, test-driven-development
+    - 状态: ✅ 已完成
+
+- [2026-07-06] - SKILL_GRAPH.md 最终确认：286 个技能全覆盖（二次验证）
+    - ~/.agents/skills/: 222 个 ✅（0 遗漏）
+    - ~/.config/opencode/skills/: 60 个 ✅（0 遗漏，含 3 个 gstack 遗漏已修复）
+    - 项目 .agents/skills/: 4 个 ✅（0 遗漏）
+    - 总计: 286 个技能，0 遗漏
+    - SKILL_GRAPH.md 中记录: 317 条（含重复引用和分类）
+    - 新增: cli-anything-* 完整列表、gstack-benchmark/benchmark-models/office-hours
+    - 状态: ✅ 已完成
+
+- [2026-07-06] - SKILL_GRAPH.md 更新：添加 gstack + doko 技能
+    - 新增: 60 个 gstack/doko/sisyphus 技能从 ~/.config/opencode/skills/
+    - 总计: 282 个技能（222 + 60，无重复）
+    - 更新: 技能总数从 221 更新为 282
+    - 新增分类: GStack 技能套件、Doko 技能、执行规则
+    - 状态: ✅ 已完成
+
+- [2026-07-06] - SKILL_GRAPH.md 全局技能索引创建
+    - 文件: `/Users/ahogek/.agents/SKILL_GRAPH.md`
+    - 内容: 221 个技能的分类索引，包含快速查找指南、分类索引、高频组合模式
+    - 用途: AI 在执行任务前快速扫描，识别并加载最相关的技能
+    - 状态: ✅ 已完成
+
+- [2026-07-06] - S：OAuth 集成测试 验收报告
+    - 文件: .sisyphus/oauth-integration-testing-acceptance-report.md
+    - 结论: ✅ 核心目标（OAuth 核心路径有自动化保障，不依赖网络）通过验收
+    - 实现路径: MockMvc + MockRestServiceServer 替代 WireMock（Spring 自带，更轻量）
+    - 测试覆盖: 80+ 测试方法覆盖 OAuth 模块全部核心类
+    - 状态: ✅ 已完成
+
+- [2026-07-06] - Notion P/Q 格式优化（移除过度使用的引用块）
+    - 用户反馈：引用块应该用在真正"引用"内容的时候，不应用作一般的区块分隔
+    - P 部分：移除"实际实现"和"验收报告"两处引用块（改为普通文本）
+    - Q 部分：移除"实现状态"和"验收报告"两处引用块（改为普通文本）
+    - 状态: ✅ 已完成
+
+- [2026-07-06] - Notion P：账号绑定/解绑 验收更新
+    - 页面: "🖥️ ctt-server 开发计划"
+    - 更新: P 部分标题改为 ✅（已完成），实现状态改为 ✅ 全部完成
+    - 更新: 所有子勾选打勾 [x]，验收项打勾
+    - 更新: 总交付清单中 P 状态改为 ✅ 已完成
+    - 状态: ✅ 已完成
+
+- [2026-07-06] - OAuth 账号绑定 / 解绑 验收报告
+    - 文件: .sisyphus/oauth-binding-acceptance-report.md
+    - 结论: ✅ BIND/UNBIND 核心业务完整通过验收（v0.28.0 BIND + v0.29.0 UNBIND）
+    - 实现路径差异: API 路径（/accounts 代替 /link）、ErrorCode（AUTH_018 代替 OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL）、Service 命名（合并到 OAuthLoginOrRegisterService）
+    - 状态: ✅ 已完成
+
+- [2026-07-05] - Notion Q：OAuth Token 生命周期管理 验收更新
+    - 页面: "🖥️ ctt-server 开发计划"
+    - 更新: Q 部分标题改为 ✅（已完成），实现状态改为 ✅ 全部完成
+    - 更新: 总交付清单中 Q 状态改为 ✅ 已完成
+    - 清理: 删除之前 insert_content 插入的临时重复内容
+    - 状态: ✅ 已完成
+
 - [2026-07-05] - AesGcmTokenEncryptor 自动装配修复
     - 问题: @Component 类有两个构造函数，Spring 无法确定使用哪个
     - 修复: 给接收 SecurityProperties 的构造函数添加 @Autowired 注解
