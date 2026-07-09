@@ -1,4 +1,86 @@
 # Active Context
+- [2026-07-09] - Phase N Code Review 全部修复完成
+    - 审查发现: 1 Critical + 4 High + 5 Medium + 6 Low
+    - C-1 修复: README.md 新增 API Key Management 端点表; developer-handbook.md 新增 AUTH_020/021 错误码 + API_KEY_* 审计事件; api-governance.md 新增 Tier 2 端点分类
+    - H-1 修复: ApiKeyController Javadoc 状态码 "(404)" → "(401)"
+    - H-2 修复: ApiKeyScopeConverter 空集反序列化 bug (`EnumSet.copyOf` → `raw.isEmpty()` 前置检查)
+    - H-3 修复: 新增 5 个单元测试 (ApiKeyStatusTest, ApiKeyScopeConverterTest, ApiKeyQueryServiceImplTest, ApiKeyResponseTest, ApiKeyTest)
+    - H-4 修复: ApiKeyResponse.status 从 String 改为 ApiKeyStatus enum
+    - M-1 修复: extractPrefix 改用 KEY_PREFIX_MARKER 长度切片
+    - M-2 修复: revokeApiKey 接口移除 reason 参数（简化，与 OAuth UNBIND 对称）
+    - M-4 修复: ApiKeyScopeConverter 增加 objectMapper null 防御性检查
+    - L-1 修复: ApiKey entity 移除 @Schema 注解（与 User/Device 一致）
+    - L-3 修复: ApiKeyHasher.KEY_PREFIX_MARKER 改为 public（供 Service 引用）
+    - 验证: `./gradlew test` — BUILD SUCCESSFUL; `./gradlew spotlessCheck` — PASS
+    - 状态: ✅ Phase N 全部完成（代码 + 测试 + 文档）
+
+- [2026-07-09] - Phase N Service Implementation 完成
+    - 实现: `ApiKeyServiceImpl` (createApiKey / revokeApiKey), `ApiKeyQueryServiceImpl` (listApiKeys / getApiKey)
+    - 清理: 删除死代码 `RevokeApiKeyRequest.java`
+    - 测试: `ApiKeyServiceImplTest` (7 tests: create happy/limit/not-found + revoke happy/idempotent/not-found/BOLA)
+    - 验证: `./gradlew test` — BUILD SUCCESSFUL (全量测试通过，0 failures)
+    - 验证: `./gradlew spotlessCheck` — PASS
+    - 版本: 0.35.0 → 0.36.0 (MINOR: Service implementations)
+    - 状态: ✅ Phase N 核心 CRUD 全部完成
+
+- [2026-07-09] - Phase N Code Review 与修复 (P0/P1 Issues)
+    - 审查发现: P0-1 缺少 Service 实现 (Integration Tests 全部失败), P0-2 引用不存在异常, P1-1 DTO 死代码, P1-2 缺失 Device 关联
+    - 修复: 实现 `ApiKeyServiceImpl` / `ApiKeyQueryServiceImpl`, 补充 Device 关联, 修复 DTO/Controller 读取 Revoke Body, 移除不存在异常引用
+    - 状态: 🔄 修复中 (bg_41fb383b)
+
+- [2026-07-09] - ApiKeyController 实现完成 (阶段 N 核心 CRUD 子任务)
+    - 新增: ApiKeyService / ApiKeyQueryService 接口（write/read 分离契约）
+    - 新增: ApiKeyController (`/api/v1/auth/api-keys` 前缀) — 4 个端点
+        - `POST /` 创建 — 201 + `CreateApiKeyResponse` (含 rawKey 仅一次)
+        - `GET /` 列表 — 200 + `ApiKeysResponse`
+        - `GET /{id}` 详情 — 200 + `ApiKeyResponse`
+        - `DELETE /{id}` 撤销 — 204 No Content
+    - 安全: 完整 Swagger @ApiResponses (201/200/204/400/401/409) + @ExampleObject
+    - 安全: `@RateLimit(type=USER, limit=10, windowSeconds=3600)` 限定创建
+    - 安全: `@SecurityRequirement(name="bearerAuth")` JWT 鉴权
+    - 安全: BOLA 防护 - 当前 userId 显式传入 service，不允许跨用户访问
+    - 新增: ApiKeyControllerMockMvcTest — 20 个测试覆盖 4 端点 + BOLA + 验证 + 401
+    - 测试: 20/20 PASS, ./gradlew spotlessCheck PASS
+    - 关键设计: API key "not found" → 401 (AUTH_010) 而非 404 — BOLA 防护语义 (防止 UUID 枚举攻击)
+    - 状态: ✅ Controller + Test 完成，待 Service 实现接入
+
+- [2026-07-07] - Notion "API Key 管理" 区块风格优化完成
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+    - 优化内容: 新增 "实施快照" 锚点、合并 "架构/技术栈"、扩充 `ApiKeyHasher` 描述、所有阶段状态更新为 "⬜ 待开始"
+    - 参考: `.sisyphus/plans/2026-07-07-api-key-management.md`
+    - 状态: ✅ 已完成
+
+- [2026-07-07] - Notion "API Key 管理" 区块风格优化
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+    - 问题: 「核心产出」列仅为类名/文件名罗列，与 OAuth 区块的详细描述风格不一致
+    - 修复: 6 行全部重写为详细的中文功能描述（参考 Notion MCP 文档使用 update_content 精确匹配）
+    - 示例: "Entity/Repository/Service/Controller/CRUD" → "ApiKeyScope/ApiKeyStatus 枚举定义 + ApiKey JPA Entity + ApiKeyRepository (4 个查询方法) + ApiKeyHasher (SHA-256 + SecureRandom) + ..."
+    - 确认: "API Key 管理总交付清单" 标题全页仅出现 1 次，无重复
+    - 状态: ✅ 已完成
+
+- [2026-07-07] - API Key 管理计划添加交付验收核对清单
+    - 文件: .sisyphus/plans/2026-07-07-api-key-management.md
+    - 新增: 交付验收核对清单（16 个交付物 + 30 个验收项 + 7 个安全核查）
+    - 格式: 参考 OAuth 接入验收报告格式
+    - 状态: ✅ 已完成
+
+- [2026-07-07] - API Key 管理实施计划设计完成
+    - 文件: .sisyphus/plans/2026-07-07-api-key-management.md
+    - 结构: 6 个阶段（N/O/P/Q/R/S），对齐 OAuth 接入模块的命名约定
+    - 包结构: auth/apikey/ 镜像 auth/oauth/（client/config/controller/crypto/dto/entity/enums/exception/model/repository/service）
+    - 阶段 N: 核心生命周期（Entity/Repository/Service/Controller/CRUD，3-4 天）
+    - 阶段 O: 认证管线（ApiKeyAuthenticationFilter + SecurityContext，2-3 天）
+    - 阶段 P: Scopes 权限（@PreAuthorize 强制 scope 校验，1 天）
+    - 阶段 Q: 审计 + 安全（API_KEY_USED/API_KEY_AUTH_FAILED 新增 + per-IP 限流，1-2 天）
+    - 阶段 R: 集成测试（E2E 6+ 场景，1-2 天）
+    - 阶段 S: 文档 + UI 集成（developer-handbook + frontend-integration，0.5-1 天）
+    - 新增 ErrorCode: AUTH_020 (403 scope 不足), AUTH_021 (401 header 格式错)
+    - 新增 AuditAction: API_KEY_USED, API_KEY_AUTH_FAILED
+    - 复用: TokenUtils.hashToken (SHA-256), ApiKeyHasher 包装; ErrorCode.AUTH_010/011/012 覆盖无效/过期/已吊销
+    - 关键决策: 异步 lastUsedAt 写入（< 5ms 延迟预算）, 双轨认证（JWT 或 API Key）, per-user 20 个 key 上限
+    - Notion: 已发布到页面 320f5477-6e22-8123-a8d6-d91fddb9445c（"🖥️ ctt-server 开发计划"）
+    - 状态: 📝 设计完成，待用户批准实施
+
 - [2026-07-07] - SKILL_GRAPH.md 最终确认：290 个技能全覆盖（五次验证）
     - ~/.agents/skills/: 222 个 ✅
     - ~/.config/opencode/skills/: 60 个 ✅

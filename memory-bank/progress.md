@@ -2,6 +2,35 @@
 
 ## 已完成 ✅
 
+- [x] Phase N: API Key 核心生命周期 CRUD + Code Review 修复全部完成
+    - 实现: Entity/Repository/Converter/Hasher/DTOs/Service/Controller
+    - Code Review 修复: C-1 文档同步 + H-1~H-4 + M-1~M-4 + L-1~L-3 (共 16 项)
+    - 测试: 新增 5 个单元测试文件 (ApiKeyStatusTest, ApiKeyScopeConverterTest, ApiKeyQueryServiceImplTest, ApiKeyResponseTest, ApiKeyTest)
+    - 文档: README.md + developer-handbook.md + api-governance.md 同步更新
+    - 验证: `./gradlew test` — BUILD SUCCESSFUL; `./gradlew spotlessCheck` — PASS
+    - 版本: 0.35.0 → 0.36.0 (MINOR: Service implementations + review fixes)
+    - 状态: ✅ 已完成
+
+- [x] Notion "API Key 管理" 区块风格优化（对齐 OAuth 区块）
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+    - 变更: 新增 "实施快照"、合并 "架构/技术栈"、扩充 `ApiKeyHasher` 描述、所有阶段状态更新为 "⬜ 待开始"
+    - 参考: `.sisyphus/plans/2026-07-07-api-key-management.md`
+    - 状态: ✅ 已完成
+
+- [x] Notion API Key 管理总交付清单「核心产出」列优化
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+    - 问题: 「核心产出」列仅为类名/文件名罗列，与 OAuth 区块的详细描述风格不一致
+    - 修复: 6 行全部重写为详细的中文功能描述（参考 Notion MCP 文档使用 update_content 精确匹配）
+    - 示例: "Entity/Repository/Service/Controller/CRUD" → "ApiKeyScope/ApiKeyStatus 枚举定义 + ApiKey JPA Entity + ApiKeyRepository (4 个查询方法) + ApiKeyHasher (SHA-256 + SecureRandom) + ..."
+    - 确认: "API Key 管理总交付清单" 标题全页仅出现 1 次，无重复
+    - 状态: ✅ 已完成
+
+- [x] API Key 管理实施计划设计完成
+    - 文件: .sisyphus/plans/2026-07-07-api-key-management.md
+    - 6 阶段计划: N (核心 CRUD) / O (认证管线) / P (Scopes) / Q (审计+安全) / R (集成测试) / S (文档)
+    - Notion 页面 320f5477-6e22-8123-a8d6-d91fddb9445c 已发布
+    - 状态: 📝 设计完成，待用户批准进入实施
+
 - [x] UserProfileResponse 新增 hasPassword 字段（前端 Set/Change Password 按钮文案支撑）
     - 新增: UserProfileResponse record 添加 `hasPassword` boolean 字段
     - 实现: fromEntity() 基于 `user.getPasswordHash() != null` 计算（OAuth 用户无密码返回 false）
@@ -312,7 +341,7 @@ Week 1 基础设施搭建 - 进度: 100% ✅
 - [x] Spring Boot 项目结构
 - [x] Redis 缓存配置
 - [x] JWT 认证实现
-- [x] API Key 管理
+- [x] API Key 管理 (Phase N 全部完成 ✅)
 - [x] 账号锁定策略（含 login_attempts 表 + 定时清理 + 批量解锁）
 
 ## 开发计划 (8周)
