@@ -72,6 +72,19 @@ public enum ErrorCode {
 - `PASSWORD_RESET_REQUESTED` - Password reset token generated and requested
 - `PASSWORD_RESET_EMAIL_NOT_FOUND` - Password reset requested for non-existent or inactive email (anti-enumeration)
 
+### API Key Audit Events
+
+| Audit Action        | Description                                                | Trigger Point                  |
+|---------------------|------------------------------------------------------------|--------------------------------|
+| `API_KEY_CREATED`   | New API key generated                                      | `ApiKeyServiceImpl.createApiKey` |
+| `API_KEY_REVOKED`   | API key revoked                                            | `ApiKeyServiceImpl.revokeApiKey` |
+| `API_KEY_USED`      | Successful API key authentication                          | (Phase O: authentication filter) |
+| `API_KEY_AUTH_FAILED` | Failed API key authentication (revoked/expired/malformed) | (Phase O: authentication filter) |
+
+**Resource Type**: `ResourceType.API_KEY`
+
+**Details**: `API_KEY_CREATED` includes `keyId` and `keyPrefix` (never raw key or hash). `API_KEY_REVOKED` includes `keyId`. `API_KEY_AUTH_FAILED` includes failure reason (revoked/expired/malformed/insufficient_scope).
+
 ### Set Password Audit Events
 
 | Audit Action | Description |
@@ -867,6 +880,17 @@ UserService.acceptTerms(userId, termsVersion)
 | Terms not accepted (filter)       | `USER_008` | 403         |
 | Terms version expired             | `AUTH_019` | 403         |
 | Invalid terms version             | `USER_008` | 400         |
+
+### API Key Error Codes
+
+| Scenario                          | Error Code | HTTP Status |
+|-----------------------------------|------------|-------------|
+| API key invalid / not found / BOLA| `AUTH_010` | 401         |
+| API key expired                   | `AUTH_011` | 401         |
+| API key revoked                   | `AUTH_012` | 403         |
+| API key missing required scope    | `AUTH_020` | 403         |
+| API key header malformed          | `AUTH_021` | 401         |
+| Per-user key limit exceeded       | `AUTH_014` | 409         |
 
 ### Error Response Examples
 
