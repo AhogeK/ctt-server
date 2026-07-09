@@ -47,6 +47,8 @@ public enum ErrorCode {
     AUTH_017("OAuth account not linked", HttpStatus.NOT_FOUND),
     AUTH_018("Cannot unlink last credential", HttpStatus.CONFLICT),
     AUTH_019("Terms version expired, please re-accept", HttpStatus.FORBIDDEN),
+    AUTH_020("API key missing required scope", HttpStatus.FORBIDDEN),
+    AUTH_021("API key header malformed", HttpStatus.UNAUTHORIZED),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),
 

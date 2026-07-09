@@ -130,6 +130,12 @@ public enum AuditAction {
     /** API key revoked and invalidated. */
     API_KEY_REVOKED("API key revoked"),
 
+    /** API key authenticated successfully. */
+    API_KEY_USED("API key authenticated successfully"),
+
+    /** API key authentication failed. */
+    API_KEY_AUTH_FAILED("API key authentication failed"),
+
     // ==========================================
     // Device and Endpoint Management
     // ==========================================

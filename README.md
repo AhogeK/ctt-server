@@ -329,6 +329,19 @@ User → POST /change-request {newEmail, password?} → System sends verificatio
 
 **Security**: Password required if user has password set. OAuth-only users skip password verification. Token expires in 1 hour, max 5 attempts per token.
 
+### API Key Management
+
+| Endpoint                        | Method | Description                                                                                                |
+|---------------------------------|--------|------------------------------------------------------------------------------------------------------------|
+| `/api/v1/auth/api-keys`         | POST   | Create API key (rate limited: 10/hour per user) — raw key returned once, then only hash is stored          |
+| `/api/v1/auth/api-keys`         | GET    | List user's API keys (metadata only, no raw key/hash exposure)                                             |
+| `/api/v1/auth/api-keys/{id}`    | GET    | Get single API key metadata (BOLA-protected: 401 if not owned by caller)                                   |
+| `/api/v1/auth/api-keys/{id}`    | DELETE | Revoke API key (BOLA-protected, idempotent) — key remains in DB for audit, authentication is blocked       |
+
+**Key Format**: `cttak_<prefix>_<secret>` — prefix is 8-char visible identifier, secret is 32-char URL-safe Base64.
+
+**Security**: Raw key shown only at creation time; SHA-256 hash stored at rest. Per-user limit: 20 active keys.
+
 ### Public Configuration
 
 | Endpoint                | Method | Description                                          |
