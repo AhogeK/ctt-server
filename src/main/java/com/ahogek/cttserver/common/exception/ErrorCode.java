@@ -49,6 +49,7 @@ public enum ErrorCode {
     AUTH_019("Terms version expired, please re-accept", HttpStatus.FORBIDDEN),
     AUTH_020("API key missing required scope", HttpStatus.FORBIDDEN),
     AUTH_021("API key header malformed", HttpStatus.UNAUTHORIZED),
+    AUTH_022("Account deactivated", HttpStatus.FORBIDDEN),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),
 

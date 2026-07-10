@@ -11,8 +11,11 @@ import com.ahogek.cttserver.auth.apikey.entity.ApiKey;
 import com.ahogek.cttserver.auth.apikey.repository.ApiKeyRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.entity.User;
+import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
 import org.slf4j.Logger;
@@ -119,5 +122,57 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     private static String extractPrefix(String rawKey) {
         int markerEnd = rawKey.indexOf('_', ApiKeyHasher.KEY_PREFIX_MARKER.length());
         return rawKey.substring(ApiKeyHasher.KEY_PREFIX_MARKER.length(), markerEnd);
+    }
+
+    /**
+     * Maps user status to semantic error codes, matching the JWT auth path mapping in {@code
+     * SpringSecurityCurrentUserProvider}.
+     *
+     * @param status the inactive user status
+     * @return ForbiddenException with appropriate error code
+     */
+    private static ForbiddenException createUserInactiveException(UserStatus status) {
+        return switch (status) {
+            case PENDING_VERIFICATION ->
+                    new ForbiddenException(ErrorCode.AUTH_006, "Email verification required");
+            case LOCKED -> new ForbiddenException(ErrorCode.AUTH_004, "Account is locked");
+            case SUSPENDED -> new ForbiddenException(ErrorCode.AUTH_005, "Account is suspended");
+            case DELETED -> new ForbiddenException(ErrorCode.AUTH_022, "Account is deactivated");
+            default ->
+                    new ForbiddenException(ErrorCode.AUTH_022, "Account is not active: " + status);
+        };
+    }
+
+    @Override
+    @Transactional
+    public ApiKey validateAndTouch(String rawKey) {
+        String keyHash = apiKeyHasher.hashKey(rawKey);
+        Instant now = Instant.now();
+
+        ApiKey apiKey =
+                apiKeyRepository
+                        .findByKeyHash(keyHash)
+                        .orElseThrow(() -> new NotFoundException(ErrorCode.AUTH_010));
+
+        if (apiKey.getRevokedAt() != null) {
+            throw new ForbiddenException(ErrorCode.AUTH_012);
+        }
+
+        if (apiKey.getExpiresAt() != null && !apiKey.getExpiresAt().isAfter(now)) {
+            throw new UnauthorizedException(ErrorCode.AUTH_011);
+        }
+
+        User user = apiKey.getUser();
+        if (user == null) {
+            throw new NotFoundException(ErrorCode.AUTH_010);
+        }
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw createUserInactiveException(user.getStatus());
+        }
+
+        apiKey.touchLastUsed(now);
+        apiKeyRepository.save(apiKey);
+
+        return apiKey;
     }
 }

@@ -2,8 +2,11 @@ package com.ahogek.cttserver.auth.apikey.service;
 
 import com.ahogek.cttserver.auth.apikey.dto.CreateApiKeyRequest;
 import com.ahogek.cttserver.auth.apikey.dto.CreateApiKeyResponse;
+import com.ahogek.cttserver.auth.apikey.entity.ApiKey;
 import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 
 import java.util.UUID;
 
@@ -54,4 +57,20 @@ public interface ApiKeyService {
      *     prevent enumeration attacks
      */
     void revokeApiKey(UUID userId, UUID id);
+
+    /**
+     * Validates an API key by its raw value and updates the last-used timestamp.
+     *
+     * <p>Used by the authentication filter to verify a presented API key. The raw key is hashed
+     * internally and looked up by hash. If the key is active (not revoked, not expired), the {@code
+     * lastUsedAt} field is updated synchronously within the same transaction and the persisted
+     * entity is returned.
+     *
+     * @param rawKey the raw API key value presented in the Authorization header
+     * @return the validated {@link ApiKey} entity
+     * @throws NotFoundException (AUTH_010) when the key hash does not match any stored key
+     * @throws UnauthorizedException (AUTH_011) when the key has expired
+     * @throws ForbiddenException (AUTH_012) when the key has been revoked
+     */
+    ApiKey validateAndTouch(String rawKey);
 }

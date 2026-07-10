@@ -342,6 +342,8 @@ User → POST /change-request {newEmail, password?} → System sends verificatio
 
 **Security**: Raw key shown only at creation time; SHA-256 hash stored at rest. Per-user limit: 20 active keys.
 
+**Authentication**: API keys authenticate via `Authorization: Bearer cttak_<prefix>_<secret>` header. The authentication filter validates the key, checks expiration/revocation status, and updates `last_used_at` synchronously. API key authentication runs before JWT authentication in the security filter chain.
+
 ### Public Configuration
 
 | Endpoint                | Method | Description                                          |
