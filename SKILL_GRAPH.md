@@ -1,7 +1,7 @@
 # 🧠 SKILL GRAPH — AI Agent 技能索引
 
-> **最后更新**: 2026-07-06
-> **技能总数**: 286 个 (222 ~/.agents/skills + 60 ~/.config/opencode/skills + 4 项目级)
+> **最后更新**: 2026-07-09
+> **技能总数**: 287 个 (223 ~/.agents/skills + 61 ~/.config/opencode/skills + 4 项目级 - 1 重复)
 > **用途**: AI 在执行任务前快速扫描此文件，识别并加载最相关的技能
 
 ---
@@ -38,8 +38,8 @@
 | `subagent-driven-development` | 用子代理执行独立任务 | 并行任务, 子代理 |
 | `dispatching-parallel-agents` | 面对2+独立任务时的并行分发 | 并行, 多任务 |
 | `wayfinder` | 将大块工作分解为 issue 追踪 | 大项目, 路线图 |
-| `to-issues` | 将计划/PRD 转化为可抓取的 issue | issue, 任务追踪 |
-| `to-prd` | 将对话转化为 PRD 并发布 | PRD, 产品需求文档 |
+| `to-spec` | 将对话转化为规格说明并发布到 issue tracker | 规格, spec, issue |
+| `to-tickets` | 将计划/对话拆解为 tracer-bullet tickets | tickets, 拆分, issue |
 
 ### 💻 代码 & 实现 (Code & Implementation)
 
@@ -434,6 +434,7 @@
 | `doko-summarize` | 网页摘要 | 摘要, 总结 |
 | `doko-translate` | 网页翻译 | 翻译 |
 | `dokobot` | Chrome 浏览器网页读取 | 读取网页 |
+| `notion-mcp` | Notion 工作区 MCP 工具集成 | Notion, 数据库, 页面 |
 
 ### 🤖 执行规则 (Execution Rules)
 
@@ -542,18 +543,12 @@ web-performance-audit → performance-optimization → debug-optimize-lcp
 | `find-skills` | 发现安装技能 | 找技能 |
 | `ask-matt` | 询问适合的技能/流 | 选技能 |
 | `using-agent-skills` | 发现调用技能 | 技能发现 |
-| `skill-creator` | 创建有效技能 | 创建技能 |
-| `kimi-cli-help` | Kimi CLI 使用帮助 | Kimi, CLI 帮助 |
 
 ### 🎬 创作 & 媒体 (Creation & Media)
 
 | 技能名 | 用途 | 触发词 |
 |--------|------|--------|
-| `cli-hub-matrix-video-creation` | 视频制作矩阵 | 视频制作, 剪辑 |
-| `cli-hub-matrix-game-development` | 游戏开发矩阵 | 游戏开发, Godot |
-| `cli-hub-matrix-image-design` | 图像设计矩阵 | 图像设计, 平面 |
-| `cli-hub-matrix-knowledge-research` | 知识研究矩阵 | 知识研究, 笔记 |
-| `cli-hub-matrix-3d-cad` | 3D CAD 矩阵 | 3D, CAD, 建模 |
+| (暂无已安装技能) | | |
 
 ---
 
