@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.common.config;
 
+import com.ahogek.cttserver.auth.apikey.client.ApiKeyAuthenticationFilter;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.infrastructure.security.JwtAuthenticationEntryPoint;
 import com.ahogek.cttserver.auth.infrastructure.security.JwtToCurrentUserConverter;
@@ -46,6 +47,7 @@ public class SecurityConfig {
     private final JwtToCurrentUserConverter jwtToCurrentUserConverter;
     private final TermsCheckFilter termsCheckFilter;
     private final CorsConfigurationSource corsConfigurationSource;
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     public SecurityConfig(
             PublicApiEndpointRegistry publicApiRegistry,
@@ -53,13 +55,15 @@ public class SecurityConfig {
             JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
             JwtToCurrentUserConverter jwtToCurrentUserConverter,
             TermsCheckFilter termsCheckFilter,
-            CorsConfigurationSource corsConfigurationSource) {
+            CorsConfigurationSource corsConfigurationSource,
+            ApiKeyAuthenticationFilter apiKeyAuthenticationFilter) {
         this.publicApiRegistry = publicApiRegistry;
         this.securityProperties = securityProperties;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.jwtToCurrentUserConverter = jwtToCurrentUserConverter;
         this.termsCheckFilter = termsCheckFilter;
         this.corsConfigurationSource = corsConfigurationSource;
+        this.apiKeyAuthenticationFilter = apiKeyAuthenticationFilter;
     }
 
     /**
@@ -97,7 +101,21 @@ public class SecurityConfig {
                                                 CookieCsrfTokenRepository.withHttpOnlyFalse())
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
-                                        .ignoringRequestMatchers(publicApiRegistry.getPublicUrls()))
+                                        .ignoringRequestMatchers(publicApiRegistry.getPublicUrls())
+                                        .ignoringRequestMatchers(
+                                                request -> {
+                                                    String authHeader =
+                                                            request.getHeader(
+                                                                    securityProperties
+                                                                            .apiKey()
+                                                                            .headerName());
+                                                    return authHeader != null
+                                                            && authHeader.startsWith(
+                                                                    securityProperties
+                                                                                    .apiKey()
+                                                                                    .headerPrefix()
+                                                                            + " ");
+                                                }))
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(
@@ -134,6 +152,8 @@ public class SecurityConfig {
                                                                 ReferrerPolicy.NO_REFERRER)))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .addFilterAfter(termsCheckFilter, SecurityContextHolderAwareRequestFilter.class)
+                .addFilterBefore(
+                        apiKeyAuthenticationFilter, SecurityContextHolderAwareRequestFilter.class)
                 .oauth2ResourceServer(
                         oauth2 ->
                                 oauth2.jwt(

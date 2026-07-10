@@ -68,7 +68,8 @@ class GitHubOAuthClientTest {
                         null,
                         cors,
                         oauthProps,
-                        new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
+                        new SecurityProperties.CookieProperties("/api/v1/auth/refresh"),
+                        new SecurityProperties.ApiKeyProperties("Authorization", "Bearer"));
 
         RestClient.Builder builder = RestClient.builder();
         mockServer = MockRestServiceServer.bindTo(builder).build();

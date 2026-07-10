@@ -51,7 +51,8 @@ class AesGcmTokenEncryptorTest {
                 audit,
                 cors,
                 createOAuthProperties(base64Key),
-                new SecurityProperties.CookieProperties("/api/v1/auth/refresh"));
+                new SecurityProperties.CookieProperties("/api/v1/auth/refresh"),
+                new SecurityProperties.ApiKeyProperties("Authorization", "Bearer"));
     }
 
     private SecurityProperties.Cors createCorsProperties() {

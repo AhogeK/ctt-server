@@ -71,7 +71,7 @@ public class SpringSecurityCurrentUserProvider implements CurrentUserProvider {
      *   <li>PENDING_VERIFICATION -> AUTH_006 (Email not verified)
      *   <li>LOCKED -> AUTH_004 (Account locked)
      *   <li>SUSPENDED -> AUTH_005 (Account suspended)
-     *   <li>DELETED -> AUTH_009 (Insufficient permissions)
+     *   <li>DELETED -> AUTH_022 (Account deactivated)
      * </ul>
      *
      * @param user the inactive user
@@ -83,10 +83,10 @@ public class SpringSecurityCurrentUserProvider implements CurrentUserProvider {
                     new ForbiddenException(ErrorCode.AUTH_006, "Email verification required");
             case LOCKED -> new ForbiddenException(ErrorCode.AUTH_004, "Account is locked");
             case SUSPENDED -> new ForbiddenException(ErrorCode.AUTH_005, "Account is suspended");
-            case DELETED -> new ForbiddenException(ErrorCode.AUTH_009, "Account is deactivated");
+            case DELETED -> new ForbiddenException(ErrorCode.AUTH_022, "Account is deactivated");
             default ->
                     new ForbiddenException(
-                            ErrorCode.AUTH_009, "Account is not active: " + user.status());
+                            ErrorCode.AUTH_022, "Account is not active: " + user.status());
         };
     }
 }

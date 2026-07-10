@@ -213,6 +213,6 @@ class SpringSecurityCurrentUserProviderTest {
         ForbiddenException ex =
                 assertThrows(ForbiddenException.class, () -> provider.getActiveUserRequired());
 
-        assertEquals(ErrorCode.AUTH_009, ex.errorCode());
+        assertEquals(ErrorCode.AUTH_022, ex.errorCode());
     }
 }

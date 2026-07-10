@@ -10,8 +10,12 @@ import com.ahogek.cttserver.auth.apikey.entity.ApiKey;
 import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
 import com.ahogek.cttserver.auth.apikey.repository.ApiKeyRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.entity.User;
+import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -19,10 +23,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.EnumSet;
@@ -61,6 +68,7 @@ class ApiKeyServiceImplTest {
     void setUp() {
         user = new User();
         user.setId(USER_ID);
+        ReflectionTestUtils.setField(user, "status", UserStatus.ACTIVE);
     }
 
     @Nested
@@ -204,6 +212,125 @@ class ApiKeyServiceImplTest {
             // When & Then
             assertThatThrownBy(() -> apiKeyService.revokeApiKey(USER_ID, KEY_ID))
                     .isInstanceOf(NotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("validateAndTouch")
+    class ValidateAndTouchTests {
+
+        @Test
+        @DisplayName("shouldReturnApiKey_whenValidAndActive")
+        void shouldReturnApiKey_whenValidAndActive() {
+            // Given
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            apiKey.setKeyHash(KEY_HASH);
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.findByKeyHash(KEY_HASH)).willReturn(Optional.of(apiKey));
+            given(apiKeyRepository.save(any(ApiKey.class))).willReturn(apiKey);
+
+            // When
+            ApiKey result = apiKeyService.validateAndTouch(RAW_KEY);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isEqualTo(KEY_ID);
+            assertThat(result.getLastUsedAt()).isNotNull();
+            then(apiKeyRepository).should().save(apiKey);
+        }
+
+        @Test
+        @DisplayName("shouldThrowNotFoundException_whenKeyHashNotFound")
+        void shouldThrowNotFoundException_whenKeyHashNotFound() {
+            // Given
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.findByKeyHash(KEY_HASH)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> apiKeyService.validateAndTouch(RAW_KEY))
+                    .isInstanceOf(NotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("shouldThrowForbiddenException_whenKeyRevoked")
+        void shouldThrowForbiddenException_whenKeyRevoked() {
+            // Given
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            apiKey.revoke(Instant.now().minusSeconds(60));
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.findByKeyHash(KEY_HASH)).willReturn(Optional.of(apiKey));
+
+            // When & Then
+            assertThatThrownBy(() -> apiKeyService.validateAndTouch(RAW_KEY))
+                    .isInstanceOf(ForbiddenException.class);
+        }
+
+        @Test
+        @DisplayName("shouldThrowUnauthorizedException_whenKeyExpired")
+        void shouldThrowUnauthorizedException_whenKeyExpired() {
+            // Given
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            apiKey.setExpiresAt(Instant.now().minusSeconds(60));
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.findByKeyHash(KEY_HASH)).willReturn(Optional.of(apiKey));
+
+            // When & Then
+            assertThatThrownBy(() -> apiKeyService.validateAndTouch(RAW_KEY))
+                    .isInstanceOf(UnauthorizedException.class);
+        }
+
+        @Test
+        @DisplayName("shouldTouchLastUsedAt_whenValidKey")
+        void shouldTouchLastUsedAt_whenValidKey() {
+            // Given
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.findByKeyHash(KEY_HASH)).willReturn(Optional.of(apiKey));
+            given(apiKeyRepository.save(any(ApiKey.class))).willReturn(apiKey);
+
+            // When
+            apiKeyService.validateAndTouch(RAW_KEY);
+
+            // Then
+            ArgumentCaptor<ApiKey> captor = ArgumentCaptor.forClass(ApiKey.class);
+            then(apiKeyRepository).should().save(captor.capture());
+            assertThat(captor.getValue().getLastUsedAt()).isNotNull();
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = UserStatus.class,
+                names = {"LOCKED", "SUSPENDED", "DELETED", "PENDING_VERIFICATION"})
+        @DisplayName("shouldThrowForbiddenException_whenUserStatusNotActive")
+        void shouldThrowForbiddenException_whenUserStatusNotActive(UserStatus status) {
+            // Given
+            ReflectionTestUtils.setField(user, "status", status);
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.findByKeyHash(KEY_HASH)).willReturn(Optional.of(apiKey));
+
+            // When & Then
+            assertThatThrownBy(() -> apiKeyService.validateAndTouch(RAW_KEY))
+                    .isInstanceOf(ForbiddenException.class)
+                    .extracting(ex -> ((ForbiddenException) ex).errorCode())
+                    .isEqualTo(
+                            switch (status) {
+                                case LOCKED -> ErrorCode.AUTH_004;
+                                case SUSPENDED -> ErrorCode.AUTH_005;
+                                case PENDING_VERIFICATION -> ErrorCode.AUTH_006;
+                                case DELETED -> ErrorCode.AUTH_022;
+                                default -> ErrorCode.AUTH_022;
+                            });
         }
     }
 }

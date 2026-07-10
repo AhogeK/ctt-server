@@ -33,7 +33,8 @@ public record SecurityProperties(
         @NotNull AuditProperties audit,
         @NotNull Cors cors,
         @NotNull OAuthProperties oauth,
-        @NotNull CookieProperties cookie) {
+        @NotNull CookieProperties cookie,
+        @NotNull ApiKeyProperties apiKey) {
 
     /** JWT and session configuration. */
     public record JwtProperties(
@@ -118,4 +119,13 @@ public record SecurityProperties(
      */
     public record CookieProperties(
             @NotBlank @DefaultValue("/api/v1/auth/refresh") String refreshTokenPath) {}
+
+    /**
+     * API Key authentication configuration.
+     *
+     * <p>Configures the API Key authentication filter for JetBrains plugin and device clients.
+     */
+    public record ApiKeyProperties(
+            @NotBlank @DefaultValue("Authorization") String headerName,
+            @NotBlank @DefaultValue("Bearer") String headerPrefix) {}
 }

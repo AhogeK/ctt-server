@@ -881,6 +881,23 @@ UserService.acceptTerms(userId, termsVersion)
 | Terms version expired             | `AUTH_019` | 403         |
 | Invalid terms version             | `USER_008` | 400         |
 
+### API Key Authentication Flow (Phase O)
+
+Plugin/device clients present API keys via `Authorization: Bearer cttak_<prefix>_<secret>`.
+`ApiKeyAuthenticationFilter` (in `auth/apikey/client/`) runs **before** Spring Security's
+JWT resource server filter:
+
+1. Extract `Authorization` header; if missing or not `Bearer`, fall through to JWT chain.
+2. Validate prefix marker `cttak_`; if not an API key, fall through to JWT chain.
+3. Hash raw key (SHA-256, `ApiKeyHasher`) and lookup via `ApiKeyRepository.findByKeyHash`.
+   - Unknown hash → `AUTH_010` (401).
+4. Reject if `revokedAt != null` → `AUTH_012` (403); if `expiresAt <= now` → `AUTH_011` (401).
+5. Resolve holder `User`; reject if status != ACTIVE → `AUTH_004`/`AUTH_005`/`AUTH_006`/`AUTH_022` (403, per status).
+6. Synchronous `apiKey.touchLastUsed(now)` then set `SecurityContext` with `ApiKeyPrincipal`.
+7. Audit: `API_KEY_USED` (success) or `API_KEY_AUTH_FAILED` with failure reason.
+
+See `ApiKeyAuthenticationFilter.java` and `ApiKeyServiceImpl.java#validateAndTouch`.
+
 ### API Key Error Codes
 
 | Scenario                          | Error Code | HTTP Status |
@@ -891,6 +908,15 @@ UserService.acceptTerms(userId, termsVersion)
 | API key missing required scope    | `AUTH_020` | 403         |
 | API key header malformed          | `AUTH_021` | 401         |
 | Per-user key limit exceeded       | `AUTH_014` | 409         |
+
+**API Key holder's user status rejections (Phase O):**
+
+| User Status              | Error Code | HTTP Status |
+|--------------------------|------------|-------------|
+| Account locked           | `AUTH_004` | 403         |
+| Account suspended        | `AUTH_005` | 403         |
+| Email not verified       | `AUTH_006` | 403         |
+| Account deactivated      | `AUTH_022` | 403         |
 
 ### Error Response Examples
 
