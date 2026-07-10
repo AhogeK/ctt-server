@@ -1,4 +1,31 @@
 # Active Context
+- [2026-07-10] - Phase O: API Key 认证管线最终审查修复完成
+    - M1: ApiKeyServiceImplTest 新增 UserStatus 非 ACTIVE 参数化测试 (LOCKED/SUSPENDED/DELETED/PENDING_VERIFICATION)
+    - M2: validateAndTouch 映射每个 UserStatus 到具体错误码 (AUTH_004/005/006/009)，与 JWT 路径一致
+    - L1: ApiKeyAuthenticationFilter 成功认证后记录 API_KEY_USED 审计日志
+    - N1: ApiKeyService Javadoc FQN → 短类名 (import UnauthorizedException/ForbiddenException)
+    - N2: Filter test renamed: shouldReturn401_whenMalformedApiKey → shouldReturn401_whenKeyPrefixIsEmpty
+    - 验证: `./gradlew test` — BUILD SUCCESSFUL; `./gradlew spotlessCheck` — PASS
+    - 状态: ✅ Phase O 最终审查修复完成，待用户授权提交
+
+- [2026-07-10] - Phase O: API Key 认证管线实现完成
+    - 实现: ApiKeyPrincipal, ApiKeyProperties, ApiKeyAuthenticationFilter, ApiKeySecurityConfig
+    - 集成: SecurityConfig 注入 ApiKeyAuthenticationFilter (在 JWT 过滤器之前)
+    - 扩展: ApiKeyService 接口新增 validateAndTouch 方法, ApiKeyServiceImpl 实现
+    - 测试: ApiKeyAuthenticationFilterTest (6 tests) + ApiKeyServiceImplTest.ValidateAndTouchTests (5+4 tests)
+    - 配置: application.yaml 新增 ctt.security.api-key 配置
+    - 验证: `./gradlew test` — BUILD SUCCESSFUL; `./gradlew spotlessCheck` — PASS
+    - 状态: ✅ Phase O 全部完成
+
+- [2026-07-10] - Notion 开发计划 Phase N 区块验收更新
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+    - 更新: N 区块标题加 ✅ 前缀，所有 17 个子任务打勾，9 项验收标准打勾
+    - 更新: 总交付清单 N 状态改为 "✅ 已完成（v0.36.0）"
+    - 补充: 实现状态快照、验收报告路径、Code Review 修复记录（16 项）
+    - 标注: N.9 RevokeApiKeyRequest 已删除（死代码）及原因
+    - 标注: 实际交付物 11 源文件 + 8 测试文件（原计划 10+5，Code Review 新增 3 个测试）
+    - 状态: ✅ 已完成
+
 - [2026-07-09] - Phase N Code Review 全部修复完成
     - 审查发现: 1 Critical + 4 High + 5 Medium + 6 Low
     - C-1 修复: README.md 新增 API Key Management 端点表; developer-handbook.md 新增 AUTH_020/021 错误码 + API_KEY_* 审计事件; api-governance.md 新增 Tier 2 端点分类

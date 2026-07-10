@@ -2,6 +2,17 @@
 
 ## 已完成 ✅
 
+- [x] Phase O: API Key 认证管线实现完成（含最终审查修复）
+    - 实现: ApiKeyPrincipal, ApiKeyProperties, ApiKeyAuthenticationFilter, ApiKeySecurityConfig
+    - 集成: SecurityConfig 注入 ApiKeyAuthenticationFilter (在 JWT 过滤器之前)
+    - 扩展: ApiKeyService 接口新增 validateAndTouch 方法, ApiKeyServiceImpl 实现
+    - 测试: ApiKeyAuthenticationFilterTest (6 tests) + ApiKeyServiceImplTest.ValidateAndTouchTests (5+4 tests)
+    - 配置: application.yaml 新增 ctt.security.api-key 配置
+    - 最终审查修复: M1(UserStatus参数化测试) + M2(状态→错误码映射) + L1(API_KEY_USED审计) + N1(FQN→短类名) + N2(测试命名)
+    - 验证: `./gradlew test` — BUILD SUCCESSFUL; `./gradlew spotlessCheck` — PASS
+    - 版本: 0.36.0 → 0.37.0 (MINOR: Auth pipeline + review fixes)
+    - 状态: ✅ 已完成
+
 - [x] Phase N: API Key 核心生命周期 CRUD + Code Review 修复全部完成
     - 实现: Entity/Repository/Converter/Hasher/DTOs/Service/Controller
     - Code Review 修复: C-1 文档同步 + H-1~H-4 + M-1~M-4 + L-1~L-3 (共 16 项)
