@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.apikey.dto.CreateApiKeyResponse;
 import com.ahogek.cttserver.auth.apikey.entity.ApiKey;
 import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
 import com.ahogek.cttserver.auth.apikey.repository.ApiKeyRepository;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
@@ -26,7 +27,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -60,7 +60,7 @@ class ApiKeyServiceImplTest {
     @Mock private ApiKeyHasher apiKeyHasher;
     @Mock private AuditLogService auditLogService;
 
-    @InjectMocks private ApiKeyServiceImpl apiKeyService;
+    private ApiKeyServiceImpl apiKeyService;
 
     private User user;
 
@@ -69,6 +69,23 @@ class ApiKeyServiceImplTest {
         user = new User();
         user.setId(USER_ID);
         ReflectionTestUtils.setField(user, "status", UserStatus.ACTIVE);
+        SecurityProperties securityProperties =
+                new SecurityProperties(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SecurityProperties.ApiKeyProperties("Authorization", "Bearer", 20));
+        apiKeyService =
+                new ApiKeyServiceImpl(
+                        apiKeyRepository,
+                        userRepository,
+                        apiKeyHasher,
+                        auditLogService,
+                        securityProperties);
     }
 
     @Nested
@@ -140,8 +157,7 @@ class ApiKeyServiceImplTest {
             CreateApiKeyRequest request =
                     new CreateApiKeyRequest("Key", Set.of(ApiKeyScope.READ), null);
             given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
-            given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID))
-                    .willReturn((long) ApiKeyServiceImpl.MAX_KEYS_PER_USER);
+            given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID)).willReturn(20L);
 
             // When & Then
             assertThatThrownBy(() -> apiKeyService.createApiKey(USER_ID, request))

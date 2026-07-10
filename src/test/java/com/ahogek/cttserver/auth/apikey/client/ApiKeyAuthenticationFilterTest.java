@@ -60,7 +60,7 @@ class ApiKeyAuthenticationFilterTest {
                         null,
                         null,
                         null,
-                        new SecurityProperties.ApiKeyProperties("Authorization", "Bearer"));
+                        new SecurityProperties.ApiKeyProperties("Authorization", "Bearer", 20));
         filter =
                 new ApiKeyAuthenticationFilter(
                         apiKeyService,

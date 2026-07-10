@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.apikey.dto.CreateApiKeyRequest;
 import com.ahogek.cttserver.auth.apikey.dto.CreateApiKeyResponse;
 import com.ahogek.cttserver.auth.apikey.entity.ApiKey;
 import com.ahogek.cttserver.auth.apikey.repository.ApiKeyRepository;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
@@ -40,22 +41,23 @@ public class ApiKeyServiceImpl implements ApiKeyService {
 
     private static final Logger log = LoggerFactory.getLogger(ApiKeyServiceImpl.class);
 
-    static final int MAX_KEYS_PER_USER = 20;
-
     private final ApiKeyRepository apiKeyRepository;
     private final UserRepository userRepository;
     private final ApiKeyHasher apiKeyHasher;
     private final AuditLogService auditLogService;
+    private final int maxKeysPerUser;
 
     public ApiKeyServiceImpl(
             ApiKeyRepository apiKeyRepository,
             UserRepository userRepository,
             ApiKeyHasher apiKeyHasher,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            SecurityProperties securityProperties) {
         this.apiKeyRepository = apiKeyRepository;
         this.userRepository = userRepository;
         this.apiKeyHasher = apiKeyHasher;
         this.auditLogService = auditLogService;
+        this.maxKeysPerUser = securityProperties.apiKey().maxKeysPerUser();
     }
 
     @Override
@@ -67,7 +69,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
                         .orElseThrow(() -> new NotFoundException(ErrorCode.USER_004));
 
         long activeCount = apiKeyRepository.countByUserIdAndRevokedAtIsNull(userId);
-        if (activeCount >= MAX_KEYS_PER_USER) {
+        if (activeCount >= maxKeysPerUser) {
             throw new ConflictException(ErrorCode.AUTH_014);
         }
 
