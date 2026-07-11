@@ -1,7 +1,7 @@
 # SKILL GRAPH — AI Agent 技能索引
 
-> **最后更新**: 2026-07-10
-> **技能总数**: 287+ 个
+> **最后更新**: 2026-07-11
+> **技能总数**: 436+ 个（新增 149 个）
 > **用途**: AI 执行任务前扫描此文件识别相关技能；人类快速定位需要的工具
 
 ---
@@ -22,6 +22,13 @@
 | 部署上线 | `deploy-to-vercel` → `shipping-and-launch` → `ci-cd-and-automation` | 发布流水线 |
 | 安全审计 | `security-and-hardening` → `cso` → `security-research` | 漏洞排查 |
 | 性能优化 | `web-performance-audit` → `performance-optimization` → `debug-optimize-lcp` | 数据驱动 |
+| 生物信息学 | `biopython` → `scanpy` → `scvi-tools` | 基因组分析全流程 |
+| 药物发现 | `rdkit` → `datamol` → `deepchem` → `pytdc` | 分子 ML 管道 |
+| 单细胞分析 | `scanpy` → `anndata` → `scvi-tools` → `scvelo` | scRNA-seq 全流程 |
+| 蛋白质工程 | `esm` → `tamarind` → `diffdock` | 结构预测与对接 |
+| 量子计算 | `qiskit` / `cirq` / `pennylane` / `qutip` | 按硬件选择框架 |
+| 科研绘图 | `scientific-visualization` → `matplotlib` → `seaborn` | 出版级图表 |
+| 文献综述 | `paper-lookup` → `literature-review` → `citation-management` | 系统性文献检索 |
 
 ---
 
@@ -42,6 +49,9 @@
 | `wayfinder` | 把大项目分解为 issue 追踪 | 适合跨多个会话的大型项目，生成 issue tracker 上的 ticket 列表 | "这个项目要做很久"、"帮我规划路线图" |
 | `to-spec` | 把对话变成规格说明 | 从当前对话中提取需求，生成 spec 并发布到 issue tracker | "把刚才讨论的变成 spec" |
 | `to-tickets` | 把计划拆成 tickets | 把 plan 或对话拆成 tracer-bullet tickets，每个都有明确的依赖关系 | "把这些变成 tickets" |
+| `what-if-oracle` | 结构化 What-If 场景分析 | 4-6 分支可能性探索：最佳、最可能、最差、狂野、逆向、二阶效应 | "如果 X 会怎样"、"压力测试决策" |
+| `consciousness-council` | 多视角心智议会审议 | 从多个专家视角审视问题：技术、设计、商业、用户、风险 | "不同专家怎么看"、"多角度分析" |
+| `experimental-design` | 实验设计（数据收集前） | 选择设计、随机化、区组、处理组合，确保结果可解释 | "怎么设计实验"、"随机化"、"DOE" |
 
 ### 代码 & 实现
 
@@ -57,6 +67,8 @@
 | `ubiquitous-language` | 提取 DDD 术语表 | 从代码和对话中提取领域术语，建立团队统一语言 | "统一术语"、"领域语言" |
 | `deprecation-and-migration` | 管理废弃和迁移 | 帮你安全地废弃旧 API、迁移用户、设置过渡期 | "要废弃这个 API"、"迁移旧代码" |
 | `migrate-to-shoehorn` | 迁移测试文件到 shoehorn | 把测试中的 `as` 类型断言迁移到 @total-typescript/shoehorn | "测试迁移" |
+| `optimize-for-gpu` | GPU 加速 Python 代码 | CuPy、Numba CUDA、Warp、cuDF、cuML 等 GPU 加速方案 | "GPU 加速"、"CUDA" |
+| `modal` | Modal 无服务器 Python | 按需运行 Python，包括 GPU。适合 AI/ML 推理、批量处理 | "部署到 Modal"、"GPU 推理" |
 
 ### 调试 & 问题排查
 
@@ -86,6 +98,8 @@
 | `web-accessibility-audit` | WCAG 无障碍审计 | 检查语义 HTML、ARIA 标签、键盘导航、颜色对比度 | "无障碍审查"、"a11y" |
 | `seo-aeo-audit` | SEO/AEO 审计 | 检查 meta 标签、结构化数据、AI 可引用性 | "SEO 审计" |
 | `web-performance-audit` | Web 性能审计 | 使用 Lighthouse/Core Web Vitals 分析页面性能 | "性能审计"、"加载慢" |
+| `peer-review` | 结构化稿件/基金评审 | 用 CONSORT/STROBE 清单评估方法论、统计有效性、报告标准 | "审稿"、"写评审意见" |
+| `scholar-evaluation` | 学术工作系统评估 | ScholarEval 框架：问题表述、方法论、分析、写作，量化评分 | "评估论文质量" |
 
 ### UI & 设计
 
@@ -109,7 +123,11 @@
 | `design-an-interface` | 生成多种不同接口设计 | 用并行子代理生成 2-3 种完全不同的接口设计方案 | "探索设计方案" |
 | `diagram-design` | 技术/产品图表设计 | 架构图、流程图、时序图、ER 图、时间线，输出为 HTML+SVG | "画架构图"、"画流程图" |
 | `animation-vocabulary` | 动画效果术语反查 | "那个弹跳的东西叫什么" → "Pop in"。帮你找到动画效果的正确术语 | "这个动效叫什么" |
-| `codebase-design` | 深层模块设计词汇 | 设计深层模块的接口、边界、可测试性 | "模块设计" |
+| `infographics` | 专业信息图生成 | Nano Banana Pro AI 生成，Gemini 3 Pro 质量审查。10 种类型、8 种风格 | "做信息图" |
+| `generate-image` | AI 图像生成/编辑 | FLUX、Nano Banana 2 模型。通用图像生成：照片、插画、概念艺术 | "生成图片" |
+| `scientific-schematics` | 出版级科学图表 | Nano Banana 2 AI 生成：神经网络架构、系统图、流程图、生物通路 | "画科学图" |
+| `latex-posters` | LaTeX 研究海报 | beamerposter/tikzposter/baposter。会议展示、学术海报 | "做学术海报" |
+| `pptx-posters` | HTML/CSS 研究海报 | 现代 Web 海报设计，可导出 PDF/PPTX | "做 Web 海报" |
 
 ### 写作 & 文档
 
@@ -129,6 +147,22 @@
 | `grill-me` / `grill-with-docs` | 压力测试计划/设计 | 像审问一样追问你的方案：假设是什么？边界在哪？失败了怎么办？ | "压力测试"、"审问一下" |
 | `loop-me` | 工作流规格审问 | 专门审问工作流规格：步骤是否完整？异常怎么处理？ | "审问规格" |
 | `teach` | 教授新技能/概念 | 交互式教学：解释概念、给示例、检查理解 | "教我"、"解释一下" |
+| `scientific-writing` | 科学稿件撰写 | IMRAD 结构、APA/AMA/Vancouver 引用、CONSORT/STROBE 报告指南 | "写论文"、"学术写作" |
+| `researchwrite` | 研究写作管道 | 提案优先：先写论点，再写段落。四层 QA 管道 | "写研究提案" |
+| `literature-review` | 系统性文献综述 | PubMed、arXiv、bioRxiv、Semantic Scholar 多库检索，生成引用文档 | "文献综述" |
+| `citation-management` | 引用管理 | Google Scholar/PubMed 搜索，提取元数据，生成 BibTeX | "管理引用" |
+| `clinical-reports` | 临床报告撰写 | CARE 案例报告、ICH-E3 临床试验报告、SOAP 病历 | "写临床报告" |
+| `clinical-decision-support` | 临床决策支持文档 | 患者队列分析、治疗推荐报告，GRADE 证据分级 | "CDS 文档" |
+| `treatment-plans` | 医疗治疗计划 | 3-4 页聚焦的治疗计划，SMART 目标框架，证据导向 | "写治疗计划" |
+| `iso-13485-certification` | ISO 13485 QMS 文档 | 医疗器械质量管理体系文档：差距分析、质量手册、程序文件 | "ISO 13485" |
+| `research-grants` | 研究基金申请 | NSF、NIH、DOE、DARPA 申请书撰写，预算、更广泛影响、合规 | "写基金申请" |
+| `docx` | Word 文档操作 | 创建、读取、编辑 .docx 文件：目录、标题、页码、模板 | "做 Word 文档" |
+| `pptx` | PowerPoint 演示文稿 | 创建、编辑 .pptx 文件：演讲者备注、模板、图表 | "做 PPT" |
+| `xlsx` | Excel 电子表格 | 创建、编辑 .xlsx 文件：公式、格式、财务模型、数据分析 | "做 Excel" |
+| `pdf` | PDF 文件操作 | 读取、合并、拆分、旋转、水印、OCR、表单填写 | "处理 PDF" |
+| `markitdown` | 文件转 Markdown | 支持 PDF、DOCX、PPTX、XLSX、图片、音频、HTML、CSV、JSON、XML、ZIP | "转 Markdown" |
+| `liteparse` | 本地文档解析 | PDF、DOCX、Office 文件、图片解析，OCR，带空间坐标的 JSON | "解析文档" |
+| `markdown-mermaid-writing` | Markdown + Mermaid 图表写作 | 科学文档写作标准：文本图表优先，24 种图表类型参考 | "写 Markdown" |
 
 ### Git & 版本控制
 
@@ -274,6 +308,18 @@
 | `find-skills` | 发现安装技能 | 帮你找到能做某件事的技能 | "有没有做 X 的技能" |
 | `ask-matt` | 询问适合的技能/流 | 路由器：根据你的需求推荐最合适的技能 | "我该用什么技能" |
 | `using-agent-skills` | 发现调用技能 | 元技能：发现和调用其他技能 | "怎么用技能" |
+| `exa-search` | Exa 网页搜索 | 语义搜索、研究论文过滤、URL 内容提取 | "搜索学术内容" |
+| `parallel-web` | 并行网页工具包 | 网页搜索、URL 提取、批量数据丰富、深度研究报告 | "网页研究" |
+| `paper-lookup` | 学术文献 API 搜索 | 10 个学术数据库：PubMed、arXiv、OpenAlex、Crossref、Semantic Scholar | "找论文" |
+| `paperzilla` | 论文推荐和详情 | 项目推荐、规范论文详情、Markdown 摘要 | "推荐论文" |
+| `research-lookup` | 研究信息检索 | 快速网页搜索、深度多源综合、学术论文搜索 | "查研究" |
+| `database-lookup` | 公共数据库 API 查询 | 科学、监管、金融数据库的可重复查询 | "查数据库" |
+| `literature-review` | 系统性文献综述 | PubMed、arXiv、bioRxiv、Semantic Scholar 多库检索 | "文献综述" |
+| `hypothesis-generation` | 结构化假设制定 | 从观察数据制定可检验的假设、预测、机制 | "提出假设" |
+| `hypogenic` | 自动化假设生成和测试 | LLM 驱动的表格数据假设探索 | "数据假设" |
+| `scientific-brainstorming` | 创意研究构思 | 开放式头脑风暴、跨学科联系、识别研究空白 | "科研创意" |
+| `scientific-critical-thinking` | 科学声明评估 | 评估实验设计有效性、识别偏倚、GRADE 证据分级 | "批判性思维" |
+| `exploratory-data-analysis` | 科学数据 EDA | 200+ 文件格式的全面探索性分析，自动检测文件类型 | "EDA" |
 
 ### 部署 & CI/CD
 
@@ -296,6 +342,7 @@
 | `debug-optimize-lcp` | LCP 优化 | 专门优化 Largest Contentful Paint | "LCP 高" |
 | `memory-leak-debugging` | 内存泄漏调试 | 使用 memlab 分析堆快照 | "内存泄漏" |
 | `vercel-optimize` | Vercel 成本优化 | 分析 Vercel 用量和费用 | "Vercel 费用" |
+| `optimize-for-gpu` | GPU 加速 Python | CuPy、Numba CUDA、Warp、cuDF、cuML 等 | "GPU 加速" |
 
 ### 安全
 
@@ -332,6 +379,9 @@
 | `scheduler` | 设备提醒/本地任务 | 设置本地提醒和定时任务 | "提醒我" |
 | `handoff` | 会话交接文档 | 把当前对话压缩成交接文档，供其他 agent 继续 | "交接" |
 | `context-engineering` | 代理上下文优化 | 优化 agent 的上下文配置：规则文件、记忆策略 | "优化上下文" |
+| `pi-agent` | Pi 终端编码工具 | 安装 Pi、配置提供者/模型/设置、创建技能/扩展 | "用 Pi" |
+| `dhdna-profiler` | 认知模式提取 | 从文本提取认知指纹：思维方式、决策风格、推理模式 | "分析思维模式" |
+| `autoskill` | 屏幕观察技能发现 | 通过 screenpipe 观察屏幕，检测重复工作流，提出新技能 | "观察我做什么" |
 
 ### 设计风格
 
@@ -375,7 +425,300 @@
 | `teach` | 教授新技能/概念 | 交互式教学：解释概念、给示例、检查理解 | "教我" |
 | `scaffold-exercises` | 创建练习脚手架 | 创建练习目录结构：问题、解答、解释 | "做练习" |
 
-### GStack 技能套件
+---
+
+## 🧬 生物信息学 & 基因组学（新增 73 个）
+
+### 单细胞分析
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `scanpy` | scRNA-seq 标准分析管道 | QC、归一化、降维（PCA/UMAP/t-SNE）、聚类、差异表达、可视化 | "单细胞分析" |
+| `anndata` | 注释矩阵数据结构 | .h5ad 文件处理，scverse 生态系统数据格式 | "h5ad 文件" |
+| `scvi-tools` | 单细胞深度生成模型 | scVI 批次校正、迁移学习、不确定性差异表达、多模态整合 | "深度学习单细胞" |
+| `scvelo` | RNA 速度分析 | 从未剪接/剪接 mRNA 动态估计细胞状态转换 | "RNA 速度" |
+| `cellxgene-census` | CZ CELLxGENE Census 查询 | 群体规模的细胞元数据、基因表达切片、嵌入、参考图谱比较 | "查询公共单细胞数据" |
+
+### 基因组学工具
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `biopython` | 分子生物学工具包 | 序列操作、文件解析（FASTA/GenBank/PDB）、NCBI/PubMed 访问 | "序列处理"、"BLAST" |
+| `pysam` | 基因组文件工具 | SAM/BAM/CRAM 比对、VCF/BCF 变异、FASTA/FASTQ 序列读写 | "BAM 处理" |
+| `gget` | 快速生物信息学查询 | 20+ 数据库快速查询：基因信息、BLAST、AlphaFold 结构 | "快速查基因" |
+| `bioservices` | 40+ 生物信息学服务统一接口 | UniProt、KEGG、ChEMBL、Reactome 等跨数据库分析 | "多库查询" |
+| `gtars` | Rust 基因组区间分析 | 高性能基因组区间操作，Python 绑定 | "高性能基因组" |
+| `geniml` | 基因组区间 ML | Region2Vec、BEDspace 嵌入训练，scATAC-seq 分析 | "基因组 ML" |
+| `polars-bio` | Polars 基因组区间操作 | BED/VCF/BAM/GFF 区间的高性能操作 | "基因组数据框" |
+| `onekgpd` | 1000 Genomes Project | 3,202 个全基因组测序个体的变异查询 | "千人基因组" |
+| `tiledbvcf` | 基因组变异存储 | TileDB 高效 VCF/BCF 存储和查询 | "变异数据存储" |
+| `pacsomatic` | nf-core/pacsomatic 管道 | 肿瘤-正常配对 BAM 输入的工作流操作 | "肿瘤基因组" |
+
+### 生物实验平台
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `benchling-integration` | Benchling SDK/API | 注册实体、库存、ELN 条目、工作流、数据仓库查询 | "Benchling 自动化" |
+| `labarchive-integration` | 电子实验笔记本 API | 访问笔记本、管理条目/附件、备份、集成 protocols.io | "实验记录" |
+| `protocolsio-integration` | protocols.io API | 搜索、创建、更新、发布实验方案 | "实验方案" |
+| `opentrons-integration` | Opentrons 协议 API | OT-2 和 Flex 机器人的官方协议 API | "液体处理机器人" |
+| `pylabrobot` | 厂商无关实验室自动化 | Hamilton、Tecan、Opentrons 等多厂商统一编程 | "实验室自动化" |
+| `ginkgo-cloud-lab` | Ginkgo Bioworks Cloud Lab | 蛋白表达纯化、定量、mRNA 合成、热稳定性分析 | "云实验室" |
+| `omero-integration` | 显微镜数据管理 | 图像访问、数据集检索、像素分析、ROI 管理 | "显微镜数据" |
+| `dnanexus-integration` | DNAnexus 云基因组 | 构建应用、数据管理、工作流执行 | "云基因组" |
+
+### 蛋白质 & 分子建模
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `esm` | ESM 蛋白质语言模型 | ESM3/ESMC 模型、ESMFold2 折叠 | "蛋白质结构预测" |
+| `tamarind` | 分子设计和结构生物学 | AlphaFold、RFdiffusion、ProteinMPNN、DiffDock 等云端工具 | "蛋白质设计" |
+| `adaptyv` | Adaptyv Bio Foundry API | 蛋白质实验设计、提交、结果检索 | "蛋白质筛选" |
+| `rdkit` | 化学信息学工具包 | SMILES/SDF 解析、描述符、指纹、子结构搜索、2D/3D 生成 | "分子操作" |
+| `datamol` | RDKit Pythonic 封装 | 简化接口：SMILES 解析、标准化、描述符、指纹、聚类 | "分子标准工作流" |
+| `deepchem` | 分子 ML | 多样化特征化器、预构建数据集、MoleculeNet 基准 | "分子 ML" |
+| `molfeat` | 分子特征化 | 100+ 特征化器：ECFP、MACCS、描述符、预训练模型 | "分子特征" |
+| `torchdrug` | PyTorch GNN 分子 | 图神经网络用于药物发现、蛋白质建模 | "分子 GNN" |
+| `pytdc` | Therapeutics Data Commons | AI-ready 药物发现数据集：ADME、毒性、DTI | "药物数据集" |
+| `medchem` | 药物化学过滤器 | Lipinski、Veber、CNS、PAINS、NIBR 规则 | "化合物筛选" |
+| `diffdock` | 分子对接 | DiffDock/DiffDock-L 蛋白质-小分子姿态预测 | "分子对接" |
+| `rowan` | 云端分子建模 | pKa 预测、构象集成、对接、蛋白质-配体共折叠 | "云端分子建模" |
+| `molecular-dynamics` | 分子动力学模拟 | OpenMM + MDAnalysis：力场、能量最小化、RMSD/RMSF 分析 | "MD 模拟" |
+| `glycoengineering` | 蛋白质糖基化工程 | N-糖基化序列扫描、O-糖基化热点预测 | "糖基化分析" |
+
+### 生物数据分析
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `bulk-rnaseq` | 批量 RNA-seq 全流程 | QC → 比对 → 定量 → 差异表达 → 通路富集 → 图表 | "RNA-seq 分析" |
+| `pydeseq2` | 差异基因表达 | PyDESeq2 公式化设计、Wald 检验、FDR 校正、LFC 收缩 | "差异表达" |
+| `pathway-enrichment` | 通路和基因集富集 | ORA、GSEA、ssGSEA/GSVA，GO、KEGG、Reactome、WikiPathways | "通路分析" |
+| `deeptools` | NGS 分析工具 | BAM → bigWig、QC、热图/剖面图 | "ChIP-seq 可视化" |
+| `scikit-bio` | 生物数据工具 | 序列分析、比对、系统发育树、多样性指标 | "微生物组分析" |
+| `flowio` | FCS 文件解析 | 流式细胞术标准文件 v2.0-3.1 解析 | "流式数据" |
+| `imaging-data-commons` | NCI 成像数据中心 | 公共癌症成像数据查询和下载 | "医学影像" |
+| `histolab` | WSI 切片提取 | H&E 切片处理、组织检测、切片提取、染色归一化 | "病理切片" |
+| `pathml` | 计算病理学 | 多重免疫荧光、核分割、组织图构建 | "计算病理" |
+| `depmap` | Cancer Dependency Map | 基因依赖评分、药物敏感性数据 | "癌症依赖" |
+| `pydicom` | DICOM 文件处理 | 医学影像数据读写、像素提取、匿名化 | "DICOM 处理" |
+| `pyhealth` | 临床深度学习管道 | EHR/信号/成像数据集、临床预测模型 | "临床 ML" |
+| `pyopenms` | 质谱分析 | 蛋白质组学和代谢组学全流程 | "质谱分析" |
+| `matchms` | 质谱相似性 | 光谱比较、化合物鉴定、库搜索 | "代谢组学" |
+| `primekg` | 精准医学知识图谱 | 基因、药物、疾病、表型的多尺度生物数据 | "知识图谱" |
+
+### 系统发育 & 进化
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `phylogenetics` | 系统发育树构建 | MAFFT 多序列比对、IQ-TREE 2 最大似然、FastTree | "建进化树" |
+| `etetoolkit` | 系统发育树工具 | Newick/NHX 树操作、进化事件检测、NCBI 分类 | "树操作" |
+
+### 基因调控
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `arboreto` | 基因调控网络推断 | GRNBoost2、GENIE3 算法，从基因表达数据推断 TF-靶基因关系 | "GRN 推断" |
+| `cobrapy` | 约束代谢建模 | FBA、FVA、基因敲除、通量采样、SBML 模型 | "代谢建模" |
+
+### 材料科学
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `pymatgen` | 材料科学工具 | 晶体结构、相图、能带结构、DOS、Materials Project 集成 | "材料计算" |
+
+### 生物信息学平台
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `nextflow` | Nextflow 数据管道 | 构建、运行、调试 Nextflow/nf-core 工作流 | "生物信息学管道" |
+| `lamindb` | 生物数据湖仓 | 数据集注册、谱系追踪、验证、本体标注 | "数据管理" |
+| `latchbio-integration` | Latch 生物信息学平台 | Latch SDK 构建管道，无服务器部署 | "云生物信息学" |
+| `bgpt-paper-search` | 科学论文结构化数据 | 从全文提取 25+ 字段：方法、结果、样本量、质量评分 | "论文数据提取" |
+
+---
+
+## 🔬 科学研究 & 写作（新增 35 个）
+
+### 科研方法论
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `experimental-design` | 实验设计 | 随机化、区组、处理组合，确保结果可解释 | "设计实验" |
+| `statistical-analysis` | 统计分析指导 | 检验选择、假设检查、效应量、功效分析、贝叶斯替代 | "统计分析" |
+| `statistical-power` | 样本量和功效计算 | 先验功效分析、最小可检测效应、功效曲线 | "计算样本量" |
+| `statsmodels` | 统计模型库 | OLS、GLM、混合模型、ARIMA，详细诊断和推断 | "统计建模" |
+
+### 科研可视化
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `scientific-visualization` | 出版级图表 | 多面板布局、显著性标注、误差条、色盲安全调色板 | "论文图表" |
+| `scientific-slides` | 研究演讲幻灯片 | PowerPoint/LaTeX Beamer 演示文稿，演讲者指导 | "学术报告" |
+| `scientific-schematics` | 出版级科学图表 | 神经网络架构、系统图、流程图、生物通路 | "科学示意图" |
+| `infographics` | 专业信息图 | Nano Banana Pro AI 生成，10 种类型、8 种风格 | "信息图" |
+| `generate-image` | AI 图像生成 | FLUX、Nano Banana 2 模型，通用图像 | "生成图片" |
+| `latex-posters` | LaTeX 研究海报 | beamerposter/tikzposter/baposter | "学术海报" |
+| `pptx-posters` | HTML/CSS 研究海报 | 现代 Web 海报，可导出 PDF/PPTX | "Web 海报" |
+
+### 科研写作
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `scientific-writing` | 科学稿件撰写 | IMRAD 结构、引用格式、报告指南 | "写论文" |
+| `researchwrite` | 研究写作管道 | 提案优先，四层 QA 管道 | "写提案" |
+| `literature-review` | 系统性文献综述 | 多库检索，生成引用文档 | "文献综述" |
+| `citation-management` | 引用管理 | Google Scholar/PubMed 搜索，BibTeX 生成 | "管理引用" |
+| `peer-review` | 结构化稿件评审 | CONSORT/STROBE 清单评估 | "审稿" |
+| `scholar-evaluation` | 学术工作评估 | ScholarEval 框架量化评分 | "评估论文" |
+| `venue-templates` | 期刊/会议模板 | Nature、Science、IEEE、ACM 等格式要求 | "投稿模板" |
+| `research-grants` | 研究基金申请 | NSF、NIH、DOE、DARPA 申请书 | "写基金" |
+
+### 临床 & 医疗
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `clinical-reports` | 临床报告 | CARE 案例、ICH-E3 试验、SOAP 病历 | "临床报告" |
+| `clinical-decision-support` | 临床决策支持 | 患者队列分析、治疗推荐，GRADE 分级 | "CDS" |
+| `treatment-plans` | 治疗计划 | 3-4 页聚焦计划，SMART 目标 | "治疗计划" |
+| `iso-13485-certification` | ISO 13485 QMS | 医疗器械质量管理体系文档 | "ISO 13485" |
+
+### 文档处理
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `docx` | Word 文档操作 | 创建、读取、编辑 .docx 文件 | "Word 文档" |
+| `pptx` | PowerPoint 操作 | 创建、编辑 .pptx 文件 | "PPT" |
+| `xlsx` | Excel 操作 | 创建、编辑 .xlsx 文件 | "Excel" |
+| `pdf` | PDF 操作 | 读取、合并、拆分、OCR | "PDF" |
+| `markitdown` | 文件转 Markdown | 200+ 格式支持 | "转 Markdown" |
+| `liteparse` | 本地文档解析 | 带空间坐标的 JSON 输出 | "解析文档" |
+
+---
+
+## 🔭 天文学 & 地球科学（新增 5 个）
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `astropy` | 天文学 Python 库 | 单位/量、坐标、FITS I/O、WCS、宇宙学 | "天文计算" |
+| `geomaster` | 地理空间科学 | 遥感、GIS、空间分析、地球观测 ML | "地理空间" |
+| `geopandas` | 地理空间向量数据 | Shapefile、GeoJSON、空间分析、几何操作 | "地理数据" |
+| `matlab` | MATLAB/Octave 数值计算 | 矩阵运算、数据分析、可视化 | "MATLAB" |
+| `sympy` | 符号数学 | 代数、微积分、方程求解、符号线性代数 | "符号计算" |
+
+---
+
+## ⚛️ 量子计算（新增 4 个）
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `qiskit` | IBM 量子计算 | IBM 硬件执行、量子纠错、Qiskit Runtime | "IBM 量子" |
+| `cirq` | Google 量子计算 | Google Quantum AI 硬件、噪声感知电路 | "Google 量子" |
+| `pennylane` | 硬件无关量子 ML | 自动微分、变分算法、量子神经网络 | "量子 ML" |
+| `qutip` | 量子物理模拟 | 主方程、Lindblad 动力学、退相干、量子光学 | "量子模拟" |
+
+---
+
+## 🤖 机器学习 & 深度学习（新增 28 个）
+
+### ML 框架
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `scikit-learn` | Python ML | 监督/无监督学习、模型评估、超参数调优 | "机器学习" |
+| `pytorch-lightning` | PyTorch Lightning | LightningModule、Trainer、分布式训练 | "深度学习" |
+| `transformers` | Hugging Face Transformers | AutoModel、pipeline、Trainer 微调 | "NLP/视觉/音频" |
+| `torch-geometric` | PyTorch Geometric | 图神经网络：GCN、GAT、GraphSAGE | "图神经网络" |
+| `stable-baselines3` | 强化学习算法 | PPO、SAC、DQN、TD3、DDPG、A2C | "强化学习" |
+| `pufferlib` | 高性能 RL | 并行训练、向量化环境、多智能体 | "高性能 RL" |
+
+### 数据处理
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `polars` | 高性能 DataFrame | 表达式驱动、懒查询优化、并行执行 | "数据处理" |
+| `dask` | 分布式计算 | 大于 RAM 的 pandas/NumPy 工作流 | "分布式计算" |
+| `vaex` | 大表格数据集 | 十亿级行数的 out-of-core DataFrame | "大数据" |
+| `zarr-python` | 云存储 N-D 数组 | 压缩数组、并行 I/O、S3/GCS | "云数组" |
+| `modal` | 无服务器 Python | 按需 GPU、AI/ML 推理、批量处理 | "无服务器" |
+
+### 可视化
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `matplotlib` | 底层绘图库 | 完全自定义控制，出版级输出 | "自定义图表" |
+| `seaborn` | 统计可视化 | pandas 集成，箱线图、小提琴图、热图 | "统计图表" |
+| `networkx` | 复杂网络分析 | 图算法、社区检测、网络拓扑 | "网络分析" |
+| `umap-learn` | 非线性降维 | 2D/3D 嵌入、聚类预处理 | "降维" |
+
+### ML 解释性
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `shap` | 模型可解释性 | SHAP 值：瀑布图、蜂群图、力图 | "解释模型" |
+
+### 其他 ML
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `scikit-survival` | 生存分析 | Cox 模型、随机生存森林、梯度提升 | "生存分析" |
+| `pymc` | 贝叶斯建模 | 层次模型、MCMC（NUTS）、变分推断 | "贝叶斯" |
+| `pymoo` | 多目标优化 | NSGA-II、NSGA-III、MOEA/D、Pareto 前沿 | "多目标优化" |
+| `simpy` | 离散事件仿真 | 过程、队列、资源、基于时间的事件 | "仿真" |
+| `aeon` | 时间序列 ML | 分类、回归、聚类、预测、异常检测 | "时间序列" |
+| `timesfm-forecasting` | 零样本时间序列预测 | Google TimesFM 基础模型，无需训练 | "时间序列预测" |
+| `neurokit2` | 生物信号处理 | ECG、EEG、EDA、RSP、PPG、EMG 分析 | "生物信号" |
+| `neuropixels-analysis` | Neuropixels 记录分析 | SpikeInterface：预处理、漂移校正、尖峰排序 | "电生理" |
+| `fluidsim` | 流体动力学模拟 | Navier-Stokes、浅水方程、伪谱方法 | "CFD" |
+
+---
+
+## 🔍 网络搜索 & 数据获取（新增 5 个）
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `exa-search` | Exa 语义搜索 | 研究论文过滤、学术域名过滤 | "学术搜索" |
+| `parallel-web` | 并行网页工具包 | 网页搜索、URL 提取、深度研究 | "网页研究" |
+| `paper-lookup` | 学术文献搜索 | 10 个学术数据库：PubMed、arXiv、OpenAlex | "找论文" |
+| `paperzilla` | 论文推荐 | 项目推荐、规范论文详情 | "推荐论文" |
+| `research-lookup` | 研究信息检索 | 快速搜索、深度综合、学术搜索 | "查研究" |
+| `database-lookup` | 公共数据库查询 | 科学、监管、金融数据库 | "查数据库" |
+| `usfiscaldata` | 美国财政数据 API | 国债、每日/月度财政部声明、拍卖、利率 | "查财政数据" |
+| `get-available-resources` | 系统资源检测 | CPU、GPU、内存、磁盘空间检测 | "检查资源" |
+
+---
+
+## 🎯 决策 & 思维工具（新增 4 个）
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `what-if-oracle` | What-If 场景分析 | 4-6 分支可能性探索 | "如果 X 会怎样" |
+| `consciousness-council` | 多视角心智议会 | 从多个专家视角审视问题 | "多角度分析" |
+| `dhdna-profiler` | 认知模式提取 | 从文本提取认知指纹 | "分析思维" |
+| `autoskill` | 屏幕观察技能发现 | 检测重复工作流，提出新技能 | "观察工作" |
+
+---
+
+## 📚 笔记 & 知识管理（新增 4 个）
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `obsidian-vault` | Obsidian 知识库 | 搜索、创建、管理笔记 | "Obsidian" |
+| `open-notebook` | 开源 NotebookLM | AI 驱动的研究和文档分析 | "笔记本" |
+| `pi-agent` | Pi 终端编码工具 | 安装、配置、创建技能/扩展 | "Pi" |
+| `kami` | Kami 文档排版 | 温暖羊皮纸风格，中文/英文/日文 | "做文档" |
+
+---
+
+## 🎨 图表 & 可视化（新增 2 个）
+
+| 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
+|--------|-----------|---------|-----------|
+| `diagram-design` | 技术/产品图表 | 架构图、流程图、时序图、ER 图，HTML+SVG | "画图" |
+| `markdown-mermaid-writing` | Markdown + Mermaid | 科学文档写作标准，24 种图表类型 | "写 Markdown" |
+
+---
+
+## GStack 技能套件
 
 | 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
 |--------|-----------|---------|-----------|
@@ -470,20 +813,19 @@
 | `grilling` | 压力测试计划/设计 | 像审问一样追问方案 | "压力测试" |
 | `prototype` | 构建原型回答设计问题 | 构建一次性原型验证设计决策 | "做原型" |
 | `request-refactor-plan` | 创建重构计划 | 通过用户访谈创建详细的重构计划 | "重构计划" |
-| `researchwrite` | 研究写作 | 提案优先的科学写作流水线 | "研究写作" |
 | `setup-matt-pocock-skills` | 配置工程技能 | 配置 issue tracker、triage 标签、领域文档 | "配置技能" |
 | `slack-qa-investigate` | Slack QA 调查 | 只读模式调查仓库问题 | "Slack QA" |
 | `terraform-style-check` | Terraform 代码风格检查 | 按 HashiCorp 官方风格检查 Terraform 配置 | "Terraform 检查" |
 | `using-superpowers` | 使用超级技能 | 元技能：发现和使用其他技能 | "怎么用技能" |
 | `web-design-guidelines` | Web 设计指南 | 审查 UI 代码是否符合 Web 接口指南 | "设计指南" |
 | `wizard` | 生成交互式向导 | 生成 bash 向导引导用户完成手动流程 | "做向导" |
-| `obsidian-vault` | Obsidian 知识库管理 | 搜索、创建、管理 Obsidian 笔记 | "Obsidian" |
-| `kami` | Kami 笔记管理 | 温暖羊皮纸风格的文档排版 | "做文档" |
 | `claude-handoff` | 会话交接给新代理 | 把当前对话交给新的后台 agent 继续 | "交接" |
 | `handoff` | 压缩会话为交接文档 | 把对话压缩成交接文档 | "交接文档" |
 | `find-skills` | 发现安装技能 | 帮你找到能做某件事的技能 | "找技能" |
 | `ask-matt` | 询问适合的技能/流 | 根据需求推荐最合适的技能 | "用什么技能" |
 | `using-agent-skills` | 发现调用技能 | 元技能：发现和调用其他技能 | "怎么用技能" |
+| `market-research-reports` | 市场研究报告 | 50+ 页专业报告：McKinsey/BCG/Gartner 风格 | "市场研究" |
+| `idea-refine` | 细化原始想法 | 发散/收敛思维，把粗糙想法变成精确概念 | "细化想法" |
 
 ---
 
@@ -527,6 +869,56 @@ security-and-hardening → cso → security-research
 ### 性能优化
 ```
 web-performance-audit → performance-optimization → debug-optimize-lcp
+```
+
+### 单细胞分析流程
+```
+scanpy → anndata → scvi-tools → scvelo → pathway-enrichment
+```
+
+### 药物发现流程
+```
+rdkit → datamol → deepchem → pytdc → medchem → diffdock
+```
+
+### 蛋白质工程流程
+```
+esm → tamarind → diffdock → molecular-dynamics → glycoengineering
+```
+
+### 基因组学流程
+```
+biopython → pysam → scanpy → pydeseq2 → pathway-enrichment
+```
+
+### 质谱分析流程
+```
+pyopenms → matchms → datamol → rdkit
+```
+
+### 系统发育流程
+```
+biopython → phylogenetics → etetoolkit → scikit-bio
+```
+
+### 文献综述流程
+```
+paper-lookup → literature-review → citation-management → nature-citation
+```
+
+### 临床报告流程
+```
+clinical-reports → clinical-decision-support → treatment-plans
+```
+
+### 量子计算流程
+```
+qiskit / cirq / pennylane / qutip → optimize-for-gpu
+```
+
+### 地理空间流程
+```
+geopandas → geomaster → matplotlib → scientific-visualization
 ```
 
 ---
