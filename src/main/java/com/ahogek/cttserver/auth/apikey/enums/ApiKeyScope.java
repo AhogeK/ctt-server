@@ -8,6 +8,9 @@ package com.ahogek.cttserver.auth.apikey.enums;
  * {@code ROLE_API_KEY_<SCOPE>} convention to clearly distinguish API-key-based authorization from
  * role-based grants assigned to web users.
  *
+ * <p>The {@code ADMIN} scope supersedes all other scopes — an API key with {@code ADMIN} access is
+ * granted unrestricted entry to any scope-protected endpoint.
+ *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-07-09
  */

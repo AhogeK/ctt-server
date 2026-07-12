@@ -5,6 +5,8 @@ import com.ahogek.cttserver.auth.apikey.dto.ApiKeyResponse;
 import com.ahogek.cttserver.auth.apikey.dto.ApiKeysResponse;
 import com.ahogek.cttserver.auth.apikey.dto.CreateApiKeyRequest;
 import com.ahogek.cttserver.auth.apikey.dto.CreateApiKeyResponse;
+import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
+import com.ahogek.cttserver.auth.apikey.security.RequiresApiKeyScope;
 import com.ahogek.cttserver.auth.apikey.service.ApiKeyQueryService;
 import com.ahogek.cttserver.auth.apikey.service.ApiKeyService;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
@@ -61,6 +63,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/api/v1/auth/api-keys")
 @SecurityRequirement(name = "bearerAuth")
 public class ApiKeyController {
+
+    private static final String SCOPE_DENIED_EXAMPLE =
+            """
+            {
+              "code": "AUTH_020",
+              "message": "API key missing required scope",
+              "details": [],
+              "traceId": "abc-123",
+              "httpStatus": 403,
+              "timestamp": "2026-07-09T10:30:00Z"
+            }
+            """;
 
     private final ApiKeyService apiKeyService;
     private final ApiKeyQueryService apiKeyQueryService;
@@ -186,9 +200,22 @@ public class ApiKeyController {
                                                                   "httpStatus": 409,
                                                                   "timestamp": "2026-07-09T10:30:00Z"
                                                                 }
-                                                                """)))
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary =
+                                                                "API key lacks the required scope",
+                                                        value = SCOPE_DENIED_EXAMPLE)))
             })
     @RateLimit(type = RateLimitType.USER, limit = 10, windowSeconds = 3600)
+    @RequiresApiKeyScope(ApiKeyScope.WRITE)
     @PostMapping
     public ResponseEntity<RestApiResponse<CreateApiKeyResponse>> createApiKey(
             @Valid @RequestBody CreateApiKeyRequest request) {
@@ -233,8 +260,21 @@ public class ApiKeyController {
                                                                   "httpStatus": 401,
                                                                   "timestamp": "2026-07-09T10:30:00Z"
                                                                 }
-                                                                """)))
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary =
+                                                                "API key lacks the required scope",
+                                                        value = SCOPE_DENIED_EXAMPLE)))
             })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
     @GetMapping
     public ResponseEntity<RestApiResponse<ApiKeysResponse>> listApiKeys() {
         UUID userId = currentUserProvider.getCurrentUserRequired().id();
@@ -304,8 +344,21 @@ public class ApiKeyController {
                                                                   "httpStatus": 401,
                                                                   "timestamp": "2026-07-09T10:30:00Z"
                                                                 }
-                                                                """)))
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary =
+                                                                "API key lacks the required scope",
+                                                        value = SCOPE_DENIED_EXAMPLE)))
             })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
     @GetMapping("/{id}")
     public ResponseEntity<RestApiResponse<ApiKeyResponse>> getApiKey(@PathVariable UUID id) {
         UUID userId = currentUserProvider.getCurrentUserRequired().id();
@@ -375,8 +428,21 @@ public class ApiKeyController {
                                                                   "httpStatus": 401,
                                                                   "timestamp": "2026-07-09T10:30:00Z"
                                                                 }
-                                                                """)))
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary =
+                                                                "API key lacks the required scope",
+                                                        value = SCOPE_DENIED_EXAMPLE)))
             })
+    @RequiresApiKeyScope(ApiKeyScope.WRITE)
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> revokeApiKey(@PathVariable UUID id) {
         UUID userId = currentUserProvider.getCurrentUserRequired().id();

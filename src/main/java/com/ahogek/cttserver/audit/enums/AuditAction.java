@@ -136,6 +136,9 @@ public enum AuditAction {
     /** API key authentication failed. */
     API_KEY_AUTH_FAILED("API key authentication failed"),
 
+    /** API key denied access due to insufficient scope. */
+    API_KEY_SCOPE_DENIED("API key denied access due to insufficient scope"),
+
     // ==========================================
     // Device and Endpoint Management
     // ==========================================
