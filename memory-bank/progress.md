@@ -2,6 +2,18 @@
 
 ## 已完成 ✅
 
+- [x] Phase P: Scopes 权限系统实现完成
+    - 实现: @RequiresApiKeyScope 自定义注解 + ApiKeyScopeAspect AOP 切面
+    - 集成: SecurityConfig 启用 @EnableMethodSecurity
+    - 逻辑: JWT 用户自动绕过 scope 检查, API Key 用户检查 required scope, ADMIN scope 超越所有
+    - 应用: ApiKeyController (POST/DELETE=WRITE, GET=READ) + DeviceController (GET=READ, DELETE=WRITE)
+    - 审计: AuditAction 新增 API_KEY_SCOPE_DENIED
+    - 测试: ApiKeyScopeAspectTest (5 tests: 有scope/无scope+ADMIN绕过/JWT绕过/无认证)
+    - 文档: README.md + developer-handbook.md 同步更新
+    - 验证: `./gradlew test --tests "*ApiKeyScopeAspectTest"` — PASS; `./gradlew compileJava` — PASS
+    - 版本: 0.37.1 → 0.38.0 (MINOR: scope enforcement)
+    - 状态: ✅ 已完成
+
 - [x] Phase O: API Key 认证管线实现完成（含最终审查修复）
     - 实现: ApiKeyPrincipal, ApiKeyProperties, ApiKeyAuthenticationFilter, ApiKeySecurityConfig
     - 集成: SecurityConfig 注入 ApiKeyAuthenticationFilter (在 JWT 过滤器之前)

@@ -1,4 +1,17 @@
 # Active Context
+- [2026-07-12] - Phase P: Scopes 权限系统实现完成
+    - T1: SecurityConfig 新增 @EnableMethodSecurity 启用方法级安全
+    - T3: 创建 @RequiresApiKeyScope 自定义注解 (auth/apikey/security/)
+    - T2/T4: 创建 ApiKeyScopeAspect AOP 切面 (JWT 用户自动绕过, API Key 用户检查 scope, ADMIN scope 超越所有)
+    - T5: ApiKeyController 应用 @RequiresApiKeyScope (POST/DELETE=WRITE, GET=READ)
+    - T5: DeviceController 应用 @RequiresApiKeyScope (GET=READ, DELETE=WRITE)
+    - T6: CreateApiKeyRequest 已有 @NotEmpty scope 验证（复用现有）
+    - AuditAction 新增 API_KEY_SCOPE_DENIED 审计事件
+    - 测试: ApiKeyScopeAspectTest (5 tests: 有scope/无scope+ADMIN绕过/JWT绕过/无认证)
+    - 验证: `./gradlew test --tests "*ApiKeyScopeAspectTest"` — PASS; `./gradlew compileJava` — PASS
+    - 版本: 0.37.1 → 0.38.0 (MINOR: scope enforcement)
+    - 状态: ✅ Phase P 核心实现完成，待用户授权提交
+
 - [2026-07-10] - Phase O: API Key 认证管线最终审查修复完成
     - M1: ApiKeyServiceImplTest 新增 UserStatus 非 ACTIVE 参数化测试 (LOCKED/SUSPENDED/DELETED/PENDING_VERIFICATION)
     - M2: validateAndTouch 映射每个 UserStatus 到具体错误码 (AUTH_004/005/006/009)，与 JWT 路径一致
