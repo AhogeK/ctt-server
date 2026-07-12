@@ -80,10 +80,40 @@ public enum ErrorCode {
 | `API_KEY_REVOKED`   | API key revoked                                            | `ApiKeyServiceImpl.revokeApiKey` |
 | `API_KEY_USED`      | Successful API key authentication                          | (Phase O: authentication filter) |
 | `API_KEY_AUTH_FAILED` | Failed API key authentication (revoked/expired/malformed) | (Phase O: authentication filter) |
+| `API_KEY_SCOPE_DENIED` | API key denied access due to insufficient scope | `ApiKeyScopeAspect` |
 
 **Resource Type**: `ResourceType.API_KEY`
 
 **Details**: `API_KEY_CREATED` includes `keyId` and `keyPrefix` (never raw key or hash). `API_KEY_REVOKED` includes `keyId`. `API_KEY_AUTH_FAILED` includes failure reason (revoked/expired/malformed/insufficient_scope).
+
+### API Key Scope Enforcement
+
+API key scope-based authorization uses `@RequiresApiKeyScope` annotation on controller methods.
+
+**Behavior**:
+- API key with required scope → allowed
+- API key with `ADMIN` scope → allowed (supersedes all scopes)
+- API key without required scope → 403 `AUTH_020` + `API_KEY_SCOPE_DENIED` audit event
+- JWT-authenticated users → bypass scope check (already authenticated via web session)
+
+**Usage**:
+```java
+@RequiresApiKeyScope(ApiKeyScope.WRITE)
+@DeleteMapping("/{id}")
+public ResponseEntity<Void> revokeApiKey(@PathVariable UUID id) {
+    // Only API keys with WRITE scope, or JWT users, can access this endpoint
+}
+```
+
+**Available Scopes**:
+| Scope | Authority | Description |
+|-------|-----------|-------------|
+| `READ` | `ROLE_API_KEY_READ` | Read-only access (profile, statistics queries) |
+| `WRITE` | `ROLE_API_KEY_WRITE` | Mutating access on user-owned resources |
+| `SYNC` | `ROLE_API_KEY_SYNC` | Authorization to call sync engine endpoints |
+| `ADMIN` | `ROLE_API_KEY_ADMIN` | Full administrative access (supersedes all) |
+
+**Implementation**: `ApiKeyScopeAspect` (AOP) intercepts `@RequiresApiKeyScope` annotations.
 
 ### Set Password Audit Events
 
