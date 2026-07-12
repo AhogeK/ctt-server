@@ -1,5 +1,7 @@
 package com.ahogek.cttserver.device.controller;
 
+import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
+import com.ahogek.cttserver.auth.apikey.security.RequiresApiKeyScope;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
@@ -74,9 +76,27 @@ public class DeviceController {
                                                                 {
                                                                   "code": "AUTH_002",
                                                                   "message": "Invalid or expired JWT token"
+                                                                 }"""))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary =
+                                                                "API key lacks the required scope",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_020",
+                                                                  "message": "API key missing required scope"
                                                                 }""")))
             })
     @SecurityRequirement(name = "bearerAuth")
+    @RequiresApiKeyScope(ApiKeyScope.READ)
     @GetMapping
     public ResponseEntity<RestApiResponse<List<DeviceResponse>>> listDevices(
             @AuthenticationPrincipal CurrentUser currentUser) {
@@ -122,9 +142,27 @@ public class DeviceController {
                                                                 {
                                                                   "code": "COMMON_002",
                                                                   "message": "Device not found or access denied"
+                                                                 }"""))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary =
+                                                                "API key lacks the required scope",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_020",
+                                                                  "message": "API key missing required scope"
                                                                 }""")))
             })
     @SecurityRequirement(name = "bearerAuth")
+    @RequiresApiKeyScope(ApiKeyScope.WRITE)
     @DeleteMapping("/{deviceId}")
     public ResponseEntity<RestApiResponse<Void>> revokeDevice(
             @AuthenticationPrincipal CurrentUser currentUser, @PathVariable UUID deviceId) {
