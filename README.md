@@ -10,7 +10,7 @@ CTT Server provides:
 - **Email Verification**: One-time token-based verification with 24h expiration and SHA-256 token hashing
 - **Transactional Email Queue**: Outbox pattern with retry scheduling, exponential backoff, and audit logging
 - **Bidirectional Sync Engine**: Multi-device data synchronization with LWW conflict resolution
-- **API Key Management**: Product-grade authentication with device-binding and revocation
+- **API Key Management**: Product-grade authentication with device-binding, revocation, and scope-based authorization
 - **Statistics & Analytics**: Time-series aggregation queries with device filtering
 - **Global Leaderboard**: Redis-powered real-time ranking system
 - **Soft Delete Architecture**: Safe data handling with `is_deleted` flags for sync integrity
@@ -343,6 +343,8 @@ User → POST /change-request {newEmail, password?} → System sends verificatio
 **Security**: Raw key shown only at creation time; SHA-256 hash stored at rest. Per-user limit: 20 active keys.
 
 **Authentication**: API keys authenticate via `Authorization: Bearer cttak_<prefix>_<secret>` header. The authentication filter validates the key, checks expiration/revocation status, and updates `last_used_at` synchronously. API key authentication runs before JWT authentication in the security filter chain.
+
+**Scope Enforcement**: API keys are granted specific scopes (READ, WRITE, SYNC, ADMIN). Protected endpoints enforce scope requirements via `@RequiresApiKeyScope` annotation. API keys without the required scope receive 403 (AUTH_020). JWT-authenticated users bypass scope checks.
 
 ### Public Configuration
 
