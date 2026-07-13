@@ -115,6 +115,23 @@ public ResponseEntity<Void> revokeApiKey(@PathVariable UUID id) {
 
 **Implementation**: `ApiKeyScopeAspect` (AOP) intercepts `@RequiresApiKeyScope` annotations.
 
+### Sync Engine Endpoints
+
+The sync engine provides bidirectional data synchronization with scope-based access control.
+
+| Endpoint | Method | Description | Required Scope |
+|----------|--------|-------------|----------------|
+| `/api/v1/sync/pull` | POST | Pull latest changes from server | SYNC |
+| `/api/v1/sync/push` | POST | Push local changes to server | SYNC |
+
+**Behavior**:
+- API key with SYNC scope → allowed
+- API key with ADMIN scope → allowed (supersedes all scopes)
+- API key without SYNC scope → 403 `AUTH_020` + `API_KEY_SCOPE_DENIED` audit event
+- JWT-authenticated users → bypass scope check
+
+**Note**: These are minimal endpoints to demonstrate SYNC scope enforcement. The actual sync engine logic (LWW conflict resolution, coding sessions, change log) will be implemented in Phase Q/R.
+
 ### Set Password Audit Events
 
 | Audit Action | Description |
