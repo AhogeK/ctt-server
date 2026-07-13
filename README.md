@@ -346,6 +346,15 @@ User → POST /change-request {newEmail, password?} → System sends verificatio
 
 **Scope Enforcement**: API keys are granted specific scopes (READ, WRITE, SYNC, ADMIN). Protected endpoints enforce scope requirements via `@RequiresApiKeyScope` annotation. API keys without the required scope receive 403 (AUTH_020). JWT-authenticated users bypass scope checks.
 
+### Sync Engine
+
+| Endpoint | Method | Description | Required Scope |
+|----------|--------|-------------|----------------|
+| `/api/v1/sync/pull` | POST | Pull latest changes from server | SYNC |
+| `/api/v1/sync/push` | POST | Push local changes to server | SYNC |
+
+**Note**: These are minimal endpoints to demonstrate SYNC scope enforcement. The actual sync engine logic (LWW conflict resolution, coding sessions, change log) will be implemented in Phase Q/R.
+
 ### Public Configuration
 
 | Endpoint                | Method | Description                                          |
