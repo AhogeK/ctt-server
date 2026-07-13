@@ -2,6 +2,16 @@
 
 ## 已完成 ✅
 
+- [x] Phase P 补充：同步端点 + MockMvc 测试 + 集成测试
+    - 创建 SyncController (sync/controller/) 最小端点：POST /pull, POST /push
+    - 应用 @RequiresApiKeyScope(ApiKeyScope.SYNC) scope 校验
+    - 创建 SyncControllerMockMvcTest：10 个测试验证 403 AUTH_020 格式、JWT 绕过、ADMIN 超越
+    - 创建 ApiKeyScopeIntegrationTest：完整 Spring 上下文 scope 执行验证
+    - 更新 README.md + developer-handbook.md 同步端点文档
+    - 版本: 0.38.0 → 0.39.0 (MINOR: sync endpoints + tests)
+    - 验证: `./gradlew test --tests "*SyncControllerMockMvcTest"` — PASS
+    - 状态: ✅ 已完成
+
 - [x] Phase P: Scopes 权限系统实现完成
     - 实现: @RequiresApiKeyScope 自定义注解 + ApiKeyScopeAspect AOP 切面
     - 集成: SecurityConfig 启用 @EnableMethodSecurity
