@@ -12,6 +12,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
 import com.ahogek.cttserver.user.entity.User;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -32,8 +33,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ApiKeyAuthenticationFilter Tests")
@@ -46,6 +50,7 @@ class ApiKeyAuthenticationFilterTest {
 
     @Mock private ApiKeyService apiKeyService;
     @Mock private AuditLogService auditLogService;
+    @Mock private RedisRateLimiter redisRateLimiter;
 
     private ApiKeyAuthenticationFilter filter;
 
@@ -60,14 +65,17 @@ class ApiKeyAuthenticationFilterTest {
                         null,
                         null,
                         null,
-                        new SecurityProperties.ApiKeyProperties("Authorization", "Bearer", 20));
+                        new SecurityProperties.ApiKeyProperties(
+                                "Authorization", "Bearer", 20, 10, 60));
         filter =
                 new ApiKeyAuthenticationFilter(
                         apiKeyService,
                         auditLogService,
                         properties,
-                        new ObjectMapper().registerModule(new JavaTimeModule()));
+                        new ObjectMapper().registerModule(new JavaTimeModule()),
+                        redisRateLimiter);
         SecurityContextHolder.clearContext();
+        lenient().when(redisRateLimiter.isAllowed(any(), anyInt(), anyInt())).thenReturn(true);
     }
 
     @Test
@@ -218,5 +226,24 @@ class ApiKeyAuthenticationFilterTest {
         filter.doFilterInternal(request, response, chain);
 
         assertThat(response.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("shouldReturn429_whenRateLimitExceeded")
+    void shouldReturn429_whenRateLimitExceeded() throws Exception {
+        given(apiKeyService.validateAndTouch(RAW_KEY))
+                .willThrow(new NotFoundException(ErrorCode.AUTH_010));
+        given(redisRateLimiter.isAllowed(any(), anyInt(), anyInt())).willReturn(false);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer " + RAW_KEY);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(429);
+        assertThat(response.getHeader("Retry-After")).isEqualTo("60");
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 }
