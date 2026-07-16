@@ -1,4 +1,15 @@
 # Active Context
+- [2026-07-15] - Phase Q: API Key 认证限流实现
+    - 增强 ApiKeyAuthenticationFilter：Per-IP 限流（10次失败/60秒）+ Retry-After header
+    - SecurityProperties.ApiKeyProperties 新增 authFailureRateLimit 和 authFailureRateLimitWindowSeconds 配置
+    - ApiKeySecurityConfig 注入 RedisRateLimiter 到 filter
+    - 复用现有 RedisRateLimiter（Lua 脚本原子操作）实现固定窗口限流
+    - 更新 developer-handbook.md：新增 API Key 认证限流文档
+    - 修复 4 个测试文件适配 ApiKeyProperties 新参数
+    - 版本: 0.39.0 → 0.40.0 (MINOR: auth rate limiting)
+    - 验证: `./gradlew test --tests "*ApiKeyAuthenticationFilterTest"` — PASS; `./gradlew spotlessApply compileJava` — PASS
+    - 状态: ✅ Phase Q 核心实现完成，待用户授权提交
+
 - [2026-07-13] - Phase P 补充：同步端点 + MockMvc 测试 + 集成测试
     - 创建 SyncController (sync/controller/) 最小端点：POST /api/v1/sync/pull, POST /api/v1/sync/push
     - 两个端点均应用 @RequiresApiKeyScope(ApiKeyScope.SYNC) scope 校验

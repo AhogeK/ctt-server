@@ -2,6 +2,15 @@
 
 ## 已完成 ✅
 
+- [x] Phase Q: API Key 认证限流实现
+    - 增强 ApiKeyAuthenticationFilter：Per-IP 限流 + Retry-After header
+    - 复用 RedisRateLimiter 实现固定窗口限流（10次失败/60秒）
+    - SecurityProperties.ApiKeyProperties 新增限流配置
+    - 更新 developer-handbook.md 限流文档
+    - 修复 4 个测试文件适配新参数
+    - 版本: 0.39.0 → 0.40.0 (MINOR: auth rate limiting)
+    - 状态: ✅ 已完成
+
 - [x] Phase P 补充：同步端点 + MockMvc 测试 + 集成测试
     - 创建 SyncController (sync/controller/) 最小端点：POST /pull, POST /push
     - 应用 @RequiresApiKeyScope(ApiKeyScope.SYNC) scope 校验
