@@ -12,8 +12,8 @@ import java.util.Collections;
  * <p>Implements fixed window algorithm with atomic increment and expiration. The Lua script ensures
  * thread-safe operations in distributed environments, preventing race conditions.
  *
- * <p>Algorithm: If current count >= limit, return 0 (blocked); otherwise increment and set expiry
- * on first request, return 1 (allowed).
+ * <p>Algorithm: Increment first, then check if limit exceeded. This prevents the race condition
+ * where two concurrent requests both read the same counter value and both pass the check.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-17
@@ -34,13 +34,12 @@ public class RedisRateLimiter {
         // Returns: 1 if allowed, 0 if blocked
         String lua =
                 """
-                local current = redis.call('get', KEYS[1])
-                if current and tonumber(current) >= tonumber(ARGV[1]) then
-                    return 0
-                end
-                current = redis.call('incr', KEYS[1])
+                local current = redis.call('incr', KEYS[1])
                 if tonumber(current) == 1 then
                     redis.call('expire', KEYS[1], tonumber(ARGV[2]))
+                end
+                if tonumber(current) > tonumber(ARGV[1]) then
+                    return 0
                 end
                 return 1
                 """;

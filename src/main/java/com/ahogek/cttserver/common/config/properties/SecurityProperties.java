@@ -128,5 +128,7 @@ public record SecurityProperties(
     public record ApiKeyProperties(
             @NotBlank @DefaultValue("Authorization") String headerName,
             @NotBlank @DefaultValue("Bearer") String headerPrefix,
-            @DefaultValue("20") int maxKeysPerUser) {}
+            @DefaultValue("20") int maxKeysPerUser,
+            @Min(1) @DefaultValue("10") int authFailureRateLimit,
+            @Min(1) @DefaultValue("60") int authFailureRateLimitWindowSeconds) {}
 }
