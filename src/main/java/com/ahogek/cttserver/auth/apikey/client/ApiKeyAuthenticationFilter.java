@@ -14,6 +14,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 
@@ -25,6 +26,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -57,20 +59,25 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(ApiKeyAuthenticationFilter.class);
 
+    private static final String AUTH_FAILURE_KEY_PREFIX = "api_key_auth_fail:";
+
     private final ApiKeyService apiKeyService;
     private final AuditLogService auditLogService;
     private final SecurityProperties.ApiKeyProperties apiKeyProperties;
     private final ObjectMapper objectMapper;
+    private final RedisRateLimiter redisRateLimiter;
 
     public ApiKeyAuthenticationFilter(
             ApiKeyService apiKeyService,
             AuditLogService auditLogService,
             SecurityProperties securityProperties,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            RedisRateLimiter redisRateLimiter) {
         this.apiKeyService = apiKeyService;
         this.auditLogService = auditLogService;
         this.apiKeyProperties = securityProperties.apiKey();
         this.objectMapper = objectMapper;
+        this.redisRateLimiter = redisRateLimiter;
     }
 
     @Override
@@ -138,9 +145,34 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private void handleAuthFailure(
             HttpServletRequest request, HttpServletResponse response, ErrorCode errorCode)
             throws IOException {
+        String clientIp = RequestContext.current().map(info -> info.clientIp()).orElse("unknown");
+
+        String rateLimitKey = AUTH_FAILURE_KEY_PREFIX + clientIp;
+        boolean allowed =
+                redisRateLimiter.isAllowed(
+                        rateLimitKey,
+                        apiKeyProperties.authFailureRateLimit(),
+                        apiKeyProperties.authFailureRateLimitWindowSeconds());
+
+        if (!allowed) {
+            log.warn("API key auth rate limit exceeded for IP: {}", clientIp);
+            response.setStatus(429);
+            response.setHeader(
+                    HttpHeaders.RETRY_AFTER,
+                    String.valueOf(apiKeyProperties.authFailureRateLimitWindowSeconds()));
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.RATE_LIMIT_001);
+            RestApiResponse<ErrorResponse> apiResponse =
+                    RestApiResponse.error(ErrorCode.RATE_LIMIT_001.message(), errorResponse);
+            objectMapper.writeValue(response.getOutputStream(), apiResponse);
+            return;
+        }
+
         log.warn(
-                "API key authentication failed for {}: {}",
+                "API key authentication failed for {} from {}: {}",
                 request.getRequestURI(),
+                clientIp,
                 errorCode.message());
 
         String traceId =

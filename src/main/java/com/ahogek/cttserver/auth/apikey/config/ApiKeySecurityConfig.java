@@ -4,6 +4,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.apikey.client.ApiKeyAuthenticationFilter;
 import com.ahogek.cttserver.auth.apikey.service.ApiKeyService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,8 +25,9 @@ public class ApiKeySecurityConfig {
             ApiKeyService apiKeyService,
             AuditLogService auditLogService,
             SecurityProperties securityProperties,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            RedisRateLimiter redisRateLimiter) {
         return new ApiKeyAuthenticationFilter(
-                apiKeyService, auditLogService, securityProperties, objectMapper);
+                apiKeyService, auditLogService, securityProperties, objectMapper, redisRateLimiter);
     }
 }

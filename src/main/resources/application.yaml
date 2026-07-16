@@ -149,6 +149,8 @@ ctt:
       header-name: Authorization
       header-prefix: Bearer
       max-keys-per-user: 20
+      auth-failure-rate-limit: 10
+      auth-failure-rate-limit-window-seconds: 60
 
     hcaptcha:
       site-key: ${HCAPTCHA_SITE_KEY:}
