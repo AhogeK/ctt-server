@@ -86,6 +86,28 @@ public enum ErrorCode {
 
 **Details**: `API_KEY_CREATED` includes `keyId` and `keyPrefix` (never raw key or hash). `API_KEY_REVOKED` includes `keyId`. `API_KEY_AUTH_FAILED` includes failure reason (revoked/expired/malformed/insufficient_scope).
 
+### API Key Authentication Rate Limiting
+
+API key authentication failures are rate-limited per IP address to prevent brute-force attacks.
+
+**Configuration** (in `application.yaml`):
+```yaml
+ctt:
+  security:
+    api-key:
+      auth-failure-rate-limit: 10        # Max failures per window
+      auth-failure-rate-limit-window-seconds: 60  # Window duration
+```
+
+**Behavior**:
+- Failed API key authentication attempts are tracked per client IP in Redis
+- When failures exceed the limit within the window, subsequent requests receive HTTP 429
+- Rate-limited responses include `Retry-After` header with the window duration in seconds
+- Successful authentications are not rate-limited
+- Rate limit counters auto-expire via Redis TTL
+
+**Implementation**: `ApiKeyAuthenticationFilter` uses `RedisRateLimiter` for atomic rate limiting via Lua script.
+
 ### API Key Scope Enforcement
 
 API key scope-based authorization uses `@RequiresApiKeyScope` annotation on controller methods.
