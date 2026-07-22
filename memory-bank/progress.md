@@ -2,6 +2,36 @@
 
 ## 已完成 ✅
 
+- [x] Phase R: API Key 集成测试 + Phase N/O 隐藏 bug 修复
+    - 创建 ApiKeyIntegrationTest（6 个 E2E 场景）：happy_path/revoke/expire(2 方法)/scope_deny/bola/rate_limit
+    - 修复 Phase N 隐藏 bug：ApiKey entity scopes 字段 `@Convert(String) + jsonb column` 在 Hibernate 7 下失败 → `@JdbcTypeCode(SqlTypes.JSON)`
+    - 修复 Phase O 隐藏 bug ×3：
+      1. SecurityConfig filter order（API key filter 排在 JWT filter 后）→ 改为 `addFilterBefore(apiKeyFilter, BearerTokenAuthenticationFilter.class)`
+      2. JWT 过滤器对 cttak_* token 双重处理 → 新增 `ApiKeyAwareBearerTokenResolver` 在 cttak_* prefix 时返回 null
+      3. `SpringSecurityCurrentUserProvider` 不识别 `ApiKeyPrincipal` → 重构 `ApiKeyPrincipal` 嵌入 `CurrentUser`（含 userId/email/status/authorities）
+    - 测试适配：`ApiKeyScopeAspectTest` 改用新 `ApiKeyPrincipal(TEST_USER, KEY_ID, scopes)` 构造器
+    - 验证：`./gradlew test --tests "*ApiKeyIntegration*"` + 全项目 `./gradlew test` (1049 tests, 100% pass) —— 全绿
+    - 顺带收益：Phase P `ApiKeyScopeIntegrationTest` 现在也 PASS（此前被 bug 阻塞）
+    - 版本: 0.40.0 → 0.40.1 (PATCH: bug fixes)
+    - 限制：`ApiKeyScopeConverter` 类保留但 unused（删除成本 > 收益，超出本任务范围）
+
+- [x] Phase R 审查修复 (review fixes from 5 BG agents)
+    - **code-reviewer (project skill)** + 4 个 review agents 并发审查
+    - **3 CRITICAL**:
+      1. `ApiKeyAwareBearerTokenResolver` 硬编码 `"Bearer "` → 改用 `SecurityProperties.apiKey().headerPrefix()`
+      2. 硬编码 `"cttak_"` → `import static ApiKeyHasher.KEY_PREFIX_MARKER`
+      3. 死代码 `ApiKeyScopeConverter` + 测试删除；`ApiKey.java:24` Javadoc 修正
+    - **3 MAJOR**:
+      1. `ApiKeyIntegrationTest.java:44` docstring 401 → 403
+      2. `ApiKeyPrincipal.from` Javadoc 改为准确描述
+      3. `ApiKeyAwareBearerTokenResolver` 提升为 SecurityConfig `@Bean`
+    - **Scope blast**: 4 patterns 扫描 0 个同类 latent bug elsewhere
+    - 测试 gap 记录（informational, 不在本任务范围）：idempotency, GET BOLA, per-user limit, last_used_at, audit log, malformed header, empty scopes
+    - Docs: developer-handbook.md 新增"API Key Filter Order and Token Resolution"小节；README.md 认证流程 + Error Codes 表更新
+    - 重新验证: `./gradlew test` —— 1041 tests (删除 ApiKeyScopeConverterTest -8), 0 failed
+    - 覆盖率: INSTRUCTION 93.5% / BRANCH 83.5%
+    - 状态: ✅ blocker 全部修复
+
 - [x] Phase Q: API Key 认证限流实现
     - 增强 ApiKeyAuthenticationFilter：Per-IP 限流 + Retry-After header
     - 复用 RedisRateLimiter 实现固定窗口限流（10次失败/60秒）

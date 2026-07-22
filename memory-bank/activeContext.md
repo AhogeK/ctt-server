@@ -1,4 +1,46 @@
 # Active Context
+- [2026-07-22] - Phase R: API Key 集成测试 + Phase N/O 隐藏 bug 修复
+    - 创建 ApiKeyIntegrationTest（6 个 E2E 场景）：happy_path/revoke/expire(2 测试方法：自然过期+时间旅行)/scope_deny/bola/rate_limit
+    - 修复 Phase N 遗留 bug 1：ApiKey entity scopes 字段 `@Convert(String)` + `columnDefinition="jsonb"` 在 Hibernate 7 下触发 `column is of type jsonb but expression is of type character varying` PSQLException
+      - 修复：替换为 `@JdbcTypeCode(SqlTypes.JSON)` + `@Column(columnDefinition="jsonb")`（与 AuditLog/MailOutbox 项目一致模式）
+      - `ApiKeyScopeConverter` 类保留（向后兼容；不再使用），单测 `ApiKeyScopeConverterTest` 仍 PASS
+    - 修复 Phase O 遗留 bug 2：SecurityConfig 的 `addFilterBefore(apiKeyAuthenticationFilter, SecurityContextHolderAwareRequestFilter.class)` 实际放在 JWT BearerTokenAuthenticationFilter 之后，导致 `Authorization: Bearer cttak_*` 被 JWT 过滤器先解析 → AUTH_003 "Token invalid" 401
+      - 修复：改为 `addFilterBefore(apiKeyAuthenticationFilter, BearerTokenAuthenticationFilter.class)` —— API key filter 现在位于位置 9/17，JWT filter 在位置 10/17
+    - 修复 Phase O 遗留 bug 3：JWT 过滤器对 `cttak_*` token 仍会尝试解析为 JWT（即使 API key filter 已跳过 JwtAuthenticationConverter），双重认证链冲突
+      - 修复：新增 `ApiKeyAwareBearerTokenResolver`，对 `cttak_*` prefix 返回 null 让 API key filter 处理
+      - 集成：`oauth2ResourceServer.bearerTokenResolver(new ApiKeyAwareBearerTokenResolver())`
+    - 修复 Phase O 遗留 bug 4：`SpringSecurityCurrentUserProvider.getCurrentUser()` 不识别 `ApiKeyPrincipal`，导致用 API key 访问 `ApiKeyController` 时 `currentUserProvider.getCurrentUserRequired()` 抛 AUTH_001 "Authentication required"
+      - 修复：`ApiKeyPrincipal` 重构为嵌入 `CurrentUser user`（含 userId/email/status/authorities/authType=API_KEY）
+      - 提供 `ApiKeyPrincipal.from(User, keyId, scopes)` factory 利用已加载的 User entity（避免重复 DB 查询）
+      - `SpringSecurityCurrentUserProvider` 增加 `instanceof ApiKeyPrincipal` 分支返回嵌入的 user
+      - 用户层调用接口 `userId()` 仍然可用（从 user.id() 计算），向后兼容
+    - 测试适配：ApiKeyScopeAspectTest 改用 `new ApiKeyPrincipal(TEST_USER, KEY_ID, ...)` 而非旧的三 UUID 构造器
+    - 响应行为对齐（项目一致性 R8.5）：
+      - AUTH_012 (revoked) 实际返回 **403 FORBIDDEN**（非任务描述的 401），采纳项目实际行为
+      - BOLA 测试期望 `$.code = AUTH_010`（NotFoundException 直出，非 RestApiResponse 包装）
+      - Rate limit/expire 测试期望 `$.data.code`（RestApiResponse 包装）
+    - 测试：ApiKeyScopeIntegrationTest（Phase P，已被 bug 阻塞）现在也全部 PASS —— bug 修复连带解锁
+    - 测试：全项目 `./gradlew test` —— 1049 tests, 0 failed, 1 skipped, 100% success rate
+    - `./gradlew spotlessCheck` —— PASS
+    - 版本: 0.40.0 → 0.40.1 (PATCH: bug fixes)
+- [2026-07-22] - Phase R 审查 + 修复 (review fixes)
+    - **code-reviewer (项目级 skill)** 派出 5 个并发 BG 子 agent 审查未提交代码（4 review + 1 verify）
+    - **3 CRITICAL issues fixed**:
+      - **C-1**: `ApiKeyAwareBearerTokenResolver` 硬编码 `"Bearer "` 字符串 → 改为注入 `SecurityProperties` 读取 `apiKey.headerPrefix()`,配置变更后不再失配
+      - **C-2**: 硬编码 `"cttak_"` 字符串 → 改为 `import static ApiKeyHasher.KEY_PREFIX_MARKER` 使用项目 public 常量,避免重复真相源
+      - **C-3**: 死代码 `ApiKeyScopeConverter.java` + `ApiKeyScopeConverterTest.java` 已无任何 @Convert 引用 → 删除,同步修正 `ApiKey.java:24` Javadoc（不再声称 scopes 通过 converter 持久化,改为说明通过 `@JdbcTypeCode(SqlTypes.JSON)`）
+    - **3 MAJOR issues fixed**:
+      - **M-1**: `ApiKeyIntegrationTest.java:44` docstring 仍写 `401 AUTH_012`,实际响应是 403 (line 281 `@DisplayName` 已正确) → 修正为 403
+      - **M-2**: `ApiKeyPrincipal.from` Javadoc 谎称 "UserStatus is coerced to ACTIVE",实际直接传 `user.getStatus()` → 改写为 "active-status invariant is enforced upstream by ApiKeyService.validateAndTouch"
+      - **M-3**: `ApiKeyAwareBearerTokenResolver` 用 `new` 直接实例化(`SecurityConfig:161`) → 提升为 `@Bean` 在 `SecurityConfig.apiKeyBearerTokenResolver()`,与项目 `apiKeyAuthenticationFilter` 风格一致（虽然 placement 在 `common.config` 而非 `apikey.config`,因 resolver 是 Spring Security 关注点,但依赖 `auth.apikey` 的常量已存在先例）
+    - **Scope blast verdict**: 4 个 pattern 扫描结果显示 **0 个同类 latent bug** elsewhere
+    - **Test gaps noted (informational)**: idempotency of double-DELETE, GET `/{id}` BOLA, per-user 20-key limit, last_used_at update, audit log emission, malformed header, empty scopes, listings content - 已记录但不在本任务范围
+    - **Docs sync**: 更新 `developer-handbook.md` (新增 "API Key Filter Order and Token Resolution" 小节) + `README.md` (认证流程 + Error Codes 表)
+    - 重新验证: `./gradlew test` —— 1041 tests (删除 ApiKeyScopeConverterTest 后 -8), 0 failed, 100% success rate
+    - 重新覆盖率: INSTRUCTION 93.5% / BRANCH 83.5% (≥ 80% / 70% 阈值,均远超)
+    - `./gradlew spotlessCheck` —— PASS
+    - 状态: ✅ 审查完成,所有 blocker 修复,待用户授权提交
+
 - [2026-07-15] - Phase Q: API Key 认证限流实现
     - 增强 ApiKeyAuthenticationFilter：Per-IP 限流（10次失败/60秒）+ Retry-After header
     - SecurityProperties.ApiKeyProperties 新增 authFailureRateLimit 和 authFailureRateLimitWindowSeconds 配置
