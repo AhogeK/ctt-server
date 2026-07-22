@@ -16,6 +16,8 @@ import org.springframework.security.config.annotation.web.configurers.HeadersCon
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -154,11 +156,11 @@ public class SecurityConfig {
                                                                 ReferrerPolicy.NO_REFERRER)))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .addFilterAfter(termsCheckFilter, SecurityContextHolderAwareRequestFilter.class)
-                .addFilterBefore(
-                        apiKeyAuthenticationFilter, SecurityContextHolderAwareRequestFilter.class)
+                .addFilterBefore(apiKeyAuthenticationFilter, BearerTokenAuthenticationFilter.class)
                 .oauth2ResourceServer(
                         oauth2 ->
-                                oauth2.jwt(
+                                oauth2.bearerTokenResolver(apiKeyBearerTokenResolver())
+                                        .jwt(
                                                 jwt ->
                                                         jwt.jwtAuthenticationConverter(
                                                                 jwtToCurrentUserConverter))
@@ -183,10 +185,20 @@ public class SecurityConfig {
      * ctt.security.password.bcrypt-rounds}, defaulting to 12. Higher values increase computation
      * time for password hashing, making rainbow table attacks more expensive.
      *
-     * @return the password encoder configured with bcrypt rounds
+     * @return the PasswordEncoder configured with bcrypt rounds
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder(securityProperties.password().bcryptRounds());
+    }
+
+    /**
+     * Provides a {@link BearerTokenResolver} that defers API key credentials to {@link
+     * com.ahogek.cttserver.auth.apikey.client.ApiKeyAuthenticationFilter} rather than feeding them
+     * into the JWT decoder.
+     */
+    @Bean
+    public BearerTokenResolver apiKeyBearerTokenResolver() {
+        return new ApiKeyAwareBearerTokenResolver(securityProperties);
     }
 }

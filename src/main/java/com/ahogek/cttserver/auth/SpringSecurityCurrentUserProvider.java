@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.auth;
 
+import com.ahogek.cttserver.auth.apikey.model.ApiKeyPrincipal;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
@@ -36,9 +37,12 @@ public class SpringSecurityCurrentUserProvider implements CurrentUserProvider {
 
         Object principal = authentication.getPrincipal();
 
-        // Core assembly logic: JWT filters will populate CurrentUser as principal
         if (principal instanceof CurrentUser currentUser) {
             return Optional.of(currentUser);
+        }
+
+        if (principal instanceof ApiKeyPrincipal apiKeyPrincipal) {
+            return Optional.of(apiKeyPrincipal.user());
         }
 
         return Optional.empty();

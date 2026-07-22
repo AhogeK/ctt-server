@@ -105,8 +105,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             ApiKey apiKey = apiKeyService.validateAndTouch(rawKey);
 
             ApiKeyPrincipal principal =
-                    new ApiKeyPrincipal(
-                            apiKey.getUser().getId(), apiKey.getId(), apiKey.getScopes());
+                    ApiKeyPrincipal.from(apiKey.getUser(), apiKey.getId(), apiKey.getScopes());
 
             List<SimpleGrantedAuthority> authorities =
                     apiKey.getScopes().stream()
