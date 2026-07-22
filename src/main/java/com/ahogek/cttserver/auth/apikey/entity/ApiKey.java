@@ -1,6 +1,5 @@
 package com.ahogek.cttserver.auth.apikey.entity;
 
-import com.ahogek.cttserver.auth.apikey.crypto.ApiKeyScopeConverter;
 import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.user.entity.User;
@@ -8,7 +7,9 @@ import com.ahogek.cttserver.user.entity.User;
 import jakarta.persistence.*;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.EnumSet;
@@ -20,7 +21,7 @@ import java.util.UUID;
  *
  * <p>Maps to the {@code api_keys} table. The full key value is never stored — only its SHA-256 hash
  * and an 8-character {@code keyPrefix} that is safe to display for identification purposes. Scopes
- * are persisted as a JSONB array via {@link ApiKeyScopeConverter}.
+ * are persisted as a JSONB array via {@code @JdbcTypeCode(SqlTypes.JSON)}.
  *
  * <p>State is encapsulated by the {@link #isActive()}, {@link #revoke(Instant)} and {@link
  * #touchLastUsed(Instant)} behavioral methods so callers cannot bypass lifecycle rules.
@@ -58,7 +59,7 @@ public class ApiKey {
     @Column(name = "name", length = 100)
     private String name;
 
-    @Convert(converter = ApiKeyScopeConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "scopes", columnDefinition = "jsonb", nullable = false)
     private Set<ApiKeyScope> scopes = EnumSet.noneOf(ApiKeyScope.class);
 

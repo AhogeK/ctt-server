@@ -5,8 +5,10 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
 import com.ahogek.cttserver.auth.apikey.model.ApiKeyPrincipal;
+import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
+import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
@@ -50,6 +52,14 @@ class ApiKeyScopeAspectTest {
     private static final UUID USER_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
     private static final UUID KEY_ID = UUID.fromString("770e8400-e29b-41d4-a716-446655440002");
 
+    private static final CurrentUser TEST_USER =
+            new CurrentUser(
+                    USER_ID,
+                    "test@example.com",
+                    UserStatus.ACTIVE,
+                    java.util.Set.of(),
+                    CurrentUser.AuthenticationType.API_KEY);
+
     private RequiresApiKeyScope readAnnotation;
 
     @AfterEach
@@ -87,7 +97,7 @@ class ApiKeyScopeAspectTest {
         void shouldAllowAccess_whenApiKeyHasRequiredScope() throws Throwable {
             // Given
             ApiKeyPrincipal principal =
-                    new ApiKeyPrincipal(USER_ID, KEY_ID, Set.of(ApiKeyScope.READ));
+                    new ApiKeyPrincipal(TEST_USER, KEY_ID, Set.of(ApiKeyScope.READ));
             setAuthentication(principal);
             setUpMethodStubbing();
             given(joinPoint.proceed()).willReturn("result");
@@ -106,7 +116,7 @@ class ApiKeyScopeAspectTest {
         void shouldAllowAccess_whenApiKeyHasAdminScope() throws Throwable {
             // Given
             ApiKeyPrincipal principal =
-                    new ApiKeyPrincipal(USER_ID, KEY_ID, Set.of(ApiKeyScope.ADMIN));
+                    new ApiKeyPrincipal(TEST_USER, KEY_ID, Set.of(ApiKeyScope.ADMIN));
             setAuthentication(principal);
             setUpMethodStubbing();
             given(joinPoint.proceed()).willReturn("result");
@@ -130,7 +140,7 @@ class ApiKeyScopeAspectTest {
         void shouldDenyAccess_whenApiKeyLacksRequiredScope() throws Throwable {
             // Given
             ApiKeyPrincipal principal =
-                    new ApiKeyPrincipal(USER_ID, KEY_ID, Set.of(ApiKeyScope.WRITE));
+                    new ApiKeyPrincipal(TEST_USER, KEY_ID, Set.of(ApiKeyScope.WRITE));
             setAuthentication(principal);
             setUpMethodStubbing();
 
@@ -156,7 +166,7 @@ class ApiKeyScopeAspectTest {
             // Given
             ApiKeyPrincipal principal =
                     new ApiKeyPrincipal(
-                            USER_ID, KEY_ID, Set.of(ApiKeyScope.READ, ApiKeyScope.WRITE));
+                            TEST_USER, KEY_ID, Set.of(ApiKeyScope.READ, ApiKeyScope.WRITE));
             setAuthentication(principal);
             setUpMethodStubbing();
 
