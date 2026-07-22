@@ -1,6 +1,6 @@
 [versions]
 
-appVersion = "0.40.0"
+appVersion = "0.40.1"
 springBoot = "4.1.0"
 springDependencyManagement = "1.1.7"
 spotless = "8.8.0"
