@@ -342,9 +342,27 @@ User → POST /change-request {newEmail, password?} → System sends verificatio
 
 **Security**: Raw key shown only at creation time; SHA-256 hash stored at rest. Per-user limit: 20 active keys.
 
-**Authentication**: API keys authenticate via `Authorization: Bearer cttak_<prefix>_<secret>` header. The authentication filter validates the key, checks expiration/revocation status, and updates `last_used_at` synchronously. API key authentication runs before JWT authentication in the security filter chain.
+**Authentication**: API keys authenticate via `Authorization: Bearer cttak_<prefix>_<secret>` header.
+`ApiKeyAuthenticationFilter` validates the key, checks expiration/revocation status, and updates
+`last_used_at` synchronously. The filter is registered **before** `BearerTokenAuthenticationFilter` in
+the security chain, and a dedicated `ApiKeyAwareBearerTokenResolver` ensures the JWT filter never sees
+an API key value (it returns `null` for `cttak_*`). After authentication succeeds, `ApiKeyPrincipal`
+embeds the populated `CurrentUser` so downstream `getCurrentUserRequired()` calls work for both
+authentication types without an extra database lookup.
 
 **Scope Enforcement**: API keys are granted specific scopes (READ, WRITE, SYNC, ADMIN). Protected endpoints enforce scope requirements via `@RequiresApiKeyScope` annotation. API keys without the required scope receive 403 (AUTH_020). JWT-authenticated users bypass scope checks.
+
+**Error Codes**:
+
+| Scenario                              | Code      | HTTP |
+|--------------------------------------|-----------|------|
+| API key invalid / not found / BOLA    | `AUTH_010` | 401  |
+| API key expired                       | `AUTH_011` | 401  |
+| API key revoked                       | `AUTH_012` | 403  |
+| API key header malformed              | `AUTH_021` | 401  |
+| Per-user key limit exceeded           | `AUTH_014` | 409  |
+| Missing required scope                | `AUTH_020` | 403  |
+| Authentication rate limit exceeded    | `RATE_LIMIT_001` | 429 |
 
 ### Sync Engine
 
