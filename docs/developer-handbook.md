@@ -967,6 +967,30 @@ JWT resource server filter:
 
 See `ApiKeyAuthenticationFilter.java` and `ApiKeyServiceImpl.java#validateAndTouch`.
 
+### API Key Filter Order and Token Resolution
+
+The security filter chain splits the `Authorization: Bearer …` header between API keys and JWTs
+without ever feeding an API key value to the JWT decoder:
+
+| Position | Filter                                      | Responsibility                                                                 |
+|----------|---------------------------------------------|---------------------------------------------------------------------------------|
+| 1 (early) | `ApiKeyAuthenticationFilter`                | Validates `Authorization: Bearer cttak_*`. On success populates `SecurityContext`.   |
+| 2        | `BearerTokenAuthenticationFilter` (JWT)      | Uses `ApiKeyAwareBearerTokenResolver` to extract the Bearer token.                  |
+
+`ApiKeyAwareBearerTokenResolver` is registered as a Spring `@Bean` in `SecurityConfig` and is built
+from the shared `SecurityProperties.apiKey().headerPrefix()` and the public `ApiKeyHasher.KEY_PREFIX_MARKER`.
+It returns `null` whenever the token looks like an API key (e.g. `cttak_…`), so the JWT filter skips
+without throwing `AUTH_003`. Configuration changes to either prefix (via `ctt.security.api-key.*`) keep the
+resolver in lockstep with `ApiKeyAuthenticationFilter` automatically.
+
+After both filters run, `SpringSecurityCurrentUserProvider.getCurrentUser()` returns the embedded
+`CurrentUser` from the `ApiKeyPrincipal`, so downstream code (`getCurrentUserRequired()`,
+`getActiveUserRequired()`) works for both authentication types without an extra database lookup.
+
+When an inactive user state is detected during `ApiKeyServiceImpl.validateAndTouch`, the request is
+rejected with `AUTH_004` / `AUTH_005` / `AUTH_006` / `AUTH_022` before `last_used_at` is updated — see
+`ApiKeyServiceImpl.createUserInactiveException` for the mapping.
+
 ### API Key Error Codes
 
 | Scenario                          | Error Code | HTTP Status |
