@@ -15,6 +15,11 @@
     - 版本: 0.40.0 → 0.40.1 (PATCH: bug fixes)
     - 限制：`ApiKeyScopeConverter` 类保留但 unused（删除成本 > 收益，超出本任务范围）
 
+- [x] Phase S: 文档 + API Key 前端集成指南
+    - S.1~S.3/S.5 已在 Phase N/O/P/Q/R 累积完成，无需额外修改
+    - 创建 `dev-docs/apikey/frontend-integration.md`（S.4 唯一缺失交付物）
+    - 状态: ✅ 全部完成
+
 - [x] Phase R 审查修复 (review fixes from 5 BG agents)
     - **code-reviewer (project skill)** + 4 个 review agents 并发审查
     - **3 CRITICAL**:

@@ -23,6 +23,12 @@
     - 测试：全项目 `./gradlew test` —— 1049 tests, 0 failed, 1 skipped, 100% success rate
     - `./gradlew spotlessCheck` —— PASS
     - 版本: 0.40.0 → 0.40.1 (PATCH: bug fixes)
+- [2026-07-22] - Phase S: 文档 + API Key 前端集成指南
+    - 实际评估：S.1 developer-handbook.md（错误码/审计/认证章节）、S.2 api-governance.md（安全层级/限流）、S.3 README.md（端点表/技术栈）、S.5 OpenAPI 示例 均已在 Phase N/O/P/Q/R 累积完成，无需额外修改
+    - 创建 `dev-docs/apikey/frontend-integration.md`（S.4 唯一缺失交付物）：API Key 创建/列表/吊销流程、错误码映射、状态显示指南、安全注意事项
+    - 无代码修改，版本号不变
+    - 状态: ✅ Phase S 全部完成，待用户授权提交
+
 - [2026-07-22] - Phase R 审查 + 修复 (review fixes)
     - **code-reviewer (项目级 skill)** 派出 5 个并发 BG 子 agent 审查未提交代码（4 review + 1 verify）
     - **3 CRITICAL issues fixed**:
