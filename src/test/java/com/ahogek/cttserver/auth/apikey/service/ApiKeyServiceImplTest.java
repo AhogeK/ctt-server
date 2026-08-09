@@ -301,6 +301,78 @@ class ApiKeyServiceImplTest {
     }
 
     @Nested
+    @DisplayName("deleteApiKey")
+    class DeleteApiKeyTests {
+
+        @Test
+        @DisplayName("shouldDeleteApiKey_whenKeyRevoked")
+        void shouldDeleteApiKey_whenKeyRevoked() {
+            // Given
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            apiKey.setKeyPrefix(KEY_PREFIX);
+            apiKey.revoke(Instant.now().minusSeconds(60));
+            given(apiKeyRepository.findByIdAndUserId(KEY_ID, USER_ID))
+                    .willReturn(Optional.of(apiKey));
+
+            // When
+            apiKeyService.deleteApiKey(USER_ID, KEY_ID);
+
+            // Then
+            then(apiKeyRepository).should().delete(apiKey);
+            then(auditLogService)
+                    .should()
+                    .logSuccess(
+                            USER_ID,
+                            AuditAction.API_KEY_DELETED,
+                            ResourceType.API_KEY,
+                            KEY_ID.toString());
+        }
+
+        @Test
+        @DisplayName("shouldThrowConflictException_whenKeyNotRevoked")
+        void shouldThrowConflictException_whenKeyNotRevoked() {
+            // Given
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            given(apiKeyRepository.findByIdAndUserId(KEY_ID, USER_ID))
+                    .willReturn(Optional.of(apiKey));
+
+            // When & Then
+            assertThatThrownBy(() -> apiKeyService.deleteApiKey(USER_ID, KEY_ID))
+                    .isInstanceOf(ConflictException.class);
+            then(apiKeyRepository).should(never()).delete(any());
+            then(auditLogService).should(never()).logSuccess(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("shouldThrowNotFoundException_whenKeyNotFound")
+        void shouldThrowNotFoundException_whenKeyNotFound() {
+            // Given
+            given(apiKeyRepository.findByIdAndUserId(KEY_ID, USER_ID)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> apiKeyService.deleteApiKey(USER_ID, KEY_ID))
+                    .isInstanceOf(NotFoundException.class);
+            then(apiKeyRepository).should(never()).delete(any());
+        }
+
+        @Test
+        @DisplayName("shouldThrowNotFoundException_whenKeyBelongsToOtherUser")
+        void shouldThrowNotFoundException_whenKeyBelongsToOtherUser() {
+            // Given
+            given(apiKeyRepository.findByIdAndUserId(KEY_ID, USER_ID)).willReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> apiKeyService.deleteApiKey(USER_ID, KEY_ID))
+                    .isInstanceOf(NotFoundException.class);
+            then(apiKeyRepository).should(never()).delete(any());
+        }
+    }
+
+    @Nested
     @DisplayName("validateAndTouch")
     class ValidateAndTouchTests {
 
