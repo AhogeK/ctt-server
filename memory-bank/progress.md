@@ -2,6 +2,13 @@
 
 ## 已完成 ✅
 
+- [x] 补充 API Key E2E 测试（409 20-key 上限 + 429 创建限流）
+    - LimitExceededTests: 真实创建 20 key → 第 21 个 409 AUTH_014（创建限流 key 分段清理防 429 遮蔽）
+    - CreateRateLimitTests: 第 11 次创建 → 429 RATE_LIMIT_001
+    - 修复登录限流跨类干扰: @AfterEach 清理 rate_limit:ip:AuthController.login:*（IP 维度共享计数）
+    - 验证: 全量 1045 tests / 0 failed; spotlessCheck PASS; jacoco PASS
+    - 纯测试变更，版本保持 0.40.2，待用户授权提交
+
 - [x] keyPrefix 一致性修复（带 cttak_ marker，与文档契约对齐）
     - 决策: 改代码（三处文档口径一致 + 业界惯例 + R8.5），DB VARCHAR(32) 无需 ALTER
     - 修复: extractPrefix 固定切片 `substring(0, KEY_PREFIX_LENGTH=14)`；ApiKeyHasher 新增 VISIBLE_PREFIX_CHARS/KEY_PREFIX_LENGTH 常量

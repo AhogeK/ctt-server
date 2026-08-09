@@ -1,4 +1,17 @@
 # Active Context
+- [2026-07-28] - 补充 API Key E2E 测试（409 上限 + 429 创建限流）
+    - 背景: 前端验证时指出 20-key 上限与创建限流无 E2E 覆盖（此前仅单测 + MockMvc；429 认证限流已有 E2E 但创建端点限流没有）
+    - 新增 2 个 @Nested 场景（ApiKeyIntegrationTest，@Order 7/8）:
+      - LimitExceededTests: 真实创建 20 个 key → 第 21 个断言 409 + $.code = AUTH_014
+      - CreateRateLimitTests: 连续创建 10 个 → 第 11 个断言 429 + $.code = RATE_LIMIT_001
+    - **关键隔离设计**（测试间 Redis 共享状态）:
+      - 创建限流 key 清理（rate_limit:user:ApiKeyController.createApiKey:*）: 409 测试在 11-20 次创建前 + 第 21 次请求前清理（否则 429 先于 409 拦截）；429 测试开头清理
+      - **登录限流跨类干扰 bug**（全量测试暴露）: 登录 @RateLimit(IP, 30/h) 按客户端 IP 共享计数，新增测试多登录 2 次推高累计 → 后续 ApiKeyScopeIntegrationTest 登录被 429 → accessToken 空断言失败；修复: @AfterEach 清理 rate_limit:ip:AuthController.login:*
+    - 错误响应格式确认: ConflictException/TooManyRequestsException 均 BusinessException → handleBusinessException → ErrorResponse 直出 → 断言用 $.code（非 $.data.code）
+    - 验证: ApiKey 103 tests + 全量 1045 tests / 0 failed; spotlessCheck PASS（修正 2 处 Text Block 换行 + 1 处常量行宽）; jacoco PASS
+    - 纯测试变更，无生产代码修改，版本号保持 0.40.2
+    - 状态: ✅ 完成，待用户授权提交
+
 - [2026-07-28] - keyPrefix 一致性修复（用户决策：改代码，keyPrefix 带 cttak_ marker）
     - 背景: 实际响应 keyPrefix "T2fA6AVt"（无 marker）vs 文档/Javadoc/README 三处口径 "cttak_a1b2c3d4"（带 marker）— 实现偏离设计意图
     - 决策依据: 三处既有文档口径一致 + 业界惯例（GitHub ghp_/Stripe sk_live_/OpenAI sk-）+ R8.5 项目一致性；DB VARCHAR(32) 足够无需 ALTER
