@@ -1,4 +1,26 @@
 # Active Context
+- [2026-07-28] - keyPrefix 一致性修复（用户决策：改代码，keyPrefix 带 cttak_ marker）
+    - 背景: 实际响应 keyPrefix "T2fA6AVt"（无 marker）vs 文档/Javadoc/README 三处口径 "cttak_a1b2c3d4"（带 marker）— 实现偏离设计意图
+    - 决策依据: 三处既有文档口径一致 + 业界惯例（GitHub ghp_/Stripe sk_live_/OpenAI sk-）+ R8.5 项目一致性；DB VARCHAR(32) 足够无需 ALTER
+    - 修复: `extractPrefix` 改为固定切片 `substring(0, ApiKeyHasher.KEY_PREFIX_LENGTH)`（=14）；`ApiKeyHasher` 新增 `VISIBLE_PREFIX_CHARS=8` + `KEY_PREFIX_LENGTH=14` 常量
+    - **发现并修复 indexOf 隐藏 bug**: URL-safe Base64 字母表含 `_`（也是分隔符），`indexOf('_', 6)` 会在 prefix 含 `_` 时提前截断（测试实测 "cttak_4tKpV1B" 13 字符）→ 固定切片方案 + 确定性边界测试 `shouldNotTruncateKeyPrefix_whenPrefixContainsUnderscore` 锁定
+    - 回填策略（用户决策）: 开发阶段无需独立迁移，UPDATE 融合进 `V20260303210000__init_base_schema.sql` 末尾（防御性幂等块，含契约注释），独立迁移文件已删除；用户已清理本地数据库
+    - 调用点核查: getKeyPrefix 全部为透明传递/文档示例，无长度假设
+    - 子任务 token 耗尽中断后由主 agent 接管: 修正 3 处遗留（Javadoc 13→14 字符、测试名 ThirteenChars→FourteenChars、集成测试硬编码 "cttak_" → ApiKeyHasher 常量）
+    - 验证: `*ApiKey*` 101 tests + 全量 1043 tests / 0 failed; spotlessCheck PASS; jacoco PASS (93.46%/83.49%); LSP clean
+    - 版本: 0.40.2（与 createdAt 修复合并，未提交）
+    - 状态: ✅ 代码+测试+迁移+记忆完成，待用户授权提交
+
+- [2026-07-28] - 修复 POST 创建 API Key 响应缺失 createdAt 字段 (前端 Bug 报告)
+    - 根因: `ApiKeyServiceImpl.createApiKey` `save()` 后立即 `ApiKeyResponse.fromEntity(saved)` 读 `createdAt`；Hibernate `@CreationTimestamp` 在 flush 时才填充 → 内存中为 null；全局 Jackson `default-property-inclusion: non_null` 省略该字段；GET 列表走 DB 重查故正常
+    - 修复: `apiKeyRepository.save(apiKey)` → `saveAndFlush(apiKey)`（一行，与 MailOutboxProcessor 创建路径模式一致）
+    - 回归测试: ApiKeyIntegrationTest 两个创建 helper 均新增 `createdAt` 非空断言（真实 Hibernate flush 上下文）；ApiKeyServiceImplTest 3 处 mock 适配 save → saveAndFlush
+    - 验证: `./gradlew test --tests "*ApiKey*"` 99 tests / 0 failed; `./gradlew spotlessCheck` PASS; LSP clean
+    - 同类扫描: 全库 scope blast（排除 auth/apikey）0 个同类 latent bug；最近似结构 OAuthLoginOrRegisterService.registerNewUser 因 LoginResponse 不读 createdAt 而 SAFE（agent 建议将来加时间戳字段时补回归测试）
+    - 附带发现（待确认）: 响应 `keyPrefix` 无 `cttak_` 前缀（extractPrefix 剥离 marker），与 frontend-integration.md 文档示例 `cttak_a1b2c3d4` 不一致 — 已向用户提出，未擅自修改
+    - 版本: 0.40.1 → 0.40.2 (PATCH: bug fix)
+    - 状态: 代码+测试+版本+记忆完成，待用户授权提交
+
 - [2026-07-22] - Phase R: API Key 集成测试 + Phase N/O 隐藏 bug 修复
     - 创建 ApiKeyIntegrationTest（6 个 E2E 场景）：happy_path/revoke/expire(2 测试方法：自然过期+时间旅行)/scope_deny/bola/rate_limit
     - 修复 Phase N 遗留 bug 1：ApiKey entity scopes 字段 `@Convert(String)` + `columnDefinition="jsonb"` 在 Hibernate 7 下触发 `column is of type jsonb but expression is of type character varying` PSQLException

@@ -2,6 +2,24 @@
 
 ## 已完成 ✅
 
+- [x] keyPrefix 一致性修复（带 cttak_ marker，与文档契约对齐）
+    - 决策: 改代码（三处文档口径一致 + 业界惯例 + R8.5），DB VARCHAR(32) 无需 ALTER
+    - 修复: extractPrefix 固定切片 `substring(0, KEY_PREFIX_LENGTH=14)`；ApiKeyHasher 新增 VISIBLE_PREFIX_CHARS/KEY_PREFIX_LENGTH 常量
+    - 顺带修复 indexOf 隐藏 bug: prefix 含 `_`（Base64 字母表含分隔符）时提前截断 → 固定切片 + 边界测试锁定
+    - 回填策略: 开发阶段融合进 init 迁移（V20260303210000 末尾防御性 UPDATE），无独立迁移文件；用户已清理本地 DB
+    - 子任务 token 中断，主 agent 接管完成（修正 Javadoc 字符数/测试命名/硬编码）
+    - 验证: 全量 1043 tests / 0 failed; spotlessCheck PASS; jacoco PASS
+    - 版本: 0.40.2（与 createdAt 修复合并，未提交）
+
+- [x] 修复 POST 创建 API Key 响应缺失 createdAt 字段（前端 Bug 报告，高严重级别）
+    - 根因: `save()` 未 flush → `@CreationTimestamp` 未填充 → 全局 Jackson non_null 省略字段
+    - 修复: `save()` → `saveAndFlush()`（ApiKeyServiceImpl.java:90，一行，与 MailOutboxProcessor 模式一致）
+    - 回归测试: ApiKeyIntegrationTest 两个创建 helper 新增 createdAt 非空断言 + ApiKeyServiceImplTest 3 处 mock 适配
+    - 验证: `*ApiKey*` 99 tests / 0 failed; spotlessCheck PASS; LSP clean
+    - 同类扫描: 全库 0 个同类 latent bug（OAuth registerNewUser 结构最接近但 LoginResponse 不读 createdAt）
+    - 版本: 0.40.1 → 0.40.2 (PATCH)
+    - 待提交: 用户处理 commit/push
+
 - [x] Phase R: API Key 集成测试 + Phase N/O 隐藏 bug 修复
     - 创建 ApiKeyIntegrationTest（6 个 E2E 场景）：happy_path/revoke/expire(2 方法)/scope_deny/bola/rate_limit
     - 修复 Phase N 隐藏 bug：ApiKey entity scopes 字段 `@Convert(String) + jsonb column` 在 Hibernate 7 下失败 → `@JdbcTypeCode(SqlTypes.JSON)`
