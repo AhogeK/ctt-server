@@ -597,3 +597,19 @@ CREATE TRIGGER trg_mail_outbox_set_updated_at
     ON mail_outbox
     FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
+
+-- ==============================================================================
+-- api_keys.key_prefix contract
+-- Description: key_prefix stores the FULL visible prefix including the cttak_
+--              marker (e.g. "cttak_a1b2c3d4", 14 chars), matching the documented
+--              API contract. The service layer derives it by fixed-width slice
+--              of the raw key (never by searching for '_', because the URL-safe
+--              Base64 alphabet includes '_' and would truncate such prefixes).
+--              The guard below is idempotent and defensive: it backfills any
+--              pre-existing rows stored without the marker (relevant only if a
+--              database was seeded manually before this contract was enforced).
+-- ==============================================================================
+
+UPDATE api_keys
+SET key_prefix = 'cttak_' || key_prefix
+WHERE LEFT(key_prefix, 6) <> 'cttak_';

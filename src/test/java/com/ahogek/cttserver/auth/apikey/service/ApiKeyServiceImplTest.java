@@ -53,7 +53,7 @@ class ApiKeyServiceImplTest {
     private static final String RAW_KEY =
             "cttak_a1b2c3d4_z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4";
     private static final String KEY_HASH = "abc123def456";
-    private static final String KEY_PREFIX = "a1b2c3d4";
+    private static final String KEY_PREFIX = "cttak_a1b2c3d4";
 
     @Mock private ApiKeyRepository apiKeyRepository;
     @Mock private UserRepository userRepository;
@@ -104,7 +104,7 @@ class ApiKeyServiceImplTest {
             given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID)).willReturn(0L);
             given(apiKeyHasher.generateRawKey()).willReturn(RAW_KEY);
             given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
-            given(apiKeyRepository.save(any(ApiKey.class)))
+            given(apiKeyRepository.saveAndFlush(any(ApiKey.class)))
                     .willAnswer(
                             invocation -> {
                                 ApiKey entity = invocation.getArgument(0);
@@ -122,7 +122,7 @@ class ApiKeyServiceImplTest {
             assertThat(response.apiKey().name()).isEqualTo("My Key");
 
             ArgumentCaptor<ApiKey> captor = ArgumentCaptor.forClass(ApiKey.class);
-            then(apiKeyRepository).should().save(captor.capture());
+            then(apiKeyRepository).should().saveAndFlush(captor.capture());
             ApiKey saved = captor.getValue();
             assertThat(saved.getKeyHash()).isEqualTo(KEY_HASH);
             assertThat(saved.getKeyPrefix()).isEqualTo(KEY_PREFIX);
@@ -138,6 +138,74 @@ class ApiKeyServiceImplTest {
         }
 
         @Test
+        @DisplayName("shouldStoreKeyPrefixWithCttakMarker_andExactFourteenChars")
+        void shouldStoreKeyPrefixWithCttakMarker_andExactFourteenChars() {
+            CreateApiKeyRequest request =
+                    new CreateApiKeyRequest(
+                            "My Key", EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC), null);
+            given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+            given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID)).willReturn(0L);
+            given(apiKeyHasher.generateRawKey()).willReturn(RAW_KEY);
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.saveAndFlush(any(ApiKey.class)))
+                    .willAnswer(
+                            invocation -> {
+                                ApiKey entity = invocation.getArgument(0);
+                                entity.setId(KEY_ID);
+                                entity.setCreatedAt(Instant.now());
+                                return entity;
+                            });
+
+            CreateApiKeyResponse response = apiKeyService.createApiKey(USER_ID, request);
+
+            ArgumentCaptor<ApiKey> captor = ArgumentCaptor.forClass(ApiKey.class);
+            then(apiKeyRepository).should().saveAndFlush(captor.capture());
+            ApiKey saved = captor.getValue();
+            assertThat(saved.getKeyPrefix())
+                    .startsWith("cttak_")
+                    .hasSize(14)
+                    .isEqualTo("cttak_a1b2c3d4");
+            assertThat(response.apiKey().keyPrefix())
+                    .startsWith("cttak_")
+                    .hasSize(14)
+                    .isEqualTo("cttak_a1b2c3d4");
+        }
+
+        @Test
+        @DisplayName("shouldNotTruncateKeyPrefix_whenPrefixContainsUnderscore")
+        void shouldNotTruncateKeyPrefix_whenPrefixContainsUnderscore() {
+            String rawKeyWithUnderscorePrefix =
+                    "cttak_ab_cdefg_z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4";
+            CreateApiKeyRequest request =
+                    new CreateApiKeyRequest(
+                            "My Key", EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC), null);
+            given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+            given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID)).willReturn(0L);
+            given(apiKeyHasher.generateRawKey()).willReturn(rawKeyWithUnderscorePrefix);
+            given(apiKeyHasher.hashKey(rawKeyWithUnderscorePrefix)).willReturn(KEY_HASH);
+            given(apiKeyRepository.saveAndFlush(any(ApiKey.class)))
+                    .willAnswer(
+                            invocation -> {
+                                ApiKey entity = invocation.getArgument(0);
+                                entity.setId(KEY_ID);
+                                entity.setCreatedAt(Instant.now());
+                                return entity;
+                            });
+
+            CreateApiKeyResponse response = apiKeyService.createApiKey(USER_ID, request);
+
+            ArgumentCaptor<ApiKey> captor = ArgumentCaptor.forClass(ApiKey.class);
+            then(apiKeyRepository).should().saveAndFlush(captor.capture());
+            ApiKey saved = captor.getValue();
+            assertThat(saved.getKeyPrefix())
+                    .as("prefix containing '_' must not truncate the visible prefix")
+                    .startsWith("cttak_")
+                    .hasSize(14)
+                    .isEqualTo("cttak_ab_cdefg");
+            assertThat(response.apiKey().keyPrefix()).isEqualTo("cttak_ab_cdefg");
+        }
+
+        @Test
         @DisplayName("shouldThrowNotFoundException_whenUserNotFound")
         void shouldThrowNotFoundException_whenUserNotFound() {
             // Given
@@ -148,7 +216,7 @@ class ApiKeyServiceImplTest {
             // When & Then
             assertThatThrownBy(() -> apiKeyService.createApiKey(USER_ID, request))
                     .isInstanceOf(NotFoundException.class);
-            then(apiKeyRepository).should(never()).save(any());
+            then(apiKeyRepository).should(never()).saveAndFlush(any());
         }
 
         @Test
@@ -163,7 +231,7 @@ class ApiKeyServiceImplTest {
             // When & Then
             assertThatThrownBy(() -> apiKeyService.createApiKey(USER_ID, request))
                     .isInstanceOf(ConflictException.class);
-            then(apiKeyRepository).should(never()).save(any());
+            then(apiKeyRepository).should(never()).saveAndFlush(any());
         }
     }
 

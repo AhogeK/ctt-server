@@ -27,7 +27,7 @@ class ApiKeyResponseTest {
         key.setId(KEY_ID);
         key.setUser(user);
         key.setName("Test Key");
-        key.setKeyPrefix("a1b2c3d4");
+        key.setKeyPrefix("cttak_a1b2c3d4");
         key.setKeyHash("sha256hash");
         key.setScopes(EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC));
         key.setCreatedAt(Instant.parse("2026-07-09T10:00:00Z"));
@@ -42,7 +42,7 @@ class ApiKeyResponseTest {
 
         assertThat(response.id()).isEqualTo(KEY_ID);
         assertThat(response.name()).isEqualTo("Test Key");
-        assertThat(response.keyPrefix()).isEqualTo("a1b2c3d4");
+        assertThat(response.keyPrefix()).isEqualTo("cttak_a1b2c3d4");
         assertThat(response.scopes()).containsExactly(ApiKeyScope.READ, ApiKeyScope.SYNC);
         assertThat(response.createdAt()).isEqualTo(Instant.parse("2026-07-09T10:00:00Z"));
         assertThat(response.status()).isEqualTo(ApiKeyStatus.ACTIVE);

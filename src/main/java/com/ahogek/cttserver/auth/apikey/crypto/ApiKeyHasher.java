@@ -34,6 +34,18 @@ public class ApiKeyHasher {
 
     public static final String KEY_PREFIX_MARKER = "cttak_";
 
+    /**
+     * Number of URL-safe Base64 characters encoding {@value #PREFIX_BYTES} bytes. Six bytes yield
+     * exactly 8 Base64 characters with no padding, so the visible prefix is a fixed-width segment
+     * of the raw key. Kept as a named constant because the Base64 alphabet includes {@code '_'},
+     * which is also the key separator — locating the prefix by searching for {@code '_'} would
+     * truncate prefixes that contain the separator character.
+     */
+    public static final int VISIBLE_PREFIX_CHARS = 8;
+
+    /** Length of the stored {@code key_prefix}: marker plus the 8-character visible identifier. */
+    public static final int KEY_PREFIX_LENGTH = KEY_PREFIX_MARKER.length() + VISIBLE_PREFIX_CHARS;
+
     private static final int PREFIX_BYTES = 6;
 
     private static final int SECRET_BYTES = 24;

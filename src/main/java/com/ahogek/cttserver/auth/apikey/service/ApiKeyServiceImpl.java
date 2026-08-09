@@ -87,7 +87,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
             apiKey.setExpiresAt(request.expiresAt().toInstant());
         }
 
-        ApiKey saved = apiKeyRepository.save(apiKey);
+        ApiKey saved = apiKeyRepository.saveAndFlush(apiKey);
 
         auditLogService.logSuccess(
                 userId,
@@ -122,8 +122,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
     }
 
     private static String extractPrefix(String rawKey) {
-        int markerEnd = rawKey.indexOf('_', ApiKeyHasher.KEY_PREFIX_MARKER.length());
-        return rawKey.substring(ApiKeyHasher.KEY_PREFIX_MARKER.length(), markerEnd);
+        return rawKey.substring(0, ApiKeyHasher.KEY_PREFIX_LENGTH);
     }
 
     /**
