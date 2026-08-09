@@ -2,6 +2,21 @@
 
 ## 已完成 ✅
 
+- [x] Phase T: API Key 物理删除功能（v0.41.0）
+    - 新端点 DELETE /api/v1/auth/api-keys/{id}/delete：仅 REVOKED 可删（ACTIVE/EXPIRED→409 AUTH_023 新错误码）
+    - BOLA 401 AUTH_010（不存在/他人/已删除，与 revoke 一致）；审计 API_KEY_DELETED
+    - audit_logs 无 FK 引用 api_keys，物理删除无约束冲突
+    - 测试: 单测 4 + MockMvc 4 + E2E 4 + ErrorCodeTest；全量 1057 tests / 0 failed
+    - 文档: README / developer-handbook / frontend-integration.md 已同步
+    - 版本: 0.40.3 → 0.41.0（MINOR 新功能）
+    - 待提交: 用户处理 commit/push
+
+- [x] Phase T 双轴 Code Review 修复（子 agent ×2）
+    - api-governance.md 补新端点（Tier 2）
+    - 新增 EXPIRED→409 E2E（时间旅行）+ audit_logs 落库断言 + tearDown 清审计
+    - 全量 1058 tests / 0 failed；spotless PASS；jacoco PASS
+    - 版本 0.41.0 不变，待提交
+
 - [x] 补充 API Key E2E 测试（409 20-key 上限 + 429 创建限流）
     - LimitExceededTests: 真实创建 20 key → 第 21 个 409 AUTH_014（创建限流 key 分段清理防 429 遮蔽）
     - CreateRateLimitTests: 第 11 次创建 → 429 RATE_LIMIT_001

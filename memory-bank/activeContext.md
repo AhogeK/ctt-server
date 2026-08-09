@@ -1,4 +1,29 @@
 # Active Context
+- [2026-07-28] - Phase T: API Key 物理删除功能（前端需求报告驱动）
+    - 需求来源: 前端 ctt-web 需求报告（优先级中）：REVOKED 密钥可永久删除，从列表彻底消失
+    - 决策（自主判断，专业权衡）:
+      - 错误码: AUTH_015 已被占用（OAuth provider error 502）→ 新增 **AUTH_023** ("Only revoked API keys can be deleted", 409)
+      - 端点: 接受前端契约 `DELETE /{id}/delete`（与 revoke 的 DELETE /{id} 并存；前端 UI 已并行准备）
+      - 版本: MINOR 0.40.3 → **0.41.0**（R15 新功能规则；前端建议 PATCH 但项目惯例新增端点=MINOR）
+      - 表结构: audit_logs 无 FK 引用 api_keys → 物理删除无约束冲突（前端风险项排除）
+    - 实现: ApiKeyService.deleteApiKey（findByIdAndUserId→AUTH_010；revokedAt==null→AUTH_023；先审计 API_KEY_DELETED 后 delete）+ Controller 端点 + 完整 Swagger（204/401×2/409/403 + @ExampleObject）
+    - 测试: 单测 4（成功含审计/BOLA/非 REVOKED/不存在）+ MockMvc 4 + E2E 4 场景（revoke→delete→列表消失+DB 验证 / ACTIVE 409 保持原状 / 他人 401 / 重复删除 401）+ ErrorCodeTest
+    - 文档: README 端点表 + Error Codes；developer-handbook 审计表 + 错误码注册表；frontend-integration.md 第 5 节（删除端点契约 + 前端交互：仅 REVOKED 显示 Delete 按钮、确认弹窗、invalidate 查询）
+    - 验证: 全量 **1057 tests** / 0 failed; spotlessCheck PASS（修正 3 处格式）; jacoco PASS; LSP clean
+    - 版本: 0.41.0（硬编码检查无残留）
+    - 状态: ✅ 实施完成，待用户授权提交
+
+- [2026-07-28] - Phase T 双轴 Code Review（子 agent ×2，quick/deepseek-v4-flash）+ 修复
+    - Standards 轴 PASS + Spec 轴 SPEC COMPLETE（与此前自主审查结论一致）
+    - 子 agent 发现并修复 3 项（我此前自主审查漏掉 2 项）:
+      1. **api-governance.md Tier 2 端点清单未含新端点**（HARD）→ 已补 `DELETE /api-keys/{id}/delete` 行
+      2. **无 EXPIRED→409 E2E 测试**（验收标准明示 ACTIVE/EXPIRED）→ 新增 `shouldReturn409_whenKeyExpired`（时间旅行改 expires_at 为过去 → delete → 409 + DB 行保留）
+      3. **无 audit_logs 落库 E2E 断言** → `shouldDeleteRevokedKey` 追加 `API_KEY_DELETED AND resource_id` 查询断言；tearDown 增加 `DELETE FROM audit_logs`（与 LogoutIntegrationTest 先例一致）
+    - 保留项（项目一致性判断）: 重复 NotFound 单测（与 RevokeApiKeyTests 双测试模式一致）；DELETE /{id}/delete 非 RESTful（前端契约 + action-suffix 先例）
+    - 验证: ApiKey 116 tests + 全量 **1058 tests** / 0 failed; spotlessCheck PASS; jacoco PASS; LSP clean
+    - 版本: 0.41.0 不变
+    - 状态: ✅ 审查修复完成，待用户授权提交
+
 - [2026-07-28] - 补充 API Key E2E 测试（409 上限 + 429 创建限流）
     - 背景: 前端验证时指出 20-key 上限与创建限流无 E2E 覆盖（此前仅单测 + MockMvc；429 认证限流已有 E2E 但创建端点限流没有）
     - 新增 2 个 @Nested 场景（ApiKeyIntegrationTest，@Order 7/8）:
