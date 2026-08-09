@@ -95,6 +95,7 @@ class ApiKeyIntegrationTest {
         jdbcClient.sql("DELETE FROM mail_outbox").update();
         jdbcClient.sql("DELETE FROM email_verification_tokens").update();
         jdbcClient.sql("DELETE FROM refresh_tokens").update();
+        jdbcClient.sql("DELETE FROM audit_logs").update();
         jdbcClient.sql("DELETE FROM users").update();
         redisTemplate.delete(AUTH_FAILURE_BUCKET_KEY);
         clearCreateRateLimitKeys();
@@ -583,6 +584,182 @@ class ApiKeyIntegrationTest {
                     .bodyJson()
                     .extractingPath("$.code")
                     .isEqualTo("RATE_LIMIT_001");
+        }
+    }
+
+    @Nested
+    @Order(9)
+    @DisplayName("permanent_delete: revoked key can be physically deleted")
+    class DeleteKeyTests {
+
+        @Test
+        @DisplayName("Should return 204 and remove key from list when revoked key is deleted")
+        void shouldDeleteRevokedKey() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+            CreatedKey created = createApiKey(jwt, "To Delete", "READ");
+
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + created.id())
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt))
+                    .hasStatus(204);
+
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + created.id() + "/delete")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt))
+                    .hasStatus(204);
+
+            assertThat(mvc.get().uri(API_KEYS_ENDPOINT).header("Authorization", "Bearer " + jwt))
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.data.keys")
+                    .asArray()
+                    .isEmpty();
+
+            Long remaining =
+                    jdbcClient
+                            .sql("SELECT COUNT(*) FROM api_keys WHERE id = ?")
+                            .param(created.id())
+                            .query(Long.class)
+                            .single();
+            assertThat(remaining).isZero();
+
+            Long auditCount =
+                    jdbcClient
+                            .sql(
+                                    "SELECT COUNT(*) FROM audit_logs WHERE action = 'API_KEY_DELETED'"
+                                            + " AND resource_id = ?")
+                            .param(created.id().toString())
+                            .query(Long.class)
+                            .single();
+            assertThat(auditCount)
+                    .as("deletion must be recorded in audit_logs with the key id")
+                    .isPositive();
+        }
+
+        @Test
+        @DisplayName("Should return 409 AUTH_023 when deleting an expired key")
+        void shouldReturn409_whenKeyExpired() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+
+            OffsetDateTime expiresAt =
+                    OffsetDateTime.ofInstant(
+                            Instant.now().plus(1, ChronoUnit.SECONDS), ZoneOffset.UTC);
+            CreatedKey created = createApiKeyWithExpiry(jwt, "Expiring Key", expiresAt, "READ");
+
+            jdbcClient
+                    .sql(
+                            "UPDATE api_keys SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 hour'"
+                                    + " WHERE id = ?")
+                    .param(created.id())
+                    .update();
+
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + created.id() + "/delete")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt))
+                    .hasStatus(409)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_023");
+
+            Long remaining =
+                    jdbcClient
+                            .sql("SELECT COUNT(*) FROM api_keys WHERE id = ?")
+                            .param(created.id())
+                            .query(Long.class)
+                            .single();
+            assertThat(remaining).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("Should return 409 AUTH_023 when deleting a non-revoked key")
+        void shouldReturn409_whenKeyNotRevoked() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+            CreatedKey created = createApiKey(jwt, "Active Key", "READ");
+
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + created.id() + "/delete")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt))
+                    .hasStatus(409)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_023");
+
+            Long remaining =
+                    jdbcClient
+                            .sql("SELECT COUNT(*) FROM api_keys WHERE id = ?")
+                            .param(created.id())
+                            .query(Long.class)
+                            .single();
+            assertThat(remaining).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("Should return 401 AUTH_010 when deleting another user's key")
+        void shouldReturn401_whenDeletingOtherUsersKey() throws Exception {
+            String emailA = uniqueEmail();
+            String emailB = uniqueEmail();
+            String jwtA = registerVerifyAndLogin(emailA);
+            String jwtB = registerVerifyAndLogin(emailB);
+
+            CreatedKey userAKey = createApiKey(jwtA, "User A Key", "READ");
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + userAKey.id())
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwtA))
+                    .hasStatus(204);
+
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + userAKey.id() + "/delete")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwtB))
+                    .hasStatus(401)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_010");
+        }
+
+        @Test
+        @DisplayName("Should return 401 AUTH_010 when deleting an already-deleted key")
+        void shouldReturn401_whenKeyAlreadyDeleted() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+            CreatedKey created = createApiKey(jwt, "One-time Key", "READ");
+
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + created.id())
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt))
+                    .hasStatus(204);
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + created.id() + "/delete")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt))
+                    .hasStatus(204);
+
+            assertThat(
+                            mvc.delete()
+                                    .uri(API_KEYS_ENDPOINT + "/" + created.id() + "/delete")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt))
+                    .hasStatus(401)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_010");
         }
     }
 }

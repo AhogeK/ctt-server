@@ -41,13 +41,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 /**
  * REST endpoints for managing the authenticated user's API keys.
  *
- * <p>Four operations are exposed:
+ * <p>Five operations are exposed:
  *
  * <ul>
  *   <li>{@code POST /} — issue a new key; raw secret is returned exactly once
  *   <li>{@code GET /} — list the caller's keys (metadata only; raw secrets never re-emitted)
  *   <li>{@code GET /{id}} — fetch a single key's metadata
  *   <li>{@code DELETE /{id}} — revoke a key
+ *   <li>{@code DELETE /{id}/delete} — permanently delete a revoked key
  * </ul>
  *
  * <p>All endpoints enforce BOLA protection: the caller's {@code userId} is passed to the service
@@ -58,7 +59,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-07-09
  */
-@Tag(name = "API Key", description = "API key issuance, listing, retrieval, and revocation")
+@Tag(
+        name = "API Key",
+        description = "API key issuance, listing, retrieval, revocation, and permanent deletion")
 @RestController
 @RequestMapping("/api/v1/auth/api-keys")
 @SecurityRequirement(name = "bearerAuth")
@@ -447,6 +450,112 @@ public class ApiKeyController {
     public ResponseEntity<Void> revokeApiKey(@PathVariable UUID id) {
         UUID userId = currentUserProvider.getCurrentUserRequired().id();
         apiKeyService.revokeApiKey(userId, id);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @Operation(
+            summary = "Permanently delete a revoked API key",
+            description =
+                    """
+                    Physically removes a revoked API key from the database. The key disappears \
+                    from the list entirely and cannot be restored — only keys already revoked can \
+                    be deleted; active or expired keys return 409 (AUTH_023). Returns 401 \
+                    (AUTH_010) if the key does not exist or is owned by a different user.
+                    """)
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "204",
+                        description = "API key permanently deleted",
+                        content = @Content),
+                @ApiResponse(
+                        responseCode = "401",
+                        description =
+                                "Unauthorized - missing or invalid JWT, or key not accessible to"
+                                        + " caller",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid JWT",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_002",
+                                                                  "message": "Invalid or expired JWT token",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-07-09T10:30:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description =
+                                "API key not accessible - AUTH_010 (BOLA: same response when key"
+                                        + " does not exist or belongs to another user)",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "key-not-accessible",
+                                                        summary =
+                                                                "Key does not exist or is not owned by"
+                                                                        + " the caller",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_010",
+                                                                  "message": "API key invalid",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-07-09T10:30:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "409",
+                        description = "Key has not been revoked - AUTH_023",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "not-revoked",
+                                                        summary =
+                                                                "Only revoked keys can be deleted",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_023",
+                                                                  "message": "Only revoked API keys can be deleted",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 409,
+                                                                  "timestamp": "2026-07-09T10:30:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary =
+                                                                "API key lacks the required scope",
+                                                        value = SCOPE_DENIED_EXAMPLE)))
+            })
+    @RequiresApiKeyScope(ApiKeyScope.WRITE)
+    @DeleteMapping("/{id}/delete")
+    public ResponseEntity<Void> deleteApiKey(@PathVariable UUID id) {
+        UUID userId = currentUserProvider.getCurrentUserRequired().id();
+        apiKeyService.deleteApiKey(userId, id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 }

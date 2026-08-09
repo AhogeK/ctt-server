@@ -130,6 +130,9 @@ public enum AuditAction {
     /** API key revoked and invalidated. */
     API_KEY_REVOKED("API key revoked"),
 
+    /** API key permanently deleted by its owner. */
+    API_KEY_DELETED("API key permanently deleted"),
+
     /** API key authenticated successfully. */
     API_KEY_USED("API key authenticated successfully"),
 

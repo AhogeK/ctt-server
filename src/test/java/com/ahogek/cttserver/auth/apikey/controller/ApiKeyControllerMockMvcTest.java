@@ -552,4 +552,80 @@ class ApiKeyControllerMockMvcTest {
                     .hasStatus(401);
         }
     }
+
+    @Nested
+    @DisplayName("DELETE /api/v1/auth/api-keys/{id}/delete")
+    class DeleteApiKeyTests {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 204 on successful permanent deletion")
+        void shouldReturn204_whenDeleted() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willDoNothing().given(apiKeyService).deleteApiKey(USER_ID, KEY_ID);
+
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/api-keys/{id}/delete", KEY_ID.toString())
+                                    .with(csrf())
+                                    .exchange())
+                    .hasStatus(204);
+
+            BDDMockito.then(apiKeyService).should().deleteApiKey(USER_ID, KEY_ID);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 409 AUTH_023 when key is not revoked")
+        void shouldReturn409_whenKeyNotRevoked() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willThrow(new ConflictException(ErrorCode.AUTH_023))
+                    .given(apiKeyService)
+                    .deleteApiKey(USER_ID, KEY_ID);
+
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/api-keys/{id}/delete", KEY_ID.toString())
+                                    .with(csrf())
+                                    .exchange())
+                    .hasStatus(409)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_023");
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 401 AUTH_010 when id does not exist or belongs to another user")
+        void shouldReturn401_whenIdMissing_orNotOwned() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willThrow(new NotFoundException(ErrorCode.AUTH_010))
+                    .given(apiKeyService)
+                    .deleteApiKey(USER_ID, KEY_ID);
+
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/api-keys/{id}/delete", KEY_ID.toString())
+                                    .with(csrf())
+                                    .exchange())
+                    .hasStatus(401)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_010");
+        }
+
+        @Test
+        @DisplayName("Should return 401 when no authentication is provided")
+        void shouldReturn401_whenDeleteNotAuthenticated() {
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/auth/api-keys/{id}/delete", KEY_ID.toString())
+                                    .with(csrf())
+                                    .exchange())
+                    .hasStatus(401);
+        }
+    }
 }

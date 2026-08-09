@@ -121,6 +121,26 @@ public class ApiKeyServiceImpl implements ApiKeyService {
         log.debug("Revoked API key {} for user {}", id, userId);
     }
 
+    @Override
+    @Transactional
+    public void deleteApiKey(UUID userId, UUID id) {
+        ApiKey apiKey =
+                apiKeyRepository
+                        .findByIdAndUserId(id, userId)
+                        .orElseThrow(() -> new NotFoundException(ErrorCode.AUTH_010));
+
+        if (apiKey.getRevokedAt() == null) {
+            throw new ConflictException(ErrorCode.AUTH_023);
+        }
+
+        auditLogService.logSuccess(
+                userId, AuditAction.API_KEY_DELETED, ResourceType.API_KEY, id.toString());
+
+        apiKeyRepository.delete(apiKey);
+
+        log.debug("Deleted API key {} for user {}", id, userId);
+    }
+
     private static String extractPrefix(String rawKey) {
         return rawKey.substring(0, ApiKeyHasher.KEY_PREFIX_LENGTH);
     }
