@@ -25,6 +25,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -78,6 +79,10 @@ class ApiKeyIntegrationTest {
     private static final String API_KEYS_ENDPOINT = "/api/v1/auth/api-keys";
     private static final String PULL_ENDPOINT = "/api/v1/sync/pull";
     private static final String AUTH_FAILURE_BUCKET_KEY = "api_key_auth_fail:127.0.0.1";
+    private static final String CREATE_RATE_LIMIT_KEY_PATTERN =
+            "rate_limit:user:ApiKeyController.createApiKey:*";
+    private static final String LOGIN_RATE_LIMIT_KEY_PATTERN =
+            "rate_limit:ip:AuthController.login:*";
 
     @BeforeEach
     void clearAuthFailureBucket() {
@@ -92,6 +97,34 @@ class ApiKeyIntegrationTest {
         jdbcClient.sql("DELETE FROM refresh_tokens").update();
         jdbcClient.sql("DELETE FROM users").update();
         redisTemplate.delete(AUTH_FAILURE_BUCKET_KEY);
+        clearCreateRateLimitKeys();
+        clearLoginRateLimitKeys();
+    }
+
+    /**
+     * Clears the Redis counter for the create-endpoint rate limit ({@code @RateLimit(USER, 10,
+     * 3600)} on {@code ApiKeyController.createApiKey}). Needed by tests that create more keys than
+     * the limit allows (e.g. the 20-key limit test) so the rate limiter does not shadow the
+     * business rule under test.
+     */
+    private void clearCreateRateLimitKeys() {
+        Set<String> keys = redisTemplate.keys(CREATE_RATE_LIMIT_KEY_PATTERN);
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
+    }
+
+    /**
+     * Clears the login rate-limit counter ({@code @RateLimit(IP, 30, 3600)} on {@code
+     * AuthController.login}). Login limiting is keyed by client IP, which is shared across all
+     * integration tests in a suite run; the extra logins introduced by the limit/429 scenarios
+     * would otherwise exhaust the per-IP budget and 429 later test classes.
+     */
+    private void clearLoginRateLimitKeys() {
+        Set<String> keys = redisTemplate.keys(LOGIN_RATE_LIMIT_KEY_PATTERN);
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+        }
     }
 
     private String uniqueEmail() {
@@ -473,6 +506,82 @@ class ApiKeyIntegrationTest {
                     .hasStatus(429)
                     .bodyJson()
                     .extractingPath("$.data.code")
+                    .isEqualTo("RATE_LIMIT_001");
+        }
+    }
+
+    @Nested
+    @Order(7)
+    @DisplayName("limit_exceeded: 21st key creation returns 409 AUTH_014")
+    class LimitExceededTests {
+
+        @Test
+        @DisplayName("Should return 409 AUTH_014 when per-user key limit (20) exceeded")
+        void shouldReturn409_whenPerUserKeyLimitExceeded() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+
+            for (int i = 1; i <= 10; i++) {
+                createApiKey(jwt, "Key " + i, "READ");
+            }
+
+            clearCreateRateLimitKeys();
+
+            for (int i = 11; i <= 20; i++) {
+                createApiKey(jwt, "Key " + i, "READ");
+            }
+
+            clearCreateRateLimitKeys();
+
+            String body =
+                    """
+                    {"name": "Key 21", "scopes": ["READ"]}
+                    """;
+            assertThat(
+                            mvc.post()
+                                    .uri(API_KEYS_ENDPOINT)
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body))
+                    .hasStatus(409)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_014");
+        }
+    }
+
+    @Nested
+    @Order(8)
+    @DisplayName("create_rate_limit: 11th create within an hour returns 429 RATE_LIMIT_001")
+    class CreateRateLimitTests {
+
+        @Test
+        @DisplayName("Should return 429 RATE_LIMIT_001 on the 11th create request")
+        void shouldReturn429_whenCreateRateLimitExceeded() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+
+            clearCreateRateLimitKeys();
+
+            for (int i = 1; i <= 10; i++) {
+                createApiKey(jwt, "Key " + i, "READ");
+            }
+
+            String body =
+                    """
+                    {"name": "Key 11", "scopes": ["READ"]}
+                    """;
+            assertThat(
+                            mvc.post()
+                                    .uri(API_KEYS_ENDPOINT)
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body))
+                    .hasStatus(429)
+                    .bodyJson()
+                    .extractingPath("$.code")
                     .isEqualTo("RATE_LIMIT_001");
         }
     }
