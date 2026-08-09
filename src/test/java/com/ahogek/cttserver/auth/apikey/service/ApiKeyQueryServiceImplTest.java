@@ -43,7 +43,7 @@ class ApiKeyQueryServiceImplTest {
         key.setId(KEY_ID);
         key.setUser(user);
         key.setName(name);
-        key.setKeyPrefix("a1b2c3d4");
+        key.setKeyPrefix("cttak_a1b2c3d4");
         key.setKeyHash("hash");
         key.setScopes(EnumSet.of(ApiKeyScope.READ));
         key.setCreatedAt(createdAt);
@@ -89,7 +89,7 @@ class ApiKeyQueryServiceImplTest {
             List<ApiKeyResponse> result = queryService.listApiKeys(USER_ID);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).keyPrefix()).isEqualTo("a1b2c3d4");
+            assertThat(result.get(0).keyPrefix()).isEqualTo("cttak_a1b2c3d4");
             assertThat(result.get(0).name()).isEqualTo("Test");
         }
     }

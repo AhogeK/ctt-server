@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.auth.apikey;
 
+import com.ahogek.cttserver.auth.apikey.crypto.ApiKeyHasher;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
@@ -197,8 +198,20 @@ class ApiKeyIntegrationTest {
         JsonNode data = objectMapper.readTree(response).path("data");
         String rawKey = data.path("rawKey").asText();
         String id = data.path("apiKey").path("id").asText();
+        String keyPrefix = data.path("apiKey").path("keyPrefix").asText();
         assertThat(rawKey).as("API key creation must return rawKey").isNotBlank();
         assertThat(id).as("API key creation must return apiKey.id").isNotBlank();
+        assertThat(keyPrefix)
+                .as("keyPrefix must include cttak_ marker and be 14 chars")
+                .startsWith("cttak_")
+                .hasSize(14)
+                .isEqualTo(rawKey.substring(0, ApiKeyHasher.KEY_PREFIX_LENGTH));
+
+        String createdAtText = data.path("apiKey").path("createdAt").asText();
+        assertThat(createdAtText)
+                .as("API key creation response must include apiKey.createdAt")
+                .isNotBlank();
+
         return new CreatedKey(rawKey, UUID.fromString(id));
     }
 
@@ -230,8 +243,20 @@ class ApiKeyIntegrationTest {
         JsonNode data = objectMapper.readTree(response).path("data");
         String rawKey = data.path("rawKey").asText();
         String id = data.path("apiKey").path("id").asText();
+        String keyPrefix = data.path("apiKey").path("keyPrefix").asText();
         assertThat(rawKey).as("API key creation must return rawKey").isNotBlank();
         assertThat(id).as("API key creation must return apiKey.id").isNotBlank();
+        assertThat(keyPrefix)
+                .as("keyPrefix must include cttak_ marker and be 14 chars")
+                .startsWith("cttak_")
+                .hasSize(14)
+                .isEqualTo(rawKey.substring(0, ApiKeyHasher.KEY_PREFIX_LENGTH));
+
+        String createdAtText = data.path("apiKey").path("createdAt").asText();
+        assertThat(createdAtText)
+                .as("API key creation response must include apiKey.createdAt")
+                .isNotBlank();
+
         return new CreatedKey(rawKey, UUID.fromString(id));
     }
 
