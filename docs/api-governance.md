@@ -35,6 +35,7 @@ Endpoints accessed via browser using JWT. Standard user operations.
     *   `GET  /api/v1/auth/api-keys` (List API keys)
     *   `GET  /api/v1/auth/api-keys/{id}` (Get API key)
     *   `DELETE /api/v1/auth/api-keys/{id}` (Revoke API key)
+    *   `DELETE /api/v1/auth/api-keys/{id}/delete` (Permanently delete a revoked API key)
 *   **Authentication**: Required (`CurrentUserProvider.getCurrentUserRequired()`).
     Token must be `WEB_SESSION`.
 *   **Rate Limiting**: Enforced by **User ID**.

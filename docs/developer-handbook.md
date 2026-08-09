@@ -78,13 +78,14 @@ public enum ErrorCode {
 |---------------------|------------------------------------------------------------|--------------------------------|
 | `API_KEY_CREATED`   | New API key generated                                      | `ApiKeyServiceImpl.createApiKey` |
 | `API_KEY_REVOKED`   | API key revoked                                            | `ApiKeyServiceImpl.revokeApiKey` |
+| `API_KEY_DELETED`   | API key permanently deleted                                | `ApiKeyServiceImpl.deleteApiKey` |
 | `API_KEY_USED`      | Successful API key authentication                          | (Phase O: authentication filter) |
 | `API_KEY_AUTH_FAILED` | Failed API key authentication (revoked/expired/malformed) | (Phase O: authentication filter) |
 | `API_KEY_SCOPE_DENIED` | API key denied access due to insufficient scope | `ApiKeyScopeAspect` |
 
 **Resource Type**: `ResourceType.API_KEY`
 
-**Details**: `API_KEY_CREATED` includes `keyId` and `keyPrefix` (never raw key or hash). `API_KEY_REVOKED` includes `keyId`. `API_KEY_AUTH_FAILED` includes failure reason (revoked/expired/malformed/insufficient_scope).
+**Details**: `API_KEY_CREATED` includes `keyId` and `keyPrefix` (never raw key or hash). `API_KEY_REVOKED` includes `keyId`. `API_KEY_DELETED` includes `keyId`. `API_KEY_AUTH_FAILED` includes failure reason (revoked/expired/malformed/insufficient_scope).
 
 ### API Key Authentication Rate Limiting
 
@@ -1001,6 +1002,7 @@ rejected with `AUTH_004` / `AUTH_005` / `AUTH_006` / `AUTH_022` before `last_use
 | API key missing required scope    | `AUTH_020` | 403         |
 | API key header malformed          | `AUTH_021` | 401         |
 | Per-user key limit exceeded       | `AUTH_014` | 409         |
+| Only revoked keys can be deleted  | `AUTH_023` | 409         |
 
 **API Key holder's user status rejections (Phase O):**
 
