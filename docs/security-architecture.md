@@ -355,10 +355,10 @@ The Content Security Policy restricts which resources can be loaded and from whe
 
 ```
 default-src 'self';
-script-src 'self' 'https://hcaptcha.com' 'https://*.hcaptcha.com';
-frame-src 'self' 'https://*.hcaptcha.com';
-connect-src 'self' 'https://*.hcaptcha.com';
-img-src 'self' data: 'https://*.hcaptcha.com';
+script-src 'self' https://hcaptcha.com https://*.hcaptcha.com;
+frame-src 'self' https://*.hcaptcha.com;
+connect-src 'self' https://*.hcaptcha.com;
+img-src 'self' data: https://*.hcaptcha.com;
 style-src 'self' 'unsafe-inline';
 font-src 'self' data:;
 object-src 'none';
