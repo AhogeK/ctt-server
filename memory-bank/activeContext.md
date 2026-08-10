@@ -1,4 +1,16 @@
 # Active Context
+- [2026-07-28] - 修复 CSP header 中 hCaptcha 域名带引号导致失效（前端 Bug 报告）
+    - 根因: SecurityConfig.java CSP 的 script-src/frame-src/connect-src/img-src 中 4 处 hCaptcha host-source 被错误加单引号（'https://hcaptcha.com'）——CSP3 规范仅关键字可引（'self' 等），host-source 不允许；浏览器判定无效 source 并忽略 → hCaptcha 域名白名单失效 → 登录页 hCaptcha 内联脚本被 script-src 'self' 拦截（prepare.js 报错）
+    - 修复（子 agent quick/opencode-go-deepseek-v4-flash）: 3 文件 12 行仅移除引号
+      - SecurityConfig.java（4 处 host 去引号）
+      - SecurityConfigHeadersTest.java（同步断言 → 回归守卫，旧引号必失败）
+      - docs/security-architecture.md（同步 CSP 示例）
+    - Scope Blast: 全仓库 grep 带引号 hcaptcha 仅这 3 处，无其他同类
+    - 验证: grep 零残留; 定向 6 tests + 全量 **1058 tests**（--rerun-tasks 强制重跑）; spotlessCheck PASS（子 agent 修正一处缩进漂移并诚实报告）; jacoco PASS
+    - 版本: 0.41.0 → **0.41.1**（PATCH bug 修复，硬编码检查无残留）
+    - 真实浏览器验证: 需前端/用户侧确认（本环境无法验证浏览器渲染）——验收标准见交付报告
+    - 状态: ✅ 代码+版本+记忆完成，待用户授权提交
+
 - [2026-07-28] - Phase T: API Key 物理删除功能（前端需求报告驱动）
     - 需求来源: 前端 ctt-web 需求报告（优先级中）：REVOKED 密钥可永久删除，从列表彻底消失
     - 决策（自主判断，专业权衡）:

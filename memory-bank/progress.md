@@ -2,6 +2,13 @@
 
 ## 已完成 ✅
 
+- [x] 修复 CSP header hCaptcha 域名带引号导致失效（前端 Bug 报告）
+    - 根因: CSP host-source 错误加引号（CSP3 仅关键字可引）→ 浏览器忽略 → hCaptcha 内联脚本被拦截
+    - 修复: SecurityConfig.java + SecurityConfigHeadersTest.java（回归守卫）+ security-architecture.md，3 文件 12 行仅去引号
+    - 验证: 全量 1058 tests / 0 failed; spotlessCheck PASS; jacoco PASS
+    - 版本: 0.41.0 → 0.41.1（PATCH）
+    - 待提交: 用户处理 commit/push（真实浏览器验证由前端确认）
+
 - [x] Phase T: API Key 物理删除功能（v0.41.0）
     - 新端点 DELETE /api/v1/auth/api-keys/{id}/delete：仅 REVOKED 可删（ACTIVE/EXPIRED→409 AUTH_023 新错误码）
     - BOLA 401 AUTH_010（不存在/他人/已删除，与 revoke 一致）；审计 API_KEY_DELETED
