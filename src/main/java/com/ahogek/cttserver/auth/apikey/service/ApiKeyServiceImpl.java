@@ -129,7 +129,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
                         .findByIdAndUserId(id, userId)
                         .orElseThrow(() -> new NotFoundException(ErrorCode.AUTH_010));
 
-        if (apiKey.getRevokedAt() == null) {
+        if (apiKey.isActive()) {
             throw new ConflictException(ErrorCode.AUTH_023);
         }
 

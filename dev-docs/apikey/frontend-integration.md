@@ -68,7 +68,7 @@ Authorization: Bearer <jwt_access_token>
 | 409 | AUTH_014 | 已创建 20 个 Key，达到上限 | 显示「已达到上限，请先吊销一个 Key」 |
 | 400 | COMMON_003 | 表单验证失败（name 空/scopes 空） | 校验未通过，显示对应字段错误 |
 | 401 | AUTH_010 | BOLA 防护（不可访问其他用户的 Key） | 刷新列表，该 Key 可能已被删除 |
-| 409 | AUTH_023 | 删除非 REVOKED 状态的 Key（仅永久删除场景） | 刷新列表兜底 |
+| 409 | AUTH_023 | 删除仍为 ACTIVE 状态的 Key（仅永久删除场景） | 刷新列表兜底 |
 | 429 | RATE_LIMIT_001 | 创建频率超过每小时 10 次限制 | 显示「操作过于频繁，请稍后重试」，根据 `Retry-After` header 显示倒计时 |
 
 ## 端点说明
@@ -207,14 +207,14 @@ DELETE /api/v1/auth/api-keys/{id}/delete
 
 #### 业务规则
 
-- **仅 REVOKED 状态可删除**：ACTIVE / EXPIRED 返回 409 AUTH_023，密钥保持原状（吊销是唯一安全路径，防误删）
+- **仅 ACTIVE 状态不可删除**（须先吊销）：EXPIRED / REVOKED 可直接删除，409 时密钥保持原状
 - **BOLA 防护**：删除他人密钥 / 不存在的密钥 → 401 AUTH_010（与吊销完全一致，防枚举）
 - **幂等语义**：删除已删除的密钥 → 401 AUTH_010（等同不存在）
 - **审计**：删除操作记录 `API_KEY_DELETED` 审计事件（含 keyId）
 
 #### 前端交互
 
-1. **仅 REVOKED 状态行显示「删除」按钮**（ACTIVE/EXPIRED 不显示，与吊销按钮互斥）
+1. **EXPIRED / REVOKED 状态行显示「删除」按钮**（仅 ACTIVE 不显示，与吊销按钮互斥）
 2. 点击后弹出确认对话框（复用吊销确认模式）：
    - 标题：「永久删除 API Key」
    - 内容：「此操作不可恢复！删除后该 Key 将从列表中彻底消失。Key 前缀：{keyPrefix}」
@@ -226,7 +226,7 @@ DELETE /api/v1/auth/api-keys/{id}/delete
 
 | HTTP | Code | 场景 | 前端处理 |
 |------|------|------|---------|
-| 409 | AUTH_023 | 密钥非 REVOKED 状态（前端一般不会触发，因按钮仅 REVOKED 显示） | 刷新列表兜底 |
+| 409 | AUTH_023 | 密钥仍为 ACTIVE 状态（前端一般不会触发，因按钮仅 EXPIRED/REVOKED 显示） | 刷新列表兜底 |
 | 401 | AUTH_010 | 密钥不存在 / 非本人 / 已删除 | 刷新列表，该行已消失 |
 
 ## 状态显示

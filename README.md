@@ -337,7 +337,7 @@ User → POST /change-request {newEmail, password?} → System sends verificatio
 | `/api/v1/auth/api-keys`         | GET    | List user's API keys (metadata only, no raw key/hash exposure)                                             |
 | `/api/v1/auth/api-keys/{id}`    | GET    | Get single API key metadata (BOLA-protected: 401 if not owned by caller)                                   |
 | `/api/v1/auth/api-keys/{id}`    | DELETE | Revoke API key (BOLA-protected, idempotent) — key remains in DB for audit, authentication is blocked       |
-| `/api/v1/auth/api-keys/{id}/delete` | DELETE | Permanently delete a REVOKED API key (BOLA-protected) — physically removed from DB, 409 if not revoked |
+| `/api/v1/auth/api-keys/{id}/delete` | DELETE | Permanently delete a revoked or expired API key (BOLA-protected) — physically removed from DB, 409 if still active |
 
 **Key Format**: `cttak_<prefix>_<secret>` — prefix is 8-char visible identifier, secret is 32-char URL-safe Base64.
 
@@ -363,7 +363,7 @@ authentication types without an extra database lookup.
 | API key header malformed              | `AUTH_021` | 401  |
 | Per-user key limit exceeded           | `AUTH_014` | 409  |
 | Missing required scope                | `AUTH_020` | 403  |
-| Only revoked keys can be deleted      | `AUTH_023` | 409  |
+| Active keys must be revoked before deletion | `AUTH_023` | 409  |
 | Authentication rate limit exceeded    | `RATE_LIMIT_001` | 429 |
 
 ### Sync Engine

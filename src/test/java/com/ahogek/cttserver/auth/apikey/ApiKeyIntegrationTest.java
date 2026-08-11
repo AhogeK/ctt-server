@@ -642,8 +642,8 @@ class ApiKeyIntegrationTest {
         }
 
         @Test
-        @DisplayName("Should return 409 AUTH_023 when deleting an expired key")
-        void shouldReturn409_whenKeyExpired() throws Exception {
+        @DisplayName("Should return 204 and remove key when an expired key is deleted")
+        void shouldDeleteExpiredKey() throws Exception {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
 
@@ -664,10 +664,14 @@ class ApiKeyIntegrationTest {
                                     .uri(API_KEYS_ENDPOINT + "/" + created.id() + "/delete")
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + jwt))
-                    .hasStatus(409)
+                    .hasStatus(204);
+
+            assertThat(mvc.get().uri(API_KEYS_ENDPOINT).header("Authorization", "Bearer " + jwt))
+                    .hasStatusOk()
                     .bodyJson()
-                    .extractingPath("$.code")
-                    .isEqualTo("AUTH_023");
+                    .extractingPath("$.data.keys")
+                    .asArray()
+                    .isEmpty();
 
             Long remaining =
                     jdbcClient
@@ -675,12 +679,12 @@ class ApiKeyIntegrationTest {
                             .param(created.id())
                             .query(Long.class)
                             .single();
-            assertThat(remaining).isEqualTo(1L);
+            assertThat(remaining).isZero();
         }
 
         @Test
-        @DisplayName("Should return 409 AUTH_023 when deleting a non-revoked key")
-        void shouldReturn409_whenKeyNotRevoked() throws Exception {
+        @DisplayName("Should return 409 AUTH_023 when deleting an active key")
+        void shouldReturn409_whenKeyStillActive() throws Exception {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
             CreatedKey created = createApiKey(jwt, "Active Key", "READ");
