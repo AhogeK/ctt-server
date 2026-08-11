@@ -1,4 +1,21 @@
 # Active Context
+- [2026-08-12] - API Key 删除接口放开 EXPIRED 直接删除（前端需求）
+    - 背景: 前端 QA 反馈 EXPIRED 密钥无法清理（ACTIVE→Revoke / REVOKED→Delete / EXPIRED→无操作，"废行"）；EXPIRED 认证已被拒（401 AUTH_011），revoke 中间步骤无安全意义
+    - 决策（think skill 流程 + 主 agent 判断）:
+      - 校验条件: `getRevokedAt() == null` → **`isActive()` 单条件**（优化需求建议的 `revokedAt == null && isActive()`——isActive() 已内含 revokedAt 检查，REVOKED/EXPIRED 均 false，仅 ACTIVE true，等价且无冗余 R9）
+      - 错误码: 复用 AUTH_023，message → "Active API keys must be revoked before they can be deleted"（R8.5 复用优先）
+      - 版本: MINOR 0.41.1 → **0.42.0**（行为扩展）
+    - 契约: ACTIVE→409 AUTH_023 / EXPIRED→204 / REVOKED→204 / BOLA 401 不变 / 审计 API_KEY_DELETED 不变
+    - 实施（子 agent quick/opencode-go-deepseek-v4-flash）: 10 文件 +65/-33
+      - 代码 4: ApiKeyServiceImpl / ErrorCode / ApiKeyService Javadoc / ApiKeyController（Javadoc+@Operation+@ExampleObject）
+      - 测试 3: ServiceTest（更名 whenKeyStillActive + 新增 whenKeyExpired）/ IntegrationTest（EXPIRED 409→204 成功用例改造）/ MockMvcTest（命名同步）
+      - 文档 3: README / developer-handbook / frontend-integration.md（业务规则+错误码表+交互）
+    - 验证: *ApiKey* 117 tests + 全量 **1059 tests** / 0 failed; spotless PASS; jacoco PASS; grep 旧文案零残留; LSP clean
+    - 双轴 Code Review（子 agent ×2，quick/deepseek-v4-flash）: Standards PASS + Spec COMPLETE，2 个命名一致性 Low 问题已修复
+      - @ExampleObject name "not-revoked" → "still-active"（409 现仅 ACTIVE 触发）
+      - 集成测试 shouldReturn409_whenKeyNotRevoked → whenKeyStillActive + DisplayName（对齐 Service/MockMvc 改名）
+    - 状态: ✅ 实施 + 审查修复完成，待用户授权提交
+
 - [2026-07-28] - 修复 CSP header 中 hCaptcha 域名带引号导致失效（前端 Bug 报告）
     - 根因: SecurityConfig.java CSP 的 script-src/frame-src/connect-src/img-src 中 4 处 hCaptcha host-source 被错误加单引号（'https://hcaptcha.com'）——CSP3 规范仅关键字可引（'self' 等），host-source 不允许；浏览器判定无效 source 并忽略 → hCaptcha 域名白名单失效 → 登录页 hCaptcha 内联脚本被 script-src 'self' 拦截（prepare.js 报错）
     - 修复（子 agent quick/opencode-go-deepseek-v4-flash）: 3 文件 12 行仅移除引号

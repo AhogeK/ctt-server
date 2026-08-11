@@ -2,6 +2,15 @@
 
 ## 已完成 ✅
 
+- [x] API Key 删除接口放开 EXPIRED 直接删除（前端需求，v0.42.0）
+    - 校验条件改 isActive() 单条件：ACTIVE→409 / EXPIRED→204 / REVOKED→204
+    - AUTH_023 message 更新为 "Active API keys must be revoked before they can be deleted"
+    - 测试: 单测更名+新增 EXPIRED 成功用例；集成 EXPIRED 409→204 改造；全量 1059 tests / 0 failed
+    - 双轴审查修复: @ExampleObject name + 集成 ACTIVE 用例命名对齐 "still-active" 语义
+    - 文档: README / developer-handbook / frontend-integration.md 同步
+    - 版本: 0.41.1 → 0.42.0（MINOR）
+    - 待提交: 用户处理 commit/push
+
 - [x] 修复 CSP header hCaptcha 域名带引号导致失效（前端 Bug 报告）
     - 根因: CSP host-source 错误加引号（CSP3 仅关键字可引）→ 浏览器忽略 → hCaptcha 内联脚本被拦截
     - 修复: SecurityConfig.java + SecurityConfigHeadersTest.java（回归守卫）+ security-architecture.md，3 文件 12 行仅去引号
