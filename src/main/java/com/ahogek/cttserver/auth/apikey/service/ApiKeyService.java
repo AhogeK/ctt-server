@@ -61,10 +61,11 @@ public interface ApiKeyService {
     /**
      * Permanently deletes an API key owned by the given user.
      *
-     * <p>Only keys already revoked can be deleted; active or expired keys are rejected with {@link
-     * ConflictException} (AUTH_023) so a working credential cannot be destroyed by accident — the
-     * revocation step remains the sole safe path to deletion. The key row is physically removed
-     * from the database; the audit trail retains the deletion event.
+     * <p>Only keys that are still active are rejected with {@link ConflictException} (AUTH_023) —
+     * an active credential must be revoked first so a working key cannot be destroyed by accident.
+     * Expired and revoked keys can be deleted directly: EXPIRED keys are already unusable for
+     * authentication and need no revoke step. The key row is physically removed from the database;
+     * the audit trail retains the deletion event.
      *
      * <p>BOLA protection is identical to {@link #revokeApiKey(UUID, UUID)}: when the {@code id}
      * does not belong to {@code userId}, {@link NotFoundException} (AUTH_010) is raised so the
@@ -73,7 +74,7 @@ public interface ApiKeyService {
      * @param userId the expected owner
      * @param id the API key id
      * @throws NotFoundException (AUTH_010) when no key with the given id is owned by {@code userId}
-     * @throws ConflictException (AUTH_023) when the key exists but has not been revoked
+     * @throws ConflictException (AUTH_023) when the key still exists and is still active
      */
     void deleteApiKey(UUID userId, UUID id);
 

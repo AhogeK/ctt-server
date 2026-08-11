@@ -48,7 +48,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  *   <li>{@code GET /} — list the caller's keys (metadata only; raw secrets never re-emitted)
  *   <li>{@code GET /{id}} — fetch a single key's metadata
  *   <li>{@code DELETE /{id}} — revoke a key
- *   <li>{@code DELETE /{id}/delete} — permanently delete a revoked key
+ *   <li>{@code DELETE /{id}/delete} — permanently delete a revoked or expired key
  * </ul>
  *
  * <p>All endpoints enforce BOLA protection: the caller's {@code userId} is passed to the service
@@ -454,13 +454,14 @@ public class ApiKeyController {
     }
 
     @Operation(
-            summary = "Permanently delete a revoked API key",
+            summary = "Permanently delete a revoked or expired API key",
             description =
                     """
-                    Physically removes a revoked API key from the database. The key disappears \
-                    from the list entirely and cannot be restored — only keys already revoked can \
-                    be deleted; active or expired keys return 409 (AUTH_023). Returns 401 \
-                    (AUTH_010) if the key does not exist or is owned by a different user.
+                    Physically removes a revoked or expired API key from the database. The key \
+                    disappears from the list entirely and cannot be restored — only active keys \
+                    are rejected with 409 (AUTH_023) and must be revoked first; revoked and \
+                    expired keys can be deleted. Returns 401 (AUTH_010) if the key does not \
+                    exist or is owned by a different user.
                     """)
     @ApiResponses(
             value = {
@@ -518,20 +519,20 @@ public class ApiKeyController {
                                                                 """))),
                 @ApiResponse(
                         responseCode = "409",
-                        description = "Key has not been revoked - AUTH_023",
+                        description = "Key is still active - AUTH_023",
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
                                         examples =
                                                 @ExampleObject(
-                                                        name = "not-revoked",
+                                                        name = "still-active",
                                                         summary =
-                                                                "Only revoked keys can be deleted",
+                                                                "Active keys must be revoked first",
                                                         value =
                                                                 """
                                                                 {
                                                                   "code": "AUTH_023",
-                                                                  "message": "Only revoked API keys can be deleted",
+                                                                  "message": "Active API keys must be revoked before they can be deleted",
                                                                   "details": [],
                                                                   "traceId": "abc-123",
                                                                   "httpStatus": 409,

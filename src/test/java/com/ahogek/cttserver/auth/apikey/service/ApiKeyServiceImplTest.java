@@ -331,8 +331,8 @@ class ApiKeyServiceImplTest {
         }
 
         @Test
-        @DisplayName("shouldThrowConflictException_whenKeyNotRevoked")
-        void shouldThrowConflictException_whenKeyNotRevoked() {
+        @DisplayName("shouldThrowConflictException_whenKeyStillActive")
+        void shouldThrowConflictException_whenKeyStillActive() {
             // Given
             ApiKey apiKey = new ApiKey();
             apiKey.setId(KEY_ID);
@@ -345,6 +345,32 @@ class ApiKeyServiceImplTest {
                     .isInstanceOf(ConflictException.class);
             then(apiKeyRepository).should(never()).delete(any());
             then(auditLogService).should(never()).logSuccess(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("shouldDeleteApiKey_whenKeyExpired")
+        void shouldDeleteApiKey_whenKeyExpired() {
+            // Given
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            apiKey.setKeyPrefix(KEY_PREFIX);
+            apiKey.setExpiresAt(Instant.now().minusSeconds(60));
+            given(apiKeyRepository.findByIdAndUserId(KEY_ID, USER_ID))
+                    .willReturn(Optional.of(apiKey));
+
+            // When
+            apiKeyService.deleteApiKey(USER_ID, KEY_ID);
+
+            // Then
+            then(apiKeyRepository).should().delete(apiKey);
+            then(auditLogService)
+                    .should()
+                    .logSuccess(
+                            USER_ID,
+                            AuditAction.API_KEY_DELETED,
+                            ResourceType.API_KEY,
+                            KEY_ID.toString());
         }
 
         @Test

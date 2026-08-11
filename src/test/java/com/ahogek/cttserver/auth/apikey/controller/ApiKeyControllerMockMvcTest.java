@@ -577,8 +577,8 @@ class ApiKeyControllerMockMvcTest {
 
         @Test
         @WithMockUser
-        @DisplayName("Should return 409 AUTH_023 when key is not revoked")
-        void shouldReturn409_whenKeyNotRevoked() {
+        @DisplayName("Should return 409 AUTH_023 when key is still active")
+        void shouldReturn409_whenKeyStillActive() {
             BDDMockito.given(currentUserProvider.getCurrentUserRequired())
                     .willReturn(currentUser());
             BDDMockito.willThrow(new ConflictException(ErrorCode.AUTH_023))
