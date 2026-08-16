@@ -1,4 +1,12 @@
 # Active Context
+- [2026-08-13] - Ubuntu 部署环境 collation version mismatch 排障（非代码问题）
+    - 现象: 启动后日志两条警告（HHH000247 + "database ctt_server has a collation version mismatch"），Hibernate 透传 JDBC 警告（SQLState 01000 = 非错误）
+    - 根因: Ubuntu 系统 glibc 升级（2.39 → 2.43）后，pg_database.datcollversion 记录过期
+    - 修复: `ALTER DATABASE ctt_server REFRESH COLLATION VERSION;`（12+ 原生，元数据级，不停服不锁表）→ datcollversion 2.39 → 2.43 ✓
+    - 注意: pg_collation_actual_version() 在该环境报 does not exist（参数类型问题），诊断用简单 SELECT datcollversion 即可
+    - 防复发: 系统 glibc 再升级后警告重现 → 同命令重跑；生产可追加 REINDEX DATABASE
+    - 状态: ✅ 已修复（重启应用后警告消失）
+
 - [2026-08-12] - API Key 删除接口放开 EXPIRED 直接删除（前端需求）
     - 背景: 前端 QA 反馈 EXPIRED 密钥无法清理（ACTIVE→Revoke / REVOKED→Delete / EXPIRED→无操作，"废行"）；EXPIRED 认证已被拒（401 AUTH_011），revoke 中间步骤无安全意义
     - 决策（think skill 流程 + 主 agent 判断）:
