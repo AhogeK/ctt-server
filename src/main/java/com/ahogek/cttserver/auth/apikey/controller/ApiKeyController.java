@@ -183,7 +183,7 @@ public class ApiKeyController {
                                                                 """))),
                 @ApiResponse(
                         responseCode = "409",
-                        description = "Per-user key limit exceeded - AUTH_014",
+                        description = "Per-user key limit exceeded - AUTH_024",
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
@@ -196,8 +196,8 @@ public class ApiKeyController {
                                                         value =
                                                                 """
                                                                 {
-                                                                  "code": "AUTH_014",
-                                                                  "message": "Token creation failed",
+                                                                  "code": "AUTH_024",
+                                                                  "message": "Maximum active API keys reached",
                                                                   "details": [],
                                                                   "traceId": "abc-123",
                                                                   "httpStatus": 409,

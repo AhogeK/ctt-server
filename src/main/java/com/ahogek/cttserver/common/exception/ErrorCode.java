@@ -51,6 +51,7 @@ public enum ErrorCode {
     AUTH_021("API key header malformed", HttpStatus.UNAUTHORIZED),
     AUTH_022("Account deactivated", HttpStatus.FORBIDDEN),
     AUTH_023("Active API keys must be revoked before they can be deleted", HttpStatus.CONFLICT),
+    AUTH_024("Maximum active API keys reached", HttpStatus.CONFLICT),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),
 

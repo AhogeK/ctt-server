@@ -34,6 +34,7 @@ class ErrorCodeTest {
         assertThat(ErrorCode.AUTH_017.httpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(ErrorCode.AUTH_018.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.AUTH_023.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ErrorCode.AUTH_024.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.PASSWORD_SAME_AS_OLD.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
     }
 

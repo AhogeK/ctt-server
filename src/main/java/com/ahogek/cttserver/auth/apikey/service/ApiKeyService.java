@@ -31,13 +31,13 @@ public interface ApiKeyService {
      * Issues a new API key for the given user and returns the raw secret exactly once.
      *
      * <p>Implementations must enforce the per-user issuance limit (default 20 active keys). When
-     * the limit is exceeded, {@link ConflictException} (AUTH_014) is raised.
+     * the limit is exceeded, {@link ConflictException} (AUTH_024) is raised.
      *
      * @param userId the owning user; must not be {@code null}
      * @param request the creation payload (name, scopes, optional expiration)
      * @return a {@link CreateApiKeyResponse} containing both the raw key (shown only here) and the
      *     persisted metadata snapshot
-     * @throws ConflictException (AUTH_014) when the user already owns the maximum allowed number of
+     * @throws ConflictException (AUTH_024) when the user already owns the maximum allowed number of
      *     non-revoked keys
      */
     CreateApiKeyResponse createApiKey(UUID userId, CreateApiKeyRequest request);
