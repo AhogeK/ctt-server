@@ -513,11 +513,11 @@ class ApiKeyIntegrationTest {
 
     @Nested
     @Order(7)
-    @DisplayName("limit_exceeded: 21st key creation returns 409 AUTH_014")
+    @DisplayName("limit_exceeded: 21st key creation returns 409 AUTH_024")
     class LimitExceededTests {
 
         @Test
-        @DisplayName("Should return 409 AUTH_014 when per-user key limit (20) exceeded")
+        @DisplayName("Should return 409 AUTH_024 when per-user key limit (20) exceeded")
         void shouldReturn409_whenPerUserKeyLimitExceeded() throws Exception {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
@@ -548,7 +548,7 @@ class ApiKeyIntegrationTest {
                     .hasStatus(409)
                     .bodyJson()
                     .extractingPath("$.code")
-                    .isEqualTo("AUTH_014");
+                    .isEqualTo("AUTH_024");
         }
     }
 

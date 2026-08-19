@@ -361,7 +361,7 @@ authentication types without an extra database lookup.
 | API key expired                       | `AUTH_011` | 401  |
 | API key revoked                       | `AUTH_012` | 403  |
 | API key header malformed              | `AUTH_021` | 401  |
-| Per-user key limit exceeded           | `AUTH_014` | 409  |
+| Per-user key limit exceeded           | `AUTH_024` | 409  |
 | Missing required scope                | `AUTH_020` | 403  |
 | Active keys must be revoked before deletion | `AUTH_023` | 409  |
 | Authentication rate limit exceeded    | `RATE_LIMIT_001` | 429 |

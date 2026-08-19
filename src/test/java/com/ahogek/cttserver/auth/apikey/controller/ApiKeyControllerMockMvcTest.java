@@ -192,12 +192,12 @@ class ApiKeyControllerMockMvcTest {
 
         @Test
         @WithMockUser
-        @DisplayName("Should return 409 AUTH_014 when per-user limit exceeded")
+        @DisplayName("Should return 409 AUTH_024 when per-user limit exceeded")
         void shouldReturn409_whenLimitExceeded() throws Exception {
             BDDMockito.given(currentUserProvider.getCurrentUserRequired())
                     .willReturn(currentUser());
             BDDMockito.given(apiKeyService.createApiKey(BDDMockito.any(), BDDMockito.any()))
-                    .willThrow(new ConflictException(ErrorCode.AUTH_014));
+                    .willThrow(new ConflictException(ErrorCode.AUTH_024));
 
             String body =
                     """
@@ -217,7 +217,7 @@ class ApiKeyControllerMockMvcTest {
                     .hasStatus(409)
                     .bodyJson()
                     .extractingPath("$.code")
-                    .isEqualTo("AUTH_014");
+                    .isEqualTo("AUTH_024");
         }
 
         @Test

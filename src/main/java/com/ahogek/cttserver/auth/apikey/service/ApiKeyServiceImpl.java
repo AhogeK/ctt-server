@@ -70,7 +70,7 @@ public class ApiKeyServiceImpl implements ApiKeyService {
 
         long activeCount = apiKeyRepository.countByUserIdAndRevokedAtIsNull(userId);
         if (activeCount >= maxKeysPerUser) {
-            throw new ConflictException(ErrorCode.AUTH_014);
+            throw new ConflictException(ErrorCode.AUTH_024);
         }
 
         String rawKey = apiKeyHasher.generateRawKey();

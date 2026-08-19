@@ -1001,7 +1001,7 @@ rejected with `AUTH_004` / `AUTH_005` / `AUTH_006` / `AUTH_022` before `last_use
 | API key revoked                   | `AUTH_012` | 403         |
 | API key missing required scope    | `AUTH_020` | 403         |
 | API key header malformed          | `AUTH_021` | 401         |
-| Per-user key limit exceeded       | `AUTH_014` | 409         |
+| Per-user key limit exceeded       | `AUTH_024` | 409         |
 | Active keys must be revoked before deletion | `AUTH_023` | 409         |
 
 **API Key holder's user status rejections (Phase O):**
