@@ -1,4 +1,17 @@
 # Active Context
+- [2026-08-16] - 拆分 AUTH_014 双语义：新增 AUTH_024（API Key 上限专属错误码）
+    - 背景: AUTH_014 被双语义复用（设计债）：(1) API Key 每用户上限（ApiKeyServiceImpl）(2) 三类 token 唯一约束冲突（GlobalExceptionHandler:427，refresh/email/password token hash 冲突，"Token creation failed" 对该场景正确）
+    - 决策（方案 A 已确认）: 新增 AUTH_024("Maximum active API keys reached", 409)，场景 1 改抛 AUTH_024，场景 2 保留 AUTH_014
+    - 文案不含硬编码数字（maxKeysPerUser 可配置 @DefaultValue("20")，静态 "20" 会在配置变更时失真）
+    - 实施（子 agent quick/opencode-go-deepseek-v4-flash）: 10 文件 +18/-16
+      - 代码: ErrorCode +AUTH_024 / ApiKeyServiceImpl:73 改抛 / ApiKeyService Javadoc / ApiKeyController 409 example（description+code+message）
+      - 测试: MockMvc DisplayName+mock+断言 / Integration DisplayName×2+断言 / ErrorCodeTest +AUTH_024（ApiKeyServiceImplTest 仅断言 isInstanceOf 未动 / GlobalExceptionHandlerTest 保留 token 场景）
+      - 文档: README / developer-handbook / frontend-integration.md（4 处限流行）
+    - 独立复核: AUTH_014 残留仅 3 处 token 语义；"Token creation failed" 仅 ErrorCode:44；AUTH_024 全量到位
+    - 验证: 全量 1059 tests / 0 failed; spotless PASS; jacoco PASS
+    - 版本: 0.42.0 → **0.42.1**（PATCH）
+    - 状态: ✅ 实施完成，待用户授权提交
+
 - [2026-08-13] - Ubuntu 部署环境 collation version mismatch 排障（非代码问题）
     - 现象: 启动后日志两条警告（HHH000247 + "database ctt_server has a collation version mismatch"），Hibernate 透传 JDBC 警告（SQLState 01000 = 非错误）
     - 根因: Ubuntu 系统 glibc 升级（2.39 → 2.43）后，pg_database.datcollversion 记录过期

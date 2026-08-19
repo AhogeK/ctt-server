@@ -2,6 +2,15 @@
 
 ## 已完成 ✅
 
+- [x] 拆分 AUTH_014 双语义：新增 AUTH_024（API Key 上限专属，v0.42.1）
+    - AUTH_024("Maximum active API keys reached", 409) 不含硬编码数字
+    - ApiKeyServiceImpl 上限分支改抛 AUTH_024；GlobalExceptionHandler token 约束场景保留 AUTH_014
+    - 测试/文档/Javadoc/Controller example 全量同步（10 文件）
+    - 独立复核: AUTH_014 仅剩 token 语义 3 处；全量 1059 tests / 0 failed
+    - 版本: 0.42.0 → 0.42.1（PATCH）
+    - 待提交: 用户处理 commit/push；前端后跟映射（api-error.ts 等）
+
+- [x] Ubuntu collation version mismatch 排障（非代码，REFRESH 已修复）
 - [x] API Key 删除接口放开 EXPIRED 直接删除（前端需求，v0.42.0）
     - 校验条件改 isActive() 单条件：ACTIVE→409 / EXPIRED→204 / REVOKED→204
     - AUTH_023 message 更新为 "Active API keys must be revoked before they can be deleted"
