@@ -8,6 +8,7 @@ import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
+import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
 import com.ahogek.cttserver.common.util.SpelExpressionResolver;
 
@@ -17,6 +18,7 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -111,8 +113,10 @@ public class RateLimitAspect {
 
         String cacheKey = keyFactory.generateKey(rateLimit.type(), apiPath, spElValue);
 
-        if (!redisRateLimiter.isAllowed(cacheKey, rateLimit.limit(), rateLimit.windowSeconds())) {
+        RateLimitResult result =
+                redisRateLimiter.checkLimit(cacheKey, rateLimit.limit(), rateLimit.windowSeconds());
 
+        if (!result.allowed()) {
             auditLog.logFailure(
                     getCurrentUserId(),
                     AuditAction.RATE_LIMIT_EXCEEDED,
@@ -120,8 +124,15 @@ public class RateLimitAspect {
                     cacheKey,
                     "Rate limit exceeded for " + rateLimit.type().name());
 
+            Instant retryAfter =
+                    result.remainingSeconds() > 0
+                            ? Instant.now().plusSeconds(result.remainingSeconds())
+                            : null;
+
             throw new TooManyRequestsException(
-                    ErrorCode.RATE_LIMIT_001, "Too many requests, please try again later.");
+                    ErrorCode.RATE_LIMIT_001,
+                    "Too many requests, please try again later.",
+                    retryAfter);
         }
     }
 

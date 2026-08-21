@@ -5,6 +5,7 @@ import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
 
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -573,17 +574,33 @@ class ApiKeyIntegrationTest {
                     """
                     {"name": "Key 11", "scopes": ["READ"]}
                     """;
-            assertThat(
-                            mvc.post()
-                                    .uri(API_KEYS_ENDPOINT)
-                                    .with(csrf())
-                                    .header("Authorization", "Bearer " + jwt)
-                                    .contentType(MediaType.APPLICATION_JSON)
-                                    .content(body))
-                    .hasStatus(429)
-                    .bodyJson()
-                    .extractingPath("$.code")
-                    .isEqualTo("RATE_LIMIT_001");
+            var response =
+                    assertThat(
+                                    mvc.post()
+                                            .uri(API_KEYS_ENDPOINT)
+                                            .with(csrf())
+                                            .header("Authorization", "Bearer " + jwt)
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .content(body))
+                            .hasStatus(429);
+
+            response.headers()
+                    .hasHeaderSatisfying(
+                            "Retry-After",
+                            values ->
+                                    assertThat(values)
+                                            .singleElement()
+                                            .satisfies(
+                                                    v ->
+                                                            assertThat(Long.parseLong(v))
+                                                                    .isPositive()));
+
+            var json = response.bodyJson();
+            json.extractingPath("$.code").isEqualTo("RATE_LIMIT_001");
+            json.extractingPath("$.retryAfter")
+                    .asInstanceOf(InstanceOfAssertFactories.STRING)
+                    .isNotEmpty()
+                    .satisfies(v -> assertThat(Instant.parse(v)).isAfter(Instant.now()));
         }
     }
 

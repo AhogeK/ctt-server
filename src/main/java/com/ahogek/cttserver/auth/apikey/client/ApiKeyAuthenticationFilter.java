@@ -14,6 +14,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
@@ -36,6 +37,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -147,21 +149,25 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         String clientIp = RequestContext.current().map(info -> info.clientIp()).orElse("unknown");
 
         String rateLimitKey = AUTH_FAILURE_KEY_PREFIX + clientIp;
-        boolean allowed =
-                redisRateLimiter.isAllowed(
+        RateLimitResult result =
+                redisRateLimiter.checkLimit(
                         rateLimitKey,
                         apiKeyProperties.authFailureRateLimit(),
                         apiKeyProperties.authFailureRateLimitWindowSeconds());
 
-        if (!allowed) {
+        if (!result.allowed()) {
             log.warn("API key auth rate limit exceeded for IP: {}", clientIp);
             response.setStatus(429);
-            response.setHeader(
-                    HttpHeaders.RETRY_AFTER,
-                    String.valueOf(apiKeyProperties.authFailureRateLimitWindowSeconds()));
+            long retryAfterSeconds =
+                    result.remainingSeconds() > 0
+                            ? result.remainingSeconds()
+                            : apiKeyProperties.authFailureRateLimitWindowSeconds();
+            response.setHeader(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds));
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.RATE_LIMIT_001);
+            ErrorResponse errorResponse =
+                    ErrorResponse.of(ErrorCode.RATE_LIMIT_001)
+                            .withRetryAfter(Instant.now().plusSeconds(retryAfterSeconds));
             RestApiResponse<ErrorResponse> apiResponse =
                     RestApiResponse.error(ErrorCode.RATE_LIMIT_001.message(), errorResponse);
             objectMapper.writeValue(response.getOutputStream(), apiResponse);

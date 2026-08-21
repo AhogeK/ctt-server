@@ -12,6 +12,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
 import com.ahogek.cttserver.user.entity.User;
 
@@ -75,7 +76,9 @@ class ApiKeyAuthenticationFilterTest {
                         new ObjectMapper().registerModule(new JavaTimeModule()),
                         redisRateLimiter);
         SecurityContextHolder.clearContext();
-        lenient().when(redisRateLimiter.isAllowed(any(), anyInt(), anyInt())).thenReturn(true);
+        lenient()
+                .when(redisRateLimiter.checkLimit(any(), anyInt(), anyInt()))
+                .thenReturn(RateLimitResult.permitted());
     }
 
     @Test
@@ -233,7 +236,8 @@ class ApiKeyAuthenticationFilterTest {
     void shouldReturn429_whenRateLimitExceeded() throws Exception {
         given(apiKeyService.validateAndTouch(RAW_KEY))
                 .willThrow(new NotFoundException(ErrorCode.AUTH_010));
-        given(redisRateLimiter.isAllowed(any(), anyInt(), anyInt())).willReturn(false);
+        given(redisRateLimiter.checkLimit(any(), anyInt(), anyInt()))
+                .willReturn(RateLimitResult.rejected(60L));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer " + RAW_KEY);
