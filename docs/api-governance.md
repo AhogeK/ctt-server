@@ -81,6 +81,33 @@ The `@RateLimit` annotation supports four isolation dimensions via `RateLimitTyp
 
 **Note**: `EMAIL` type requires `keyExpression` parameter to extract email from request (e.g., `#request.email`).
 
+### Rate Limit Response Contract
+
+All endpoints protected by `@RateLimit` return HTTP 429 with the following retry information when the limit is exceeded:
+
+| Component      | Value                                                             |
+|----------------|-------------------------------------------------------------------|
+| HTTP Status    | 429 Too Many Requests                                             |
+| HTTP Header    | `Retry-After: <seconds>` — remaining seconds until window reset (RFC 7231) |
+| Error Code     | `RATE_LIMIT_001` (or `MAIL_004` for the mail duplicate-guard)     |
+| Response Field | `retryAfter` — ISO-8601 absolute timestamp of the window reset    |
+
+The remaining seconds are read atomically from the Redis counter TTL by the Lua script, so no extra round-trip is needed. When the TTL is unavailable (Redis inconsistency) the header and field are omitted — clients must treat a missing value as "retry later".
+
+Example response:
+```json
+{
+  "code": "RATE_LIMIT_001",
+  "message": "Too many requests, please try again later.",
+  "traceId": "...",
+  "httpStatus": 429,
+  "timestamp": "2026-08-21T06:27:00Z",
+  "retryAfter": "2026-08-21T07:24:01Z"
+}
+```
+
+The same contract applies to the API-key authentication failure limiter (`ApiKeyAuthenticationFilter`), which falls back to the full window when the TTL is unavailable.
+
 ## Multi-Dimensional Rate Limiting
 
 The `@RateLimit` annotation is repeatable (`@Repeatable(RateLimits.class)`), allowing multiple rate limits on the same endpoint for defense in depth.
