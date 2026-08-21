@@ -213,7 +213,14 @@ public class MailOutboxService {
         long count = repository.countDuplicates(email, bizType, ACTIVE_STATUSES, windowStart);
 
         if (count >= RATE_LIMIT_THRESHOLD) {
-            throw new TooManyRequestsException(ErrorCode.MAIL_004);
+            Instant retryAfter =
+                    repository
+                            .findEarliestDuplicateCreatedAt(
+                                    email, bizType, ACTIVE_STATUSES, windowStart)
+                            .map(t -> t.plus(window))
+                            .orElse(null);
+
+            throw new TooManyRequestsException(ErrorCode.MAIL_004, null, retryAfter);
         }
     }
 

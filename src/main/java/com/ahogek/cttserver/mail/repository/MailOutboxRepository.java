@@ -115,6 +115,35 @@ public interface MailOutboxRepository extends JpaRepository<MailOutbox, UUID> {
             @Param("windowStart") Instant windowStart);
 
     /**
+     * Finds the earliest outbox entry creation time within the duplicate-count window.
+     *
+     * <p>Used alongside {@link #countDuplicates} to compute a precise {@code retryAfter} for {@code
+     * MAIL_004}: when the count exceeds the threshold the earliest entry's {@code createdAt +
+     * window} is the first moment a new request may succeed, which is more precise than a fixed
+     * window-aligned guess.
+     *
+     * @param recipient target email address
+     * @param bizType business category, e.g. {@code "REGISTER_VERIFY"}
+     * @param statuses statuses to include; must match the set passed to {@link #countDuplicates}
+     * @param windowStart the start of the rolling time window (exclusive lower bound)
+     * @return the earliest matching {@code createdAt}, or {@link Optional#empty()} if no rows match
+     *     (rare concurrency boundary where rows disappear between the count and this query)
+     */
+    @Query(
+            """
+            SELECT MIN(m.createdAt) FROM MailOutbox m
+            WHERE m.recipient   = :recipient
+              AND m.bizType     = :bizType
+              AND m.status      IN :statuses
+              AND m.createdAt   > :windowStart
+            """)
+    Optional<Instant> findEarliestDuplicateCreatedAt(
+            @Param("recipient") String recipient,
+            @Param("bizType") String bizType,
+            @Param("statuses") List<MailOutboxStatus> statuses,
+            @Param("windowStart") Instant windowStart);
+
+    /**
      * Aggregates delivery counts grouped by status for monitoring dashboards.
      *
      * <p>Prefer exposing this via a dedicated metrics endpoint rather than polling in hot paths —
