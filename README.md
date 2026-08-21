@@ -407,6 +407,9 @@ Protects against brute-force attacks with automatic temporary lockout:
 - **Audit Trail**: All lock/unlock events emit `ACCOUNT_LOCKED` / `ACCOUNT_UNLOCKED` audit actions
 - **Locked Response**: Returns HTTP 403 with `retryAfter` timestamp in response body
   and `Retry-After` header (seconds until unlock) for frontend countdown UI
+- **Rate Limit Response**: All rate-limited endpoints (429) return a `retryAfter`
+  ISO-8601 timestamp in the response body and a `Retry-After` header with the
+  remaining seconds until the window resets (read atomically from the Redis TTL)
 
 Locked accounts are automatically unlocked after lockout period expires, either on next login or via scheduled cleanup.
 

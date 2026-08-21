@@ -103,7 +103,7 @@ ctt:
 **Behavior**:
 - Failed API key authentication attempts are tracked per client IP in Redis
 - When failures exceed the limit within the window, subsequent requests receive HTTP 429
-- Rate-limited responses include `Retry-After` header with the window duration in seconds
+- Rate-limited responses include a `Retry-After` header with the remaining seconds until the window resets (exact Redis TTL, falling back to the full window when TTL is unavailable), plus a `retryAfter` ISO-8601 timestamp in the response body
 - Successful authentications are not rate-limited
 - Rate limit counters auto-expire via Redis TTL
 
