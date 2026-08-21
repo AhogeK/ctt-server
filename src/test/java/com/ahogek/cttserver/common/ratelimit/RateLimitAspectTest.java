@@ -5,6 +5,7 @@ import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
+import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
 import com.ahogek.cttserver.common.util.SpelExpressionResolver;
 import com.ahogek.cttserver.user.enums.UserStatus;
@@ -15,12 +16,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -64,7 +68,8 @@ class RateLimitAspectTest {
     void intercept_whenAllowed_proceedsNormally() throws Throwable {
         RateLimit rateLimit = createRateLimit(10, 60);
         when(mockKeyFactory.generateKey(any(), anyString(), any())).thenReturn("rate_limit:test");
-        when(mockRateLimiter.isAllowed(anyString(), anyInt(), anyInt())).thenReturn(true);
+        when(mockRateLimiter.checkLimit(anyString(), anyInt(), anyInt()))
+                .thenReturn(RateLimitResult.permitted());
         when(mockJoinPoint.proceed()).thenReturn("success");
 
         Object result = aspect.interceptSingle(mockJoinPoint, rateLimit);
@@ -75,7 +80,7 @@ class RateLimitAspectTest {
     }
 
     @Test
-    void intercept_whenRateLimitExceeded_throwsExceptionAndLogsAudit() {
+    void intercept_whenRateLimitExceeded_throwsExceptionWithRetryAfterAndLogsAudit() {
         RateLimit rateLimit = createRateLimit(5, 300);
         UUID userId = UUID.randomUUID();
         CurrentUser user =
@@ -88,12 +93,19 @@ class RateLimitAspectTest {
 
         when(mockKeyFactory.generateKey(any(), anyString(), any()))
                 .thenReturn("rate_limit:ip:TestController.testMethod");
-        when(mockRateLimiter.isAllowed(anyString(), anyInt(), anyInt())).thenReturn(false);
+        when(mockRateLimiter.checkLimit(anyString(), anyInt(), anyInt()))
+                .thenReturn(RateLimitResult.rejected(300));
         when(mockUserProvider.getCurrentUser()).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> aspect.interceptSingle(mockJoinPoint, rateLimit))
                 .isInstanceOf(TooManyRequestsException.class)
-                .hasMessageContaining("Too many requests");
+                .hasMessageContaining("Too many requests")
+                .satisfies(
+                        ex ->
+                                assertThat(((TooManyRequestsException) ex).retryAfter())
+                                        .isCloseTo(
+                                                Instant.now().plusSeconds(300),
+                                                within(2, ChronoUnit.SECONDS)));
 
         verify(mockAuditLog)
                 .logFailure(
@@ -102,6 +114,19 @@ class RateLimitAspectTest {
                         com.ahogek.cttserver.audit.enums.ResourceType.UNKNOWN,
                         "rate_limit:ip:TestController.testMethod",
                         "Rate limit exceeded for IP");
+    }
+
+    @Test
+    void intercept_whenRateLimitExceededWithNoTtl_throwsExceptionWithoutRetryAfter()
+            throws Throwable {
+        RateLimit rateLimit = createRateLimit(5, 300);
+        when(mockKeyFactory.generateKey(any(), anyString(), any())).thenReturn("rate_limit:test");
+        when(mockRateLimiter.checkLimit(anyString(), anyInt(), anyInt()))
+                .thenReturn(RateLimitResult.rejected(-1L));
+
+        assertThatThrownBy(() -> aspect.interceptSingle(mockJoinPoint, rateLimit))
+                .isInstanceOf(TooManyRequestsException.class)
+                .satisfies(ex -> assertThat(((TooManyRequestsException) ex).retryAfter()).isNull());
     }
 
     private Method getTestMethod() throws NoSuchMethodException {

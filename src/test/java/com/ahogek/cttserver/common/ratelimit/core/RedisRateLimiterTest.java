@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,37 +27,39 @@ class RedisRateLimiterTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void isAllowed_whenUnderLimit_returnsTrue() {
+    void shouldReturnAllowed_whenUnderLimit() {
         when(mockRedisTemplate.execute(
                         any(RedisScript.class),
                         eq(Collections.singletonList("test:key")),
                         eq("10"),
                         eq("60")))
-                .thenReturn(1L);
+                .thenReturn(List.of(1L, 0L));
 
-        boolean allowed = rateLimiter.isAllowed("test:key", 10, 60);
+        RateLimitResult result = rateLimiter.checkLimit("test:key", 10, 60);
 
-        assertThat(allowed).isTrue();
+        assertThat(result.allowed()).isTrue();
+        assertThat(result.remainingSeconds()).isZero();
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    void isAllowed_whenOverLimit_returnsFalse() {
+    void shouldReturnRejectedWithTtl_whenOverLimit() {
         when(mockRedisTemplate.execute(
                         any(RedisScript.class),
                         eq(Collections.singletonList("test:key")),
                         eq("5"),
                         eq("300")))
-                .thenReturn(0L);
+                .thenReturn(List.of(0L, 42L));
 
-        boolean allowed = rateLimiter.isAllowed("test:key", 5, 300);
+        RateLimitResult result = rateLimiter.checkLimit("test:key", 5, 300);
 
-        assertThat(allowed).isFalse();
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.remainingSeconds()).isEqualTo(42L);
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    void isAllowed_whenRedisReturnsNull_returnsFalse() {
+    void shouldReturnRejectedWithZeroTtl_whenRedisReturnsNull() {
         when(mockRedisTemplate.execute(
                         any(RedisScript.class),
                         eq(Collections.singletonList("test:key")),
@@ -64,8 +67,25 @@ class RedisRateLimiterTest {
                         eq("60")))
                 .thenReturn(null);
 
-        boolean allowed = rateLimiter.isAllowed("test:key", 10, 60);
+        RateLimitResult result = rateLimiter.checkLimit("test:key", 10, 60);
 
-        assertThat(allowed).isFalse();
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.remainingSeconds()).isZero();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldReturnRejectedWithNegativeTtl_whenRedisReportsNoExpiry() {
+        when(mockRedisTemplate.execute(
+                        any(RedisScript.class),
+                        eq(Collections.singletonList("test:key")),
+                        eq("10"),
+                        eq("60")))
+                .thenReturn(List.of(0L, -1L));
+
+        RateLimitResult result = rateLimiter.checkLimit("test:key", 10, 60);
+
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.remainingSeconds()).isEqualTo(-1L);
     }
 }

@@ -275,6 +275,56 @@ public final class GlobalExceptionHandler {
     }
 
     /**
+     * [LEVEL 2] Rate Limit (429) - WARN level with optional Retry-After header.
+     *
+     * <p>Handles {@link TooManyRequestsException} from the rate-limit aspect and the mail
+     * duplicate-guard. When the exception carries a {@code retryAfter} instant, sets the {@code
+     * Retry-After} HTTP header with delta-seconds (RFC 7231) and the body field carries the
+     * absolute timestamp. Mirrors {@link #handleAccountLockedException(AccountLockedException)} so
+     * the frontend's existing {@code getRetryAfterSeconds()} helper (header -> body -> null) works
+     * unchanged.
+     *
+     * <p><strong>Log Strategy:</strong>
+     *
+     * <ul>
+     *   <li>Level: WARN
+     *   <li>Stack Trace: None (expected business exception)
+     *   <li>Context: Includes retry-after seconds for monitoring when available
+     * </ul>
+     */
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequestsException(
+            TooManyRequestsException ex) {
+        String traceId = currentTraceId();
+
+        var logger =
+                log.atWarn()
+                        .addKeyValue(ERROR_CODE_KEY, ex.errorCode().name())
+                        .addKeyValue(ERROR_TYPE_KEY, "TOO_MANY_REQUESTS")
+                        .addKeyValue(HTTP_STATUS_KEY, ex.errorCode().httpStatus().value())
+                        .addKeyValue(TRACE_ID_KEY, traceId);
+
+        if (ex.retryAfter() != null) {
+            long seconds =
+                    Math.max(0, Duration.between(Instant.now(), ex.retryAfter()).getSeconds());
+            logger = logger.addKeyValue("retry_after_seconds", seconds);
+        }
+
+        logger.log("Rate limit exceeded: {}", ex.getMessage());
+
+        ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
+
+        HttpHeaders headers = new HttpHeaders();
+        if (ex.retryAfter() != null) {
+            long seconds =
+                    Math.max(0, Duration.between(Instant.now(), ex.retryAfter()).getSeconds());
+            headers.add(HttpHeaders.RETRY_AFTER, String.valueOf(seconds));
+        }
+
+        return ResponseEntity.status(ex.errorCode().httpStatus()).headers(headers).body(response);
+    }
+
+    /**
      * [LEVEL 2] Business Exceptions - WARN level without stack trace.
      *
      * <p>Handles expected business rule violations (validation, state conflicts, etc.). These are

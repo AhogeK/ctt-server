@@ -203,6 +203,39 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void shouldReturn429WithRetryAfter_whenTooManyRequestsAndRetryAfterPresent() {
+        Instant retryAfter = Instant.now().plus(Duration.ofMinutes(5));
+        TooManyRequestsException ex =
+                new TooManyRequestsException(
+                        ErrorCode.RATE_LIMIT_001, "Too many requests", retryAfter);
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        ResponseEntity<ErrorResponse> result = handler.handleTooManyRequestsException(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(429);
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("RATE_LIMIT_001");
+        assertThat(body.retryAfter()).isEqualTo(retryAfter);
+        assertThat(result.getHeaders().getFirst("Retry-After")).isNotNull().isNotBlank();
+    }
+
+    @Test
+    void shouldOmitRetryAfterHeader_whenTooManyRequestsAndRetryAfterAbsent() {
+        TooManyRequestsException ex = new TooManyRequestsException(ErrorCode.MAIL_004);
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+        ResponseEntity<ErrorResponse> result = handler.handleTooManyRequestsException(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(429);
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("MAIL_004");
+        assertThat(body.retryAfter()).isNull();
+        assertThat(result.getHeaders().getFirst("Retry-After")).isNull();
+    }
+
+    @Test
     void shouldReturnSystemError_whenDataIntegrityViolationWithUnknownConstraint() {
         DataIntegrityViolationException ex = new DataIntegrityViolationException("Duplicate key");
         ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
