@@ -28,12 +28,17 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.slf4j.MDC;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -164,11 +169,13 @@ class MailOutboxServiceTest {
         @Test
         @DisplayName("should throw TooManyRequestsException when rate limit exceeded")
         void shouldThrowException_whenRateLimitExceeded() {
-            // Given
+            Instant earliest = Instant.now().minusSeconds(30);
             when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
                     .thenReturn(3L);
+            when(repository.findEarliestDuplicateCreatedAt(
+                            anyString(), anyString(), anyList(), any()))
+                    .thenReturn(Optional.of(earliest));
 
-            // When & Then
             var thrown =
                     assertThatThrownBy(
                             () ->
@@ -179,6 +186,34 @@ class MailOutboxServiceTest {
                                             "token"));
             thrown.isInstanceOf(TooManyRequestsException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MAIL_004);
+
+            TooManyRequestsException ex = (TooManyRequestsException) thrown.actual();
+            assertThat(ex.retryAfter())
+                    .isCloseTo(earliest.plus(Duration.ofMinutes(1)), within(2, ChronoUnit.SECONDS));
+
+            verify(repository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName(
+                "should throw TooManyRequestsException with null retryAfter when earliest missing")
+        void shouldThrowExceptionWithNullRetryAfter_whenEarliestMissing() {
+            when(repository.countDuplicates(anyString(), anyString(), anyList(), any()))
+                    .thenReturn(3L);
+            when(repository.findEarliestDuplicateCreatedAt(
+                            anyString(), anyString(), anyList(), any()))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(
+                            () ->
+                                    service.enqueueVerificationEmail(
+                                            UUID.randomUUID(), "user", "test@example.com", "token"))
+                    .isInstanceOf(TooManyRequestsException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MAIL_004)
+                    .satisfies(
+                            ex ->
+                                    assertThat(((TooManyRequestsException) ex).retryAfter())
+                                            .isNull());
 
             verify(repository, never()).save(any());
         }
