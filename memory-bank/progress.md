@@ -2,6 +2,13 @@
 
 ## 已完成 ✅
 
+- [x] 429 限流响应补充 retryAfter（body + Retry-After header，v0.43.0）
+    - 覆盖: 全部 @RateLimit 端点 + API key 认证失败限流 + MAIL_004（精确 = 最早邮件 + window）
+    - 实现: Lua 原子 {allowed,ttl} → RateLimitResult → checkLimit；TooManyRequestsException retryAfter + 专用 handler；MIN(createdAt) 查询
+    - 主 agent 接管修复子 agent 4 编译错误（record 访问器冲突 / filter 调用方遗漏 / 测试未迁移 / E2E API 误用）
+    - 双轴审查: Logic PASS + Style 3 minor 已修；全量测试 + jacoco + spotless + LSP 全绿
+    - 版本: 0.42.1 → 0.43.0（MINOR）；待用户处理 commit/push
+
 - [x] 拆分 AUTH_014 双语义：新增 AUTH_024（API Key 上限专属，v0.42.1）
     - AUTH_024("Maximum active API keys reached", 409) 不含硬编码数字
     - ApiKeyServiceImpl 上限分支改抛 AUTH_024；GlobalExceptionHandler token 约束场景保留 AUTH_014

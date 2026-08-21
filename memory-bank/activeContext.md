@@ -1,4 +1,14 @@
 # Active Context
+- [2026-08-21] - 429 限流响应补充 retryAfter（body + header 双发，前端需求报告）
+    - 契约: 所有 429 响应 body 新增 `retryAfter`(ISO-8601 Instant) + `Retry-After` header(RFC 7231 delta-seconds)；对齐 AccountLockedException 既有范式，前端 getRetryAfterSeconds() 双源解析零改动
+    - 覆盖: 全部 13 个 @RateLimit 端点（RATE_LIMIT_001）+ API key 认证失败限流（filter 层直写响应，fallback 整窗）+ MAIL_004（retryAfter = 窗口内最早邮件 createdAt + window，精确非整窗）
+    - 实现: Lua 原子返回 {allowed, ttl}（一次往返无竞态）→ RateLimitResult record → checkLimit 替代 isAllowed；TooManyRequestsException 增加 retryAfter + 专用 handler（镜像 handleAccountLockedException）；MailOutboxRepository 新增 findEarliestDuplicateCreatedAt (MIN(createdAt))
+    - 子 agent（deep）5h 配额中断前完成大部分代码，主 agent 接管修复 4 个编译错误: (1) RateLimitResult.allowed() 与 record 组件访问器冲突 → 改名 permitted() (2) **ApiKeyAuthenticationFilter 也在调 isAllowed（agent 误判唯一调用方）→ 迁移 checkLimit + 实际 TTL/整窗 fallback** (3) filter 测试 2 处 mock 未迁移 (4) E2E 断言 API 误用（hasHeader/getResult → containsHeader 移除 + headers().hasHeaderSatisfying）
+    - 双轴审查（quick ×2）: Logic PASS（无高/中问题；2 个 LOW 信息性: header/body 亚秒偏差、并发竞态 retryAfter 略乐观）+ Style 3 minor 已修（Javadoc sliding→fixed、测试命名 shouldX_whenY、toErrorResponse 冗余 guard 移除对齐镜像）
+    - 验证: 全量测试 BUILD SUCCESSFUL + jacoco PASS + spotless PASS + LSP clean；E2E 真实 Redis 链路断言 Retry-After 正数 + body retryAfter 晚于 now
+    - 版本: 0.42.1 → **0.43.0**（MINOR 新增可选字段）
+    - 状态: ✅ 实施 + 双轴审查完成，本次提交
+
 - [2026-08-16] - 拆分 AUTH_014 双语义：新增 AUTH_024（API Key 上限专属错误码）
     - 背景: AUTH_014 被双语义复用（设计债）：(1) API Key 每用户上限（ApiKeyServiceImpl）(2) 三类 token 唯一约束冲突（GlobalExceptionHandler:427，refresh/email/password token hash 冲突，"Token creation failed" 对该场景正确）
     - 决策（方案 A 已确认）: 新增 AUTH_024("Maximum active API keys reached", 409)，场景 1 改抛 AUTH_024，场景 2 保留 AUTH_014
