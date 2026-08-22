@@ -2,6 +2,11 @@
 
 ## 已完成 ✅
 
+- [x] 修复 frontend-integration.md 列表字段名错误（apiKeys→keys，v0.43.1）
+    - ApiKeysResponse record 实际字段 `keys`，文档误写 `apiKeys`；全仓库仅此一处
+    - AUTH_002 补充 refresh token 静默续期说明
+    - 纯文档 PATCH
+
 - [x] 429 限流响应补充 retryAfter（body + Retry-After header，v0.43.0）
     - 覆盖: 全部 @RateLimit 端点 + API key 认证失败限流 + MAIL_004（精确 = 最早邮件 + window）
     - 实现: Lua 原子 {allowed,ttl} → RateLimitResult → checkLimit；TooManyRequestsException retryAfter + 专用 handler；MIN(createdAt) 查询

@@ -1,4 +1,10 @@
 # Active Context
+- [2026-08-21] - 修复 frontend-integration.md 列表响应字段名错误（apiKeys→keys）+ AUTH_002 补充 refresh 说明
+    - 背景: 文档示例 GET /api/v1/auth/api-keys 响应包裹字段写 "apiKeys"，但 ApiKeysResponse record 实际字段为 keys（@Schema + record 组件），新接入方按文档解析会得到 undefined；全仓库仅此一处
+    - 顺带: AUTH_002 前端处理建议补充"先 refresh token 静默续期，失败再跳登录页"
+    - 纯文档修复，无代码/契约变更；版本 0.43.0 → 0.43.1（PATCH）
+    - 状态: ✅ 完成，待提交推送
+
 - [2026-08-21] - 429 限流响应补充 retryAfter（body + header 双发，前端需求报告）
     - 契约: 所有 429 响应 body 新增 `retryAfter`(ISO-8601 Instant) + `Retry-After` header(RFC 7231 delta-seconds)；对齐 AccountLockedException 既有范式，前端 getRetryAfterSeconds() 双源解析零改动
     - 覆盖: 全部 13 个 @RateLimit 端点（RATE_LIMIT_001）+ API key 认证失败限流（filter 层直写响应，fallback 整窗）+ MAIL_004（retryAfter = 窗口内最早邮件 createdAt + window，精确非整窗）
