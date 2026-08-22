@@ -64,7 +64,7 @@ Authorization: Bearer <jwt_access_token>
 
 | HTTP | Code | 场景 | 前端处理 |
 |------|------|------|---------|
-| 401 | AUTH_002 | JWT 过期或无效 | 跳转登录页 |
+| 401 | AUTH_002 | JWT 过期或无效 | 先尝试用 refresh token 静默续期（`/api/v1/auth/refresh`）；续期成功后重放原请求，续期失败（AUTH_002/AUTH_009）再跳转登录页 |
 | 409 | AUTH_024 | 已创建 20 个 Key，达到上限 | 显示「已达到上限，请先吊销一个 Key」 |
 | 400 | COMMON_003 | 表单验证失败（name 空/scopes 空） | 校验未通过，显示对应字段错误 |
 | 401 | AUTH_010 | BOLA 防护（不可访问其他用户的 Key） | 刷新列表，该 Key 可能已被删除 |
@@ -139,7 +139,7 @@ GET /api/v1/auth/api-keys
 {
   "success": true,
   "data": {
-    "apiKeys": [
+    "keys": [
       {
         "id": "770e8400-e29b-41d4-a716-446655440002",
         "name": "MacBook Pro — IntelliJ IDEA",
