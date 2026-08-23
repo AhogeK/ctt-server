@@ -6,6 +6,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
@@ -72,5 +73,47 @@ public class PasswordService {
                 userId, AuditAction.PASSWORD_SET, ResourceType.USER, userId.toString());
 
         log.info("Password set for user {}", userId);
+    }
+
+    /**
+     * Changes the password for an authenticated user.
+     *
+     * <p>Verifies the current password before updating and rejects the new password if it is
+     * identical to the current one.
+     *
+     * @param userId the user's unique identifier
+     * @param currentPassword the user's current password
+     * @param newPassword the new password to set
+     * @throws NotFoundException if no user exists with the given ID
+     * @throws ConflictException if the user has no password set or the new password equals the
+     *     current one
+     * @throws UnauthorizedException if the current password does not match
+     */
+    @Transactional
+    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(() -> new NotFoundException(ErrorCode.USER_004));
+
+        if (user.getPasswordHash() == null) {
+            throw new ConflictException(ErrorCode.USER_015);
+        }
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new UnauthorizedException(ErrorCode.USER_014);
+        }
+
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new ConflictException(ErrorCode.PASSWORD_SAME_AS_OLD);
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        auditLogService.logSuccess(
+                userId, AuditAction.PASSWORD_CHANGED, ResourceType.USER, userId.toString());
+
+        log.info("Password changed for user {}", userId);
     }
 }
