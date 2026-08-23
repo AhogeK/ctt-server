@@ -329,6 +329,25 @@ User → POST /change-request {newEmail, password?} → System sends verificatio
 
 **Security**: Password required if user has password set. OAuth-only users skip password verification. Token expires in 1 hour, max 5 attempts per token.
 
+### Password Management
+
+| Endpoint                           | Method | Description                                                                                          |
+|------------------------------------|--------|------------------------------------------------------------------------------------------------------|
+| `/api/v1/users/me/password/set`    | POST   | First-time password setup for users without a password (requires JWT, rate limited: 5/min per user)  |
+| `/api/v1/users/me/password/change` | POST   | Change password for users who already have one (requires JWT, rate limited: 5/min per user)          |
+
+**Request**: `{"currentPassword": "...", "newPassword": "..."}` — passwords are base64-encoded by the frontend; the server stores and compares them as-is.
+
+**Error Codes**:
+
+| Scenario                         | Code                 | HTTP |
+|----------------------------------|----------------------|------|
+| User not found                   | `USER_004`           | 404  |
+| Current password wrong           | `USER_014`           | 401  |
+| New password same as old         | `PASSWORD_SAME_AS_OLD` | 409  |
+| User has no password (defensive) | `USER_015`           | 409  |
+| Weak new password                | `COMMON_003`         | 400  |
+
 ### API Key Management
 
 | Endpoint                        | Method | Description                                                                                                |

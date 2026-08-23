@@ -48,7 +48,8 @@ public enum ErrorCode {
 | Error Code | HTTP Status | Description                  | Added In |
 |------------|-------------|------------------------------|----------|
 | AUTH_013   | 403         | OAuth state validation failed | Week 3   |
-| USER_015   | Password already set | CONFLICT (409) |
+| USER_014   | 401         | Current password incorrect    | v0.44.0  |
+| USER_015   | 409         | Password already set          | v0.32.0  |
 ```
 
 **Important**: Do NOT use HTTP status codes as error codes. Frontend needs precise error handling (e.g., distinguish "password wrong" vs "account locked" - both return 403).
@@ -864,6 +865,42 @@ class PasswordResetE2ETest {
 | Reset requested | `PASSWORD_RESET_REQUESTED`       | `requestReset()` when user found                         |
 | Email not found | `PASSWORD_RESET_EMAIL_NOT_FOUND` | `requestReset()` when email not found (anti-enumeration) |
 | Reset confirmed | `PASSWORD_CHANGED`               | `resetPassword()` on success                             |
+
+---
+
+## Password Management
+
+Password management covers first-time password setup for OAuth-only users and password changes for users who already have a password.
+
+### Endpoints
+
+| Endpoint                                | Method | Description                                                                                     |
+|-----------------------------------------|--------|-------------------------------------------------------------------------------------------------|
+| `POST /api/v1/users/me/password/set`    | POST   | First-time password setup for users without a password — body: `{"newPassword": "..."}` → 200   |
+| `POST /api/v1/users/me/password/change` | POST   | Change password — body: `{"currentPassword": "...", "newPassword": "..."}` → 200                |
+
+### Authentication & Rate Limiting
+
+- **Authentication**: Requires JWT Bearer token
+- **Rate Limited**: 5 requests per minute per user (`@RateLimit(type = USER)`)
+- **Request Encoding**: Passwords are base64-encoded by the frontend; the server stores and compares them as-is
+
+### Error Handling
+
+| Scenario                         | Error Code             | HTTP Status |
+|----------------------------------|------------------------|-------------|
+| User not found                   | `USER_004`             | 404         |
+| Current password wrong           | `USER_014`             | 401         |
+| New password same as old         | `PASSWORD_SAME_AS_OLD` | 409         |
+| User has no password (defensive) | `USER_015`             | 409         |
+| Weak new password                | `COMMON_003`           | 400         |
+
+### Audit Events
+
+| Operation        | Audit Action     | Trigger Point                    |
+|------------------|------------------|----------------------------------|
+| Password set     | `PASSWORD_SET`   | `setPassword()` on success       |
+| Password changed | `PASSWORD_CHANGED` | `changePassword()` on success  |
 
 ---
 
