@@ -1,4 +1,16 @@
 # Active Context
+- [2026-08-23] - 新增改密接口 POST /api/v1/users/me/password/change（前端需求）
+    - 背景: 前端 ctt-web 已按契约完成改密 UI（changePassword API + Set/Change 双模式对话框，1073/1073 单测通过），后端缺改密接口（/password/change 现落入静态资源返回 500 SYSTEM_001）
+    - 契约验证: 错误码 USER_014(401)/USER_015(409)/PASSWORD_SAME_AS_OLD(409)/COMMON_003(400) 全部已存在零新增；AuditAction.PASSWORD_CHANGED 已存在（119 行）直接复用；限流 USER 5/60 与 /set 一致
+    - 前端契约确认: ctt-web src/lib/api/user.ts changePassword({currentPassword, newPassword}) 双字段 base64 编码，字段名与需求一致，服务端不解码原样处理
+    - 业务顺序（严格）: findById→USER_004 → passwordHash==null→USER_015 → !matches(current,hash)→USER_014 → matches(new,hash)→PASSWORD_SAME_AS_OLD → encode+save+audit PASSWORD_CHANGED
+    - 实现（子 agent quick ×2 并行，不重叠）: 实现组 ChangePasswordRequest(DTO)+PasswordService.changePassword+PasswordController /change+5单测+4集成测；文档组 README Password Management 小节（含补 /set 端点行）+ handbook USER_014 行+Password Management 章节
+    - 双轴审查（子 agent quick ×2）: Standards PASS（2 judgement call）+ Spec 2 文档缺陷
+    - 审查修复（主 agent）: 5 处 — (1) handbook Step2 示例表 USER_014 行畸形（列序颠倒+缺列）修正为 4 列规范格式，USER_015 继承缺陷一并修（Added In 用 git log 查证 v0.32.0/v0.44.0）(2) README 错误码表补 USER_004 (3) handbook Password Management 错误表补 USER_004 (4) PasswordController 类 Javadoc 补 change 端点 (5) IntegrationTest 类 Javadoc 同步
+    - 验证: 全量测试 BUILD SUCCESSFUL + spotless PASS + LSP clean（修复后）
+    - 版本: 0.43.1 → **0.44.0**（MINOR 新端点）
+    - 状态: ✅ 实施+双轴审查+修复完成，待用户授权提交
+
 - [2026-08-21] - 修复 frontend-integration.md 列表响应字段名错误（apiKeys→keys）+ AUTH_002 补充 refresh 说明
     - 背景: 文档示例 GET /api/v1/auth/api-keys 响应包裹字段写 "apiKeys"，但 ApiKeysResponse record 实际字段为 keys（@Schema + record 组件），新接入方按文档解析会得到 undefined；全仓库仅此一处
     - 顺带: AUTH_002 前端处理建议补充"先 refresh token 静默续期，失败再跳登录页"

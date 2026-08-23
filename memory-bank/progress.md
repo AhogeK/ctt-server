@@ -2,6 +2,14 @@
 
 ## 已完成 ✅
 
+- [x] 新增改密接口 POST /api/v1/users/me/password/change（前端需求，v0.44.0）
+    - 契约: currentPassword(401 USER_014) + newPassword(@StrongPassword) + 新旧相同(409 PASSWORD_SAME_AS_OLD) + 无密码防御(409 USER_015)；审计复用 PASSWORD_CHANGED
+    - 错误码/审计枚举零新增（全复用）；前端 ctt-web 已按契约完成，上线零改动
+    - 实现: ChangePasswordRequest + PasswordService.changePassword + PasswordController /change + 限流 USER 5/60
+    - 双轴审查（子 agent ×2）: Standards PASS + Spec 实现忠实，2 处文档缺陷已修（handbook USER_014 行畸形+USER_004 缺失表行，Javadoc 过期同步）
+    - 验证: 全量测试 + jacoco + spotless + LSP 全绿；版本 0.43.1 → 0.44.0
+    - 待提交: 用户处理 commit/push
+
 - [x] 修复 frontend-integration.md 列表字段名错误（apiKeys→keys，v0.43.1）
     - ApiKeysResponse record 实际字段 `keys`，文档误写 `apiKeys`；全仓库仅此一处
     - AUTH_002 补充 refresh token 静默续期说明
