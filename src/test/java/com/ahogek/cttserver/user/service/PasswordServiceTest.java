@@ -6,6 +6,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
@@ -121,6 +122,126 @@ class PasswordServiceTest {
                     .isInstanceOf(NotFoundException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
 
+            verify(passwordEncoder, never()).encode(any());
+            verify(userRepository, never()).save(any());
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("changePassword")
+    class ChangePassword {
+
+        @Test
+        @DisplayName("should change password when current password matches")
+        void shouldChangePassword_whenCurrentPasswordMatches() {
+            UUID userId = UUID.randomUUID();
+            String currentPassword = "currentPassword123";
+            String newPassword = "newSecurePassword123";
+            String encodedNewPassword = "encodedNewPassword";
+
+            User user = createUserWithPassword(userId);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(currentPassword, user.getPasswordHash())).thenReturn(true);
+            when(passwordEncoder.matches(newPassword, user.getPasswordHash())).thenReturn(false);
+            when(passwordEncoder.encode(newPassword)).thenReturn(encodedNewPassword);
+
+            service.changePassword(userId, currentPassword, newPassword);
+
+            assertThat(user.getPasswordHash()).isEqualTo(encodedNewPassword);
+
+            ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+            verify(userRepository).save(userCaptor.capture());
+            assertThat(userCaptor.getValue().getPasswordHash()).isEqualTo(encodedNewPassword);
+
+            verify(auditLogService)
+                    .logSuccess(
+                            userId,
+                            AuditAction.PASSWORD_CHANGED,
+                            ResourceType.USER,
+                            userId.toString());
+        }
+
+        @Test
+        @DisplayName("should throw UnauthorizedException when current password does not match")
+        void shouldThrowUnauthorizedException_whenCurrentPasswordDoesNotMatch() {
+            UUID userId = UUID.randomUUID();
+            String currentPassword = "wrongPassword123";
+            String newPassword = "newSecurePassword123";
+
+            User user = createUserWithPassword(userId);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(currentPassword, user.getPasswordHash()))
+                    .thenReturn(false);
+
+            assertThatThrownBy(() -> service.changePassword(userId, currentPassword, newPassword))
+                    .isInstanceOf(UnauthorizedException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_014);
+
+            verify(passwordEncoder, never()).encode(any());
+            verify(userRepository, never()).save(any());
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("should throw ConflictException when new password same as current")
+        void shouldThrowConflictException_whenNewPasswordSameAsCurrent() {
+            UUID userId = UUID.randomUUID();
+            String currentPassword = "currentPassword123";
+            String newPassword = "currentPassword123";
+
+            User user = createUserWithPassword(userId);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches(currentPassword, user.getPasswordHash())).thenReturn(true);
+            when(passwordEncoder.matches(newPassword, user.getPasswordHash())).thenReturn(true);
+
+            assertThatThrownBy(() -> service.changePassword(userId, currentPassword, newPassword))
+                    .isInstanceOf(ConflictException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PASSWORD_SAME_AS_OLD);
+
+            verify(passwordEncoder, never()).encode(any());
+            verify(userRepository, never()).save(any());
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("should throw ConflictException when user has no password set")
+        void shouldThrowConflictException_whenUserHasNoPasswordSet() {
+            UUID userId = UUID.randomUUID();
+            String currentPassword = "currentPassword123";
+            String newPassword = "newSecurePassword123";
+
+            User user = createOAuthUser(userId);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+            assertThatThrownBy(() -> service.changePassword(userId, currentPassword, newPassword))
+                    .isInstanceOf(ConflictException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_015);
+
+            verify(passwordEncoder, never()).matches(any(), any());
+            verify(passwordEncoder, never()).encode(any());
+            verify(userRepository, never()).save(any());
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("should throw NotFoundException when user not found")
+        void shouldThrowNotFoundException_whenUserNotFound() {
+            UUID userId = UUID.randomUUID();
+            String currentPassword = "currentPassword123";
+            String newPassword = "newSecurePassword123";
+
+            when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.changePassword(userId, currentPassword, newPassword))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
+
+            verify(passwordEncoder, never()).matches(any(), any());
             verify(passwordEncoder, never()).encode(any());
             verify(userRepository, never()).save(any());
             verify(auditLogService, never()).logSuccess(any(), any(), any(), any());

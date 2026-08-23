@@ -6,6 +6,7 @@ import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.common.idempotent.IdempotentAspect;
 import com.ahogek.cttserver.common.ratelimit.RateLimitAspect;
 import com.ahogek.cttserver.user.controller.PasswordController;
@@ -33,7 +34,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 /**
  * PasswordController integration tests.
  *
- * <p>Covers the set-password endpoint for OAuth users. Uses MockMvc for HTTP testing with mocked
+ * <p>Covers the set-password endpoint (first-time setup for OAuth users) and the change-password
+ * endpoint (for users who already have a password). Uses MockMvc for HTTP testing with mocked
  * service dependencies.
  */
 @BaseControllerSliceTest(
@@ -145,6 +147,124 @@ class PasswordControllerIntegrationTest {
                     .bodyJson()
                     .extractingPath("$.code")
                     .isEqualTo("USER_015");
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/v1/users/me/password/change")
+    class ChangePassword {
+
+        private static final String CURRENT_PASSWORD = "CurrentPass123!";
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 200 when valid request")
+        void shouldReturn200_whenValidRequest() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+
+            String requestBody =
+                    """
+                    {
+                        "currentPassword": "%s",
+                        "newPassword": "%s"
+                    }
+                    """
+                            .formatted(CURRENT_PASSWORD, NEW_PASSWORD);
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/users/me/password/change")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestBody))
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.success")
+                    .isEqualTo(true);
+        }
+
+        @Test
+        @DisplayName("Should return 401 when no authentication")
+        void shouldReturn401_whenNoAuthentication() {
+            String requestBody =
+                    """
+                    {
+                        "currentPassword": "%s",
+                        "newPassword": "%s"
+                    }
+                    """
+                            .formatted(CURRENT_PASSWORD, NEW_PASSWORD);
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/users/me/password/change")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestBody))
+                    .hasStatus(401);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 401 when current password is wrong")
+        void shouldReturn401_whenCurrentPasswordIsWrong() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willThrow(new UnauthorizedException(ErrorCode.USER_014))
+                    .given(passwordService)
+                    .changePassword(BDDMockito.eq(USER_ID), BDDMockito.any(), BDDMockito.any());
+
+            String requestBody =
+                    """
+                    {
+                        "currentPassword": "%s",
+                        "newPassword": "%s"
+                    }
+                    """
+                            .formatted(CURRENT_PASSWORD, NEW_PASSWORD);
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/users/me/password/change")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestBody))
+                    .hasStatus(401)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("USER_014");
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 409 when new password same as current")
+        void shouldReturn409_whenNewPasswordSameAsCurrent() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.willThrow(new ConflictException(ErrorCode.PASSWORD_SAME_AS_OLD))
+                    .given(passwordService)
+                    .changePassword(BDDMockito.eq(USER_ID), BDDMockito.any(), BDDMockito.any());
+
+            String requestBody =
+                    """
+                    {
+                        "currentPassword": "%s",
+                        "newPassword": "%s"
+                    }
+                    """
+                            .formatted(CURRENT_PASSWORD, NEW_PASSWORD);
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/users/me/password/change")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestBody))
+                    .hasStatus(409)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("PASSWORD_SAME_AS_OLD");
         }
     }
 }
