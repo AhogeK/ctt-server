@@ -154,7 +154,7 @@ The sync engine provides bidirectional data synchronization with scope-based acc
 - API key without SYNC scope → 403 `AUTH_020` + `API_KEY_SCOPE_DENIED` audit event
 - JWT-authenticated users → bypass scope check
 
-**Note**: Endpoints exist for SYNC scope enforcement. The underlying data model (`CodingSession` / `SessionChange` / `SyncCursor`) and persistence layer are in place (Phase T); pull/push business logic (LWW conflict resolution, change-log watermarking) lands in the following phase.
+**Note**: Endpoints exist for SYNC scope enforcement. The underlying data model (`CodingSession` / `SessionChange` / `SyncCursor`), persistence layer, and LWW conflict resolution engine are in place (Phase T + U); pull/push business logic (change-log watermarking, service orchestration) lands in the following phase.
 
 ### Sync Data Model (Phase T)
 
@@ -169,6 +169,19 @@ The sync engine provides bidirectional data synchronization with scope-based acc
 - `change_id` is a database sequence → safe monotonic pull cursor; per-user isolation enforced in every incremental query
 - `server_version` watermark backs the LWW push path (`idx_sessions_sync_lookup`)
 - Scalar UUID references (no JPA associations) keep the sync module independent of entity graph loading
+
+### Sync Conflict Resolution (Phase U)
+
+`ConflictResolver` decides which of two session states wins under last-write-wins semantics. Pure domain component (no Spring/persistence deps), consumed by the future push service.
+
+Rules in priority order:
+
+1. **Delete wins** — a soft-deleted state beats a live one; deletion is the strongest terminal state. Both-deleted falls through to version rules (a more recent delete of an already-deleted session is still a delete).
+2. **Server version** — when both sides carry a server-assigned version (> 0), higher wins (replay/merge scenarios).
+3. **Client version** — when server versions are equal or either side has no server version yet (fresh client submission carries `serverVersion == 0`), higher client version wins.
+4. **Client modified at** — when client versions are also equal, later `clientModifiedAt` wins.
+
+Identical states resolve to keep-existing, so re-submitting unchanged state is an idempotent no-op. The decision enum routes callers: `APPLY_INCOMING` (apply + log UPSERT), `APPLY_DELETE` (soft-delete + log DELETE), `KEEP_EXISTING` (leave row untouched).
 
 ### Set Password Audit Events
 
