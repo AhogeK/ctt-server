@@ -54,6 +54,10 @@ class ApiKeyScopeIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        jdbcClient.sql("DELETE FROM session_changes").update();
+        jdbcClient.sql("DELETE FROM sync_cursors").update();
+        jdbcClient.sql("DELETE FROM coding_sessions").update();
+        jdbcClient.sql("DELETE FROM devices").update();
         jdbcClient.sql("DELETE FROM api_keys").update();
         jdbcClient.sql("DELETE FROM mail_outbox").update();
         jdbcClient.sql("DELETE FROM email_verification_tokens").update();
@@ -67,6 +71,51 @@ class ApiKeyScopeIntegrationTest {
 
     private String uniqueDeviceId() {
         return "device-" + UUID.randomUUID();
+    }
+
+    private UUID insertDevice(UUID userId) {
+        UUID deviceId = UUID.randomUUID();
+        jdbcClient
+                .sql(
+                        """
+                        INSERT INTO devices
+                            (id, user_id, device_name, platform, ide_name, ide_version, app_version,
+                             last_ip, created_at, last_seen_at, updated_at)
+                        VALUES (?, ?, 'scope-device', 'macos', 'IntelliJ IDEA', '2026.1', '1.0.0',
+                                '127.0.0.1', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """)
+                .param(deviceId)
+                .param(userId)
+                .update();
+        return deviceId;
+    }
+
+    private String pullBody(UUID deviceId) {
+        return """
+                {"deviceId": "%s", "lastPulledChangeId": 0}
+                """
+                .formatted(deviceId);
+    }
+
+    private String pushBody(UUID deviceId) {
+        return """
+                {
+                  "deviceId": "%s",
+                  "sessions": [
+                    {
+                      "sessionUuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                      "projectName": "ctt-server",
+                      "language": "Java",
+                      "startTime": "2026-08-25T09:00:00Z",
+                      "endTime": "2026-08-25T10:00:00Z",
+                      "clientModifiedAt": "2026-08-25T10:00:00Z",
+                      "clientVersion": 1,
+                      "deleted": false
+                    }
+                  ]
+                }
+                """
+                .formatted(deviceId);
     }
 
     private String registerRequestJson(String email) throws Exception {
@@ -192,12 +241,15 @@ class ApiKeyScopeIntegrationTest {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
             String rawKey = createApiKey(jwt, "Sync Key", "SYNC");
+            UUID deviceId = insertDevice(userIdOf(email));
 
             assertThat(
                             mvc.post()
                                     .uri(PULL_ENDPOINT)
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pullBody(deviceId))
                                     .exchange())
                     .hasStatusOk()
                     .bodyJson()
@@ -211,12 +263,15 @@ class ApiKeyScopeIntegrationTest {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
             String rawKey = createApiKey(jwt, "Read-Only Key", "READ");
+            UUID deviceId = insertDevice(userIdOf(email));
 
             assertThat(
                             mvc.post()
                                     .uri(PULL_ENDPOINT)
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pullBody(deviceId))
                                     .exchange())
                     .hasStatus(403)
                     .bodyJson()
@@ -230,12 +285,15 @@ class ApiKeyScopeIntegrationTest {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
             String rawKey = createApiKey(jwt, "Admin Key", "ADMIN");
+            UUID deviceId = insertDevice(userIdOf(email));
 
             assertThat(
                             mvc.post()
                                     .uri(PULL_ENDPOINT)
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pullBody(deviceId))
                                     .exchange())
                     .hasStatusOk();
         }
@@ -245,12 +303,15 @@ class ApiKeyScopeIntegrationTest {
         void shouldReturn200_whenJwtUserBypassesScopeCheck() throws Exception {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
+            UUID deviceId = insertDevice(userIdOf(email));
 
             assertThat(
                             mvc.post()
                                     .uri(PULL_ENDPOINT)
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + jwt)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pullBody(deviceId))
                                     .exchange())
                     .hasStatusOk()
                     .bodyJson()
@@ -269,12 +330,15 @@ class ApiKeyScopeIntegrationTest {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
             String rawKey = createApiKey(jwt, "Sync Key", "SYNC");
+            UUID deviceId = insertDevice(userIdOf(email));
 
             assertThat(
                             mvc.post()
                                     .uri(PUSH_ENDPOINT)
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pushBody(deviceId))
                                     .exchange())
                     .hasStatusOk()
                     .bodyJson()
@@ -288,12 +352,15 @@ class ApiKeyScopeIntegrationTest {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
             String rawKey = createApiKey(jwt, "Write-Only Key", "WRITE");
+            UUID deviceId = insertDevice(userIdOf(email));
 
             assertThat(
                             mvc.post()
                                     .uri(PUSH_ENDPOINT)
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pushBody(deviceId))
                                     .exchange())
                     .hasStatus(403)
                     .bodyJson()
@@ -307,12 +374,15 @@ class ApiKeyScopeIntegrationTest {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
             String rawKey = createApiKey(jwt, "Admin Key", "ADMIN");
+            UUID deviceId = insertDevice(userIdOf(email));
 
             assertThat(
                             mvc.post()
                                     .uri(PUSH_ENDPOINT)
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pushBody(deviceId))
                                     .exchange())
                     .hasStatusOk();
         }
@@ -322,17 +392,28 @@ class ApiKeyScopeIntegrationTest {
         void shouldReturn200_whenJwtUserBypassesScopeCheck() throws Exception {
             String email = uniqueEmail();
             String jwt = registerVerifyAndLogin(email);
+            UUID deviceId = insertDevice(userIdOf(email));
 
             assertThat(
                             mvc.post()
                                     .uri(PUSH_ENDPOINT)
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + jwt)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pushBody(deviceId))
                                     .exchange())
                     .hasStatusOk()
                     .bodyJson()
                     .extractingPath("$.success")
                     .isEqualTo(true);
         }
+    }
+
+    private UUID userIdOf(String email) {
+        return jdbcClient
+                .sql("SELECT id FROM users WHERE email = ?")
+                .param(email)
+                .query(UUID.class)
+                .single();
     }
 }
