@@ -1,4 +1,21 @@
 # Active Context
+- [2026-08-25] - 编码会话同步 Phase V：双向同步协议 Pull/Push（sync/ 服务编排层）
+    - 背景: U 阶段 ConflictResolver 就绪，SyncController 仍为占位（返回 pull-ok/push-ok）；V 阶段落地真实协议
+    - 领域裁决（主 agent）: ①deviceId 来源——push 请求体显式携带，服务端 DeviceRepository.findByIdAndUserId BOLA 校验（不存在→404 COMMON_002，复用 DeviceService 同款文案）②pull 语义——请求带 deviceId+lastPulledChangeId，有效查询游标 = max(持久化水印, 客户端游标)（陈旧客户端无法回卷水印），advancePullWatermark 单调推进，无新增返回空+当前游标（幂等）③push 语义——批量逐条 ConflictResolver 三路路由，单事务原子性（部分应用永不发生），nextCursor = 用户最大 change_id ④审计——新增 AuditAction.SYNC_PULL/SYNC_PUSH + ResourceType.CODING_SESSION，成功/失败均落（失败取错误码名）⑤限流——@RateLimit(API, 120/60s) 复用 429 retryAfter 契约 ⑥错误码——零新增（404 复用 COMMON_002）
+    - 实现（子 agent quick，19min）: 6 DTO（SyncPullRequest 含 deviceId——契约偏差：spec DTO 描述漏 deviceId 但游标按 (user,device) 键必须带）+ SyncPullService/SyncPushService + SyncController 真实逻辑 + 枚举扩展 + CodingSessionRepository.findAllByIdIn（含软删，pull 路径送达 DELETE 事件）+ 测试（单测 10 + 集成 6 + MockMvc 6 + ResourceTypeTest/ApiKey 测试适配）
+    - 双缺陷审查修复（主 agent 发现 → 子 agent 延续会话修复，27min）:
+        1. **严重** push 用 findByUserIdAndSessionUuidAndIsDeletedFalse 查 live-only → 服务端软删会话+客户端推 live → createSession 撞 uk_coding_sessions_user_session_uuid 唯一约束永久失败 → 新增 findByUserIdAndSessionUuid（含软删）让 ConflictResolver 裁决（软删胜→KEEP_EXISTING no-op）
+        2. **中等** 客户端推 deleted=true 且服务端无此会话 → createSession 错建 live 行 → 短路 no-op（幂等）
+    - 验证: 全量 **1162 tests** / 0 failed（基线 1142+20）；spotless PASS；LSP clean；集成测试覆盖验收（push→pull 增量→再 pull 空、同 session 双推单行收敛、401/403/400）
+    - 版本: 0.46.0 → **0.47.0**（MINOR 新端点能力）
+    - 状态: ✅ 实施+审查+修复完成，待用户授权提交
+    - 双轴审查（子 agent quick ×2，独立）: Standards PASS（零硬违规，仅判断性小项：errorCodeName 5 行重复/toIncomingState setter 重复/测试 insertDevice 三文件重复——后者与 T 阶段"无共享 fixture"裁决一致不修）+ Spec PARTIAL（2 项）
+    - 审查发现并修复（主 agent 核实 → 子 agent quick 修复，4min28s）:
+        1. **严重** `advancePullWatermark` 是纯 UPDATE 且全仓库无任何 SyncCursor 行创建点（无 new/save/INSERT，表无默认行）→ fresh device 水印永不落库，"防回卷"保护失效 → 改为**原生 SQL 原子 upsert**（INSERT...ON CONFLICT (user_id,device_id) DO UPDATE + GREATEST 保单调，updated_at 显式设因 native SQL 绕过 @UpdateTimestamp）；适配 3 个既有 repository 测试（单调守卫断言行数 0→1）+ 新增 shouldCreateCursor_whenCursorDoesNotExist（补审查缺口）
+        2. **中等** device BOLA 404 仅 service 单元层覆盖 → 补 SyncIntegrationTest.shouldReturn404_whenDeviceNotOwned（pull+push 双端点 404 COMMON_002）
+        3. **低** toIncomingState 复用 applyIncomingFields（消除 6 行 setter 重复，行为不变）
+    - 修复后验证: 全量 **1163 tests** / 0 failed；jacoco 门禁 PASS（INSTRUCTION 93.5% / BRANCH 83.5%）；spotless PASS；LSP clean
+
 - [2026-08-25] - 编码会话同步 Phase U：LWW 冲突解析引擎（sync/service/）
     - 背景: 多设备并发上报同一 session 需收敛为单一正确状态；server_version 是服务端分配水印（采纳后 +1），客户端可观测的是 client_version/client_modified_at
     - 领域裁决（主 agent）: 比较优先级 ①删除优先（最强终态，both-deleted 落入版本规则）②server_version 高者胜（双方都持服务端版本的重放场景）③client_version 高者胜（一方无服务端版本即 serverVersion==0 的新提交）④clientModifiedAt 最新（需求"同版本取 happened_at 最新"的领域落地，CodingSession 无 happenedAt）

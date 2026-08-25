@@ -2,6 +2,14 @@
 
 ## 已完成 ✅
 
+- [x] 编码会话同步 Phase V：双向同步协议 Pull/Push（v0.47.0）
+    - SyncPullService（游标增量+单调推进+幂等，BOLA 校验）+ SyncPushService（批量 LWW 三路路由+单事务原子性）+ 6 DTO + SyncController 真实逻辑
+    - 审计 SYNC_PULL/SYNC_PUSH + ResourceType.CODING_SESSION；限流 @RateLimit(API, 120/60s)
+    - 主 agent 审查发现并修复 2 缺陷: ①push 查含软删会话（避免唯一约束冲突）②deleted 会话创建短路（幂等 no-op）
+    - 双轴审查（Standards PASS + Spec PARTIAL）后修复: ①advancePullWatermark 改原生 SQL upsert（fresh device 水印落库缺口）②补 BOLA 404 集成层测试 ③toIncomingState 消除 setter 重复
+    - 验证: 全量 1163 tests 无回归 + jacoco（93.5%/83.5%）+ spotless + LSP 全绿
+    - 版本: 0.46.0 → 0.47.0；待提交
+
 - [x] 编码会话同步 Phase U：LWW 冲突解析引擎（v0.46.0）
     - ConflictResolver 纯领域组件 + Decision 枚举；删除优先→server_version→client_version→clientModifiedAt 四层优先级；幂等 tie-break
     - 16 测试覆盖三组验收边界 + 纯函数不变性；全量 1142 tests 无回归
