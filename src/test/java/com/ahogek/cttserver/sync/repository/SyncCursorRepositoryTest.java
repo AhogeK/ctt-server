@@ -98,13 +98,13 @@ class SyncCursorRepositoryTest {
         }
 
         @Test
-        @DisplayName("shouldBeNoOp_whenNewWatermarkIsLower_monotonicGuard")
-        void shouldBeNoOp_whenNewWatermarkIsLower_monotonicGuard() {
+        @DisplayName("shouldNotRewindWatermark_whenNewWatermarkIsLower_monotonicGuard")
+        void shouldNotRewindWatermark_whenNewWatermarkIsLower_monotonicGuard() {
             em.persistFlushFind(cursor(5));
 
             int updated = repository.advancePullWatermark(userId, deviceId, 3);
 
-            assertThat(updated).isZero();
+            assertThat(updated).isEqualTo(1);
             em.clear();
             assertThat(repository.findByUserIdAndDeviceId(userId, deviceId))
                     .isPresent()
@@ -112,21 +112,28 @@ class SyncCursorRepositoryTest {
         }
 
         @Test
-        @DisplayName("shouldBeNoOp_whenNewWatermarkEqualsCurrent")
-        void shouldBeNoOp_whenNewWatermarkEqualsCurrent() {
+        @DisplayName("shouldNotRewindWatermark_whenNewWatermarkEqualsCurrent")
+        void shouldNotRewindWatermark_whenNewWatermarkEqualsCurrent() {
             em.persistFlushFind(cursor(5));
 
             int updated = repository.advancePullWatermark(userId, deviceId, 5);
 
-            assertThat(updated).isZero();
+            assertThat(updated).isEqualTo(1);
+            em.clear();
+            assertThat(repository.findByUserIdAndDeviceId(userId, deviceId))
+                    .isPresent()
+                    .hasValueSatisfying(c -> assertThat(c.getLastPulledChangeId()).isEqualTo(5));
         }
 
         @Test
-        @DisplayName("shouldReturnZero_whenCursorDoesNotExist")
-        void shouldReturnZero_whenCursorDoesNotExist() {
+        @DisplayName("shouldCreateCursor_whenCursorDoesNotExist")
+        void shouldCreateCursor_whenCursorDoesNotExist() {
             int updated = repository.advancePullWatermark(userId, deviceId, 5);
 
-            assertThat(updated).isZero();
+            assertThat(updated).isEqualTo(1);
+            assertThat(repository.findByUserIdAndDeviceId(userId, deviceId))
+                    .isPresent()
+                    .hasValueSatisfying(c -> assertThat(c.getLastPulledChangeId()).isEqualTo(5));
         }
     }
 }

@@ -38,27 +38,33 @@ public interface SyncCursorRepository extends JpaRepository<SyncCursor, SyncCurs
     Optional<SyncCursor> findByUserIdAndDeviceId(UUID userId, UUID deviceId);
 
     /**
-     * Advances a device's pull watermark in a single atomic statement.
+     * Advances a device's pull watermark atomically, creating the cursor row when absent.
      *
-     * <p>The {@code lastPulledChangeId < :watermark} predicate is the concurrency-safe monotonic
-     * guard: concurrent pulls can never rewind the watermark, and the update is a no-op when the
-     * stored watermark is already at or beyond the supplied value. {@code updated_at} is set
-     * explicitly because bulk JPQL updates bypass the {@code @UpdateTimestamp} interceptor.
+     * <p>Implemented as a single PostgreSQL upsert ({@code INSERT ... ON CONFLICT DO UPDATE}): a
+     * fresh {@code (user_id, device_id)} pair inserts a new cursor row, while an existing row is
+     * advanced monotonically via {@code GREATEST} — a smaller watermark never rewinds the stored
+     * value, and concurrent pulls converge on the maximum. {@code updated_at} is set explicitly
+     * because native SQL bypasses the {@code @UpdateTimestamp} interceptor.
      *
      * <p><strong>Note:</strong> Must be called within a {@code @Transactional} context.
      *
      * @param userId the owning user id
      * @param deviceId the client device id
-     * @param watermark the new watermark; only applied when strictly greater than the stored value
-     * @return number of rows updated ({@code 1} when advanced, {@code 0} when already at or beyond)
+     * @param watermark the new watermark; the stored value only ever moves forward
+     * @return number of rows affected ({@code 1} when the cursor row was inserted or touched)
      */
     @Modifying
     @Query(
-            """
-        UPDATE SyncCursor c
-        SET c.lastPulledChangeId = :watermark, c.updatedAt = CURRENT_TIMESTAMP
-        WHERE c.userId = :userId AND c.deviceId = :deviceId AND c.lastPulledChangeId < :watermark
-        """)
+            value =
+                    """
+                INSERT INTO sync_cursors (user_id, device_id, last_pulled_change_id, updated_at)
+                VALUES (:userId, :deviceId, :watermark, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id, device_id)
+                DO UPDATE SET
+                    last_pulled_change_id = GREATEST(sync_cursors.last_pulled_change_id, EXCLUDED.last_pulled_change_id),
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+            nativeQuery = true)
     int advancePullWatermark(
             @Param("userId") UUID userId,
             @Param("deviceId") UUID deviceId,
