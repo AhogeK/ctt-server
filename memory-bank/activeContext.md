@@ -1,4 +1,16 @@
 # Active Context
+- [2026-08-26] - 编码会话同步 Phase W：插件端对接文档（纯文档，无代码）
+    - 背景: V 阶段协议已落地，需产出契约文档供 code-time-tracker 插件端并行对接
+    - W1（子 agent quick）: 新建 `dev-docs/sync/frontend-integration.md`（475 行中文）——流程总览/认证（API Key SYNC scope + JWT 绕过）/Pull 接口（请求响应示例+字段表+游标语义）/Push 接口（LWW 结果表+原子性）/错误码映射表（AUTH_010/011/012/020/021 + COMMON_002/003 + RATE_LIMIT_001）/限流重试策略（Retry-After header delta-seconds 优先 + body retryAfter ISO-8601 兜底 + jitter 退避）/对接流程建议/附录示例；DTO 字段与 @Schema 逐项核对一致
+    - W2: README Sync Engine 段落已在 V 阶段完成（提交 30b7500），主 agent 判断不重复执行
+    - W3（子 agent quick + 主 agent 修正）: handbook 补 `### Sync Audit Events` 独立表（SYNC_PULL/SYNC_PUSH，Resource Type CODING_SESSION，含 logSuccess/logFailure 细节）+ API Key Error Codes 表补 COMMON_002 行（原缺失）
+    - 主 agent 修正 1: 子 agent 初稿把 SYNC 审计事件放进 "API Key Audit Events" 表（带 Resource Type: API_KEY 注记，语义不符）→ 移出建独立 Sync Audit Events 表，对齐项目"每模块独立审计表"惯例（API Key/Password/Set Password 各有）
+    - 主 agent 修正 2: 双轴审查（Standards PASS + Spec PASS，6/6 DTO 与 @Schema 匹配零事实错误）后补 LWW 结果表缺行「删除不存在的会话（无操作）」——deleted-never-had 幂等场景在集成文档显式化（验收标准 1：插件端仅凭文档可对接）
+    - 审查发现既有问题（报告待用户确认）: dev-docs/apikey/frontend-integration.md 错误格式示例含 "success": false 字段，但 ErrorResponse record 无此字段（sync 文档已用正确 RFC 7807 格式）——apikey 文档过时，建议后续修复
+    - 验收: 插件端可仅凭文档对接；DTO 字段与 @Schema 一致（双轴审查逐项核对）
+    - 版本不变（纯文档不 bump，历史惯例一致）
+    - 状态: ✅ 完成+审查，待用户授权提交
+
 - [2026-08-25] - 编码会话同步 Phase V：双向同步协议 Pull/Push（sync/ 服务编排层）
     - 背景: U 阶段 ConflictResolver 就绪，SyncController 仍为占位（返回 pull-ok/push-ok）；V 阶段落地真实协议
     - 领域裁决（主 agent）: ①deviceId 来源——push 请求体显式携带，服务端 DeviceRepository.findByIdAndUserId BOLA 校验（不存在→404 COMMON_002，复用 DeviceService 同款文案）②pull 语义——请求带 deviceId+lastPulledChangeId，有效查询游标 = max(持久化水印, 客户端游标)（陈旧客户端无法回卷水印），advancePullWatermark 单调推进，无新增返回空+当前游标（幂等）③push 语义——批量逐条 ConflictResolver 三路路由，单事务原子性（部分应用永不发生），nextCursor = 用户最大 change_id ④审计——新增 AuditAction.SYNC_PULL/SYNC_PUSH + ResourceType.CODING_SESSION，成功/失败均落（失败取错误码名）⑤限流——@RateLimit(API, 120/60s) 复用 429 retryAfter 契约 ⑥错误码——零新增（404 复用 COMMON_002）

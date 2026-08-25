@@ -2,6 +2,12 @@
 
 ## 已完成 ✅
 
+- [x] 编码会话同步 Phase W：插件端对接文档（v0.47.0，纯文档）
+    - dev-docs/sync/frontend-integration.md 新建（474 行契约文档：认证/Pull/Push/错误码/游标/限流重试）
+    - handbook 补 Sync Audit Events 独立表 + COMMON_002 错误码；README 已在 V 阶段完成
+    - DTO 字段与 @Schema 逐项核对一致；主 agent 修正审计表归属（独立表而非 API Key 表）
+    - 版本不变（纯文档）；待提交
+
 - [x] 编码会话同步 Phase V：双向同步协议 Pull/Push（v0.47.0）
     - SyncPullService（游标增量+单调推进+幂等，BOLA 校验）+ SyncPushService（批量 LWW 三路路由+单事务原子性）+ 6 DTO + SyncController 真实逻辑
     - 审计 SYNC_PULL/SYNC_PUSH + ResourceType.CODING_SESSION；限流 @RateLimit(API, 120/60s)
