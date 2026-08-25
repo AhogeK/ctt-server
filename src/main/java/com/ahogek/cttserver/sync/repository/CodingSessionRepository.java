@@ -50,6 +50,21 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
             UUID userId, UUID sessionUuid);
 
     /**
+     * Finds a session by owner and client-generated session UUID, including soft-deleted rows.
+     *
+     * <p>Used by the push path so {@code ConflictResolver} can adjudicate against soft-deleted
+     * rows: a live submission for a session the server already soft-deleted must resolve to {@code
+     * KEEP_EXISTING} (server delete wins) instead of falling through to an insert that would
+     * violate the {@code uk_coding_sessions_user_session_uuid} unique constraint. The unique
+     * constraint guarantees at most one match.
+     *
+     * @param userId the owning user id
+     * @param sessionUuid the client-generated session UUID
+     * @return {@code Optional} containing the session when found, live or soft-deleted
+     */
+    Optional<CodingSession> findByUserIdAndSessionUuid(UUID userId, UUID sessionUuid);
+
+    /**
      * Lists all live sessions owned by a user.
      *
      * <p>Backed by the partial index {@code idx_sessions_user_time}, whose {@code WHERE is_deleted
@@ -96,6 +111,20 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
      */
     @Query("SELECT s FROM CodingSession s WHERE s.id IN :ids AND s.isDeleted = false")
     List<CodingSession> findAllByIdInAndIsDeletedFalse(@Param("ids") Collection<UUID> ids);
+
+    /**
+     * Batch-fetches sessions by their primary keys, including soft-deleted rows.
+     *
+     * <p>Used by the pull path to resolve the session snapshots referenced by change-log entries.
+     * Unlike {@link #findAllByIdInAndIsDeletedFalse}, this query deliberately includes deleted
+     * sessions so that a {@code DELETE} change can still deliver the deleted row's identity to the
+     * client. Each id resolves through the primary key index.
+     *
+     * @param ids session primary keys to load
+     * @return the sessions among {@code ids}, including soft-deleted ones; never {@code null}
+     */
+    @Query("SELECT s FROM CodingSession s WHERE s.id IN :ids")
+    List<CodingSession> findAllByIdIn(@Param("ids") Collection<UUID> ids);
 
     /**
      * Lists live sessions of a user whose server version is above a watermark.
