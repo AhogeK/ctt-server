@@ -1,4 +1,15 @@
 # Active Context
+- [2026-08-25] - 编码会话同步 Phase U：LWW 冲突解析引擎（sync/service/）
+    - 背景: 多设备并发上报同一 session 需收敛为单一正确状态；server_version 是服务端分配水印（采纳后 +1），客户端可观测的是 client_version/client_modified_at
+    - 领域裁决（主 agent）: 比较优先级 ①删除优先（最强终态，both-deleted 落入版本规则）②server_version 高者胜（双方都持服务端版本的重放场景）③client_version 高者胜（一方无服务端版本即 serverVersion==0 的新提交）④clientModifiedAt 最新（需求"同版本取 happened_at 最新"的领域落地，CodingSession 无 happenedAt）
+    - 实现（子 agent quick）: `ConflictResolver` 纯领域组件（final class + 静态方法，无 Spring/DB 依赖，不改变体）+ 嵌套 `Decision` 枚举（APPLY_INCOMING/KEEP_EXISTING/APPLY_DELETE）；幂等 tie-break（完全相同状态→KEEP_EXISTING，重提即 no-op）；包位 sync/service/（项目无 domain/ 包惯例）
+    - 测试: ConflictResolverTest 16 用例（不同版本 8/同版本 2/删除竞争 5/纯函数不变性 1）；全量 1142（1126 基线+16）0 failed；jacoco/spotless/LSP 全绿
+    - 双轴审查（子 agent quick ×2）: Standards PASS（1 判断性：2 处行内 what-comment 冗余）+ Spec PASS 零发现
+    - 审查修复（主 agent）: 删除 ConflictResolver 内 2 处冗余行内注释（Rule 1/同删除标记复述——Javadoc <ol> 已完整表达规则，R9 禁 explain-what）
+    - 验证: 全量 1142 tests / 0 failed；jacoco/spotless/LSP 全绿
+    - 版本: 0.45.0 → **0.46.0**（MINOR 新组件）
+    - 状态: ✅ 实施+双轴审查+修复完成，待用户授权提交
+
 - [2026-08-25] - 编码会话同步 Phase T：数据模型与持久层（sync/ 包）
     - 背景: sync/ 仅占位 SyncController；coding_sessions/session_changes/sync_cursors 三表已在 init migration 预置但无实体映射
     - 关键判断（R8.5 以实际 DDL 为准，非 Notion 计划字面）: CodingSession 无 file_path/duration_seconds/device_id（表没有）；设备溯源用 updated_by_device_id；SessionChange.session_id 是 FK→coding_sessions.id（非 session_uuid）；op 有 CHECK(UPSERT/DELETE) 需 ChangeOp 枚举；SyncCursor 复合 PK 用 @IdClass

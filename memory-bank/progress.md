@@ -2,6 +2,11 @@
 
 ## 已完成 ✅
 
+- [x] 编码会话同步 Phase U：LWW 冲突解析引擎（v0.46.0）
+    - ConflictResolver 纯领域组件 + Decision 枚举；删除优先→server_version→client_version→clientModifiedAt 四层优先级；幂等 tie-break
+    - 16 测试覆盖三组验收边界 + 纯函数不变性；全量 1142 tests 无回归
+    - 版本: 0.45.0 → 0.46.0；待提交
+
 - [x] 编码会话同步 Phase T：数据模型与持久层（v0.45.0）
     - 3 实体（CodingSession/SessionChange/SyncCursor）+ ChangeOp 枚举 + SyncCursorId 复合主键 + 3 Repository
     - 以实际 DDL 为准（非 Notion 计划字面）；软删全查询过滤；change_id 单调水印；advancePullWatermark 并发安全
