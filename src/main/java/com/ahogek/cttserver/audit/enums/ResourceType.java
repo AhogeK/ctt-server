@@ -31,6 +31,9 @@ public enum ResourceType {
     /** Mail outbox entity for transactional email queue. */
     MAIL_OUTBOX,
 
+    /** Coding session entity synchronized across devices. */
+    CODING_SESSION,
+
     /** Fallback type for system-level or uncategorized resources. */
     UNKNOWN
 }
