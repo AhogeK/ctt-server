@@ -1,7 +1,7 @@
 # SKILL GRAPH — AI Agent 技能索引
 
-> **最后更新**: 2026-07-11
-> **技能总数**: 436+ 个（新增 149 个）
+> **最后更新**: 2026-08-25
+> **技能总数**: 464+ 个（覆盖全部技能来源：用户安装 372 + opencode 配置 89 + 项目技能 4 + 内置 26，去重后 464）
 > **用途**: AI 执行任务前扫描此文件识别相关技能；人类快速定位需要的工具
 
 ---
@@ -10,8 +10,8 @@
 
 | 我要做什么 | 推荐技能链 | 说明 |
 |-----------|-----------|------|
-| 规划新功能 | `think` → `brainstorming` → `planning-and-task-breakdown` → `implement` | 先想清楚再动手 |
-| 修复 bug | `hunt` → `systematic-debugging` → `tdd` → `check` | 先找根因再修 |
+| 规划新功能 | `think` → `planning-and-task-breakdown` → `implement` | 先想清楚再动手 |
+| 修复 bug | `hunt` → `tdd` → `check` | 先找根因再修 |
 | 代码审查 | `check` → `code-review` → `code-review-and-quality` | 多维度审查 |
 | 创建 UI | `ui` → `design-taste-frontend` → `frontend-ui-engineering` | 设计先行 |
 | 写文档 | `write` → `docs-update` → `documentation-and-adrs` | 去 AI 味 |
@@ -20,7 +20,7 @@
 | 学术写作 | `nature-writing` → `nature-polishing` → `nature-figure` | Nature 系列 |
 | CLI 工具 | `cli-anything` → `cli-hub-meta-skill` | 为 GUI 应用构建 CLI |
 | 部署上线 | `deploy-to-vercel` → `shipping-and-launch` → `ci-cd-and-automation` | 发布流水线 |
-| 安全审计 | `security-and-hardening` → `cso` → `security-research` | 漏洞排查 |
+| 安全审计 | `security-and-hardening` → `security-research` | 漏洞排查 |
 | 性能优化 | `web-performance-audit` → `performance-optimization` → `debug-optimize-lcp` | 数据驱动 |
 | 生物信息学 | `biopython` → `scanpy` → `scvi-tools` | 基因组分析全流程 |
 | 药物发现 | `rdkit` → `datamol` → `deepchem` → `pytdc` | 分子 ML 管道 |
@@ -39,13 +39,9 @@
 | 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
 |--------|-----------|---------|-----------|
 | `think` | 把模糊想法变成可执行计划 | 5 阶段流程：理解意图 → 探索约束 → 评估方案 → 生成计划 → 用户批准。不写代码，只做决策 | "怎么设计"、"用什么方案"、"值不值得做"、"给个方案" |
-| `brainstorming` | 创建功能前的强制探索 | 逐个问澄清问题，提出 2-3 个方案并比较 trade-off，用户批准后才写代码。**任何功能开发前必须先过这个** | "我要做一个 X"、"添加功能"、"创建组件" |
 | `idea-refine` | 细化原始想法 | 通过发散/收敛思维，把粗糙想法变成精确概念。适合还在探索阶段、不确定要做什么的情况 | "我有个想法"、"帮我细化一下"、"还不确定" |
 | `planning-and-task-breakdown` | 把大任务拆成可执行步骤 | 分析依赖关系，识别可并行的任务，输出有序的 TODO list。适合 3 步以上的复杂任务 | "帮我拆任务"、"这个怎么做"、"太大了不知道从哪开始" |
 | `spec-driven-development` | 编码前写规格说明 | 先写 spec（需求、约束、验收标准），再按 spec 实现。适合新项目或重大功能 | "写个规格"、"先定义清楚再做" |
-| `executing-plans` | 在独立会话中执行书面计划 | 按照已有的 plan 文件逐步执行，适合跨会话的大型任务 | "按这个计划执行"、"继续上次的计划" |
-| `subagent-driven-development` | 用子代理并行执行独立任务 | 把任务分发给多个子代理同时执行，适合互不依赖的并行工作 | "并行做"、"同时搞" |
-| `dispatching-parallel-agents` | 面对 2+ 独立任务时的并行分发 | 和 subagent-driven-development 类似，但更侧重于任务编排和结果汇总 | "同时处理多个事情" |
 | `wayfinder` | 把大项目分解为 issue 追踪 | 适合跨多个会话的大型项目，生成 issue tracker 上的 ticket 列表 | "这个项目要做很久"、"帮我规划路线图" |
 | `to-spec` | 把对话变成规格说明 | 从当前对话中提取需求，生成 spec 并发布到 issue tracker | "把刚才讨论的变成 spec" |
 | `to-tickets` | 把计划拆成 tickets | 把 plan 或对话拆成 tracer-bullet tickets，每个都有明确的依赖关系 | "把这些变成 tickets" |
@@ -59,12 +55,11 @@
 |--------|-----------|---------|-----------|
 | `implement` | 基于 spec 或 tickets 实现功能 | 读取 spec/tickets，按 TDD 流程实现，完成后自动触发 code review | "按这个 spec 实现"、"做这个功能" |
 | `incremental-implementation` | 增量交付变更 | 把大变更拆成小步骤，每步都可验证。避免一次性写太多代码导致难以调试 | "这个改动很大"、"分步来做" |
-| `tdd` / `test-driven-development` | 测试驱动开发 | 红 → 绿 → 重构循环。先写失败的测试，再写最少代码让它通过，最后重构 | "TDD"、"测试先行"、"红绿重构" |
+| `tdd` | 测试驱动开发 | 红 → 绿 → 重构循环。先写失败的测试，再写最少代码让它通过，最后重构 | "TDD"、"测试先行"、"红绿重构" |
 | `full-output-enforcement` | 强制完整代码生成 | 禁止截断、禁止 placeholder、禁止"你可以扩展这个"。确保输出完整可用 | "给我完整的"、"不要省略" |
 | `code-simplification` | 简化代码提高清晰度 | 重构代码使其更易读，但不改变行为。适合代码能工作但难以维护的情况 | "这段代码太复杂"、"简化一下" |
 | `codebase-design` | 设计深层模块接口 | 帮你决定模块边界、接口设计、依赖方向。适合架构层面的设计决策 | "这个模块怎么设计"、"接口怎么定义" |
 | `domain-modeling` | 构建/优化领域模型 | DDD 风格的领域建模，识别实体、值对象、聚合根、领域事件 | "领域模型"、"DDD"、"业务对象" |
-| `ubiquitous-language` | 提取 DDD 术语表 | 从代码和对话中提取领域术语，建立团队统一语言 | "统一术语"、"领域语言" |
 | `deprecation-and-migration` | 管理废弃和迁移 | 帮你安全地废弃旧 API、迁移用户、设置过渡期 | "要废弃这个 API"、"迁移旧代码" |
 | `migrate-to-shoehorn` | 迁移测试文件到 shoehorn | 把测试中的 `as` 类型断言迁移到 @total-typescript/shoehorn | "测试迁移" |
 | `optimize-for-gpu` | GPU 加速 Python 代码 | CuPy、Numba CUDA、Warp、cuDF、cuML 等 GPU 加速方案 | "GPU 加速"、"CUDA" |
@@ -75,7 +70,6 @@
 | 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
 |--------|-----------|---------|-----------|
 | `hunt` | 找到根因再修复 | 3 次假设限制：如果 3 次尝试都没找到根因，停下来重新分析。**不修症状，只修根因** | "报错了"、"崩溃了"、"不工作"、"以前是好的" |
-| `systematic-debugging` | 系统性根因调试 | 结构化的调试流程：收集证据 → 形成假设 → 验证假设 → 修复 → 验证修复 | "帮我调试"、"为什么失败" |
 | `diagnosing-bugs` | 硬 bug 和性能回归的诊断循环 | 专门处理难以复现、难以定位的 bug。包括性能回归、内存泄漏、竞态条件 | "这个 bug 很难查"、"偶发的" |
 | `debugging-and-error-recovery` | 系统性根因调试指南 | 和 systematic-debugging 类似，但更侧重于错误恢复策略 | "调试指南" |
 | `memory-leak-debugging` | JS/Node.js 内存泄漏 | 使用 memlab 等工具分析堆快照，定位泄漏源 | "内存泄漏"、"OOM"、"内存一直涨" |
@@ -90,9 +84,6 @@
 | `check` | 代码差异/PR/发布就绪审查 | 读 diff，找问题，能修的直接修，不能修的问用户。**合并前必做** | "审查一下"、"看看代码"、"合并前检查" |
 | `code-review` | 沿标准/规格两轴审查 | 两个维度：是否符合项目编码标准、是否符合 spec/PRD 要求 | "代码审查"、"PR 审查" |
 | `code-review-and-quality` | 多轴代码审查 | 更全面的审查：正确性、安全性、性能、可维护性、测试覆盖 | "深度审查"、"质量审查" |
-| `receiving-code-review` | 接收代码审查反馈 | 收到 reviewer 的反馈后，逐条分析、验证、实施。**不盲目接受，也不盲目拒绝** | "收到 review 意见" |
-| `requesting-code-review` | 完成任务后请求审查 | 自动准备 PR 描述、变更说明、测试结果，请求 reviewer 审查 | "请求审查" |
-| `verification-before-completion` | 声称完成前的验证 | 运行测试、检查覆盖率、验证构建，确保真的完成了 | "验证一下"、"确认完成" |
 | `health` | 工程健康审计 | 综合评估：测试覆盖率、代码质量、依赖安全、文档完整性，给出 0-10 分 | "项目健康吗"、"代码质量评分" |
 | `review-animations` | 审查动画/动效代码 | 按 Emil Kowalski 设计哲学审查动画代码：是否流畅、是否符合直觉 | "动画审查" |
 | `web-accessibility-audit` | WCAG 无障碍审计 | 检查语义 HTML、ARIA 标签、键盘导航、颜色对比度 | "无障碍审查"、"a11y" |
@@ -120,7 +111,6 @@
 | `stitch-design-taste` | Google Stitch 语义设计系统 | 语义化的设计系统，生成 agent 友好的 DESIGN.md | "语义设计" |
 | `gpt-taste` | 精英 UX/UI + GSAP 动效 | Python 驱动的真随机布局、严格 AIDA 页面结构、GSAP ScrollTrigger | "GSAP 动效" |
 | `emil-design-eng` | Emil Kowalski 设计哲学 | UI polish、组件设计、动画决策、不可见的细节 | "精致"、"细节控" |
-| `design-an-interface` | 生成多种不同接口设计 | 用并行子代理生成 2-3 种完全不同的接口设计方案 | "探索设计方案" |
 | `diagram-design` | 技术/产品图表设计 | 架构图、流程图、时序图、ER 图、时间线，输出为 HTML+SVG | "画架构图"、"画流程图" |
 | `animation-vocabulary` | 动画效果术语反查 | "那个弹跳的东西叫什么" → "Pop in"。帮你找到动画效果的正确术语 | "这个动效叫什么" |
 | `infographics` | 专业信息图生成 | Nano Banana Pro AI 生成，Gemini 3 Pro 质量审查。10 种类型、8 种风格 | "做信息图" |
@@ -136,14 +126,10 @@
 | `write` | 重写润色散文，去 AI 味 | **不只是润色，是让文字听起来像人写的**。删除"值得注意的是"、"总而言之"等 AI 套话 | "帮我写"、"润色"、"去AI味" |
 | `docs-update` | 代码变更后更新文档 | 自动检测代码变更影响了哪些文档，同步更新 | "更新文档" |
 | `documentation-and-adrs` | 记录决策和文档 | 创建 ADR（架构决策记录），记录为什么选择这个方案 | "记录决策"、"ADR" |
-| `edit-article` | 编辑改进文章 | 重组段落、改善清晰度、收紧文字。适合已有草稿的改进 | "帮我改这篇文章" |
 | `writing-guidelines` | 写作指南审查 | 按项目写作规范审查文档：风格、术语、格式 | "审查写作" |
 | `writing-fragments` | 原始素材挖掘 | 从对话、笔记、代码中提取可写作的素材片段 | "挖掘素材" |
 | `writing-beats` | 组装素材为节奏旅程 | 把零散素材组装成有节奏的文章结构 | "组装文章" |
 | `writing-shape` | 将素材塑形为文章 | 逐段落塑造，把素材变成完整的文章 | "塑形文章" |
-| `writing-great-skills` | 编写优质技能的参考 | 技能编写的最佳实践：描述、触发词、检查清单 | "写技能" |
-| `writing-plans` | 多步骤任务前的规划 | 在写代码之前，先写实施计划 | "先规划" |
-| `writing-skills` | 创建/编辑/验证技能 | 创建新技能、编辑现有技能、验证技能是否正常工作 | "创建技能" |
 | `grill-me` / `grill-with-docs` | 压力测试计划/设计 | 像审问一样追问你的方案：假设是什么？边界在哪？失败了怎么办？ | "压力测试"、"审问一下" |
 | `loop-me` | 工作流规格审问 | 专门审问工作流规格：步骤是否完整？异常怎么处理？ | "审问规格" |
 | `teach` | 教授新技能/概念 | 交互式教学：解释概念、给示例、检查理解 | "教我"、"解释一下" |
@@ -154,7 +140,6 @@
 | `clinical-reports` | 临床报告撰写 | CARE 案例报告、ICH-E3 临床试验报告、SOAP 病历 | "写临床报告" |
 | `clinical-decision-support` | 临床决策支持文档 | 患者队列分析、治疗推荐报告，GRADE 证据分级 | "CDS 文档" |
 | `treatment-plans` | 医疗治疗计划 | 3-4 页聚焦的治疗计划，SMART 目标框架，证据导向 | "写治疗计划" |
-| `iso-13485-certification` | ISO 13485 QMS 文档 | 医疗器械质量管理体系文档：差距分析、质量手册、程序文件 | "ISO 13485" |
 | `research-grants` | 研究基金申请 | NSF、NIH、DOE、DARPA 申请书撰写，预算、更广泛影响、合规 | "写基金申请" |
 | `docx` | Word 文档操作 | 创建、读取、编辑 .docx 文件：目录、标题、页码、模板 | "做 Word 文档" |
 | `pptx` | PowerPoint 演示文稿 | 创建、编辑 .pptx 文件：演讲者备注、模板、图表 | "做 PPT" |
@@ -172,8 +157,6 @@
 | `git-guardrails-claude-code` | 阻止危险 git 命令 | 设置 hooks 阻止 `push --force`、`reset --hard`、`clean` 等危险操作 | "Git 安全" |
 | `create-pull-request` | 创建 GitHub PR | 自动生成 PR 描述、关联 issue、设置 reviewers | "创建 PR" |
 | `resolving-merge-conflicts` | 解决合并冲突 | 分析冲突原因，选择正确的解决策略 | "有冲突" |
-| `finishing-a-development-branch` | 完成开发分支集成 | 开发完成后，决定怎么集成：merge、PR、还是 cleanup | "分支做完了" |
-| `using-git-worktrees` | 功能隔离的 git worktree | 并行开发时用 worktree 隔离不同功能，避免分支切换 | "并行开发" |
 | `github-bug-report-triage` | 分类 GitHub bug 报告 | 评估 bug 报告是否可操作，识别缺失信息 | "分类 bug" |
 | `github-issue-dedupe` | 检测重复 GitHub issue | 用语义搜索检测重复 issue | "有没有重复" |
 
@@ -355,8 +338,7 @@
 
 | 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
 |--------|-----------|---------|-----------|
-| `tdd` / `test-driven-development` | 测试驱动开发 | 红 → 绿 → 重构循环。先写失败测试，再写代码 | "TDD"、"测试先行" |
-| `test-driven-development` | 实现功能前先写测试 | 和 tdd 相同，强调在写代码之前先写测试 | "先写测试" |
+| `tdd` | 测试驱动开发 | 红 → 绿 → 重构循环。先写失败测试，再写代码 | "TDD"、"测试先行" |
 | `webapp-testing` | Web 应用测试 | 用 Playwright 测试 Web 应用：截图、交互、验证 | "测试网站" |
 | `web-performance-audit` | 性能审计 | Lighthouse 分析 | "性能测试" |
 | `web-accessibility-audit` | 无障碍审计 | WCAG 合规检查 | "无障碍测试" |
@@ -373,7 +355,6 @@
 
 | 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
 |--------|-----------|---------|-----------|
-| `qa` | 交互式 QA 会话 | 用户报 bug → agent 探索代码 → 自动创建 GitHub issue | "报 bug"、"QA" |
 | `triage` | Issue/PR 分类 | 把 issue/PR 分类：验证、追问、写 brief | "分类 issue" |
 | `health` | 工程健康审计 | 综合评分：测试、代码质量、依赖安全、文档 | "项目健康吗" |
 | `scheduler` | 设备提醒/本地任务 | 设置本地提醒和定时任务 | "提醒我" |
@@ -580,7 +561,6 @@
 | `clinical-reports` | 临床报告 | CARE 案例、ICH-E3 试验、SOAP 病历 | "临床报告" |
 | `clinical-decision-support` | 临床决策支持 | 患者队列分析、治疗推荐，GRADE 分级 | "CDS" |
 | `treatment-plans` | 治疗计划 | 3-4 页聚焦计划，SMART 目标 | "治疗计划" |
-| `iso-13485-certification` | ISO 13485 QMS | 医疗器械质量管理体系文档 | "ISO 13485" |
 
 ### 文档处理
 
@@ -702,7 +682,6 @@
 
 | 技能名 | 一句话说明 | 详细描述 | 什么时候用 |
 |--------|-----------|---------|-----------|
-| `obsidian-vault` | Obsidian 知识库 | 搜索、创建、管理笔记 | "Obsidian" |
 | `open-notebook` | 开源 NotebookLM | AI 驱动的研究和文档分析 | "笔记本" |
 | `pi-agent` | Pi 终端编码工具 | 安装、配置、创建技能/扩展 | "Pi" |
 | `kami` | Kami 文档排版 | 温暖羊皮纸风格，中文/英文/日文 | "做文档" |
@@ -812,11 +791,9 @@
 | `reverse-engineering` | 逆向工程 | 二进制分析、反编译、协议逆向 | "逆向" |
 | `grilling` | 压力测试计划/设计 | 像审问一样追问方案 | "压力测试" |
 | `prototype` | 构建原型回答设计问题 | 构建一次性原型验证设计决策 | "做原型" |
-| `request-refactor-plan` | 创建重构计划 | 通过用户访谈创建详细的重构计划 | "重构计划" |
 | `setup-matt-pocock-skills` | 配置工程技能 | 配置 issue tracker、triage 标签、领域文档 | "配置技能" |
 | `slack-qa-investigate` | Slack QA 调查 | 只读模式调查仓库问题 | "Slack QA" |
 | `terraform-style-check` | Terraform 代码风格检查 | 按 HashiCorp 官方风格检查 Terraform 配置 | "Terraform 检查" |
-| `using-superpowers` | 使用超级技能 | 元技能：发现和使用其他技能 | "怎么用技能" |
 | `web-design-guidelines` | Web 设计指南 | 审查 UI 代码是否符合 Web 接口指南 | "设计指南" |
 | `wizard` | 生成交互式向导 | 生成 bash 向导引导用户完成手动流程 | "做向导" |
 | `claude-handoff` | 会话交接给新代理 | 把当前对话交给新的后台 agent 继续 | "交接" |
