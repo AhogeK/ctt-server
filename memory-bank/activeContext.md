@@ -1,4 +1,17 @@
 # Active Context
+- [2026-08-25] - 编码会话同步 Phase T：数据模型与持久层（sync/ 包）
+    - 背景: sync/ 仅占位 SyncController；coding_sessions/session_changes/sync_cursors 三表已在 init migration 预置但无实体映射
+    - 关键判断（R8.5 以实际 DDL 为准，非 Notion 计划字面）: CodingSession 无 file_path/duration_seconds/device_id（表没有）；设备溯源用 updated_by_device_id；SessionChange.session_id 是 FK→coding_sessions.id（非 session_uuid）；op 有 CHECK(UPSERT/DELETE) 需 ChangeOp 枚举；SyncCursor 复合 PK 用 @IdClass
+    - 实施（子 agent quick，18min）: 3 实体 + ChangeOp 枚举 + SyncCursorId + 3 Repository + 14 测试文件；FK 问题（测试建表时 user_id/device_id 引用）已解决
+    - 设计要点: 软删 is_deleted 全查询默认过滤永不硬删；change_id 单调水印增量拉取按 user 隔离；advancePullWatermark @Modifying 原子语句并发安全单调守护（bulk JPQL 绕过 @UpdateTimestamp 显式设 updated_at）；标量 UUID 引用保持模块依赖轻量
+    - Repository Javadoc 逐方法标注索引支撑，诚实标注 updated_by_device_id 无专用索引（未来加 partial index）
+    - DTOs（T5）推迟 V 阶段: pull/push 协议语义未定，避免 Speculative Generality
+    - 双轴审查（子 agent quick ×2）: Standards PASS（3 judgement call）+ Spec SPEC-COMPLIANT 零发现
+    - 审查修复（主 agent 判断，非盲从）: (1) 补 SyncCursorTest 实体级单调守卫单测（3 用例，真实缺口）(2) CodingSession/SyncCursor Javadoc "cannot bypass" 措辞准确化（与 ApiKey 既有模式一致，澄清 setter 仅 JPA 水合）(3) 测试夹具重复不修（无共享 fixture 惯例，抽象反成 Speculative Generality）
+    - 验证: 全量 1126 tests / 0 failed（+3）；jacoco PASS；spotless PASS；LSP 0 errors
+    - 版本: 0.44.0 → **0.45.0**（MINOR 新数据模型层）
+    - 状态: ✅ 实施+双轴审查+修复完成，待用户授权提交
+
 - [2026-08-23] - 新增改密接口 POST /api/v1/users/me/password/change（前端需求）
     - 背景: 前端 ctt-web 已按契约完成改密 UI（changePassword API + Set/Change 双模式对话框，1073/1073 单测通过），后端缺改密接口（/password/change 现落入静态资源返回 500 SYSTEM_001）
     - 契约验证: 错误码 USER_014(401)/USER_015(409)/PASSWORD_SAME_AS_OLD(409)/COMMON_003(400) 全部已存在零新增；AuditAction.PASSWORD_CHANGED 已存在（119 行）直接复用；限流 USER 5/60 与 /set 一致

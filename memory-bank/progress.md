@@ -2,6 +2,14 @@
 
 ## 已完成 ✅
 
+- [x] 编码会话同步 Phase T：数据模型与持久层（v0.45.0）
+    - 3 实体（CodingSession/SessionChange/SyncCursor）+ ChangeOp 枚举 + SyncCursorId 复合主键 + 3 Repository
+    - 以实际 DDL 为准（非 Notion 计划字面）；软删全查询过滤；change_id 单调水印；advancePullWatermark 并发安全
+    - 双轴审查: Standards PASS + Spec COMPLIANT；修复 Javadoc 措辞 + 补 SyncCursorTest 单调守卫单测
+    - 验证: 全量 1126 tests + jacoco + spotless 全绿
+    - 版本: 0.44.0 → 0.45.0；DTOs 推迟 V 阶段
+    - 待提交: 用户处理 commit/push
+
 - [x] 新增改密接口 POST /api/v1/users/me/password/change（前端需求，v0.44.0）
     - 契约: currentPassword(401 USER_014) + newPassword(@StrongPassword) + 新旧相同(409 PASSWORD_SAME_AS_OLD) + 无密码防御(409 USER_015)；审计复用 PASSWORD_CHANGED
     - 错误码/审计枚举零新增（全复用）；前端 ctt-web 已按契约完成，上线零改动
