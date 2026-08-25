@@ -923,6 +923,89 @@ geopandas → geomaster → matplotlib → scientific-visualization
 
 ---
 
+## ⚙️ Coding Agent 内置技能（新增）
+
+OpenCode / Claude Code 宿主自带的技能，不依赖用户安装：
+
+| 技能名 | 一句话说明 | 什么时候用 |
+|--------|-----------|---------|
+| `playwright` | 浏览器自动化首选 | 打开网页、测试网站、截图、信息采集 |
+| `frontend` | 前端/UI/UX/视觉工作路由 | 构建页面、组件设计、Lighthouse、视觉 QA、设计研究 |
+| `git-master` | Git 专家（原子提交/变基/历史考古） | commit、rebase、squash、查历史、找引入提交 |
+| `review-work` | 实施后多代理审查编排 | 审查完成的工作、PR 交接前、验证实现 |
+| `remove-ai-slops` | 清理 AI 生成代码气味 | 去 AI 味、清理 AI 生成的冗余代码 |
+| `init-deep` | 初始化层级 AGENTS.md 知识库 | 搭建项目 AI 知识库 |
+| `debugging` | 跨语言运行时调试 | 崩溃、静默失败、内存泄漏、时序问题 |
+| `security-research` | 团队模式安全研究 | 漏洞审查、可利用性验证、威胁建模 |
+| `security-review` | security-research 别名 | 同上 |
+| `visual-qa` | UI 视觉 QA | 页面/组件/TUI 是否好看、像素差异 |
+| `ulw-research` | 极限饱和研究编排 | 深度研究、文献综述、多源综合 |
+| `ast-grep` | AST 感知代码搜索/重写 | 结构化代码查找、确定性 codemod |
+| `coding-agent-sessions` | 跨 agent 会话查找 | 查 Codex/Claude/OpenCode 历史会话 |
+| `ultimate-browsing` | 被封锁网页访问升级 | WAF/403/Cloudflare 绕过、JS 渲染页 |
+| `data-scientist` | 数据处理专家（DuckDB/Polars） | 分析 CSV/Parquet/JSON、聚合、图表 |
+| `lsp-setup` | 语言服务器配置 | 配置 LSP、装 language server、诊断 |
+| `programming` | 严格类型编程规范 | Python/Rust/TS/Go 代码、TDD、250 行上限 |
+| `start-work` | 执行计划工作流 | 按 .omo/plans 计划执行、Boulder 状态 |
+| `ulw-plan` | 探索优先计划顾问 | 计划前访谈、写决策完备计划 |
+| `refactor` | 智能重构 | 重构、清理、简化、现代化 |
+| `customize-opencode` | OpenCode 自身配置 | 编辑 opencode.json、agents、skills、MCP |
+| `save` | 保存项目状态到记忆库 | 防 AI 幻觉遗忘 |
+| `boot` | 初始化会话读取项目文件 | 会话开始、按 AGENTS.md R1 |
+| `goal` | 设置/显示线程目标 | 设定、暂停、恢复、清除目标 |
+| `stop-continuation` | 停止续跑机制 | 停止 ralph 循环/todo 续跑/boulder |
+| `hyperplan` | 对抗式多代理规划 | 5 个敌对成员交叉批判、lead 综合 |
+
+---
+
+## 🔑 arkcli 系列（新增）
+
+火山引擎方舟命令行工具技能，覆盖模型/部署/用量/账单/精调等完整生命周期：
+
+| 技能名 | 一句话说明 | 什么时候用 |
+|--------|-----------|---------|
+| `arkcli-shared` | arkcli 共享执行协议 | 首次配置、认证闸门、命令路由 |
+| `arkcli-auth` | 认证管理 | 登录、SSO、生成 API Key、退出 |
+| `arkcli-profile` | profile 切面管理 | 列出/新建/切换/删除 profile |
+| `arkcli-config` | 本地配置管理 | 配置归因、reset、排障 |
+| `arkcli-models` | 公共基础模型查询 | 列出/搜索/获取模型详情 |
+| `arkcli-custommodel` | 自定义模型仓库管理 | cm-* 模型导入/查询/量化 |
+| `arkcli-deploy` | 创建推理接入点 | 部署模型、新建 endpoint |
+| `arkcli-infer-endpoint` | 接入点生命周期管理 | 已有 endpoint 启停/更新/删除 |
+| `arkcli-chat` | 快速对话/推理 | 多模态、流式、多轮对话 |
+| `arkcli-understand` | 多模态专项理解 | 转写、抽取、字幕、定位 |
+| `arkcli-gen` | 图片/视频生成 | 同步图片、异步视频 |
+| `arkcli-code-example` | 生成多语言调用示例 | 获取 SDK/curl 接入模板 |
+| `arkcli-onboard` | 端到端接入向导 | 从想用到拿到可调用 endpoint |
+| `arkcli-api-explorer` | Raw API 探索 | 产品命令未覆盖时的底层 Action |
+| `arkcli-resources` | 实时资源查询 | 列出可见资源、解析 endpoint |
+| `arkcli-usage` | 用量查询 | token/请求数、套餐额度、余额 |
+| `arkcli-billing` | 拆分账单查询 | 账期、Endpoint、API Key 维度 |
+| `arkcli-pricing` | 模型单价查询 | 基础模型结算价、套餐订阅价 |
+| `arkcli-plans` | 套餐/席位管理 | 购买/续费/席位分配/APIKey 轮换 |
+| `arkcli-doctor` | 统一排障入口 | CLI 健康、错误码、慢/超时、媒体来源验证 |
+| `arkcli-train-finetune` | 精调任务管理 | 创建/查询/导出精调模型 |
+| `arkcli-agent` | Managed Agents 管理 | Agent/Skill/Env/Session/File/Memory |
+| `arkcli-connect` | 技能同步到 AI Agent | 安装到 Claude Code/Codex 等 |
+| `arkcli-helper` | 配置模型/provider | 为 Agent 配置方舟模型与 Harness 工具 |
+
+---
+
+## ➕ 独立新增技能
+
+| 技能名 | 一句话说明 | 什么时候用 |
+|--------|-----------|---------|
+| `bids` | BIDS 神经影像数据结构 | 整理/验证/转换 MRI/EEG/MEG 数据集 |
+| `hugging-science` | 科学领域 HF 资源目录 | 发现科学数据集/模型/Spaces |
+| `pyzotero` | Zotero 引用管理客户端 | 检索/创建/更新文献条目 |
+| `arbor` | 假设树优化 | 迭代优化代码/配方/Agent |
+| `test-auth-bootstrap` | 测试环境认证引导 | 自动获取 auth token 绕过验证码/邮箱验证 |
+| `reverse-engineering` | macOS 私有 API 逆向 | Ghidra/LLDB 分析 Mach-O |
+| `sisyphus-execution-rules` | Sisyphus 执行规则 | 会话开始强制加载、Agent 分工、Git 限制 |
+| `notion-mcp` | Notion MCP 完整参考 | 页面/数据库/视图/评论操作 |
+
+---
+
 ## 使用说明
 
 1. **扫描此文件**: 在执行任务前快速扫描相关类别
@@ -938,11 +1021,11 @@ geopandas → geomaster → matplotlib → scientific-visualization
 | 来源 | 说明 | 优先级 |
 |------|------|--------|
 | `project` | 项目特定技能 (`.agents/skills/`) | 最高 |
-| `user` | 用户安装技能 | 高 |
+| `user` | 用户安装技能 (`~/.agents/skills/` + `~/.config/opencode/skills/`) | 高 |
 | `opencode` | OpenCode 内置技能 | 中 |
-| `builtin` | 内置插件技能 | 低 |
+| `builtin` | 内置插件技能（playwright/frontend/git-master 等） | 低 |
 
-**规则**: 用户安装技能覆盖内置默认。
+**规则**: 用户安装技能覆盖内置默认。所有来源的技能已在本文档分类索引中覆盖（含上文的 Coding Agent 内置技能、arkcli 系列与独立新增技能）。
 
 ---
 
