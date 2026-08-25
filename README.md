@@ -392,7 +392,7 @@ authentication types without an extra database lookup.
 | `/api/v1/sync/pull` | POST | Pull latest changes from server | SYNC |
 | `/api/v1/sync/push` | POST | Push local changes to server | SYNC |
 
-**Note**: These are minimal endpoints to demonstrate SYNC scope enforcement. The actual sync engine logic (LWW conflict resolution, coding sessions, change log) will be implemented in Phase Q/R.
+**Note**: Endpoints exist for SYNC scope enforcement. The underlying data model (`CodingSession` / `SessionChange` / `SyncCursor`) and persistence layer are in place (Phase T); pull/push business logic (LWW conflict resolution, change-log watermarking) lands in the following phase.
 
 ### Public Configuration
 

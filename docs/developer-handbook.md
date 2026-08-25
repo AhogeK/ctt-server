@@ -154,7 +154,21 @@ The sync engine provides bidirectional data synchronization with scope-based acc
 - API key without SYNC scope → 403 `AUTH_020` + `API_KEY_SCOPE_DENIED` audit event
 - JWT-authenticated users → bypass scope check
 
-**Note**: These are minimal endpoints to demonstrate SYNC scope enforcement. The actual sync engine logic (LWW conflict resolution, coding sessions, change log) will be implemented in Phase Q/R.
+**Note**: Endpoints exist for SYNC scope enforcement. The underlying data model (`CodingSession` / `SessionChange` / `SyncCursor`) and persistence layer are in place (Phase T); pull/push business logic (LWW conflict resolution, change-log watermarking) lands in the following phase.
+
+### Sync Data Model (Phase T)
+
+| Table | Entity | Purpose |
+|-------|--------|---------|
+| `coding_sessions` | `CodingSession` | Tracked coding activity; soft-delete via `is_deleted`/`deleted_at`; LWW via `client_version`/`server_version`; per-user unique on `session_uuid` |
+| `session_changes` | `SessionChange` | Incremental change log (BIGSERIAL `change_id` watermark); `op` ∈ `UPSERT`/`DELETE` (ChangeOp enum, aligns with `chk_session_change_op`); scalar UUID refs keep the module dependency-light |
+| `sync_cursors` | `SyncCursor` | Per-device pull watermark (`last_pulled_change_id`), composite PK `(user_id, device_id)`; monotonic advance guarded at both entity and bulk-update level |
+
+**Design decisions:**
+- Soft-deleted sessions are excluded from every read path by default; never hard-deleted (change-log propagation)
+- `change_id` is a database sequence → safe monotonic pull cursor; per-user isolation enforced in every incremental query
+- `server_version` watermark backs the LWW push path (`idx_sessions_sync_lookup`)
+- Scalar UUID references (no JPA associations) keep the sync module independent of entity graph loading
 
 ### Set Password Audit Events
 
