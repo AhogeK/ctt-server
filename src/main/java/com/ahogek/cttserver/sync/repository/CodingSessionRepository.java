@@ -1,0 +1,113 @@
+package com.ahogek.cttserver.sync.repository;
+
+import com.ahogek.cttserver.sync.entity.CodingSession;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Repository for {@link CodingSession} aggregate root operations.
+ *
+ * <p>All read paths exclude soft-deleted sessions ({@code is_deleted = false}) so that deleted
+ * sessions disappear from every query surface while remaining physically present for the change
+ * log. Lookup paths leverage the PostgreSQL indexes defined in the {@code
+ * V20260303210000__init_base_schema.sql} migration:
+ *
+ * <ul>
+ *   <li>{@code uk_coding_sessions_user_session_uuid} — unique constraint on {@code (user_id,
+ *       session_uuid)}; backs the client-session lookup.
+ *   <li>{@code idx_sessions_user_time} — partial index on {@code (user_id, start_time, end_time)
+ *       WHERE is_deleted = FALSE}; backs per-user listing and counting.
+ *   <li>{@code idx_sessions_sync_lookup} — b-tree on {@code (user_id, server_version)}; backs the
+ *       LWW watermark query.
+ * </ul>
+ *
+ * @author AhogeK [ahogek@gmail.com]
+ * @since 2026-08-25
+ */
+@Repository
+public interface CodingSessionRepository extends JpaRepository<CodingSession, UUID> {
+
+    /**
+     * Finds a live session by owner and client-generated session UUID.
+     *
+     * <p>Used by the push path to decide between insert and update. The unique constraint {@code
+     * uk_coding_sessions_user_session_uuid} guarantees at most one match; the {@code is_deleted}
+     * predicate is applied as a residual filter after the unique lookup.
+     *
+     * @param userId the owning user id
+     * @param sessionUuid the client-generated session UUID
+     * @return {@code Optional} containing the live session when found
+     */
+    Optional<CodingSession> findByUserIdAndSessionUuidAndIsDeletedFalse(
+            UUID userId, UUID sessionUuid);
+
+    /**
+     * Lists all live sessions owned by a user.
+     *
+     * <p>Backed by the partial index {@code idx_sessions_user_time}, whose {@code WHERE is_deleted
+     * = FALSE} predicate matches this query exactly.
+     *
+     * @param userId the owning user id
+     * @return live sessions of the user; never {@code null}
+     */
+    List<CodingSession> findAllByUserIdAndIsDeletedFalse(UUID userId);
+
+    /**
+     * Lists live sessions of a user last updated by a specific device.
+     *
+     * <p>Used for per-device isolation views. No dedicated index exists on {@code
+     * updated_by_device_id}; the query filters the user's sessions (via {@code
+     * idx_sessions_user_time}) by device. If this becomes a hot path, a partial index on {@code
+     * (user_id, updated_by_device_id) WHERE is_deleted = FALSE} should be added.
+     *
+     * @param userId the owning user id
+     * @param deviceId the device that last updated the session
+     * @return matching live sessions; never {@code null}
+     */
+    List<CodingSession> findAllByUserIdAndUpdatedByDeviceIdAndIsDeletedFalse(
+            UUID userId, UUID deviceId);
+
+    /**
+     * Counts live sessions owned by a user.
+     *
+     * <p>Backed by the partial index {@code idx_sessions_user_time} via an index-only scan.
+     *
+     * @param userId the owning user id
+     * @return number of live sessions for the user
+     */
+    long countByUserIdAndIsDeletedFalse(UUID userId);
+
+    /**
+     * Batch-fetches live sessions by their primary keys.
+     *
+     * <p>Used by the push path to load the sessions referenced by an incoming batch without an N+1
+     * lookup. Each id resolves through the primary key index.
+     *
+     * @param ids session primary keys to load
+     * @return the live sessions among {@code ids}; never {@code null}
+     */
+    @Query("SELECT s FROM CodingSession s WHERE s.id IN :ids AND s.isDeleted = false")
+    List<CodingSession> findAllByIdInAndIsDeletedFalse(@Param("ids") Collection<UUID> ids);
+
+    /**
+     * Lists live sessions of a user whose server version is above a watermark.
+     *
+     * <p>Used by the LWW push path to detect sessions that changed on the server after a device's
+     * last known version. Backed by {@code idx_sessions_sync_lookup} on {@code (user_id,
+     * server_version)}; the {@code is_deleted} predicate is applied as a residual filter.
+     *
+     * @param userId the owning user id
+     * @param serverVersion the exclusive lower bound on server version
+     * @return matching live sessions; never {@code null}
+     */
+    List<CodingSession> findAllByUserIdAndServerVersionGreaterThanAndIsDeletedFalse(
+            UUID userId, long serverVersion);
+}
