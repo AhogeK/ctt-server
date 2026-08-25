@@ -159,6 +159,17 @@ The sync engine provides bidirectional data synchronization with scope-based acc
 - `push` — request `{ deviceId: UUID, sessions: [{ sessionUuid, projectName, language, startTime, endTime, clientModifiedAt, clientVersion, deleted }] }`; response `{ nextCursor: long }`. Each session is looked up **including soft-deleted rows** and routed through `ConflictResolver`: `APPLY_INCOMING` → fields applied + `bumpServerVersion` + `UPSERT` change; `APPLY_DELETE` → soft delete + `DELETE` change; `KEEP_EXISTING` → no-op. New sessions start at server version 1; a client-deleted session the server never had is an idempotent no-op. The whole batch is one transaction (no partial application); the returned cursor is the user's max change id.
 - Both endpoints: `@RequiresApiKeyScope(SYNC)` (JWT bypasses), `@RateLimit(API, 120 req / 60 s)` → 429 `RATE_LIMIT_001` with `retryAfter`, audit `SYNC_PULL` / `SYNC_PUSH` against `CODING_SESSION` resource.
 
+### Sync Audit Events
+
+| Audit Action | Description            | Trigger Point    |
+|--------------|------------------------|------------------|
+| `SYNC_PULL`  | Sync pull completed    | `SyncPullService` |
+| `SYNC_PUSH`  | Sync push completed    | `SyncPushService` |
+
+**Resource Type**: `ResourceType.CODING_SESSION`
+
+**Details**: Successful syncs log via `logSuccess` with the `deviceId` as resource id; failed syncs log via `logFailure` carrying the error code name.
+
 ### Sync Data Model (Phase T)
 
 | Table | Entity | Purpose |
@@ -1070,6 +1081,7 @@ rejected with `AUTH_004` / `AUTH_005` / `AUTH_006` / `AUTH_022` before `last_use
 | API key header malformed          | `AUTH_021` | 401         |
 | Per-user key limit exceeded       | `AUTH_024` | 409         |
 | Active keys must be revoked before deletion | `AUTH_023` | 409         |
+| Device not found / not owned        | `COMMON_002` | 404         |
 
 **API Key holder's user status rejections (Phase O):**
 
