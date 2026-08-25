@@ -178,6 +178,16 @@ public enum AuditAction {
     MALICIOUS_PAYLOAD_DETECTED("Potential malicious payload intercepted"),
 
     // ==========================================
+    // Sync Engine
+    // ==========================================
+
+    /** Client pulled changes from the server successfully. */
+    SYNC_PULL("Sync pull completed"),
+
+    /** Client pushed changes to the server successfully. */
+    SYNC_PUSH("Sync push completed"),
+
+    // ==========================================
     // Mail Delivery
     // ==========================================
 

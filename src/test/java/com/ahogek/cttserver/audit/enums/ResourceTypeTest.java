@@ -8,7 +8,7 @@ class ResourceTypeTest {
 
     @Test
     void enum_values_exist() {
-        assertThat(ResourceType.values()).hasSize(8);
+        assertThat(ResourceType.values()).hasSize(9);
         assertThat(ResourceType.values())
                 .containsExactly(
                         ResourceType.USER,
@@ -18,6 +18,7 @@ class ResourceTypeTest {
                         ResourceType.API_KEY,
                         ResourceType.OAUTH_ACCOUNT,
                         ResourceType.MAIL_OUTBOX,
+                        ResourceType.CODING_SESSION,
                         ResourceType.UNKNOWN);
     }
 
@@ -31,6 +32,7 @@ class ResourceTypeTest {
         assertThat(ResourceType.valueOf("API_KEY")).isEqualTo(ResourceType.API_KEY);
         assertThat(ResourceType.valueOf("OAUTH_ACCOUNT")).isEqualTo(ResourceType.OAUTH_ACCOUNT);
         assertThat(ResourceType.valueOf("MAIL_OUTBOX")).isEqualTo(ResourceType.MAIL_OUTBOX);
+        assertThat(ResourceType.valueOf("CODING_SESSION")).isEqualTo(ResourceType.CODING_SESSION);
         assertThat(ResourceType.valueOf("UNKNOWN")).isEqualTo(ResourceType.UNKNOWN);
     }
 }
