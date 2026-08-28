@@ -157,6 +157,14 @@ public class ApiKey {
         this.user = user;
     }
 
+    public Device getDevice() {
+        return device;
+    }
+
+    public void setDevice(Device device) {
+        this.device = device;
+    }
+
     public String getKeyPrefix() {
         return keyPrefix;
     }

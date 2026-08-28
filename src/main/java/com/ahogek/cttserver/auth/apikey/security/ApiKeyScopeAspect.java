@@ -18,17 +18,19 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * AOP aspect that enforces {@link RequiresApiKeyScope} authorization.
  *
  * <p>Intercepts controller methods annotated with {@link RequiresApiKeyScope} and validates that
- * the current authentication principal has the required scope. For JWT-authenticated users
- * (principal is {@link com.ahogek.cttserver.auth.model.CurrentUser}), the check is bypassed
- * entirely.
+ * the current authentication principal holds at least one of the required scopes. For
+ * JWT-authenticated users (principal is {@link com.ahogek.cttserver.auth.model.CurrentUser}), the
+ * check is bypassed entirely.
  *
- * <p>When an API key lacks the required scope, the aspect throws {@link ForbiddenException} with
+ * <p>When an API key lacks every required scope, the aspect throws {@link ForbiddenException} with
  * {@link ErrorCode#AUTH_020} and logs an {@link AuditAction#API_KEY_SCOPE_DENIED} audit event.
  *
  * @author AhogeK [ahogek@gmail.com]
@@ -49,6 +51,9 @@ public class ApiKeyScopeAspect {
     /**
      * Intercepts methods annotated with {@link RequiresApiKeyScope} and validates scope.
      *
+     * <p>A key is authorized when it holds at least one of the required scopes, or holds the {@link
+     * ApiKeyScope#ADMIN} scope which overrides every requirement.
+     *
      * @param joinPoint the intercepted method invocation
      * @param requiresApiKeyScope the annotation instance (injected by Spring AOP)
      * @return the method result if authorization passes
@@ -67,23 +72,31 @@ public class ApiKeyScopeAspect {
         Object principal = authentication.getPrincipal();
 
         if (principal instanceof ApiKeyPrincipal apiKeyPrincipal) {
-            ApiKeyScope requiredScope = requiresApiKeyScope.value();
+            ApiKeyScope[] requiredScopes = requiresApiKeyScope.value();
             Set<ApiKeyScope> grantedScopes = apiKeyPrincipal.scopes();
 
-            if (!grantedScopes.contains(requiredScope)
-                    && !grantedScopes.contains(ApiKeyScope.ADMIN)) {
-                log.warn(
-                        "API key {} denied access to {} - missing required scope {}",
-                        apiKeyPrincipal.keyId(),
-                        extractMethodName(joinPoint),
-                        requiredScope);
+            boolean holdsAnyRequired =
+                    Arrays.stream(requiredScopes).anyMatch(grantedScopes::contains);
+            if (!holdsAnyRequired && !grantedScopes.contains(ApiKeyScope.ADMIN)) {
+                String required =
+                        Arrays.stream(requiredScopes)
+                                .map(Enum::name)
+                                .collect(Collectors.joining(", "));
+                // Method name is only resolved on the denial path; keep it out of the log call so
+                // it is not evaluated when the WARN level is disabled.
+                String methodName = extractMethodName(joinPoint);
+                log.atWarn()
+                        .addKeyValue("keyId", apiKeyPrincipal.keyId())
+                        .addKeyValue("method", methodName)
+                        .addKeyValue("requiredScopes", required)
+                        .log("API key denied access - missing required scope(s)");
 
                 auditLogService.logFailure(
                         apiKeyPrincipal.userId(),
                         AuditAction.API_KEY_SCOPE_DENIED,
                         ResourceType.API_KEY,
                         apiKeyPrincipal.keyId().toString(),
-                        requiredScope.name());
+                        required);
 
                 throw new ForbiddenException(ErrorCode.AUTH_020);
             }

@@ -1,5 +1,7 @@
 package com.ahogek.cttserver.device.dto;
 
+import com.ahogek.cttserver.device.entity.Device;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -36,7 +38,7 @@ public record DeviceResponse(
      * @param device the device entity
      * @return DeviceResponse DTO
      */
-    public static DeviceResponse fromEntity(com.ahogek.cttserver.device.entity.Device device) {
+    public static DeviceResponse fromEntity(Device device) {
         return new DeviceResponse(
                 device.getId(),
                 device.getDeviceName(),

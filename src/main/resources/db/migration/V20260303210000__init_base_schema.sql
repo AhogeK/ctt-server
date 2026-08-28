@@ -126,7 +126,11 @@ CREATE TABLE devices
     last_ip      VARCHAR(45),
     created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Optimistic locking column: marks new entities via NULL (client-supplied id) and
+    -- guards concurrent registration/update. Added here rather than as a separate migration
+    -- because the project is still in development and databases are recreated.
+    version      BIGINT      NOT NULL DEFAULT 0
 );
 
 COMMENT ON TABLE devices IS 'Registered client devices';
@@ -140,6 +144,7 @@ COMMENT ON COLUMN devices.last_ip IS 'Last known device IP address (IPv4/IPv6)';
 COMMENT ON COLUMN devices.created_at IS 'Device registration timestamp';
 COMMENT ON COLUMN devices.last_seen_at IS 'Last activity timestamp from this device';
 COMMENT ON COLUMN devices.updated_at IS 'Record last update timestamp';
+COMMENT ON COLUMN devices.version IS 'Optimistic locking version (JPA @Version)';
 
 CREATE INDEX idx_devices_user_id
     ON devices (user_id);

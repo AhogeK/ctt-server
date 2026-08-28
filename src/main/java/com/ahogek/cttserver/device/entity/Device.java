@@ -11,8 +11,12 @@ import java.util.UUID;
 /**
  * Device entity representing a registered client device.
  *
- * <p>Tracks device metadata for multi-device sync and session management. Devices are automatically
- * registered on first login from a new device ID.
+ * <p>Tracks device metadata for multi-device sync and session management. Devices are registered by
+ * plugins via the device registration endpoint or during login from a new device ID.
+ *
+ * <p>The {@code id} is the client-supplied device identifier (not database-generated), so
+ * {@code @GeneratedValue} is intentionally absent. {@code @Version} distinguishes new entities
+ * (null) from existing ones (0+) so Spring Data persists new devices instead of merging.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-04-28
@@ -21,9 +25,7 @@ import java.util.UUID;
 @Table(name = "devices")
 public class Device {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @Id private UUID id;
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;
@@ -56,6 +58,16 @@ public class Device {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /**
+     * Optimistic locking version.
+     *
+     * <p>Left {@code null} for newly constructed entities so Spring Data treats them as new and
+     * persists them; Hibernate assigns version 0 on insert and increments it on each update.
+     */
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     public Device() {}
 

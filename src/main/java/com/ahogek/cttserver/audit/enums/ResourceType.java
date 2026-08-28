@@ -34,6 +34,9 @@ public enum ResourceType {
     /** Coding session entity synchronized across devices. */
     CODING_SESSION,
 
+    /** Client device entity. */
+    DEVICE,
+
     /** Fallback type for system-level or uncategorized resources. */
     UNKNOWN
 }

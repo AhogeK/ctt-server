@@ -13,20 +13,32 @@ import java.lang.annotation.Target;
  *
  * <p>When placed on a controller method, the request is only permitted if the authenticated
  * principal is an {@link com.ahogek.cttserver.auth.apikey.model.ApiKeyPrincipal} whose granted
- * scopes include the specified {@link ApiKeyScope}. JWT-authenticated users (where the principal is
- * a {@link com.ahogek.cttserver.auth.model.CurrentUser}) bypass this check entirely — they are
- * already authenticated via their web session and are not subject to API key scope restrictions.
+ * scopes include <em>any</em> of the specified {@link ApiKeyScope}s. JWT-authenticated users (where
+ * the principal is a {@link com.ahogek.cttserver.auth.model.CurrentUser}) bypass this check
+ * entirely — they are already authenticated via their web session and are not subject to API key
+ * scope restrictions.
  *
  * <p>Authorization is enforced by {@link ApiKeyScopeAspect} which intercepts methods annotated with
  * {@code @RequiresApiKeyScope} and validates the scope before method execution.
  *
- * <p>Usage:
+ * <p>Usage — single required scope:
  *
  * <pre>{@code
  * @RequiresApiKeyScope(ApiKeyScope.SYNC)
  * @PostMapping("/pull")
  * public ResponseEntity<SyncPullResponse> pull(@RequestBody SyncPullRequest request) {
  *     // Only API keys with SYNC scope, or JWT users, can access this endpoint
+ * }
+ * }</pre>
+ *
+ * <p>Usage — any of several scopes (e.g. a read endpoint that plugins with SYNC keys may also
+ * query):
+ *
+ * <pre>{@code
+ * @RequiresApiKeyScope({ApiKeyScope.READ, ApiKeyScope.SYNC})
+ * @GetMapping
+ * public ResponseEntity<...> list() {
+ *     // API keys with READ or SYNC scope, or JWT users, can access this endpoint
  * }
  * }</pre>
  *
@@ -41,9 +53,10 @@ import java.lang.annotation.Target;
 public @interface RequiresApiKeyScope {
 
     /**
-     * The required API key scope for accessing the annotated method.
+     * The API key scopes required for accessing the annotated method; possessing any one of them
+     * grants access.
      *
-     * @return the required scope
+     * @return the required scopes
      */
-    ApiKeyScope value();
+    ApiKeyScope[] value();
 }
