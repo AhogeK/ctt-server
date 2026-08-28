@@ -270,6 +270,8 @@ class SyncIntegrationTest {
             assertThat(firstPull.path("nextCursor").asLong()).isEqualTo(pushCursor);
             assertThat(firstPull.path("changes").get(0).path("projectName").asText())
                     .isEqualTo("ctt-server");
+            assertThat(firstPull.path("changes").get(0).path("sessionUuid").asText())
+                    .isEqualTo(sessionUuid1);
             assertThat(firstPull.path("changes").get(0).path("op").asText()).isEqualTo("UPSERT");
 
             JsonNode secondPull = pull("Bearer " + jwt, deviceId, pushCursor);

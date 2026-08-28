@@ -88,11 +88,15 @@ class SyncPullServiceTest {
         return change;
     }
 
+    private UUID sessionUuidFor(UUID sessionId) {
+        return UUID.nameUUIDFromBytes(sessionId.toString().getBytes());
+    }
+
     private CodingSession session(UUID id, boolean deleted) {
         CodingSession session = new CodingSession();
         ReflectionTestUtils.setField(session, "id", id);
         session.setUserId(userId);
-        session.setSessionUuid(UUID.randomUUID());
+        session.setSessionUuid(sessionUuidFor(id));
         session.setProjectName("ctt-server");
         session.setLanguage("Java");
         session.setStartTime(Instant.parse("2026-08-25T09:00:00Z"));
@@ -128,9 +132,10 @@ class SyncPullServiceTest {
 
             assertThat(response.nextCursor()).isEqualTo(12);
             assertThat(response.changes()).hasSize(2);
-            SyncChangeDto first = response.changes().get(0);
+            SyncChangeDto first = response.changes().getFirst();
             assertThat(first.changeId()).isEqualTo(11);
             assertThat(first.sessionId()).isEqualTo(sessionId1);
+            assertThat(first.sessionUuid()).isEqualTo(sessionUuidFor(sessionId1));
             assertThat(first.op()).isEqualTo(ChangeOp.UPSERT);
             assertThat(first.serverVersion()).isEqualTo(3);
             assertThat(first.projectName()).isEqualTo("ctt-server");
@@ -138,6 +143,7 @@ class SyncPullServiceTest {
             assertThat(first.deleted()).isFalse();
             SyncChangeDto second = response.changes().get(1);
             assertThat(second.changeId()).isEqualTo(12);
+            assertThat(second.sessionUuid()).isEqualTo(sessionUuidFor(sessionId2));
             assertThat(second.op()).isEqualTo(ChangeOp.DELETE);
             assertThat(second.deleted()).isTrue();
 
@@ -183,6 +189,23 @@ class SyncPullServiceTest {
             assertThat(response.changes()).hasSize(1);
             assertThat(response.nextCursor()).isEqualTo(5);
             verify(syncCursorRepository).advancePullWatermark(userId, deviceId, 5);
+        }
+
+        @Test
+        @DisplayName("should yield null sessionUuid when session is missing")
+        void shouldYieldNullSessionUuid_whenSessionMissing() {
+            UUID sessionId = UUID.randomUUID();
+            when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
+                    .thenReturn(Optional.of(cursor(10)));
+            when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
+                            10, userId))
+                    .thenReturn(List.of(change(11, sessionId, ChangeOp.DELETE, 4)));
+            when(codingSessionRepository.findAllByIdIn(any())).thenReturn(List.of());
+
+            SyncPullResponse response = service.pull(userId, deviceId, 10);
+
+            assertThat(response.changes()).hasSize(1);
+            assertThat(response.changes().getFirst().sessionUuid()).isNull();
         }
 
         @Test
