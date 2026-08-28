@@ -1,4 +1,17 @@
 # Active Context
+- [2026-08-28] - 设备注册端点 POST /api/v1/devices（插件需求落地，v0.48.0）
+    - 背景: 插件端需求报告评审（think skill）——方案 A（key 创建带 deviceId）判定不可行（创建 key 需 JWT/WRITE，Web 端无插件 deviceId）；采纳方案 B（POST /devices 显式注册）
+    - 需求报告事实纠错: ①"设备随登录注册"错——devices 表零写入点（登录只写 refresh_tokens.device_id 无 FK 跟踪字段）②"ApiKey 无 deviceId 字段"错——实体已有 @ManyToOne Device + device_id 列（半成品，无 getter/setter 未使用）
+    - 实现: POST /api/v1/devices（SYNC scope API key 或 JWT）upsert 注册 + key↔device 绑定（补全 api_keys.device_id，ApiKey 补 getDevice/setDevice）+ 归属冲突 409 DEVICE_001（新错误码）+ 审计 DEVICE_LINKED（复用闲置枚举）+ ResourceType.DEVICE 新增 + GET /devices scope READ→SYNC（插件设备状态查询统一 SYNC 语义）+ 限流 USER 10/3600（对齐 createApiKey）
+    - 关键 JPA 修复（测试驱动发现）: Device 移除 @GeneratedValue（id 是客户端分配的 deviceId，非 DB 生成）+ @Version 初始化为 null（新建 isNew→persist；无 @Version 时 Spring Data 对非 null id 走 merge，Hibernate 对 DB 无行的 detached 实体抛 StaleObjectStateException；@GeneratedValue+非 null id 又触发"uninitialized version"拒绝）——三连坑后正解
+    - 迁移（回填策略，开发阶段）: devices version 列直接融入 V20260303210000__init_base_schema.sql（无独立迁移，用户清理 DB 重建）
+    - 测试: DeviceServiceTest 6 + DeviceControllerMockMvcTest 8 + DeviceRegistrationIntegrationTest 7 + ErrorCodeTest/ResourceTypeTest 更新；3 个 sync Repository 测试 fixture 补 setId（移除 @GeneratedValue 后必须手动赋值）
+    - 文档: sync/frontend-integration.md 设备注册章节 + 创建 key 示例改 ["SYNC"]；README Device Management 表 + DEVICE_001；handbook 审计教程示例修正（虚构 DEVICE_REGISTERED → 真实 DEVICE_LINKED）+ DEVICE_001；api-governance Tier 4（顺带修正 pull 方法 GET→POST）
+    - 双轴 code-review（Standards 0 硬违规 + 6 判断项；Spec FULLY IMPLEMENTED）后修复: ①currentApiKeyId() what-Javadoc 改行内 Why 注释 ②Swagger 错误示例统一完整 ErrorResponse shape（抽取 UNAUTHORIZED/SCOPE_DENIED/DEVICE_NOT_FOUND 常量消除重复）③401 描述补 API key 场景（AUTH_010）④README DEVICE_001 从 API Key 表移到 Device Management 错误码表 ⑤DeviceResponse.fromEntity 全路径类名改 import 短名（pre-existing 顺带修）；保留测试断言多 assertThat（与项目既有风格一致）
+    - 评审后修复（用户指出风险）: GET /devices scope 从单一 SYNC 改为 {READ, SYNC}——@RequiresApiKeyScope 支持多值"任一"语义（现有单值使用点全兼容，Aspect 审计参数多值 join）；保留 READ 读设备语义 + 插件 SYNC 可查；集成测试 READ key 403→200；AspectTest 补 AnyOf 嵌套类
+    - 验证: 全量 1185 tests 无回归（基线 1163+22）+ jacoco + spotless + LSP 全绿
+    - 版本: 0.47.0 → 0.48.0（MINOR 新端点）
+    - 状态: ✅ 实施+验证完成，待用户授权提交
 - [2026-08-26] - 编码会话同步 Phase W：插件端对接文档（纯文档，无代码）
     - 背景: V 阶段协议已落地，需产出契约文档供 code-time-tracker 插件端并行对接
     - W1（子 agent quick）: 新建 `dev-docs/sync/frontend-integration.md`（475 行中文）——流程总览/认证（API Key SYNC scope + JWT 绕过）/Pull 接口（请求响应示例+字段表+游标语义）/Push 接口（LWW 结果表+原子性）/错误码映射表（AUTH_010/011/012/020/021 + COMMON_002/003 + RATE_LIMIT_001）/限流重试策略（Retry-After header delta-seconds 优先 + body retryAfter ISO-8601 兜底 + jitter 退避）/对接流程建议/附录示例；DTO 字段与 @Schema 逐项核对一致

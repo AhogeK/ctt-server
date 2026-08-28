@@ -73,3 +73,12 @@ X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP。
 - [时间策略](../docs/time-strategy.md)
 - [大小写规范](../docs/case-normalization.md)
 - [接口治理](../docs/api-governance.md)
+
+## 客户端分配 ID 实体模式（Device）
+
+当实体主键由客户端提供（非 DB 生成）时：
+1. **移除 `@GeneratedValue`**——否则 Hibernate 视非 null id 为 detached 实体，校验 version 或拒绝
+2. **加 `@Version` 且初始化为 null**——Spring Data 的 `isNew()` 以 version==null 判新建 → `save()` 走 persist（INSERT）；从 DB 加载后 version=0 → 走 merge/dirty-checking（UPDATE）
+3. 对比 User 等 DB 生成 id 的实体：id=null 天然判新建，无需此模式
+
+**教训**: 无 @Version 时 `save()` 对非 null id 走 merge，Hibernate 对 DB 无行的 detached 实体抛 `StaleObjectStateException`（"Row was already updated or deleted"）；有 @GeneratedValue + 非 null id 又抛 "uninitialized version"——两者都要求上述组合。

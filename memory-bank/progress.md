@@ -2,6 +2,14 @@
 
 ## 已完成 ✅
 
+- [x] 设备注册端点 POST /api/v1/devices（插件需求，v0.48.0）
+    - 方案 B（POST /devices 显式注册 + key↔device 绑定 + SYNC scope 统一）；方案 A 判定不可行（Web 端创建 key 无插件 deviceId）
+    - 实现: DeviceService.registerDevice（upsert+绑定+审计）+ DeviceController POST/GET scope 调整 + RegisterDeviceRequest + DEVICE_001 + ResourceType.DEVICE + ApiKey accessors
+    - 关键修复: Device 移除 @GeneratedValue + @Version(null 初始化)；version 列回填进 init 迁移（修复 save() 对客户端 id 走 merge 的 StaleObjectStateException）
+    - 测试: 新增 3 文件 21 用例 + 3 个 sync Repository fixture 补 setId；全量 1185 tests 无回归
+    - 文档: sync 文档设备注册章节/README/handbook/api-governance 同步
+    - 版本: 0.47.0 → 0.48.0；待提交
+
 - [x] 编码会话同步 Phase W：插件端对接文档（v0.47.0，纯文档）
     - dev-docs/sync/frontend-integration.md 新建（474 行契约文档：认证/Pull/Push/错误码/游标/限流重试）
     - handbook 补 Sync Audit Events 独立表 + COMMON_002 错误码；README 已在 V 阶段完成
