@@ -385,6 +385,27 @@ authentication types without an extra database lookup.
 | Active keys must be revoked before deletion | `AUTH_023` | 409  |
 | Authentication rate limit exceeded    | `RATE_LIMIT_001` | 429 |
 
+### Device Management
+
+| Endpoint | Method | Description | Required Scope |
+|----------|--------|-------------|----------------|
+| `/api/v1/devices` | POST | Register or update a device; binds the authenticating API key to it | SYNC |
+| `/api/v1/devices` | GET | List the authenticated user's devices | READ or SYNC |
+| `/api/v1/devices/{deviceId}` | DELETE | Revoke a device and its sessions | WRITE |
+
+**Registration semantics**: device registration is the sync prerequisite — a plugin registers
+its local device identifier with a SYNC-scoped API key so subsequent pull/push calls pass the
+ownership check. Device queries accept either READ or SYNC scope (plugin device-status checks use SYNC). Registering an existing `deviceId` refreshes metadata; a `deviceId` owned by
+another user is rejected with 409 `DEVICE_001`; API-key registration binds the key to the device
+(`api_keys.device_id`). The endpoint is rate-limited to 10/hour per user.
+
+**Error Codes**:
+
+| Scenario | Code | HTTP |
+|----------|------|------|
+| Device not found / not owned | `COMMON_002` | 404 |
+| Device already registered to another user | `DEVICE_001` | 409 |
+
 ### Sync Engine
 
 | Endpoint | Method | Description | Required Scope |
@@ -395,7 +416,7 @@ authentication types without an extra database lookup.
 **Protocol**:
 - `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot, plus `nextCursor`. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent).
 - `push` accepts `{ deviceId, sessions[] }`, routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Returns `nextCursor` for the next pull.
-- `deviceId` ownership is validated (404 `COMMON_002` on mismatch); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
+- `deviceId` ownership is validated (404 `COMMON_002` on mismatch); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
 
 ### Public Configuration
 

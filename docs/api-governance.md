@@ -60,8 +60,10 @@ Endpoints requiring a fully active and verified account.
 Endpoints accessed by JetBrains IDE plugins or automated scripts.
 
 *   **Examples**:
+    *   `POST /api/v1/devices` (device registration, SYNC scope)
+    *   `GET  /api/v1/devices` (device status query, SYNC scope)
     *   `POST /api/v1/sync/push`
-    *   `GET  /api/v1/sync/pull`
+    *   `POST /api/v1/sync/pull`
 *   **Authentication**: Required. Token must be `API_KEY`.
 *   **Rate Limiting**: Enforced by **User ID** or **API** (global endpoint limit).
     *   High capacity per user, but optimized for burst traffic (e.g., Token Bucket with
