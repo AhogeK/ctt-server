@@ -2,6 +2,11 @@
 
 ## 已完成 ✅
 
+- [x] 暴露当前认证用户 id（插件账号隔离需求）
+    - 复用现有 GET /api/v1/users/me（SYNC key 已可用，无 scope 限制）；拒绝报告方案 A（重复端点）/B（语义不准）
+    - UserProfileIntegrationTest 3 用例（SYNC key/JWT/401）+ sync 文档"获取当前用户"章节
+    - 无 main 变更，版本保持 0.49.0；全量 1189 tests 无回归
+
 - [x] SyncChangeDto 增加 sessionUuid（插件端需求，v0.49.0）
     - DTO + SyncPullService 带出 sessionUuid（物理清除 DELETE 为 null）；测试/文档同步；向后兼容
     - 全量 1186 tests 无回归；版本 0.48.0 → 0.49.0

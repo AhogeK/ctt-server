@@ -1,4 +1,12 @@
 # Active Context
+- [2026-08-29] - 暴露当前认证用户 id（插件账号隔离需求，无版本变更）
+    - 需求: 插件用 SYNC key 需拿服务端 userId（账号维度数据隔离）；报告方案 A（新 /auth/me）/B（DeviceResponse 加 userId）
+    - 核实: 报告"无当前用户端点"不准确——GET /api/v1/users/me 已存在（UserProfileResponse 含 id/email），走 CurrentUserProvider（已支持 ApiKeyPrincipal）、无 @RequiresApiKeyScope → SYNC key 已可用
+    - 决策: 方案 C（复用 /users/me）——拒绝方案 A（与现有端点重复，R8.5）与方案 B（空设备列表无值 + userId 语义非设备属性）
+    - 实施: 新建 UserProfileIntegrationTest（补 UserController /me 集成测试缺口）验证 SYNC key / JWT / 未认证三路径，SYNC key 返回 data.userId + data.email；sync/frontend-integration.md 加"获取当前用户"章节（SYNC key 调 /users/me 说明）
+    - 无 src/main 变更 → 版本保持 0.49.0（纯测试+文档，项目惯例不 bump）
+    - 验证: 全量 1189 tests 无回归 + jacoco + spotless + LSP 全绿
+    - 状态: ✅ 实施+验证完成，待反馈插件端
 - [2026-08-29] - SyncChangeDto 增加 sessionUuid（插件端需求，v0.49.0）
     - 背景: 插件 C 阶段 pull 应用需以 sessionUuid（本地唯一键）定位/新建本地行；服务端 CodingSession.sessionUuid 已存但 DTO 未带出
     - 实现: SyncChangeDto 加 sessionUuid（UUID，sessionId 后，@Schema 标注可空）；SyncPullService.toChangeDto 两处构造带出（session==null 物理清除分支传 null，正常分支传 session.getSessionUuid()）；db/push/游标/LWW 零改动
