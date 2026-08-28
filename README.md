@@ -414,7 +414,7 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 | `/api/v1/sync/push` | POST | Push a batch of session states (LWW) | SYNC |
 
 **Protocol**:
-- `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot, plus `nextCursor`. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent).
+- `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `sessionUuid`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot, plus `nextCursor`. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent).
 - `push` accepts `{ deviceId, sessions[] }`, routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Returns `nextCursor` for the next pull.
 - `deviceId` ownership is validated (404 `COMMON_002` on mismatch); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
 
