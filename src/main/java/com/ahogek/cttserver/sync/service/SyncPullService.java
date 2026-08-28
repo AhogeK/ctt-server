@@ -115,8 +115,7 @@ public class SyncPullService {
         long nextCursor =
                 changes.isEmpty()
                         ? queryCursor
-                        : Math.max(
-                                changes.getLast().getChangeId(), lastPulledChangeId);
+                        : Math.max(changes.getLast().getChangeId(), lastPulledChangeId);
 
         syncCursorRepository.advancePullWatermark(userId, deviceId, nextCursor);
         auditLogService.logSuccess(
