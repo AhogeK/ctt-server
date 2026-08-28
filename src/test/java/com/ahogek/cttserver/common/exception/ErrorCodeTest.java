@@ -46,6 +46,11 @@ class ErrorCodeTest {
     }
 
     @Test
+    void deviceCodes_haveCorrectHttpStatus() {
+        assertThat(ErrorCode.DEVICE_001.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
     void systemCodes_haveCorrectHttpStatus() {
         assertThat(ErrorCode.SYSTEM_001.httpStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(ErrorCode.SYSTEM_002.httpStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);

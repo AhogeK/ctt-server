@@ -41,6 +41,7 @@ class CodingSessionRepositoryTest {
     private Device persistDevice(UUID ownerId) {
         Device device = new Device();
         device.setUserId(ownerId);
+        device.setId(UUID.randomUUID());
         device.setDeviceName("test-device");
         device.setLastSeenAt(Instant.now());
         return em.persistFlushFind(device);
