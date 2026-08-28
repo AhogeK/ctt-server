@@ -140,6 +140,40 @@ POST /api/v1/devices
 
 绑定 API key 成功后调用一次；设备状态检查复用 `GET /api/v1/devices`（READ 或 SYNC scope 均可），对比本机 `deviceId` 是否已注册。
 
+## 获取当前用户
+
+插件进行账号维度数据隔离时，需要知道当前 API key 对应的服务端用户 id。调用用户资料端点即可（API key 或 JWT 认证均可，无 scope 限制——返回的是当前 key 持有者本人的信息）：
+
+```
+GET /api/v1/users/me
+```
+
+### 响应体（200 OK）
+
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "displayName": "SyncTestUser",
+    "emailVerified": true,
+    "emailChangePending": false,
+    "hasPassword": true,
+    "createdAt": "2026-08-01T10:00:00Z",
+    "lastLoginAt": "2026-08-29T04:30:00Z",
+    "termsVersion": "1.0.0"
+  },
+  "timestamp": "2026-08-29T04:30:00Z"
+}
+```
+
+### 使用建议
+
+- 绑定 API key 成功后调用一次，取 `data.id` 作为服务端用户 id 保存到本地；换绑 key 时重新获取并切换账号维度。
+- 本地会话按此 id 标记归属（push 成功 / pull 应用时写入），统计与查询只过滤当前绑定用户的数据——换绑后不展示前用户的同步会话，实现账号维度隔离。
+
 ## Pull 接口
 
 拉取自上次同步点以来的服务端变更。
