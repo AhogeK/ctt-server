@@ -1,4 +1,12 @@
 # Active Context
+- [2026-08-29] - SyncChangeDto 增加 sessionUuid（插件端需求，v0.49.0）
+    - 背景: 插件 C 阶段 pull 应用需以 sessionUuid（本地唯一键）定位/新建本地行；服务端 CodingSession.sessionUuid 已存但 DTO 未带出
+    - 实现: SyncChangeDto 加 sessionUuid（UUID，sessionId 后，@Schema 标注可空）；SyncPullService.toChangeDto 两处构造带出（session==null 物理清除分支传 null，正常分支传 session.getSessionUuid()）；db/push/游标/LWW 零改动
+    - 测试: SyncPullServiceTest session helper 改确定性 sessionUuid（id 派生）+ Pull 断言 sessionUuid + 新增 session 缺失场景（sessionUuid=null）；SyncIntegrationTest E2E pull 断言 changes[0].sessionUuid=push 的 sessionUuid1
+    - 文档: sync/frontend-integration.md changes 示例/字段表/UPSERT 定位说明（改以 sessionUuid 定位，删除"需维护映射"说明）+ 附录示例；README pull 协议字段列表补 sessionUuid
+    - 验证: 全量 1186 tests 无回归 + jacoco + spotless + LSP 全绿
+    - 版本: 0.48.0 → 0.49.0（MINOR 新响应字段，向后兼容）
+    - 状态: ✅ 实施+验证完成，待插件端真实验收
 - [2026-08-28] - 设备注册端点 POST /api/v1/devices（插件需求落地，v0.48.0）
     - 背景: 插件端需求报告评审（think skill）——方案 A（key 创建带 deviceId）判定不可行（创建 key 需 JWT/WRITE，Web 端无插件 deviceId）；采纳方案 B（POST /devices 显式注册）
     - 需求报告事实纠错: ①"设备随登录注册"错——devices 表零写入点（登录只写 refresh_tokens.device_id 无 FK 跟踪字段）②"ApiKey 无 deviceId 字段"错——实体已有 @ManyToOne Device + device_id 列（半成品，无 getter/setter 未使用）

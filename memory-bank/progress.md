@@ -2,6 +2,11 @@
 
 ## 已完成 ✅
 
+- [x] SyncChangeDto 增加 sessionUuid（插件端需求，v0.49.0）
+    - DTO + SyncPullService 带出 sessionUuid（物理清除 DELETE 为 null）；测试/文档同步；向后兼容
+    - 全量 1186 tests 无回归；版本 0.48.0 → 0.49.0
+    - 待插件端真实验收
+
 - [x] 设备注册端点 POST /api/v1/devices（插件需求，v0.48.0）
     - 方案 B（POST /devices 显式注册 + key↔device 绑定 + SYNC scope 统一）；方案 A 判定不可行（Web 端创建 key 无插件 deviceId）
     - 实现: DeviceService.registerDevice（upsert+绑定+审计）+ DeviceController POST/GET scope 调整 + RegisterDeviceRequest + DEVICE_001 + ResourceType.DEVICE + ApiKey accessors
