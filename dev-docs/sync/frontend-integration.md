@@ -54,7 +54,7 @@ POST /api/v1/auth/api-keys
 ```json
 {
   "name": "MacBook Pro - IntelliJ IDEA",
-  "scopes": ["READ", "SYNC"],
+  "scopes": ["SYNC"],
   "expiresAt": "2027-01-01T00:00:00+09:00"
 }
 ```
@@ -62,7 +62,7 @@ POST /api/v1/auth/api-keys
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `name` | string | 是 | 1-100 字符，建议用设备名 + IDE 名 |
-| `scopes` | array | 是 | 至少一个。可选值：`READ`, `WRITE`, `SYNC`, `ADMIN`。同步必须包含 `SYNC` |
+| `scopes` | array | 是 | 至少一个。可选值：`READ`, `WRITE`, `SYNC`, `ADMIN`。插件需包含 `SYNC`（设备注册/查询与同步均要求 `SYNC` scope） |
 | `expiresAt` | ISO8601 | 否 | 过期时间，不传则永不过期。若填写必须为未来时间 |
 
 创建成功后，响应中的 `data.rawKey` 是**唯一一次**返回原始 Key（格式 `cttak_<prefix>_<secret>`），插件必须立即保存。之后只能通过列表接口查看 Key 元数据（`keyPrefix`、`scopes`、`status` 等），无法再次获取原始 Key。
@@ -76,6 +76,69 @@ POST /api/v1/auth/api-keys
 | 401 | AUTH_021 | Authorization 头格式错误（非 `Bearer <key>`） | 检查请求头构造逻辑 |
 | 403 | AUTH_012 | API Key 已被吊销 | 提示用户重新创建 API Key |
 | 403 | AUTH_020 | API Key 缺少 `SYNC` scope | 提示用户创建包含 `SYNC` scope 的 Key |
+
+## 设备注册
+
+设备注册是同步的前置条件：服务端按设备隔离同步游标，pull/push 校验 `deviceId` 归属（未注册 → 404 `COMMON_002`）。插件在绑定 SYNC-scope API key 后，应调用一次设备注册端点登记本设备。
+
+```
+POST /api/v1/devices
+```
+
+限流：每用户每小时 10 次（`RATE_LIMIT_001`）。认证：API key 需 **SYNC** scope（JWT 自动绕过）。
+
+### 请求体
+
+```json
+{
+  "deviceId": "3f2a1b4c-5d6e-4f7a-8b9c-0d1e2f3a4b5c",
+  "deviceName": "MacBook Pro",
+  "platform": "macOS",
+  "ideName": "IntelliJ IDEA",
+  "ideVersion": "2026.1",
+  "appVersion": "1.2.0"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `deviceId` | UUID | 是 | 客户端生成的设备标识（插件建议用本机用户 ID），作为同步游标维度 |
+| `deviceName` | string | 否 | 人类可读设备名（≤255 字符） |
+| `platform` | string | 否 | 操作系统平台（≤50 字符） |
+| `ideName` | string | 否 | IDE 名称（≤100 字符） |
+| `ideVersion` | string | 否 | IDE 版本（≤50 字符） |
+| `appVersion` | string | 否 | 插件版本（≤50 字符） |
+
+### 语义
+
+- **Upsert**：`deviceId` 已注册且归属当前用户 → 更新元数据与最后活动时间；未注册 → 创建。
+- **Key 绑定**：使用 API key 认证时，服务端把 `deviceId` 写入该 key 的 `device_id` 字段（key ↔ 设备绑定，一个 key 绑定最新注册的设备）。
+- **归属冲突**：`deviceId` 已被其他用户注册 → 409 `DEVICE_001`。
+- 重复注册幂等无害，可在每次同步前调用。
+
+### 响应体（200 OK）
+
+```json
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {
+    "id": "3f2a1b4c-5d6e-4f7a-8b9c-0d1e2f3a4b5c",
+    "deviceName": "MacBook Pro",
+    "platform": "macOS",
+    "ideName": "IntelliJ IDEA",
+    "ideVersion": "2026.1",
+    "appVersion": "1.2.0",
+    "createdAt": "2026-08-28T10:00:00Z",
+    "lastSeenAt": "2026-08-28T10:00:00Z"
+  },
+  "timestamp": "2026-08-28T10:00:00Z"
+}
+```
+
+### 对接建议
+
+绑定 API key 成功后调用一次；设备状态检查复用 `GET /api/v1/devices`（READ 或 SYNC scope 均可），对比本机 `deviceId` 是否已注册。
 
 ## Pull 接口
 
@@ -295,7 +358,7 @@ LWW 判定优先级（与后端 `ConflictResolver` 一致）：
 | 401 | AUTH_021 | Authorization 头格式错误 | 检查请求头是否严格为 `Bearer <key>` |
 | 403 | AUTH_012 | API Key 已被吊销 | 提示用户重新创建 API Key，停止同步 |
 | 403 | AUTH_020 | API Key 缺少 `SYNC` scope | 提示用户创建包含 `SYNC` scope 的 Key |
-| 404 | COMMON_002 | 设备不存在或无权访问（`deviceId` 不属于当前用户） | 检查 `deviceId` 是否与当前用户绑定，必要时重新注册设备 |
+| 404 | COMMON_002 | 设备不存在或无权访问（`deviceId` 不属于当前用户） | 通过 `POST /api/v1/devices` 注册设备后再同步，见「设备注册」章节 |
 | 429 | RATE_LIMIT_001 | 超过限流（每端点每分钟 120 次） | 按 `Retry-After` 头或 `retryAfter` 字段退避后重试，见下节 |
 
 ## 限流与重试策略

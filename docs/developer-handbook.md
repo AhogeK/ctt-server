@@ -212,43 +212,17 @@ Identical states resolve to keep-existing, so re-submitting unchanged state is a
 public enum AuditAction {
     // ... existing actions ...
 
-    /** New device registration completed. */
-    DEVICE_REGISTERED("New device successfully registered");
-
-    private final String description;
-
-    AuditAction(String description) {
-        this.description = description;
-    }
-
-    public String description() {
-        return description;
-    }
+    /** New client device linked to user account. */
+    DEVICE_LINKED("New client device linked to account");
 }
 ```
 
 **Step 2**: Publish Event in Business Code
 
 ```java
-// In DeviceService.java
-@Transactional
-public Device registerDevice(RegisterDeviceRequest request) {
-    var device = deviceRepository.save(buildDevice(request));
-
-    // Publish audit event (async, non-blocking)
-    eventPublisher.publishEvent(
-        new SecurityAuditEvent(
-            AuditAction.DEVICE_REGISTERED,
-            ResourceType.DEVICE,
-            SecuritySeverity.INFO,
-            RequestContext.current().orElse(null),
-            AuditDetails.builder()
-                .put("deviceId", device.getId())
-                .put("platform", device.getPlatform())
-                .build()));
-
-    return device;
-}
+// In DeviceService.registerDevice(...)
+auditLogService.logSuccess(
+        userId, AuditAction.DEVICE_LINKED, ResourceType.DEVICE, device.getId().toString());
 ```
 
 **Step 3**: Add to `AuditFixtures.java`
@@ -257,7 +231,7 @@ public Device registerDevice(RegisterDeviceRequest request) {
 // src/test/java/com/ahogek/cttserver/fixtures/AuditFixtures.java
 public static Builder deviceRegistered(UUID deviceId) {
     return builder()
-            .action(AuditAction.DEVICE_REGISTERED)
+            .action(AuditAction.DEVICE_LINKED)
             .resourceType(ResourceType.DEVICE)
             .resourceId(deviceId.toString())
             .severity(SecuritySeverity.INFO);
@@ -1082,6 +1056,7 @@ rejected with `AUTH_004` / `AUTH_005` / `AUTH_006` / `AUTH_022` before `last_use
 | Per-user key limit exceeded       | `AUTH_024` | 409         |
 | Active keys must be revoked before deletion | `AUTH_023` | 409         |
 | Device not found / not owned        | `COMMON_002` | 404         |
+| Device already registered to another user | `DEVICE_001` | 409         |
 
 **API Key holder's user status rejections (Phase O):**
 
