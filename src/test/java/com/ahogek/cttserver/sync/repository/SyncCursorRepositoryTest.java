@@ -10,11 +10,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,6 +41,7 @@ class SyncCursorRepositoryTest {
 
         Device device = new Device();
         device.setUserId(userId);
+        device.setId(UUID.randomUUID());
         device.setDeviceName("test-device");
         device.setLastSeenAt(Instant.now());
         deviceId = em.persistFlushFind(device).getId();
@@ -83,6 +88,12 @@ class SyncCursorRepositoryTest {
     @DisplayName("advancePullWatermark")
     class AdvancePullWatermark {
 
+        static Stream<Arguments> watermarkNotHigherArguments() {
+            // persisted watermark (null = no row yet), pushed watermark, expected persisted result
+            return Stream.of(
+                    Arguments.of(5, 3, 5), Arguments.of(5, 5, 5), Arguments.of(null, 5, 5));
+        }
+
         @Test
         @DisplayName("shouldAdvanceWatermark_whenNewWatermarkIsHigher")
         void shouldAdvanceWatermark_whenNewWatermarkIsHigher() {
@@ -97,43 +108,25 @@ class SyncCursorRepositoryTest {
                     .hasValueSatisfying(c -> assertThat(c.getLastPulledChangeId()).isEqualTo(5));
         }
 
-        @Test
-        @DisplayName("shouldNotRewindWatermark_whenNewWatermarkIsLower_monotonicGuard")
-        void shouldNotRewindWatermark_whenNewWatermarkIsLower_monotonicGuard() {
-            em.persistFlushFind(cursor(5));
+        @ParameterizedTest
+        @MethodSource("watermarkNotHigherArguments")
+        @DisplayName("shouldResultInHighestWatermark_whenNewWatermarkIsNotHigher")
+        void shouldResultInHighestWatermark_whenNewWatermarkIsNotHigher(
+                Integer persistedWatermark, int pushedWatermark, int expectedWatermark) {
+            if (persistedWatermark != null) {
+                em.persistFlushFind(cursor(persistedWatermark));
+            }
 
-            int updated = repository.advancePullWatermark(userId, deviceId, 3);
-
-            assertThat(updated).isEqualTo(1);
-            em.clear();
-            assertThat(repository.findByUserIdAndDeviceId(userId, deviceId))
-                    .isPresent()
-                    .hasValueSatisfying(c -> assertThat(c.getLastPulledChangeId()).isEqualTo(5));
-        }
-
-        @Test
-        @DisplayName("shouldNotRewindWatermark_whenNewWatermarkEqualsCurrent")
-        void shouldNotRewindWatermark_whenNewWatermarkEqualsCurrent() {
-            em.persistFlushFind(cursor(5));
-
-            int updated = repository.advancePullWatermark(userId, deviceId, 5);
+            int updated = repository.advancePullWatermark(userId, deviceId, pushedWatermark);
 
             assertThat(updated).isEqualTo(1);
             em.clear();
             assertThat(repository.findByUserIdAndDeviceId(userId, deviceId))
                     .isPresent()
-                    .hasValueSatisfying(c -> assertThat(c.getLastPulledChangeId()).isEqualTo(5));
-        }
-
-        @Test
-        @DisplayName("shouldCreateCursor_whenCursorDoesNotExist")
-        void shouldCreateCursor_whenCursorDoesNotExist() {
-            int updated = repository.advancePullWatermark(userId, deviceId, 5);
-
-            assertThat(updated).isEqualTo(1);
-            assertThat(repository.findByUserIdAndDeviceId(userId, deviceId))
-                    .isPresent()
-                    .hasValueSatisfying(c -> assertThat(c.getLastPulledChangeId()).isEqualTo(5));
+                    .hasValueSatisfying(
+                            c ->
+                                    assertThat(c.getLastPulledChangeId())
+                                            .isEqualTo(expectedWatermark));
         }
     }
 }

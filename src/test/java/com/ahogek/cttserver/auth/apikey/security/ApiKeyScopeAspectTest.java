@@ -220,9 +220,73 @@ class ApiKeyScopeAspectTest {
         }
     }
 
+    @Nested
+    @DisplayName("API Key with any of multiple required scopes")
+    class AnyOfRequiredScopes {
+
+        private RequiresApiKeyScope readOrSyncAnnotation;
+
+        private void setUpReadOrSyncStubbing() throws NoSuchMethodException {
+            lenient().when(joinPoint.getSignature()).thenReturn(methodSignature);
+            Method method = TestController.class.getMethod("readOrSyncEndpoint");
+            lenient().when(methodSignature.getMethod()).thenReturn(method);
+            lenient().when(methodSignature.getDeclaringType()).thenReturn(TestController.class);
+            lenient().when(methodSignature.getName()).thenReturn("readOrSyncEndpoint");
+            readOrSyncAnnotation = method.getAnnotation(RequiresApiKeyScope.class);
+        }
+
+        @Test
+        @DisplayName("shouldAllowAccess_whenApiKeyHoldsAnyOfRequiredScopes")
+        void shouldAllowAccess_whenApiKeyHoldsAnyOfRequiredScopes() throws Throwable {
+            // Given
+            ApiKeyPrincipal principal =
+                    new ApiKeyPrincipal(TEST_USER, KEY_ID, Set.of(ApiKeyScope.SYNC));
+            setAuthentication(principal);
+            setUpReadOrSyncStubbing();
+            given(joinPoint.proceed()).willReturn("result");
+
+            // When
+            Object result = aspect.enforceScope(joinPoint, readOrSyncAnnotation);
+
+            // Then
+            assertThat(result).isEqualTo("result");
+            then(joinPoint).should().proceed();
+        }
+
+        @Test
+        @DisplayName("shouldDenyAccess_whenApiKeyLacksAllRequiredScopes")
+        void shouldDenyAccess_whenApiKeyLacksAllRequiredScopes() throws Throwable {
+            // Given
+            ApiKeyPrincipal principal =
+                    new ApiKeyPrincipal(TEST_USER, KEY_ID, Set.of(ApiKeyScope.WRITE));
+            setAuthentication(principal);
+            setUpReadOrSyncStubbing();
+
+            // When & Then
+            assertThatThrownBy(() -> aspect.enforceScope(joinPoint, readOrSyncAnnotation))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_020);
+
+            then(joinPoint).should(never()).proceed();
+            then(auditLogService)
+                    .should()
+                    .logFailure(
+                            eq(USER_ID),
+                            eq(AuditAction.API_KEY_SCOPE_DENIED),
+                            eq(ResourceType.API_KEY),
+                            eq(KEY_ID.toString()),
+                            eq("READ, SYNC"));
+        }
+    }
+
     static class TestController {
         @RequiresApiKeyScope(ApiKeyScope.READ)
         public String readEndpoint() {
+            return "result";
+        }
+
+        @RequiresApiKeyScope({ApiKeyScope.READ, ApiKeyScope.SYNC})
+        public String readOrSyncEndpoint() {
             return "result";
         }
 

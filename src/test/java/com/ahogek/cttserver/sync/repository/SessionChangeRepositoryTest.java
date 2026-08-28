@@ -40,6 +40,7 @@ class SessionChangeRepositoryTest {
 
         Device device = new Device();
         device.setUserId(userId);
+        device.setId(UUID.randomUUID());
         device.setDeviceName("test-device");
         device.setLastSeenAt(Instant.now());
         em.persistFlushFind(device);
