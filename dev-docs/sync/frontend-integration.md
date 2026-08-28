@@ -175,6 +175,7 @@ POST /api/v1/sync/pull
       {
         "changeId": 43,
         "sessionId": "9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f",
+        "sessionUuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
         "op": "UPSERT",
         "serverVersion": 3,
         "happenedAt": "2026-08-25T10:30:00Z",
@@ -206,6 +207,7 @@ POST /api/v1/sync/pull
 |------|------|------|
 | `changeId` | long | 单调递增的变更 id |
 | `sessionId` | UUID | 受影响的编码会话主键 |
+| `sessionUuid` | UUID | 客户端生成的会话标识，按用户唯一；会话已物理清除的 DELETE 变更为 null |
 | `op` | enum | 应用到会话的操作：`UPSERT`（创建或更新）或 `DELETE`（软删除） |
 | `serverVersion` | long | 该变更之后会话的服务端版本 |
 | `happenedAt` | Instant | 变更记录时间（ISO 8601） |
@@ -398,9 +400,9 @@ Pull 与 Push 端点各自限流：**每端点每分钟 120 次**（`RateLimitTy
 
 ### 应用 UPSERT 与 DELETE
 
-- **UPSERT**：`changes[]` 中每个条目已携带胜出会话的完整快照（`projectName`、`language`、`startTime`、`endTime`、`clientModifiedAt`、`clientVersion`、`deleted`），插件无需额外查询即可直接应用。以 `sessionId` 作为本地主键定位。
+- **UPSERT**：`changes[]` 中每个条目已携带胜出会话的完整快照（`sessionUuid`、`projectName`、`language`、`startTime`、`endTime`、`clientModifiedAt`、`clientVersion`、`deleted`），插件无需额外查询即可直接应用。以 `sessionUuid` 作为本地主键定位（本地新建或按 `sessionUuid` 匹配既有行后覆盖）。
 - **DELETE**：`op = DELETE` 表示该会话已被软删除。插件应标记本地会话为已删除（或从活跃列表移除），不要删除本地记录本身，以便后续冲突解决时保留历史。
-- 注意：`changes[]` 中的 `sessionId` 是服务端主键，而 Push 请求中的 `sessionUuid` 是客户端生成的 UUID。插件需要维护两者之间的映射，或直接以 `sessionUuid` 作为本地主键（服务端按用户保证 `sessionUuid` 唯一）。
+- 匹配键：`changes[]` 同时携带 `sessionId`（服务端主键）与 `sessionUuid`（客户端生成的会话标识）。插件应直接以 `sessionUuid` 作为本地主键定位（服务端按用户保证 `sessionUuid` 唯一），无需维护 `sessionId` ↔ `sessionUuid` 映射。
 
 ### 游标持久化
 
@@ -438,6 +440,7 @@ Pull 与 Push 端点各自限流：**每端点每分钟 120 次**（`RateLimitTy
       {
         "changeId": 1,
         "sessionId": "9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f",
+        "sessionUuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
         "op": "UPSERT",
         "serverVersion": 1,
         "happenedAt": "2026-08-25T09:00:00Z",
@@ -452,6 +455,7 @@ Pull 与 Push 端点各自限流：**每端点每分钟 120 次**（`RateLimitTy
       {
         "changeId": 2,
         "sessionId": "7a6b5c4d-3e2f-4a1b-9c8d-0e1f2a3b4c5d",
+        "sessionUuid": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e",
         "op": "DELETE",
         "serverVersion": 2,
         "happenedAt": "2026-08-25T10:00:00Z",
