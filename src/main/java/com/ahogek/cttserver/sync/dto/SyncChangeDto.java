@@ -14,6 +14,13 @@ public record SyncChangeDto(
                         description = "Primary key of the affected coding session",
                         example = "9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f")
                 UUID sessionId,
+        @Schema(
+                        description =
+                                "Client-generated session UUID, unique per user; null when the"
+                                        + " session was physically removed (op=DELETE)",
+                        example = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                        nullable = true)
+                UUID sessionUuid,
         @Schema(description = "Operation applied to the session", example = "UPSERT") ChangeOp op,
         @Schema(description = "Server version of the session after this change", example = "3")
                 long serverVersion,

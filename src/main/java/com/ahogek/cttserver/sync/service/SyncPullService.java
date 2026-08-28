@@ -116,7 +116,7 @@ public class SyncPullService {
                 changes.isEmpty()
                         ? queryCursor
                         : Math.max(
-                                changes.get(changes.size() - 1).getChangeId(), lastPulledChangeId);
+                                changes.getLast().getChangeId(), lastPulledChangeId);
 
         syncCursorRepository.advancePullWatermark(userId, deviceId, nextCursor);
         auditLogService.logSuccess(
@@ -148,6 +148,7 @@ public class SyncPullService {
             return new SyncChangeDto(
                     change.getChangeId(),
                     change.getSessionId(),
+                    null,
                     change.getOp(),
                     change.getServerVersion(),
                     change.getHappenedAt(),
@@ -162,6 +163,7 @@ public class SyncPullService {
         return new SyncChangeDto(
                 change.getChangeId(),
                 session.getId(),
+                session.getSessionUuid(),
                 change.getOp(),
                 change.getServerVersion(),
                 change.getHappenedAt(),
