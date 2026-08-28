@@ -5,8 +5,8 @@ import org.springframework.http.HttpStatus;
 /**
  * Unified error code system for the application.
  *
- * <p>Error codes are organized by domain groups: COMMON, AUTH, USER, MAIL, RATE_LIMIT, SECURITY,
- * SYSTEM
+ * <p>Error codes are organized by domain groups: COMMON, AUTH, USER, DEVICE, MAIL, RATE_LIMIT,
+ * SECURITY, SYSTEM
  *
  * <p>Format: {@code GROUP_CODE} (e.g., COMMON_001, AUTH_001)
  *
@@ -72,6 +72,11 @@ public enum ErrorCode {
     USER_013("Password verification required", HttpStatus.FORBIDDEN),
     USER_014("Invalid password", HttpStatus.UNAUTHORIZED),
     USER_015("Password already set", HttpStatus.CONFLICT),
+
+    // =========================================================================
+    // DEVICE - Device registration errors
+    // =========================================================================
+    DEVICE_001("Device already registered to another user", HttpStatus.CONFLICT),
 
     // =========================================================================
     // MAIL - Email delivery errors
