@@ -361,4 +361,43 @@ class DeviceRegistrationIntegrationTest {
                     .hasStatusOk();
         }
     }
+
+    @Nested
+    @DisplayName("DELETE /api/v1/devices - revocation status")
+    class RevokeDeviceTests {
+
+        @Test
+        @DisplayName("Should expose revokedAt after device revocation")
+        void shouldExposeRevokedAt_afterRevocation() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+            UUID deviceId = UUID.randomUUID();
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/devices")
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(registerDeviceBody(deviceId))
+                                    .exchange())
+                    .hasStatusOk();
+
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/devices/{deviceId}", deviceId.toString())
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .exchange())
+                    .hasStatusOk();
+
+            assertThat(
+                            mvc.get()
+                                    .uri("/api/v1/devices")
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .exchange())
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.data[0].revokedAt")
+                    .isNotNull();
+        }
+    }
 }

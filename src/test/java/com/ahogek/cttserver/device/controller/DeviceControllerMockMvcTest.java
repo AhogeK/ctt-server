@@ -77,7 +77,8 @@ class DeviceControllerMockMvcTest {
                 "2026.1",
                 "1.2.0",
                 Instant.parse("2026-08-28T10:00:00Z"),
-                Instant.parse("2026-08-28T10:00:00Z"));
+                Instant.parse("2026-08-28T10:00:00Z"),
+                null);
     }
 
     @Nested
