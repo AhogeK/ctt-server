@@ -2,6 +2,12 @@ package com.ahogek.cttserver.audit.enums;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ResourceTypeTest {
@@ -36,5 +42,31 @@ class ResourceTypeTest {
         assertThat(ResourceType.valueOf("CODING_SESSION")).isEqualTo(ResourceType.CODING_SESSION);
         assertThat(ResourceType.valueOf("DEVICE")).isEqualTo(ResourceType.DEVICE);
         assertThat(ResourceType.valueOf("UNKNOWN")).isEqualTo(ResourceType.UNKNOWN);
+    }
+
+    @Test
+    void audit_constraint_covers_all_resource_types() throws IOException {
+        String sql;
+        try (InputStream in =
+                getClass()
+                        .getResourceAsStream(
+                                "/db/migration/V20260303210000__init_base_schema.sql")) {
+            assertThat(in).as("migration resource must exist on the classpath").isNotNull();
+            sql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        Matcher matcher =
+                Pattern.compile(
+                                "chk_audit_resource_type\\s+CHECK\\s*\\(resource_type IN\\s*\\(([^)]*)\\)\\)",
+                                Pattern.DOTALL)
+                        .matcher(sql);
+        assertThat(matcher.find())
+                .as("audit resource type constraint not found in init migration")
+                .isTrue();
+        String allowed = matcher.group(1);
+        for (ResourceType type : ResourceType.values()) {
+            assertThat(allowed)
+                    .as("migration CHECK constraint is missing %s", type)
+                    .contains("'" + type.name() + "'");
+        }
     }
 }
