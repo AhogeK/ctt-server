@@ -1,4 +1,11 @@
 # Active Context
+- [2026-08-29] - 依赖更新（dependencyUpdates 流程，v0.49.1）
+    - 策略（用户决策）: 依赖（含主版本）优先直接升级，唯一例外 Java/Kotlin 大版本跳跃需确认；编译/测试失败才回滚
+    - 升级: spotless 8.10.0→8.10.1、flyway 13.3.0→13.4.0、jacoco 0.8.14→0.8.15（build.gradle.kts toolVersion）、Gradle wrapper 9.7.0→9.7.1（wrapper 任务）
+    - 其余依赖已最新（Spring Boot 4.1.1、ben-manes 0.61.0、testcontainers 2.0.5 等）；无 Kotlin/JDK 大版本（项目 Java 25 + Kotlin 2.4.0）
+    - 验证: clean build + 全量 1189 tests + jacoco + spotless 全绿（Gradle 9.7.1 下）
+    - 版本: 0.49.0 → 0.49.1（PATCH 依赖升级）
+    - 状态: ✅ 实施+验证完成，待提交
 - [2026-08-29] - 暴露当前认证用户 id（插件账号隔离需求，无版本变更）
     - 需求: 插件用 SYNC key 需拿服务端 userId（账号维度数据隔离）；报告方案 A（新 /auth/me）/B（DeviceResponse 加 userId）
     - 核实: 报告"无当前用户端点"不准确——GET /api/v1/users/me 已存在（UserProfileResponse 含 id/email），走 CurrentUserProvider（已支持 ApiKeyPrincipal）、无 @RequiresApiKeyScope → SYNC key 已可用
