@@ -397,7 +397,7 @@ authentication types without an extra database lookup.
 its local device identifier with a SYNC-scoped API key so subsequent pull/push calls pass the
 ownership check. Device queries accept either READ or SYNC scope (plugin device-status checks use SYNC). Registering an existing `deviceId` refreshes metadata; a `deviceId` owned by
 another user is rejected with 409 `DEVICE_001`; API-key registration binds the key to the device
-(`api_keys.device_id`). The endpoint is rate-limited to 10/hour per user.
+(`api_keys.device_id`). Revocation stamps `revokedAt` on the device (visible to clients); re-registering the device clears it. The endpoint is rate-limited to 10/hour per user.
 
 **Error Codes**:
 
@@ -416,7 +416,7 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 **Protocol**:
 - `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `sessionUuid`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot, plus `nextCursor`. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent).
 - `push` accepts `{ deviceId, sessions[] }`, routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Returns `nextCursor` for the next pull.
-- `deviceId` ownership is validated (404 `COMMON_002` on mismatch); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
+- `deviceId` ownership is validated (404 `COMMON_002` on mismatch, including devices that have been revoked); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
 
 ### Public Configuration
 

@@ -130,7 +130,8 @@ POST /api/v1/devices
     "ideVersion": "2026.1",
     "appVersion": "1.2.0",
     "createdAt": "2026-08-28T10:00:00Z",
-    "lastSeenAt": "2026-08-28T10:00:00Z"
+    "lastSeenAt": "2026-08-28T10:00:00Z",
+    "revokedAt": null
   },
   "timestamp": "2026-08-28T10:00:00Z"
 }
@@ -394,7 +395,7 @@ LWW 判定优先级（与后端 `ConflictResolver` 一致）：
 | 401 | AUTH_021 | Authorization 头格式错误 | 检查请求头是否严格为 `Bearer <key>` |
 | 403 | AUTH_012 | API Key 已被吊销 | 提示用户重新创建 API Key，停止同步 |
 | 403 | AUTH_020 | API Key 缺少 `SYNC` scope | 提示用户创建包含 `SYNC` scope 的 Key |
-| 404 | COMMON_002 | 设备不存在或无权访问（`deviceId` 不属于当前用户） | 通过 `POST /api/v1/devices` 注册设备后再同步，见「设备注册」章节 |
+| 404 | COMMON_002 | 设备不存在、无权访问或**已吊销**（`deviceId` 不属于当前用户 / 设备被 Revoke） | 通过 `POST /api/v1/devices` 注册（重新激活）设备后再同步；已吊销设备重新注册即恢复，见「设备注册」章节 |
 | 429 | RATE_LIMIT_001 | 超过限流（每端点每分钟 120 次） | 按 `Retry-After` 头或 `retryAfter` 字段退避后重试，见下节 |
 
 ## 限流与重试策略
