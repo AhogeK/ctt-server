@@ -1,4 +1,13 @@
 # Active Context
+- [2026-08-30] - 审计约束缺失枚举值修复（运行时日志暴露，v0.50.1）
+    - 日志: audit_logs 插入撞 chk_audit_resource_type 检查约束（SYNC_PULL/CODING_SESSION 被拒）；AuditEventListener 异步 + 吞异常（continuing without error propagation）→ 集成测试静默通过、运行时暴露
+    - 根因: init 迁移 chk_audit_resource_type 约束 8 值，ResourceType 枚举 10 值——CODING_SESSION（V 阶段加枚举漏同步约束）+ DEVICE（v0.48.0 加枚举漏同步约束），契约漂移两次
+    - 修复: init 迁移约束补 'CODING_SESSION' + 'DEVICE'（对齐枚举）；COMMENT 更新为"must match ResourceType enum"
+    - 防复发: ResourceTypeTest 新增 audit_constraint_covers_all_resource_types——读 init 迁移 SQL，断言 chk_audit_resource_type 覆盖全部枚举值（防止第三次漂移）
+    - 教训: 新增 ResourceType 枚举值必须同步 init 迁移 chk_audit_resource_type 约束 + ResourceTypeTest；审计异步吞异常掩盖了漂移（业务测试断言不到）
+    - 验证: 全量 1193 tests + jacoco + spotless 全绿
+    - 版本: 0.50.0 → 0.50.1（PATCH bug 修复）
+    - 状态: ✅ 实施+验证完成，待提交
 - [2026-08-29] - 设备吊销状态后端暴露（ctt-web 需求，v0.50.0）
     - 需求: Web 前端吊销设备后列表无任何状态变化（无 revokedAt/status 字段），用户无法感知吊销已生效；方案 A（DeviceResponse 加 revokedAt）
     - 实施: devices 表加 revoked_at 列（回填 init 迁移）+ Device 实体 revokedAt + revokeDevice 写吊销时间（撤销 refresh token 处）+ registerDevice upsert 清除（重新活跃）+ DeviceResponse 带出（@Schema nullable）
