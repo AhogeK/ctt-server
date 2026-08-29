@@ -289,7 +289,7 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 
 | Endpoint           | Method | Description                                                                                                              |
 |--------------------|--------|--------------------------------------------------------------------------------------------------------------------------|
-| `/api/v1/users/me` | GET    | Get current authenticated user's profile (requires JWT) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
+| `/api/v1/users/me` | GET    | Get current authenticated user's profile (JWT or API key) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
 
 **Response Fields**:
 - `id` (UUID)
