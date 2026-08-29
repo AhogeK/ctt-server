@@ -155,7 +155,7 @@ The sync engine provides bidirectional data synchronization with scope-based acc
 - JWT-authenticated users → bypass scope check
 
 **Protocol (implemented)**:
-- `pull` — request `{ deviceId: UUID, lastPulledChangeId: long }`; response `{ changes: [{ changeId, sessionId, op, serverVersion, happenedAt, projectName, language, startTime, endTime, clientModifiedAt, clientVersion, deleted }], nextCursor: long }`. The effective query cursor is `max(persistedWatermark, clientCursor)` so a stale client can never rewind the watermark; the response cursor advances the per-device watermark monotonically. No new changes → empty list + current cursor (idempotent). Device ownership is validated first (404 `COMMON_002`).
+- `pull` — request `{ deviceId: UUID, lastPulledChangeId: long }`; response `{ changes: [{ changeId, sessionId, sessionUuid, op, serverVersion, happenedAt, projectName, language, startTime, endTime, clientModifiedAt, clientVersion, deleted }], nextCursor: long }`. The effective query cursor is `max(persistedWatermark, clientCursor)` so a stale client can never rewind the watermark; the response cursor advances the per-device watermark monotonically. No new changes → empty list + current cursor (idempotent). Device ownership is validated first (404 `COMMON_002`).
 - `push` — request `{ deviceId: UUID, sessions: [{ sessionUuid, projectName, language, startTime, endTime, clientModifiedAt, clientVersion, deleted }] }`; response `{ nextCursor: long }`. Each session is looked up **including soft-deleted rows** and routed through `ConflictResolver`: `APPLY_INCOMING` → fields applied + `bumpServerVersion` + `UPSERT` change; `APPLY_DELETE` → soft delete + `DELETE` change; `KEEP_EXISTING` → no-op. New sessions start at server version 1; a client-deleted session the server never had is an idempotent no-op. The whole batch is one transaction (no partial application); the returned cursor is the user's max change id.
 - Both endpoints: `@RequiresApiKeyScope(SYNC)` (JWT bypasses), `@RateLimit(API, 120 req / 60 s)` → 429 `RATE_LIMIT_001` with `retryAfter`, audit `SYNC_PULL` / `SYNC_PUSH` against `CODING_SESSION` resource.
 
@@ -419,7 +419,7 @@ public class UserController {
 
 | Endpoint               | Auth | Description                                                                                                                                                         | Since  |
 |------------------------|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
-| `GET /api/v1/users/me` | JWT  | Current user profile (id, email, displayName, emailVerified, emailChangePending, hasPassword, createdAt, lastLoginAt, termsVersion). Excludes sensitive fields (passwordHash, lastLoginIp, version). | 0.34.0 |
+| `GET /api/v1/users/me` | JWT or API key | Current user profile (id, email, displayName, emailVerified, emailChangePending, hasPassword, createdAt, lastLoginAt, termsVersion). Excludes sensitive fields (passwordHash, lastLoginIp, version). | 0.34.0 |
 
 **Step 3**: Add Security Tests
 
