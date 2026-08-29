@@ -6,6 +6,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.exception.BusinessException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
@@ -88,12 +89,17 @@ public class SyncPushService {
     }
 
     private SyncPushResponse doPush(UUID userId, UUID deviceId, List<SyncSessionDto> sessions) {
-        deviceRepository
-                .findByIdAndUserId(deviceId, userId)
-                .orElseThrow(
-                        () ->
-                                new NotFoundException(
-                                        ErrorCode.COMMON_002, "Device not found or access denied"));
+        Device device =
+                deviceRepository
+                        .findByIdAndUserId(deviceId, userId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                ErrorCode.COMMON_002,
+                                                "Device not found or access denied"));
+        if (device.getRevokedAt() != null) {
+            throw new NotFoundException(ErrorCode.COMMON_002, "Device not found or access denied");
+        }
 
         for (SyncSessionDto dto : sessions) {
             Optional<CodingSession> existingOpt =

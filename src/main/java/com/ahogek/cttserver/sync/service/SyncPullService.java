@@ -6,6 +6,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.exception.BusinessException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.sync.dto.SyncChangeDto;
 import com.ahogek.cttserver.sync.dto.SyncPullResponse;
@@ -93,12 +94,17 @@ public class SyncPullService {
     }
 
     private SyncPullResponse doPull(UUID userId, UUID deviceId, long lastPulledChangeId) {
-        deviceRepository
-                .findByIdAndUserId(deviceId, userId)
-                .orElseThrow(
-                        () ->
-                                new NotFoundException(
-                                        ErrorCode.COMMON_002, "Device not found or access denied"));
+        Device device =
+                deviceRepository
+                        .findByIdAndUserId(deviceId, userId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                ErrorCode.COMMON_002,
+                                                "Device not found or access denied"));
+        if (device.getRevokedAt() != null) {
+            throw new NotFoundException(ErrorCode.COMMON_002, "Device not found or access denied");
+        }
 
         long persistedCursor =
                 syncCursorRepository
