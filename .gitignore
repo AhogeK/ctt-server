@@ -52,3 +52,4 @@ src/main/resources/application-local.properties
 
 # AI plan files (internal, not for public docs)
 .sisyphus/
+.omp/
