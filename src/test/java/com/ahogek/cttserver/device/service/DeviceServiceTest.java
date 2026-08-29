@@ -22,12 +22,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -137,6 +139,7 @@ class DeviceServiceTest {
             assertThat(saved.getIdeVersion()).isEqualTo("2025.2");
             assertThat(saved.getAppVersion()).isEqualTo("1.3.0");
             assertThat(saved.getLastSeenAt()).isNotNull();
+            assertThat(saved.getRevokedAt()).isNull();
             then(auditLogService)
                     .should()
                     .logSuccess(
@@ -214,6 +217,53 @@ class DeviceServiceTest {
             // Then
             assertThat(response.id()).isEqualTo(DEVICE_ID);
             then(apiKeyRepository).should(never()).save(any(ApiKey.class));
+        }
+
+        @Test
+        @DisplayName("shouldClearRevokedAt_whenDeviceReRegistered")
+        void shouldClearRevokedAt_whenDeviceReRegistered() {
+            // Given
+            Device device = ownedDevice();
+            device.setRevokedAt(Instant.now());
+            given(deviceRepository.findById(DEVICE_ID)).willReturn(Optional.of(device));
+            given(deviceRepository.save(any(Device.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            deviceService.registerDevice(USER_ID, null, request());
+
+            // Then
+            ArgumentCaptor<Device> deviceCaptor = ArgumentCaptor.forClass(Device.class);
+            then(deviceRepository).should().save(deviceCaptor.capture());
+            assertThat(deviceCaptor.getValue().getRevokedAt()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("revokeDevice")
+    class RevokeDeviceTests {
+
+        @Test
+        @DisplayName("shouldSetRevokedAt_whenDeviceRevoked")
+        void shouldSetRevokedAt_whenDeviceRevoked() {
+            // Given
+            Device device = ownedDevice();
+            given(deviceRepository.findByIdAndUserId(DEVICE_ID, USER_ID))
+                    .willReturn(Optional.of(device));
+            given(
+                            refreshTokenRepository.revokeDeviceTokens(
+                                    eq(USER_ID), eq(DEVICE_ID), any(Instant.class)))
+                    .willReturn(1);
+            given(deviceRepository.save(any(Device.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            deviceService.revokeDevice(USER_ID, DEVICE_ID);
+
+            // Then
+            ArgumentCaptor<Device> deviceCaptor = ArgumentCaptor.forClass(Device.class);
+            then(deviceRepository).should().save(deviceCaptor.capture());
+            assertThat(deviceCaptor.getValue().getRevokedAt()).isNotNull();
         }
     }
 }

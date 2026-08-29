@@ -281,6 +281,19 @@ class SyncPushServiceTest {
         }
 
         @Test
+        @DisplayName("should throw NotFoundException when device is revoked")
+        void shouldThrowNotFoundException_whenDeviceRevoked() {
+            Device revoked = new Device();
+            revoked.setRevokedAt(Instant.now());
+            when(deviceRepository.findByIdAndUserId(deviceId, userId))
+                    .thenReturn(Optional.of(revoked));
+
+            assertThatThrownBy(() -> service.push(userId, deviceId, List.of()))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COMMON_002);
+        }
+
+        @Test
         @DisplayName("should throw NotFoundException when device is not owned by user")
         void shouldThrowNotFoundException_whenDeviceNotOwned() {
             when(deviceRepository.findByIdAndUserId(deviceId, userId)).thenReturn(Optional.empty());
