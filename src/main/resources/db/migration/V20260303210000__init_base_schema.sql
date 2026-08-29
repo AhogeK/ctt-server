@@ -447,6 +447,8 @@ CREATE TABLE audit_logs
                                  'REFRESH_TOKEN',
                                  'API_KEY',
                                  'MAIL_OUTBOX',
+                                 'CODING_SESSION',
+                                 'DEVICE',
                                  'UNKNOWN',
                                  'OAUTH_ACCOUNT'
             ))
@@ -463,7 +465,7 @@ COMMENT ON COLUMN audit_logs.ip_address IS 'Client IP address (IPv4/IPv6)';
 COMMENT ON COLUMN audit_logs.user_agent IS 'Client user agent';
 COMMENT ON COLUMN audit_logs.trace_id IS 'W3C Trace Context trace-id (32 lowercase hex chars) for distributed tracing correlation';
 COMMENT ON COLUMN audit_logs.created_at IS 'Timestamp when the action occurred';
-COMMENT ON CONSTRAINT chk_audit_resource_type ON audit_logs IS 'Validates audit log resource types - includes MAIL_OUTBOX and OAUTH_ACCOUNT';
+COMMENT ON CONSTRAINT chk_audit_resource_type ON audit_logs IS 'Validates audit log resource types - must match ResourceType enum';
 COMMENT ON CONSTRAINT audit_logs_user_id_fkey ON audit_logs IS 'Optional reference to user who triggered the action (null for system events)';
 
 CREATE INDEX idx_audit_logs_user_id
