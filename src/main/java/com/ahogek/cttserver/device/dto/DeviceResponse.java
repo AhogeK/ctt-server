@@ -30,7 +30,12 @@ public record DeviceResponse(
         @Schema(description = "Device registration timestamp", example = "2026-03-01T10:00:00Z")
                 Instant createdAt,
         @Schema(description = "Last activity timestamp", example = "2026-04-28T15:30:00Z")
-                Instant lastSeenAt) {
+                Instant lastSeenAt,
+        @Schema(
+                        description = "Revocation timestamp; null when the device is active",
+                        example = "2026-08-29T12:00:00Z",
+                        nullable = true)
+                Instant revokedAt) {
 
     /**
      * Creates a DeviceResponse from a Device entity.
@@ -47,6 +52,7 @@ public record DeviceResponse(
                 device.getIdeVersion(),
                 device.getAppVersion(),
                 device.getCreatedAt(),
-                device.getLastSeenAt());
+                device.getLastSeenAt(),
+                device.getRevokedAt());
     }
 }

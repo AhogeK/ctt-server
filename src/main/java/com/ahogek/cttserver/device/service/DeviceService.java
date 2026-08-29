@@ -98,6 +98,7 @@ public class DeviceService {
         device.setAppVersion(request.appVersion());
         device.setLastIp(RequestContext.current().map(RequestInfo::clientIp).orElse(null));
         device.setLastSeenAt(Instant.now());
+        device.setRevokedAt(null);
         deviceRepository.save(device);
 
         if (keyId != null) {
@@ -142,15 +143,19 @@ public class DeviceService {
      */
     @Transactional
     public void revokeDevice(UUID userId, UUID deviceId) {
-        deviceRepository
-                .findByIdAndUserId(deviceId, userId)
-                .orElseThrow(
-                        () ->
-                                new NotFoundException(
-                                        ErrorCode.COMMON_002, "Device not found or access denied"));
+        Device device =
+                deviceRepository
+                        .findByIdAndUserId(deviceId, userId)
+                        .orElseThrow(
+                                () ->
+                                        new NotFoundException(
+                                                ErrorCode.COMMON_002,
+                                                "Device not found or access denied"));
 
         int revokedCount =
                 refreshTokenRepository.revokeDeviceTokens(userId, deviceId, Instant.now());
+        device.setRevokedAt(Instant.now());
+        deviceRepository.save(device);
 
         log.info("User {} revoked device {} ({} tokens revoked)", userId, deviceId, revokedCount);
     }
