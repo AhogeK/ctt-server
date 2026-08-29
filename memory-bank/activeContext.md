@@ -1,4 +1,15 @@
 # Active Context
+- [2026-08-29] - 设备吊销状态后端暴露（ctt-web 需求，v0.50.0）
+    - 需求: Web 前端吊销设备后列表无任何状态变化（无 revokedAt/status 字段），用户无法感知吊销已生效；方案 A（DeviceResponse 加 revokedAt）
+    - 实施: devices 表加 revoked_at 列（回填 init 迁移）+ Device 实体 revokedAt + revokeDevice 写吊销时间（撤销 refresh token 处）+ registerDevice upsert 清除（重新活跃）+ DeviceResponse 带出（@Schema nullable）
+    - 决策: 采方案 A（revokedAt 原始事实）非方案 B（status 枚举——设备无 expiresAt，status 仅 ACTIVE/REVOKED 两态，派生多余）；设备不做物理 delete 端点（与 API Key 的 revoke→delete 不同——设备被 coding_sessions/session_changes/sync_cursors/api_keys 引用，物理删除牵连引用且价值低，吊销+状态可见已满足）
+    - 测试: DeviceServiceTest 补 shouldSetRevokedAt_whenDeviceRevoked + shouldClearRevokedAt_whenDeviceReRegistered + 更新断言；DeviceRegistrationIntegrationTest 补 shouldExposeRevokedAt_afterRevocation（E2E 吊销后 GET 可见）；MockMvc stub 适配 9 字段
+    - 文档: README（revokedAt 语义）+ sync 文档响应示例
+    - 插件端联调反馈（Device Revoke 是否切断同步）: 核实插件端推断全部正确——sync 层不查 revoked_at、revoke 不吊销 key → revoke 后 pull/push 仍成功
+    - 补充实施: SyncPullService/SyncPushService 校验 findByIdAndUserId 后检查 getRevokedAt() != null → 抛 404 COMMON_002（revoke 真正切断同步；零新错误码，插件端已有 DEVICE_NOT_FOUND 映射）；不自动吊销 key（key 是用户资产，被拒后插件重新注册 POST /devices 清除 revoked_at 恢复同步）；SyncPullServiceTest/SyncPushServiceTest 补 revoked 用例 + README/sync 文档补 revoke 切断语义
+    - 验证: 全量 1192 tests + jacoco + spotless + LSP 全绿（一次 Testcontainers Redis 临时故障重跑后通过）
+    - 版本: 0.49.1 → 0.50.0（MINOR 新字段+行为）
+    - 状态: ✅ 实施+验证完成，待提交
 - [2026-08-29] - 依赖更新（dependencyUpdates 流程，v0.49.1）
     - 策略（用户决策）: 依赖（含主版本）优先直接升级，唯一例外 Java/Kotlin 大版本跳跃需确认；编译/测试失败才回滚
     - 升级: spotless 8.10.0→8.10.1、flyway 13.3.0→13.4.0、jacoco 0.8.14→0.8.15（build.gradle.kts toolVersion）、Gradle wrapper 9.7.0→9.7.1（wrapper 任务）
