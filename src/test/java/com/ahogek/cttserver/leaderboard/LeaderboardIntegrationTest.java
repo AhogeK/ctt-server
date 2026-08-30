@@ -3,7 +3,6 @@ package com.ahogek.cttserver.leaderboard;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
-import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +18,8 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -203,8 +204,7 @@ class LeaderboardIntegrationTest {
     }
 
     private void updateScore(UUID userId) {
-        leaderboardService.updateUserScore(userId, LeaderboardDimension.TOTAL);
-        leaderboardService.updateUserScore(userId, LeaderboardDimension.STREAK);
+        leaderboardService.updateUserScores(userId);
     }
 
     @Nested
@@ -326,8 +326,7 @@ class LeaderboardIntegrationTest {
                                             "p" + idx);
                                     ready.countDown();
                                     go.await();
-                                    leaderboardService.updateUserScore(
-                                            user.id(), LeaderboardDimension.TOTAL);
+                                    leaderboardService.updateUserScores(user.id());
                                 } catch (Exception e) {
                                     throw new RuntimeException(e);
                                 }
@@ -409,6 +408,138 @@ class LeaderboardIntegrationTest {
             assertThat(result).bodyJson().extractingPath("$.data.entries[0].score").isEqualTo(3600);
             assertThat(result).bodyJson().extractingPath("$.data.currentUserRank").isEqualTo(1);
         }
+
+        @Test
+        @DisplayName("Should rank by the current week period")
+        void shouldRankByWeekPeriod_whenSessionsInCurrentWeek() throws Exception {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            String thisWeek = today.toString();
+            String lastWeek = today.minusWeeks(1).toString();
+
+            RegisteredUser alice = registerAndLogin(uniqueEmail());
+            RegisteredUser bob = registerAndLogin(uniqueEmail());
+            // alice: 1h this week + 2h last week; bob: 3h this week
+            insertSession(
+                    alice.id(), thisWeek + "T10:00:00Z", thisWeek + "T11:00:00Z", "ctt-server");
+            insertSession(
+                    alice.id(), lastWeek + "T10:00:00Z", lastWeek + "T12:00:00Z", "ctt-server");
+            insertSession(bob.id(), thisWeek + "T14:00:00Z", thisWeek + "T17:00:00Z", "ctt-web");
+            updateScore(alice.id());
+            updateScore(bob.id());
+
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            var result =
+                    mvc.get()
+                            .uri(
+                                    "/api/v1/leaderboard?dimension=TOTAL&period=WEEK&limit=10&offset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[0].userId")
+                    .isEqualTo(bob.id().toString());
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[0].score")
+                    .isEqualTo(10800);
+            assertThat(result).bodyJson().extractingPath("$.data.entries[1].score").isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("Should rank by the night-owl window")
+        void shouldRankByNightOwl_whenSessionsInWindow() throws Exception {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            RegisteredUser nightOwl = registerAndLogin(uniqueEmail());
+            // 23:00-24:00 is inside the 22:00-05:00 window
+            insertSession(
+                    nightOwl.id(),
+                    today + "T23:00:00Z",
+                    today.plusDays(1) + "T00:00:00Z",
+                    "ctt-server");
+            updateScore(nightOwl.id());
+
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/leaderboard?dimension=NIGHT_OWL&limit=10&offset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result).bodyJson().extractingPath("$.data.entries[0].score").isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("Should rank by the early-bird window")
+        void shouldRankByEarlyBird_whenSessionsInWindow() throws Exception {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            RegisteredUser earlyBird = registerAndLogin(uniqueEmail());
+            // 07:00-08:00 is inside the 06:00-09:00 window
+            insertSession(earlyBird.id(), today + "T07:00:00Z", today + "T08:00:00Z", "ctt-server");
+            updateScore(earlyBird.id());
+
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/leaderboard?dimension=EARLY_BIRD&limit=10&offset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result).bodyJson().extractingPath("$.data.entries[0].score").isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("Should rank by week-over-week growth")
+        void shouldRankByGrowth_whenWeekOverWeekDiffers() throws Exception {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            String thisWeek = today.toString();
+            String lastWeek = today.minusWeeks(1).toString();
+
+            RegisteredUser growing = registerAndLogin(uniqueEmail());
+            RegisteredUser shrinking = registerAndLogin(uniqueEmail());
+            // growing: +1h this week (2h this week vs 1h last week)
+            insertSession(
+                    growing.id(), thisWeek + "T10:00:00Z", thisWeek + "T12:00:00Z", "ctt-server");
+            insertSession(
+                    growing.id(), lastWeek + "T10:00:00Z", lastWeek + "T11:00:00Z", "ctt-server");
+            // shrinking: -2h this week (1h this week vs 3h last week)
+            insertSession(
+                    shrinking.id(), thisWeek + "T10:00:00Z", thisWeek + "T11:00:00Z", "ctt-web");
+            insertSession(
+                    shrinking.id(), lastWeek + "T10:00:00Z", lastWeek + "T13:00:00Z", "ctt-web");
+            updateScore(growing.id());
+            updateScore(shrinking.id());
+
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/leaderboard?dimension=GROWTH&limit=10&offset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            // growing +3600s, shrinking -7200s
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[0].userId")
+                    .isEqualTo(growing.id().toString());
+            assertThat(result).bodyJson().extractingPath("$.data.entries[0].score").isEqualTo(3600);
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[1].score")
+                    .isEqualTo(-7200);
+        }
     }
 
     @Nested
@@ -431,6 +562,26 @@ class LeaderboardIntegrationTest {
             assertThat(
                             mvc.get()
                                     .uri("/api/v1/leaderboard?dimension=BOGUS")
+                                    .header("Authorization", "Bearer " + readKey)
+                                    .exchange())
+                    .hasStatus(400);
+        }
+
+        @Test
+        @DisplayName("Should return 400 for an unsupported dimension/period combination")
+        void shouldReturn400_whenPeriodUnsupported() throws Exception {
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            assertThat(
+                            mvc.get()
+                                    .uri("/api/v1/leaderboard?dimension=STREAK&period=WEEK")
+                                    .header("Authorization", "Bearer " + readKey)
+                                    .exchange())
+                    .hasStatus(400);
+            assertThat(
+                            mvc.get()
+                                    .uri("/api/v1/leaderboard?dimension=GROWTH&period=ALL")
                                     .header("Authorization", "Bearer " + readKey)
                                     .exchange())
                     .hasStatus(400);

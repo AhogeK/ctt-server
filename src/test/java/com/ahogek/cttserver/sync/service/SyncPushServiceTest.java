@@ -7,7 +7,6 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
-import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
@@ -176,8 +175,7 @@ class SyncPushServiceTest {
                             AuditAction.SYNC_PUSH,
                             ResourceType.CODING_SESSION,
                             deviceId.toString());
-            verify(leaderboardService).updateUserScore(userId, LeaderboardDimension.TOTAL);
-            verify(leaderboardService).updateUserScore(userId, LeaderboardDimension.STREAK);
+            verify(leaderboardService).updateUserScores(userId);
         }
 
         @Test
