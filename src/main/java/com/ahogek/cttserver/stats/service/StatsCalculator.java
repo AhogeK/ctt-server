@@ -346,6 +346,60 @@ public final class StatsCalculator {
     }
 
     /**
+     * Computes the total merged duration inside a daily recurring window over a period.
+     *
+     * <p>The window is expressed in hours of day and may cross midnight (e.g. a night-owl window
+     * 22:00 to 05:00). Intervals are merged first so overlapping sessions are not double counted,
+     * then clipped to the period and intersected with each covered day's window.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param windowStartHour first hour of the window (inclusive, 0-23)
+     * @param windowEndHour hour just after the window ends (exclusive, 0-23; may be before {@code
+     *     windowStartHour} to cross midnight)
+     * @param periodStart period start (inclusive)
+     * @param periodEnd period end (exclusive)
+     * @return merged seconds inside the daily window within the period
+     */
+    public static long mergedDurationInDailyWindow(
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            int windowStartHour,
+            int windowEndHour,
+            OffsetDateTime periodStart,
+            OffsetDateTime periodEnd) {
+        List<TimeInterval> intervals =
+                mergeOverlapping(clipTo(toIntervals(sessions, zone), periodStart, periodEnd));
+        long totalSeconds = 0;
+        int windowHours = windowEndHour - windowStartHour;
+        if (windowHours <= 0) {
+            windowHours += 24;
+        }
+        for (TimeInterval interval : intervals) {
+            // A window day starts at the window's start hour, so an interval beginning before that
+            // hour (e.g. 01:00 under a 22:00-05:00 window) belongs to the previous day's window.
+            LocalDate firstWindowDay = interval.start().toLocalDate();
+            if (interval.start().getHour() < windowStartHour) {
+                firstWindowDay = firstWindowDay.minusDays(1);
+            }
+            for (LocalDate day = firstWindowDay; ; day = day.plusDays(1)) {
+                OffsetDateTime dayStart = day.atStartOfDay().atOffset(zone);
+                OffsetDateTime windowStart = dayStart.plusHours(windowStartHour);
+                OffsetDateTime windowEnd = windowStart.plusHours(windowHours);
+                OffsetDateTime overlapStart = max(interval.start(), windowStart);
+                OffsetDateTime overlapEnd = min(interval.end(), windowEnd);
+                if (overlapStart.isBefore(overlapEnd)) {
+                    totalSeconds += Duration.between(overlapStart, overlapEnd).toSeconds();
+                }
+                if (!windowEnd.isBefore(interval.end())) {
+                    break;
+                }
+            }
+        }
+        return totalSeconds;
+    }
+
+    /**
      * Splits a single interval across day boundaries, merging into the per-day map.
      *
      * @param interval the interval

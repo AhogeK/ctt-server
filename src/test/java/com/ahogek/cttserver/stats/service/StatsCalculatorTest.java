@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
@@ -35,6 +36,10 @@ class StatsCalculatorTest {
 
     private static Instant at(String dateTime) {
         return Instant.parse(dateTime + "Z");
+    }
+
+    private static OffsetDateTime odt(String dateTime) {
+        return Instant.parse(dateTime + "Z").atOffset(UTC);
     }
 
     @Nested
@@ -327,6 +332,158 @@ class StatsCalculatorTest {
             assertThat(points.get(9).averageSeconds()).isEqualTo(1800);
             assertThat(points.get(9).activeDays()).isEqualTo(2);
             assertThat(points.get(10).averageSeconds()).isEqualTo(900);
+        }
+    }
+
+    @Nested
+    @DisplayName("dailyWindow")
+    class DailyWindowTests {
+
+        @Test
+        @DisplayName("shouldIntersectWindow_whenSessionInsideWindow")
+        void shouldCountWindowDuration_whenSessionInsideWindow() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T07:00:00"),
+                                    at("2026-08-30T08:00:00"),
+                                    "a",
+                                    "Java"));
+
+            long seconds =
+                    StatsCalculator.mergedDurationInDailyWindow(
+                            sessions,
+                            UTC,
+                            6,
+                            9,
+                            odt("2026-08-30T00:00:00"),
+                            odt("2026-08-31T00:00:00"));
+
+            assertThat(seconds).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("shouldClipWindow_whenSessionPartiallyInside")
+        void shouldClipWindow_whenSessionPartiallyInside() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T08:00:00"),
+                                    at("2026-08-30T10:00:00"),
+                                    "a",
+                                    "Java"));
+
+            long seconds =
+                    StatsCalculator.mergedDurationInDailyWindow(
+                            sessions,
+                            UTC,
+                            6,
+                            9,
+                            odt("2026-08-30T00:00:00"),
+                            odt("2026-08-31T00:00:00"));
+
+            // only 08:00-09:00 falls inside the 06:00-09:00 window
+            assertThat(seconds).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("shouldMergeOverlaps_whenSessionsOverlapInsideWindow")
+        void shouldMergeOverlaps_whenSessionsOverlapInsideWindow() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T07:00:00"),
+                                    at("2026-08-30T09:30:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T08:00:00"),
+                                    at("2026-08-30T09:00:00"),
+                                    "b",
+                                    "Kotlin"));
+
+            long seconds =
+                    StatsCalculator.mergedDurationInDailyWindow(
+                            sessions,
+                            UTC,
+                            6,
+                            9,
+                            odt("2026-08-30T00:00:00"),
+                            odt("2026-08-31T00:00:00"));
+
+            // merged 07:00-09:30 clipped to 09:00 = 2h, overlap not double counted
+            assertThat(seconds).isEqualTo(7200);
+        }
+
+        @Test
+        @DisplayName("shouldAttributeEarlyMorning_whenSessionStartsBeforeWindowHour")
+        void shouldAttributeEarlyMorning_whenSessionStartsBeforeWindowHour() {
+            // 01:00-03:00 belongs to the previous day's 22:00-05:00 window, not the current day's
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T01:00:00"),
+                                    at("2026-08-30T03:00:00"),
+                                    "a",
+                                    "Java"));
+
+            long seconds =
+                    StatsCalculator.mergedDurationInDailyWindow(
+                            sessions,
+                            UTC,
+                            22,
+                            5,
+                            odt("2026-08-30T00:00:00"),
+                            odt("2026-08-31T00:00:00"));
+
+            assertThat(seconds).isEqualTo(7200);
+        }
+
+        @DisplayName("shouldCountAcrossDays_whenSessionCrossesMidnight")
+        void shouldCountAcrossDays_whenSessionCrossesMidnight() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T23:00:00"),
+                                    at("2026-08-31T04:00:00"),
+                                    "a",
+                                    "Java"));
+
+            // 08-30 window: 23:00-05:00 -> 1h (23:00-24:00)
+            // 08-31 window: 22:00-05:00 -> 4h (00:00-04:00)
+            long seconds =
+                    StatsCalculator.mergedDurationInDailyWindow(
+                            sessions,
+                            UTC,
+                            22,
+                            5,
+                            odt("2026-08-30T00:00:00"),
+                            odt("2026-08-31T00:00:00"));
+
+            assertThat(seconds).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("shouldIgnoreWindow_whenSessionOutsidePeriod")
+        void shouldIgnoreWindow_whenSessionOutsidePeriod() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-31T07:00:00"),
+                                    at("2026-08-31T08:00:00"),
+                                    "a",
+                                    "Java"));
+
+            long seconds =
+                    StatsCalculator.mergedDurationInDailyWindow(
+                            sessions,
+                            UTC,
+                            6,
+                            9,
+                            odt("2026-08-30T00:00:00"),
+                            odt("2026-08-31T00:00:00"));
+
+            assertThat(seconds).isZero();
         }
     }
 }
