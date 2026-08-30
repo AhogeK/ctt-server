@@ -32,6 +32,19 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          # Merge JDBC INSERT/UPDATE statements into batches (sync push hot path).
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+  datasource:
+    hikari:
+      data-source-properties:
+        # Rewrite JDBC executeBatch into multi-row INSERT ... VALUES (...), (...) on PostgreSQL,
+        # so the batched statements become a handful of real INSERT statements.
+        reWriteBatchedInserts: true
 
   flyway:
     enabled: true
