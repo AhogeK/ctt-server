@@ -82,7 +82,8 @@ class SyncPushBatchIntegrationTest {
         static BeanPostProcessor countingDataSourcePostProcessor() {
             return new BeanPostProcessor() {
                 @Override
-                public Object postProcessAfterInitialization(@NonNull Object bean, @NonNull String beanName) {
+                public Object postProcessAfterInitialization(
+                        @NonNull Object bean, @NonNull String beanName) {
                     if (bean instanceof DataSource delegate
                             && !bean.getClass().getName().contains("Counting")) {
                         return countingProxy(delegate);

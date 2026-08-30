@@ -189,19 +189,47 @@ class SyncIntegrationTest {
 
     private String sessionJson(
             String sessionUuid, int clientVersion, String clientModifiedAt, boolean deleted) {
+        return sessionJson(
+                sessionUuid,
+                "ctt-server",
+                "Java",
+                "2026-08-25T09:00:00Z",
+                "2026-08-25T10:00:00Z",
+                clientVersion,
+                clientModifiedAt,
+                deleted);
+    }
+
+    private String sessionJson(
+            String sessionUuid,
+            String projectName,
+            String language,
+            String startTime,
+            String endTime,
+            int clientVersion,
+            String clientModifiedAt,
+            boolean deleted) {
         return """
                 {
                   "sessionUuid": "%s",
-                  "projectName": "ctt-server",
-                  "language": "Java",
-                  "startTime": "2026-08-25T09:00:00Z",
-                  "endTime": "2026-08-25T10:00:00Z",
+                  "projectName": "%s",
+                  "language": "%s",
+                  "startTime": "%s",
+                  "endTime": "%s",
                   "clientModifiedAt": "%s",
                   "clientVersion": %d,
                   "deleted": %s
                 }
                 """
-                .formatted(sessionUuid, clientModifiedAt, clientVersion, deleted);
+                .formatted(
+                        sessionUuid,
+                        projectName,
+                        language,
+                        startTime,
+                        endTime,
+                        clientModifiedAt,
+                        clientVersion,
+                        deleted);
     }
 
     private JsonNode pull(String authHeader, UUID deviceId, long cursor) throws Exception {
@@ -321,6 +349,10 @@ class SyncIntegrationTest {
                                                     deviceId,
                                                     sessionJson(
                                                             sessionUuid,
+                                                            "ctt-server",
+                                                            "Kotlin",
+                                                            "2026-08-25T09:00:00Z",
+                                                            "2026-08-25T10:00:00Z",
                                                             2,
                                                             "2026-08-25T10:00:00Z",
                                                             false)))

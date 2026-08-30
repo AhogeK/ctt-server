@@ -6,8 +6,12 @@ import com.ahogek.cttserver.sync.service.ConflictResolver.Decision;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.time.Instant;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,11 +22,35 @@ class ConflictResolverTest {
 
     private static CodingSession session(
             boolean deleted, long serverVersion, int clientVersion, Instant clientModifiedAt) {
+        return sessionWithContent(
+                deleted,
+                serverVersion,
+                clientVersion,
+                clientModifiedAt,
+                "ctt-server",
+                "Java",
+                NOW,
+                NOW.plusSeconds(3600));
+    }
+
+    private static CodingSession sessionWithContent(
+            boolean deleted,
+            long serverVersion,
+            int clientVersion,
+            Instant clientModifiedAt,
+            String projectName,
+            String language,
+            Instant startTime,
+            Instant endTime) {
         CodingSession session = new CodingSession();
         session.setDeleted(deleted);
         session.setServerVersion(serverVersion);
         session.setClientVersion(clientVersion);
         session.setClientModifiedAt(clientModifiedAt);
+        session.setProjectName(projectName);
+        session.setLanguage(language);
+        session.setStartTime(startTime);
+        session.setEndTime(endTime);
         return session;
     }
 
@@ -41,26 +69,46 @@ class ConflictResolverTest {
             assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
         }
 
-        @Test
-        @DisplayName("shouldApplyIncoming_whenIncomingServerVersionHigher")
-        void shouldApplyIncoming_whenIncomingServerVersionHigher() {
-            CodingSession existing = session(false, 4, 9, NOW.plusSeconds(60));
-            CodingSession incoming = session(false, 5, 3, NOW);
+        @ParameterizedTest
+        @MethodSource("incomingWinsScenarios")
+        @DisplayName("shouldApplyIncoming_whenIncomingWinsLww")
+        void shouldApplyIncoming_whenIncomingWins(
+                long existingServerVersion,
+                int existingClientVersion,
+                Instant existingModifiedAt,
+                long incomingServerVersion,
+                int incomingClientVersion,
+                Instant incomingModifiedAt) {
+            CodingSession existing =
+                    session(
+                            false,
+                            existingServerVersion,
+                            existingClientVersion,
+                            existingModifiedAt);
+            CodingSession incoming =
+                    sessionWithContent(
+                            false,
+                            incomingServerVersion,
+                            incomingClientVersion,
+                            incomingModifiedAt,
+                            "other",
+                            "Kotlin",
+                            NOW,
+                            NOW.plusSeconds(3600));
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
             assertThat(decision).isEqualTo(Decision.APPLY_INCOMING);
         }
 
-        @Test
-        @DisplayName("shouldApplyIncoming_whenServerVersionsEqual_andClientVersionHigher")
-        void shouldApplyIncoming_whenServerVersionsEqual_andClientVersionHigher() {
-            CodingSession existing = session(false, 5, 3, NOW);
-            CodingSession incoming = session(false, 5, 4, NOW.plusSeconds(60));
-
-            Decision decision = ConflictResolver.resolve(existing, incoming);
-
-            assertThat(decision).isEqualTo(Decision.APPLY_INCOMING);
+        private static Stream<Arguments> incomingWinsScenarios() {
+            return Stream.of(
+                    // incoming server version higher
+                    Arguments.of(4L, 9, NOW.plusSeconds(60), 5L, 3, NOW),
+                    // client version higher, server versions equal
+                    Arguments.of(5L, 3, NOW, 5L, 4, NOW.plusSeconds(60)),
+                    // client modified-at later, versions equal
+                    Arguments.of(5L, 3, NOW, 5L, 3, NOW.plusSeconds(60)));
         }
 
         @Test
@@ -72,17 +120,6 @@ class ConflictResolverTest {
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
             assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
-        }
-
-        @Test
-        @DisplayName("shouldApplyIncoming_whenVersionsEqual_andClientModifiedAtLater")
-        void shouldApplyIncoming_whenVersionsEqual_andClientModifiedAtLater() {
-            CodingSession existing = session(false, 5, 3, NOW);
-            CodingSession incoming = session(false, 5, 3, NOW.plusSeconds(60));
-
-            Decision decision = ConflictResolver.resolve(existing, incoming);
-
-            assertThat(decision).isEqualTo(Decision.APPLY_INCOMING);
         }
 
         @Test
@@ -100,7 +137,16 @@ class ConflictResolverTest {
         @DisplayName("shouldCompareClientVersion_whenIncomingHasNoServerVersion_freshSubmission")
         void shouldCompareClientVersion_whenIncomingHasNoServerVersion_freshSubmission() {
             CodingSession existing = session(false, 5, 3, NOW);
-            CodingSession incoming = session(false, 0, 4, NOW.plusSeconds(60));
+            CodingSession incoming =
+                    sessionWithContent(
+                            false,
+                            0,
+                            4,
+                            NOW.plusSeconds(60),
+                            "other",
+                            "Kotlin",
+                            NOW,
+                            NOW.plusSeconds(3600));
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
@@ -139,6 +185,44 @@ class ConflictResolverTest {
         void shouldKeepExisting_whenDeletedStatesIdentical() {
             CodingSession existing = session(true, 5, 3, NOW);
             CodingSession incoming = session(true, 5, 3, NOW);
+
+            Decision decision = ConflictResolver.resolve(existing, incoming);
+
+            assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
+        }
+    }
+
+    @Nested
+    @DisplayName("content identity")
+    class ContentIdentityTests {
+
+        @Test
+        @DisplayName("shouldKeepExisting_whenContentSame_butClientModifiedAtLater")
+        void shouldKeepExisting_whenContentSame_butClientModifiedAtLater() {
+            CodingSession existing = session(false, 5, 3, NOW);
+            CodingSession incoming = session(false, 5, 3, NOW.plusSeconds(60));
+
+            Decision decision = ConflictResolver.resolve(existing, incoming);
+
+            assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
+        }
+
+        @Test
+        @DisplayName("shouldKeepExisting_whenContentSame_butClientVersionHigher")
+        void shouldKeepExisting_whenContentSame_butClientVersionHigher() {
+            CodingSession existing = session(false, 5, 3, NOW);
+            CodingSession incoming = session(false, 5, 4, NOW.plusSeconds(60));
+
+            Decision decision = ConflictResolver.resolve(existing, incoming);
+
+            assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
+        }
+
+        @Test
+        @DisplayName("shouldKeepExisting_whenContentSame_butServerVersionHigher")
+        void shouldKeepExisting_whenContentSame_butServerVersionHigher() {
+            CodingSession existing = session(false, 4, 9, NOW.plusSeconds(60));
+            CodingSession incoming = session(false, 5, 3, NOW);
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
