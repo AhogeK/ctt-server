@@ -27,7 +27,14 @@ import com.ahogek.cttserver.sync.enums.ChangeOp;
  *       clientModifiedAt} wins.
  * </ol>
  *
- * <p>Two states that are identical on every compared field resolve to {@link
+ * <p><b>Content identity</b> — before the version rules run, two live states whose business fields
+ * ({@code projectName}, {@code language}, {@code startTime}, {@code endTime}) are identical resolve
+ * to {@link Decision#KEEP_EXISTING}. This makes a re-push of unchanged content an idempotent no-op
+ * even when the version/modified-at metadata drifted (e.g. plugin full re-push with timezone or
+ * clock precision), mirroring the plugin's INSERT OR IGNORE import. Deleted states are exempt so
+ * delete-version competition keeps its semantics.
+ *
+ * <p>Two states that are identical on every compared field also resolve to {@link
  * Decision#KEEP_EXISTING} so that re-submitting unchanged state is an idempotent no-op.
  *
  * @author AhogeK [ahogek@gmail.com]
@@ -49,6 +56,14 @@ public final class ConflictResolver {
     public static Decision resolve(CodingSession existing, CodingSession incoming) {
         if (existing.isDeleted() != incoming.isDeleted()) {
             return existing.isDeleted() ? Decision.KEEP_EXISTING : Decision.APPLY_DELETE;
+        }
+
+        // Content-identical live states are idempotent re-submissions: no business change to
+        // apply, so keep the server row and emit no change-log entry even if the metadata
+        // (clientVersion / clientModifiedAt) drifted. Deleted states skip this so delete-version
+        // competition is unaffected.
+        if (!existing.isDeleted() && sameContent(existing, incoming)) {
+            return Decision.KEEP_EXISTING;
         }
 
         boolean existingHasServerVersion = existing.getServerVersion() > 0;
@@ -75,6 +90,13 @@ public final class ConflictResolver {
 
         // Identical states: keep the server row so a re-submission is an idempotent no-op.
         return Decision.KEEP_EXISTING;
+    }
+
+    private static boolean sameContent(CodingSession existing, CodingSession incoming) {
+        return existing.getProjectName().equals(incoming.getProjectName())
+                && existing.getLanguage().equals(incoming.getLanguage())
+                && existing.getStartTime().equals(incoming.getStartTime())
+                && existing.getEndTime().equals(incoming.getEndTime());
     }
 
     private static Decision decisionFor(CodingSession incoming) {
