@@ -24,6 +24,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -263,15 +264,7 @@ public final class GlobalExceptionHandler {
         }
 
         ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
-
-        HttpHeaders headers = new HttpHeaders();
-        if (ex.retryAfter() != null) {
-            long seconds =
-                    Math.max(0, Duration.between(Instant.now(), ex.retryAfter()).getSeconds());
-            headers.add(HttpHeaders.RETRY_AFTER, String.valueOf(seconds));
-        }
-
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).headers(headers).body(response);
+        return buildRetryAfterResponse(response, HttpStatus.FORBIDDEN, ex.retryAfter());
     }
 
     /**
@@ -313,15 +306,26 @@ public final class GlobalExceptionHandler {
         logger.log("Rate limit exceeded: {}", ex.getMessage());
 
         ErrorResponse response = ex.toErrorResponse().withTraceId(traceId);
+        return buildRetryAfterResponse(response, ex.errorCode().httpStatus(), ex.retryAfter());
+    }
 
-        HttpHeaders headers = new HttpHeaders();
-        if (ex.retryAfter() != null) {
-            long seconds =
-                    Math.max(0, Duration.between(Instant.now(), ex.retryAfter()).getSeconds());
-            headers.add(HttpHeaders.RETRY_AFTER, String.valueOf(seconds));
+    /**
+     * Builds a response with an optional {@code Retry-After} header (RFC 7231 delta-seconds).
+     *
+     * @param response the error response body
+     * @param status the HTTP status
+     * @param retryAfter the retry instant, or null to omit the header
+     * @return the response, with the header applied when {@code retryAfter} is present
+     */
+    private ResponseEntity<ErrorResponse> buildRetryAfterResponse(
+            ErrorResponse response, HttpStatus status, Instant retryAfter) {
+        if (retryAfter == null) {
+            return ResponseEntity.status(status).body(response);
         }
-
-        return ResponseEntity.status(ex.errorCode().httpStatus()).headers(headers).body(response);
+        HttpHeaders headers = new HttpHeaders();
+        long seconds = Math.max(0, Duration.between(Instant.now(), retryAfter).getSeconds());
+        headers.add(HttpHeaders.RETRY_AFTER, String.valueOf(seconds));
+        return ResponseEntity.status(status).headers(headers).body(response);
     }
 
     /**
@@ -369,6 +373,24 @@ public final class GlobalExceptionHandler {
      *   <li>Context: Includes field-level error details
      * </ul>
      */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex) {
+        String traceId = currentTraceId();
+        log.atWarn()
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_003.name())
+                .addKeyValue(ERROR_TYPE_KEY, "TYPE_MISMATCH")
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .addKeyValue(PARAMETER_NAME_KEY, ex.getName())
+                .log("Request parameter type mismatch");
+        return ResponseEntity.badRequest()
+                .body(
+                        ErrorResponse.of(
+                                        ErrorCode.COMMON_003.name(), ErrorCode.COMMON_003.message())
+                                .withHttpStatus(ErrorCode.COMMON_003.httpStatus().value())
+                                .withTraceId(traceId));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(
             MethodArgumentNotValidException ex) {
