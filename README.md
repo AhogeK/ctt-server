@@ -435,6 +435,18 @@ merge overlapping sessions for summary/heatmap/streaks and accumulate raw durati
 distributions, matching the plugin StatisticsView semantics. All stats endpoints are
 rate-limited to 60 req/min (`RATE_LIMIT_001`).
 
+### Global Leaderboard
+
+| Endpoint | Method | Description | Required Scope |
+|----------|--------|-------------|----------------|
+| `/api/v1/leaderboard` | GET | Global ranking by total coding duration or longest consecutive streak, with the calling user's rank | READ |
+
+**Parameters**: `dimension` (`TOTAL` | `STREAK`), `limit` (default 20, max 100), `offset`
+(zero-based). Rankings are backed by Redis ZSets; a user's score is recomputed from the database
+after each successful push (overlap-merged total / longest streak, UTC), so the ranking reflects
+new sessions immediately without a full rebuild. Tied scores share the same rank. Endpoint is
+rate-limited to 60 req/min (`RATE_LIMIT_001`).
+
 ### Public Configuration
 
 | Endpoint                | Method | Description                                          |
