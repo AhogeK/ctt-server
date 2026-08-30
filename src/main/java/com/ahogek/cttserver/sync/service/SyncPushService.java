@@ -8,6 +8,8 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
+import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
+import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
 import com.ahogek.cttserver.sync.entity.CodingSession;
@@ -51,18 +53,21 @@ public class SyncPushService {
     private final DeviceRepository deviceRepository;
     private final AuditLogService auditLogService;
     private final JdbcTemplate jdbcTemplate;
+    private final LeaderboardService leaderboardService;
 
     public SyncPushService(
             CodingSessionRepository codingSessionRepository,
             SessionChangeRepository sessionChangeRepository,
             DeviceRepository deviceRepository,
             AuditLogService auditLogService,
-            JdbcTemplate jdbcTemplate) {
+            JdbcTemplate jdbcTemplate,
+            LeaderboardService leaderboardService) {
         this.codingSessionRepository = codingSessionRepository;
         this.sessionChangeRepository = sessionChangeRepository;
         this.deviceRepository = deviceRepository;
         this.auditLogService = auditLogService;
         this.jdbcTemplate = jdbcTemplate;
+        this.leaderboardService = leaderboardService;
     }
 
     /**
@@ -82,7 +87,9 @@ public class SyncPushService {
     @Transactional
     public SyncPushResponse push(UUID userId, UUID deviceId, List<SyncSessionDto> sessions) {
         try {
-            return doPush(userId, deviceId, sessions);
+            SyncPushResponse response = doPush(userId, deviceId, sessions);
+            updateLeaderboard(userId);
+            return response;
         } catch (Exception e) {
             auditLogService.logFailure(
                     userId,
@@ -191,6 +198,16 @@ public class SyncPushService {
                 pendingChanges.size());
 
         return new SyncPushResponse(nextCursor);
+    }
+
+    /**
+     * Recomputes the pushed user's leaderboard scores so the global ranking reflects the new
+     * sessions immediately. {@link LeaderboardService#updateUserScore} is failure-tolerant and the
+     * next push self-heals, so a transient Redis issue never rolls back the push.
+     */
+    private void updateLeaderboard(UUID userId) {
+        leaderboardService.updateUserScore(userId, LeaderboardDimension.TOTAL);
+        leaderboardService.updateUserScore(userId, LeaderboardDimension.STREAK);
     }
 
     /** A session mutation awaiting persistence together with its change-log entry. */
