@@ -5,6 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
@@ -46,18 +47,21 @@ public class RateLimitAspect {
     private final AuditLogService auditLog;
     private final CurrentUserProvider currentUserProvider;
     private final SpelExpressionResolver spelResolver;
+    private final SecurityProperties securityProperties;
 
     public RateLimitAspect(
             RateLimitKeyFactory keyFactory,
             RedisRateLimiter redisRateLimiter,
             AuditLogService auditLog,
             CurrentUserProvider currentUserProvider,
-            SpelExpressionResolver spelResolver) {
+            SpelExpressionResolver spelResolver,
+            SecurityProperties securityProperties) {
         this.keyFactory = keyFactory;
         this.redisRateLimiter = redisRateLimiter;
         this.auditLog = auditLog;
         this.currentUserProvider = currentUserProvider;
         this.spelResolver = spelResolver;
+        this.securityProperties = securityProperties;
     }
 
     /**
@@ -103,6 +107,11 @@ public class RateLimitAspect {
      * @throws TooManyRequestsException if rate limit exceeded
      */
     private void enforceRateLimit(ProceedingJoinPoint joinPoint, RateLimit rateLimit) {
+        if (!securityProperties.rateLimit().enabled()) {
+            // ctt.security.rate-limit.enabled=false disables every @RateLimit guard (tests,
+            // local development). Mirrors the documented behaviour of the top-level switch.
+            return;
+        }
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         String apiPath =
                 signature.getDeclaringType().getSimpleName()
