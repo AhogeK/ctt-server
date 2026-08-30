@@ -439,12 +439,19 @@ rate-limited to 60 req/min (`RATE_LIMIT_001`).
 
 | Endpoint | Method | Description | Required Scope |
 |----------|--------|-------------|----------------|
-| `/api/v1/leaderboard` | GET | Global ranking by total coding duration or longest consecutive streak, with the calling user's rank | READ |
+| `/api/v1/leaderboard` | GET | Global ranking by coding duration / streak / night-owl / early-bird / growth dimensions, over a lifetime or current period, with the calling user's rank | READ |
 
-**Parameters**: `dimension` (`TOTAL` | `STREAK`), `limit` (default 20, max 100), `offset`
-(zero-based). Rankings are backed by Redis ZSets; a user's score is recomputed from the database
-after each successful push (overlap-merged total / longest streak, UTC), so the ranking reflects
-new sessions immediately without a full rebuild. Tied scores share the same rank. Endpoint is
+**Parameters**: `dimension` (`TOTAL` | `STREAK` | `NIGHT_OWL` | `EARLY_BIRD` | `GROWTH`),
+`period` (`ALL` | `WEEK` | `MONTH` | `YEAR`, defaults to `ALL`, except `GROWTH` which defaults to
+`WEEK`), `limit` (default 20, max 100), `offset` (zero-based). Rankings are backed by Redis ZSets;
+a user's scores are recomputed from the database after each successful push, so the ranking
+reflects new sessions immediately without a full rebuild. Tied scores share the same rank. Period
+keys are bucketed by their period start (ISO Monday for weeks) and expire once the period closes
+(`ALL` never expires). Dimensions and their supported periods: `TOTAL` accepts
+`ALL`/`WEEK`/`MONTH`/`YEAR` (merged overlap-collapsed duration in seconds); `STREAK` accepts `ALL`
+(longest consecutive coding-day streak, UTC); `NIGHT_OWL` and `EARLY_BIRD` accept `ALL` (merged
+22:00-05:00 and 06:00-09:00 window durations, UTC); `GROWTH` accepts `WEEK` (week-over-week net
+growth seconds). An unsupported dimension/period combination returns 400 `COMMON_003`. Endpoint is
 rate-limited to 60 req/min (`RATE_LIMIT_001`).
 
 ### Public Configuration
