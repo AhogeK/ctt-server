@@ -8,7 +8,6 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
-import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
@@ -202,12 +201,11 @@ public class SyncPushService {
 
     /**
      * Recomputes the pushed user's leaderboard scores so the global ranking reflects the new
-     * sessions immediately. {@link LeaderboardService#updateUserScore} is failure-tolerant and the
+     * sessions immediately. {@link LeaderboardService#updateUserScores} is failure-tolerant and the
      * next push self-heals, so a transient Redis issue never rolls back the push.
      */
     private void updateLeaderboard(UUID userId) {
-        leaderboardService.updateUserScore(userId, LeaderboardDimension.TOTAL);
-        leaderboardService.updateUserScore(userId, LeaderboardDimension.STREAK);
+        leaderboardService.updateUserScores(userId);
     }
 
     /** A session mutation awaiting persistence together with its change-log entry. */

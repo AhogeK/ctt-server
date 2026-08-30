@@ -10,6 +10,7 @@ import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardResponse;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
+import com.ahogek.cttserver.leaderboard.enums.LeaderboardPeriod;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 
 import jakarta.validation.constraints.Max;
@@ -34,9 +35,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 /**
  * Global leaderboard endpoint.
  *
- * <p>Returns the global ranking for a dimension (total coding duration or longest consecutive
- * coding-day streak) backed by a Redis ZSet, together with the calling user's rank. Requires READ
- * scope on the API key so plugins can fetch rankings; JWT users bypass scope checks.
+ * <p>Returns the global ranking for a dimension (total coding duration, longest consecutive
+ * coding-day streak, night-owl / early-bird window duration or week-over-week growth) and time
+ * window (lifetime or current week / month / year) backed by a Redis ZSet, together with the
+ * calling user's rank. Requires READ scope on the API key so plugins can fetch rankings; JWT users
+ * bypass scope checks.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-08-31
@@ -85,6 +88,18 @@ public class LeaderboardController {
             }
             """;
 
+    private static final String INVALID_COMBINATION_EXAMPLE =
+            """
+            {
+              "code": "COMMON_003",
+              "message": "Validation error",
+              "details": [],
+              "traceId": "abc-123",
+              "httpStatus": 400,
+              "timestamp": "2026-08-31T10:00:00Z"
+            }
+            """;
+
     private final LeaderboardService leaderboardService;
     private final CurrentUserProvider currentUserProvider;
 
@@ -97,8 +112,15 @@ public class LeaderboardController {
     @Operation(
             summary = "Global leaderboard",
             description =
-                    "Returns the global ranking for a dimension (total coding seconds or longest"
-                            + " consecutive coding-day streak), with the calling user's rank.")
+                    "Returns the global ranking for a dimension and time window (lifetime, or the"
+                            + " current week / month / year), with the calling user's rank."
+                            + " Dimensions: TOTAL (merged coding seconds), STREAK (longest"
+                            + " consecutive coding-day streak), NIGHT_OWL (merged 22:00-05:00"
+                            + " duration), EARLY_BIRD (merged 06:00-09:00 duration) and GROWTH"
+                            + " (week-over-week net growth seconds). The period defaults to ALL,"
+                            + " except for GROWTH which defaults to WEEK. Periods are supported by"
+                            + " dimension: TOTAL accepts ALL/WEEK/MONTH/YEAR;"
+                            + " STREAK/NIGHT_OWL/EARLY_BIRD accept ALL; GROWTH accepts WEEK.")
     @ApiResponses(
             value = {
                 @ApiResponse(
@@ -110,6 +132,19 @@ public class LeaderboardController {
                                                 @Schema(
                                                         implementation =
                                                                 LeaderboardResponse.class))),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "Invalid dimension/period combination - COMMON_003",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "invalid-combination",
+                                                        summary =
+                                                                "Dimension does not support the"
+                                                                        + " period",
+                                                        value = INVALID_COMBINATION_EXAMPLE))),
                 @ApiResponse(
                         responseCode = "401",
                         description = "Unauthorized - missing or invalid API key or JWT",
@@ -149,11 +184,20 @@ public class LeaderboardController {
     @GetMapping
     public ResponseEntity<RestApiResponse<LeaderboardResponse>> leaderboard(
             @RequestParam("dimension") LeaderboardDimension dimension,
+            @RequestParam(name = "period", required = false) LeaderboardPeriod period,
             @RequestParam(name = "limit", defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(name = "offset", defaultValue = "0") @Min(0) int offset) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
+        LeaderboardPeriod effectivePeriod = period;
+        if (effectivePeriod == null) {
+            effectivePeriod =
+                    dimension == LeaderboardDimension.GROWTH
+                            ? LeaderboardPeriod.WEEK
+                            : LeaderboardPeriod.ALL;
+        }
         LeaderboardResponse response =
-                leaderboardService.getLeaderboard(dimension, limit, offset, currentUser.id());
+                leaderboardService.getLeaderboard(
+                        dimension, effectivePeriod, limit, offset, currentUser.id());
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 }
