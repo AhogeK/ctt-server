@@ -120,7 +120,7 @@ class SyncIntegrationTest {
                         .getContentAsString();
         String accessToken =
                 objectMapper.readTree(loginResponse).path("data").path("accessToken").asText();
-        assertThat(accessToken).isNotBlank();
+        assertThat(accessToken).as("login failed: %s", loginResponse).isNotBlank();
 
         String termsResponse =
                 mvc.post()

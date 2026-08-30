@@ -3,6 +3,7 @@ package com.ahogek.cttserver.common.ratelimit;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
@@ -49,13 +50,17 @@ class RateLimitAspectTest {
         mockAuditLog = mock(AuditLogService.class);
         mockUserProvider = mock(CurrentUserProvider.class);
         SpelExpressionResolver mockSpelResolver = mock(SpelExpressionResolver.class);
+        SecurityProperties mockSecurity = mock(SecurityProperties.class);
+        when(mockSecurity.rateLimit())
+                .thenReturn(new SecurityProperties.RateLimitProperties(true, 200));
         aspect =
                 new RateLimitAspect(
                         mockKeyFactory,
                         mockRateLimiter,
                         mockAuditLog,
                         mockUserProvider,
-                        mockSpelResolver);
+                        mockSpelResolver,
+                        mockSecurity);
         mockJoinPoint = mock(ProceedingJoinPoint.class);
         MethodSignature mockSignature = mock(MethodSignature.class);
 
@@ -117,8 +122,7 @@ class RateLimitAspectTest {
     }
 
     @Test
-    void intercept_whenRateLimitExceededWithNoTtl_throwsExceptionWithoutRetryAfter()
-            throws Throwable {
+    void intercept_whenRateLimitExceededWithNoTtl_throwsExceptionWithoutRetryAfter() {
         RateLimit rateLimit = createRateLimit(5, 300);
         when(mockKeyFactory.generateKey(any(), anyString(), any())).thenReturn("rate_limit:test");
         when(mockRateLimiter.checkLimit(anyString(), anyInt(), anyInt()))

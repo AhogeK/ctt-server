@@ -1,0 +1,10 @@
+# Test profile configuration.
+#
+# Rate limiting is a production protection that depends on Redis; tests must be deterministic
+# and cannot depend on a rate limiter's live state, so it is disabled here (mirroring the local
+# profile). Without this the login/register flows intermittently fail when the Redis-backed
+# limiter is briefly unavailable under the parallel test run.
+ctt:
+  security:
+    rate-limit:
+      enabled: false
