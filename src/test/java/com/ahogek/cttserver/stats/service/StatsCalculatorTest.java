@@ -103,6 +103,34 @@ class StatsCalculatorTest {
         }
 
         @Test
+        @DisplayName("shouldIgnoreSessionsWithInvalidInterval_whenAggregating")
+        void shouldIgnoreInvalidIntervals_whenAggregating() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            // start == end: degenerate interval, must be skipped not fail
+                            session(
+                                    at("2026-08-30T12:00:00"),
+                                    at("2026-08-30T12:00:00"),
+                                    "b",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T13:00:00"),
+                                    at("2026-08-30T12:00:00"),
+                                    "c",
+                                    "Java"));
+
+            Summary summary = StatsCalculator.summary(sessions, UTC, LocalDate.of(2026, 8, 30));
+
+            assertThat(summary.today()).isEqualTo(3600);
+            assertThat(summary.total()).isEqualTo(3600);
+        }
+
+        @Test
         @DisplayName("shouldReturnZeroSummary_whenNoSessions")
         void shouldReturnZero_whenEmpty() {
             Summary summary = StatsCalculator.summary(List.of(), UTC, LocalDate.of(2026, 8, 30));
