@@ -10,8 +10,6 @@ import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
 import com.ahogek.cttserver.sync.entity.CodingSession;
-import com.ahogek.cttserver.sync.entity.SessionChange;
-import com.ahogek.cttserver.sync.enums.ChangeOp;
 import com.ahogek.cttserver.sync.repository.CodingSessionRepository;
 import com.ahogek.cttserver.sync.repository.SessionChangeRepository;
 
@@ -25,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -35,7 +34,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +47,7 @@ class SyncPushServiceTest {
 
     @Mock private CodingSessionRepository codingSessionRepository;
     @Mock private SessionChangeRepository sessionChangeRepository;
+    @Mock private JdbcTemplate jdbcTemplate;
     @Mock private DeviceRepository deviceRepository;
     @Mock private AuditLogService auditLogService;
 
@@ -61,18 +63,12 @@ class SyncPushServiceTest {
                         codingSessionRepository,
                         sessionChangeRepository,
                         deviceRepository,
-                        auditLogService);
+                        auditLogService,
+                        jdbcTemplate);
         when(deviceRepository.findByIdAndUserId(deviceId, userId))
                 .thenReturn(Optional.of(new Device()));
-        when(codingSessionRepository.save(any(CodingSession.class)))
-                .thenAnswer(
-                        inv -> {
-                            CodingSession s = inv.getArgument(0);
-                            if (s.getId() == null) {
-                                ReflectionTestUtils.setField(s, "id", UUID.randomUUID());
-                            }
-                            return s;
-                        });
+        when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
+                .thenReturn(List.of());
         when(sessionChangeRepository.findMaxChangeIdForUser(userId)).thenReturn(7L);
     }
 
@@ -113,8 +109,17 @@ class SyncPushServiceTest {
         @DisplayName("should create a new session with server version 1 and log an upsert")
         void shouldCreateNewSession_whenSessionDoesNotExist() {
             UUID sessionUuid = UUID.randomUUID();
-            when(codingSessionRepository.findByUserIdAndSessionUuid(userId, sessionUuid))
-                    .thenReturn(Optional.empty());
+            when(codingSessionRepository.saveAll(any()))
+                    .thenAnswer(
+                            inv -> {
+                                List<CodingSession> sessions = inv.getArgument(0);
+                                for (CodingSession s : sessions) {
+                                    if (s.getId() == null) {
+                                        ReflectionTestUtils.setField(s, "id", UUID.randomUUID());
+                                    }
+                                }
+                                return sessions;
+                            });
 
             SyncPushResponse response =
                     service.push(
@@ -129,25 +134,27 @@ class SyncPushServiceTest {
 
             assertThat(response.nextCursor()).isEqualTo(7);
 
-            ArgumentCaptor<CodingSession> sessionCaptor =
-                    ArgumentCaptor.forClass(CodingSession.class);
-            verify(codingSessionRepository).save(sessionCaptor.capture());
-            CodingSession saved = sessionCaptor.getValue();
-            assertThat(saved.getSessionUuid()).isEqualTo(sessionUuid);
-            assertThat(saved.getUserId()).isEqualTo(userId);
-            assertThat(saved.getServerVersion()).isEqualTo(1);
-            assertThat(saved.getUpdatedByDeviceId()).isEqualTo(deviceId);
-            assertThat(saved.isDeleted()).isFalse();
+            ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+            ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+            verify(jdbcTemplate, atLeastOnce()).update(sqlCaptor.capture(), argsCaptor.capture());
 
-            ArgumentCaptor<SessionChange> changeCaptor =
-                    ArgumentCaptor.forClass(SessionChange.class);
-            verify(sessionChangeRepository).save(changeCaptor.capture());
-            SessionChange change = changeCaptor.getValue();
-            assertThat(change.getOp()).isEqualTo(ChangeOp.UPSERT);
-            assertThat(change.getServerVersion()).isEqualTo(1);
-            assertThat(change.getSessionId()).isEqualTo(saved.getId());
-            assertThat(change.getUserId()).isEqualTo(userId);
-            assertThat(change.getDeviceId()).isEqualTo(deviceId);
+            Object[] sessionArgs = null;
+            for (int i = 0; i < sqlCaptor.getAllValues().size(); i++) {
+                if (sqlCaptor.getAllValues().get(i).contains("INSERT INTO coding_sessions")) {
+                    sessionArgs = argsCaptor.getAllValues().get(i);
+                    break;
+                }
+            }
+            assertThat(sessionArgs).isNotNull();
+            // (id, user_id, session_uuid, project_name, language, start_time, end_time,
+            //  client_modified_at, client_version, server_version, updated_by_device_id,
+            //  is_deleted, deleted_at, created_at, updated_at)
+            assertThat(sessionArgs[2]).isEqualTo(sessionUuid);
+            assertThat(sessionArgs[9]).isEqualTo(1L);
+            assertThat(sessionArgs[10]).isEqualTo(deviceId);
+            assertThat(sessionArgs[11]).isEqualTo(false);
+
+            verify(jdbcTemplate, atLeastOnce()).update(anyString(), any(Object[].class));
 
             verify(auditLogService)
                     .logSuccess(
@@ -163,8 +170,9 @@ class SyncPushServiceTest {
             UUID sessionUuid = UUID.randomUUID();
             CodingSession existing =
                     existingSession(UUID.randomUUID(), 1, Instant.parse("2026-08-25T09:30:00Z"), 5);
-            when(codingSessionRepository.findByUserIdAndSessionUuid(userId, sessionUuid))
-                    .thenReturn(Optional.of(existing));
+            existing.setSessionUuid(sessionUuid);
+            when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
+                    .thenReturn(List.of(existing));
 
             service.push(
                     userId,
@@ -177,11 +185,7 @@ class SyncPushServiceTest {
             assertThat(existing.getServerVersion()).isEqualTo(6);
             assertThat(existing.isDeleted()).isFalse();
 
-            ArgumentCaptor<SessionChange> changeCaptor =
-                    ArgumentCaptor.forClass(SessionChange.class);
-            verify(sessionChangeRepository).save(changeCaptor.capture());
-            assertThat(changeCaptor.getValue().getOp()).isEqualTo(ChangeOp.UPSERT);
-            assertThat(changeCaptor.getValue().getServerVersion()).isEqualTo(6);
+            verify(jdbcTemplate).update(anyString(), any(Object[].class));
         }
 
         @Test
@@ -190,8 +194,9 @@ class SyncPushServiceTest {
             UUID sessionUuid = UUID.randomUUID();
             CodingSession existing =
                     existingSession(UUID.randomUUID(), 5, Instant.parse("2026-08-25T10:00:00Z"), 5);
-            when(codingSessionRepository.findByUserIdAndSessionUuid(userId, sessionUuid))
-                    .thenReturn(Optional.of(existing));
+            existing.setSessionUuid(sessionUuid);
+            when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
+                    .thenReturn(List.of(existing));
 
             service.push(
                     userId,
@@ -200,8 +205,8 @@ class SyncPushServiceTest {
 
             assertThat(existing.getServerVersion()).isEqualTo(5);
             assertThat(existing.getClientVersion()).isEqualTo(5);
-            verify(codingSessionRepository, never()).save(existing);
-            verify(sessionChangeRepository, never()).save(any(SessionChange.class));
+            verify(codingSessionRepository, never()).saveAll(any());
+            verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
         }
 
         @Test
@@ -210,8 +215,9 @@ class SyncPushServiceTest {
             UUID sessionUuid = UUID.randomUUID();
             CodingSession existing =
                     existingSession(UUID.randomUUID(), 1, Instant.parse("2026-08-25T09:30:00Z"), 5);
-            when(codingSessionRepository.findByUserIdAndSessionUuid(userId, sessionUuid))
-                    .thenReturn(Optional.of(existing));
+            existing.setSessionUuid(sessionUuid);
+            when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
+                    .thenReturn(List.of(existing));
 
             service.push(
                     userId,
@@ -222,11 +228,7 @@ class SyncPushServiceTest {
             assertThat(existing.getDeletedAt()).isNotNull();
             assertThat(existing.getServerVersion()).isEqualTo(6);
 
-            ArgumentCaptor<SessionChange> changeCaptor =
-                    ArgumentCaptor.forClass(SessionChange.class);
-            verify(sessionChangeRepository).save(changeCaptor.capture());
-            assertThat(changeCaptor.getValue().getOp()).isEqualTo(ChangeOp.DELETE);
-            assertThat(changeCaptor.getValue().getServerVersion()).isEqualTo(6);
+            verify(jdbcTemplate).update(anyString(), any(Object[].class));
         }
 
         @Test
@@ -237,8 +239,9 @@ class SyncPushServiceTest {
                     existingSession(UUID.randomUUID(), 1, Instant.parse("2026-08-25T09:30:00Z"), 5);
             softDeleted.setDeleted(true);
             softDeleted.setDeletedAt(Instant.parse("2026-08-25T09:45:00Z"));
-            when(codingSessionRepository.findByUserIdAndSessionUuid(userId, sessionUuid))
-                    .thenReturn(Optional.of(softDeleted));
+            softDeleted.setSessionUuid(sessionUuid);
+            when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
+                    .thenReturn(List.of(softDeleted));
 
             service.push(
                     userId,
@@ -247,16 +250,14 @@ class SyncPushServiceTest {
 
             assertThat(softDeleted.isDeleted()).isTrue();
             assertThat(softDeleted.getServerVersion()).isEqualTo(5);
-            verify(codingSessionRepository, never()).save(any(CodingSession.class));
-            verify(sessionChangeRepository, never()).save(any(SessionChange.class));
+            verify(codingSessionRepository, never()).saveAll(any());
+            verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
         }
 
         @Test
         @DisplayName("should skip creation when client deletes a session the server never had")
         void shouldSkip_whenClientDeletesSessionServerNeverHad() {
             UUID sessionUuid = UUID.randomUUID();
-            when(codingSessionRepository.findByUserIdAndSessionUuid(userId, sessionUuid))
-                    .thenReturn(Optional.empty());
 
             SyncPushResponse response =
                     service.push(
@@ -270,8 +271,8 @@ class SyncPushServiceTest {
                                             true)));
 
             assertThat(response.nextCursor()).isEqualTo(7);
-            verify(codingSessionRepository, never()).save(any(CodingSession.class));
-            verify(sessionChangeRepository, never()).save(any(SessionChange.class));
+            verify(codingSessionRepository, never()).saveAll(any());
+            verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
             verify(auditLogService)
                     .logSuccess(
                             userId,
@@ -302,14 +303,14 @@ class SyncPushServiceTest {
                     .isInstanceOf(NotFoundException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COMMON_002);
 
-            verify(codingSessionRepository, never()).findByUserIdAndSessionUuid(any(), any());
+            verify(codingSessionRepository, never()).findAllByUserIdAndSessionUuidIn(any(), any());
             verify(auditLogService)
                     .logFailure(
-                            eq(userId),
-                            eq(AuditAction.SYNC_PUSH),
-                            eq(ResourceType.CODING_SESSION),
-                            eq(deviceId.toString()),
-                            eq(ErrorCode.COMMON_002.name()));
+                            userId,
+                            AuditAction.SYNC_PUSH,
+                            ResourceType.CODING_SESSION,
+                            deviceId.toString(),
+                            ErrorCode.COMMON_002.name());
         }
 
         @Test
@@ -317,49 +318,34 @@ class SyncPushServiceTest {
         void shouldPropagateFailure_whenAnySessionFails() {
             UUID sessionUuid1 = UUID.randomUUID();
             UUID sessionUuid2 = UUID.randomUUID();
-            when(codingSessionRepository.findByUserIdAndSessionUuid(userId, sessionUuid1))
-                    .thenReturn(Optional.empty());
-            when(codingSessionRepository.findByUserIdAndSessionUuid(userId, sessionUuid2))
-                    .thenReturn(Optional.empty());
-            when(codingSessionRepository.save(any(CodingSession.class)))
+            ArgumentCaptor<Object[]> updateArgs = ArgumentCaptor.forClass(Object[].class);
+            when(jdbcTemplate.update(anyString(), updateArgs.capture()))
                     .thenAnswer(
-                            inv -> {
-                                CodingSession s = inv.getArgument(0);
-                                if (s.getSessionUuid().equals(sessionUuid2)) {
-                                    throw new IllegalStateException("persistence failure");
+                            _ -> {
+                                Object[] args = updateArgs.getValue();
+                                for (int i = 0; i + 2 < args.length; i += 15) {
+                                    if (sessionUuid2.equals(args[i + 2])) {
+                                        throw new IllegalStateException("persistence failure");
+                                    }
                                 }
-                                if (s.getId() == null) {
-                                    ReflectionTestUtils.setField(s, "id", UUID.randomUUID());
-                                }
-                                return s;
+                                return 1;
                             });
 
-            assertThatThrownBy(
-                            () ->
-                                    service.push(
-                                            userId,
-                                            deviceId,
-                                            List.of(
-                                                    dto(
-                                                            sessionUuid1,
-                                                            1,
-                                                            Instant.parse("2026-08-25T10:00:00Z"),
-                                                            false),
-                                                    dto(
-                                                            sessionUuid2,
-                                                            1,
-                                                            Instant.parse("2026-08-25T10:00:00Z"),
-                                                            false))))
+            List<SyncSessionDto> batch =
+                    List.of(
+                            dto(sessionUuid1, 1, Instant.parse("2026-08-25T10:00:00Z"), false),
+                            dto(sessionUuid2, 1, Instant.parse("2026-08-25T10:00:00Z"), false));
+            assertThatThrownBy(() -> service.push(userId, deviceId, batch))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("persistence failure");
 
             verify(auditLogService)
                     .logFailure(
-                            eq(userId),
-                            eq(AuditAction.SYNC_PUSH),
-                            eq(ResourceType.CODING_SESSION),
-                            eq(deviceId.toString()),
-                            eq(IllegalStateException.class.getSimpleName()));
+                            userId,
+                            AuditAction.SYNC_PUSH,
+                            ResourceType.CODING_SESSION,
+                            deviceId.toString(),
+                            IllegalStateException.class.getSimpleName());
         }
     }
 }
