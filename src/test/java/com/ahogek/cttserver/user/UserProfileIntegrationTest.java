@@ -116,7 +116,7 @@ class UserProfileIntegrationTest {
         String accessToken =
                 objectMapper.readTree(loginResponse).path("data").path("accessToken").asText();
         String userId = objectMapper.readTree(loginResponse).path("data").path("userId").asText();
-        assertThat(accessToken).isNotBlank();
+        assertThat(accessToken).as("login failed: %s", loginResponse).isNotBlank();
         assertThat(userId).isNotBlank();
 
         String termsResponse =

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.util.List;
@@ -21,6 +22,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @BaseIntegrationTest
+@TestPropertySource(
+        properties = {
+            "ctt.security.rate-limit.enabled=true",
+            "ctt.mail.outbox.poll-interval-ms=999999999"
+        })
 @DisplayName("AuthController Forgot Password Integration Tests")
 class AuthControllerForgotPasswordIntegrationTest {
 

@@ -6,6 +6,7 @@ import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
 
 import org.assertj.core.api.InstanceOfAssertFactories;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +29,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -62,7 +64,11 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * @since 2026-07-21
  */
 @BaseIntegrationTest
-@TestPropertySource(properties = {"ctt.mail.outbox.poll-interval-ms=999999999"})
+@TestPropertySource(
+        properties = {
+            "ctt.mail.outbox.poll-interval-ms=999999999",
+            "ctt.security.rate-limit.enabled=true"
+        })
 @DisplayName("API Key Lifecycle Integration Tests")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ApiKeyIntegrationTest {
@@ -411,16 +417,20 @@ class ApiKeyIntegrationTest {
                             Instant.now().plus(1, ChronoUnit.SECONDS), ZoneOffset.UTC);
             CreatedKey created = createApiKeyWithExpiry(jwt, "Expiring Key", expiresAt, "READ");
 
-            Thread.sleep(1500);
-
-            assertThat(
-                            mvc.get()
-                                    .uri(API_KEYS_ENDPOINT)
-                                    .header("Authorization", "Bearer " + created.rawKey()))
-                    .hasStatus(401)
-                    .bodyJson()
-                    .extractingPath("$.data.code")
-                    .isEqualTo("AUTH_011");
+            Awaitility.await()
+                    .atMost(5, TimeUnit.SECONDS)
+                    .untilAsserted(
+                            () ->
+                                    assertThat(
+                                                    mvc.get()
+                                                            .uri(API_KEYS_ENDPOINT)
+                                                            .header(
+                                                                    "Authorization",
+                                                                    "Bearer " + created.rawKey()))
+                                            .hasStatus(401)
+                                            .bodyJson()
+                                            .extractingPath("$.data.code")
+                                            .isEqualTo("AUTH_011"));
         }
 
         @Test
@@ -522,7 +532,7 @@ class ApiKeyIntegrationTest {
 
         @Test
         @DisplayName("Should return 429 RATE_LIMIT_001 after 10 failed auth attempts")
-        void shouldReturn429_when11thFailedAuthAttempt() throws Exception {
+        void shouldReturn429_when11thFailedAuthAttempt() {
             for (int attempt = 1; attempt <= 10; attempt++) {
                 String badKey = "cttak_" + UUID.randomUUID();
                 assertThat(
