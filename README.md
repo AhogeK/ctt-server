@@ -418,6 +418,23 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 - `push` accepts `{ deviceId, sessions[] }`, routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Returns `nextCursor` for the next pull.
 - `deviceId` ownership is validated (404 `COMMON_002` on mismatch, including devices that have been revoked); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
 
+### Statistics & Analytics
+
+| Endpoint | Method | Description | Required Scope |
+|----------|--------|-------------|----------------|
+| `/api/v1/stats/summary` | GET | Today / daily average / this week / month / year / lifetime totals (seconds) | READ |
+| `/api/v1/stats/heatmap` | GET | Per-day coding seconds over a date range (default: this year) | READ |
+| `/api/v1/stats/streaks` | GET | Current and longest consecutive coding day streaks | READ |
+| `/api/v1/stats/distribution` | GET | Duration distribution by languages / projects / time-of-day / weekday | READ |
+| `/api/v1/stats/hourly` | GET | Per-hour average coding seconds across active days | READ |
+| `/api/v1/stats/recent` | GET | Most recent coding sessions (default 20, max 100) | READ |
+
+**Parameters**: `timezoneOffset` (minutes, e.g. `480` for UTC+8) shifts day/week/month/hour
+boundaries to the caller's timezone; heatmap accepts `start` / `end` dates (ISO). Aggregations
+merge overlapping sessions for summary/heatmap/streaks and accumulate raw durations for
+distributions, matching the plugin StatisticsView semantics. All stats endpoints are
+rate-limited to 60 req/min (`RATE_LIMIT_001`).
+
 ### Public Configuration
 
 | Endpoint                | Method | Description                                          |
