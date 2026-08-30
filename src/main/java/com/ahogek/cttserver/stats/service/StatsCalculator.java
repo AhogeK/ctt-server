@@ -90,6 +90,7 @@ public final class StatsCalculator {
      */
     public static List<TimeInterval> toIntervals(List<CodingSession> sessions, ZoneOffset zone) {
         return sessions.stream()
+                .filter(session -> session.getStartTime().isBefore(session.getEndTime()))
                 .map(
                         session ->
                                 new TimeInterval(
@@ -276,6 +277,9 @@ public final class StatsCalculator {
             Function<CodingSession, String> keyExtractor) {
         Map<String, Long> byKey = new LinkedHashMap<>();
         for (CodingSession session : sessions) {
+            if (!session.getStartTime().isBefore(session.getEndTime())) {
+                continue;
+            }
             long seconds =
                     Duration.between(
                                     session.getStartTime().atOffset(zone),
