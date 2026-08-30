@@ -7,6 +7,8 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
+import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
+import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
 import com.ahogek.cttserver.sync.entity.CodingSession;
@@ -50,6 +52,7 @@ class SyncPushServiceTest {
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private DeviceRepository deviceRepository;
     @Mock private AuditLogService auditLogService;
+    @Mock private LeaderboardService leaderboardService;
 
     private SyncPushService service;
 
@@ -64,7 +67,8 @@ class SyncPushServiceTest {
                         sessionChangeRepository,
                         deviceRepository,
                         auditLogService,
-                        jdbcTemplate);
+                        jdbcTemplate,
+                        leaderboardService);
         when(deviceRepository.findByIdAndUserId(deviceId, userId))
                 .thenReturn(Optional.of(new Device()));
         when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
@@ -172,6 +176,8 @@ class SyncPushServiceTest {
                             AuditAction.SYNC_PUSH,
                             ResourceType.CODING_SESSION,
                             deviceId.toString());
+            verify(leaderboardService).updateUserScore(userId, LeaderboardDimension.TOTAL);
+            verify(leaderboardService).updateUserScore(userId, LeaderboardDimension.STREAK);
         }
 
         @Test
