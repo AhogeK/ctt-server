@@ -1,4 +1,18 @@
 # Active Context
+- [2026-08-30] - S1 统计聚合基础实施（stats 包，v0.51.0）
+    - 规划: planning-and-task-breakdown → tasks/plan.md + 9 任务（T1-T9）
+    - 实现: StatsCalculator（纯领域聚合：summary/heatmap/streaks/accumulateBy/hourlyDistribution/weekdayDistribution + 区间合并 + 周期裁剪 + 跨天切分 + 时区感知）+ 10 DTO + TimeOfDay 枚举 + StatsService + StatsController（6 端点）
+    - 口径（对齐插件端）: summary 用合并时长（overlap merge），分布类（languages/projects/timeOfDay/hourly/weekday）用原始累加；dailyAverage = total/(首会话日到今天+1)；周从周一开始；timeOfDay 按会话 startHour 分桶（5-12/12-17/17-22/22-5）
+    - 端点: GET /api/v1/stats/summary|heatmap|streaks|distribution|hourly|recent，READ scope + @RateLimit(API 60/60)，timezoneOffset 分钟参数
+    - 实施中修复: ①clipTo 完全在周期外的区间构造非法 TimeInterval（先过滤交集再裁剪）②hourly 切片错用 withMinute(0) 退回整点（改 truncatedTo(HOURS)+1）③StatsService hourly 三次重复聚合（提取变量）④switch 表达式后直接 .stream() 语法错误（先赋变量）
+    - 测试: StatsCalculatorTest 11 用例（summary 周期/合并/空/时区 + heatmap 跨天/同日合并 + streaks + 分布 + hourly 跨小时平均）+ StatsIntegrationTest 6 用例（E2E：summary 数据/空、distribution、recent、scope 403、401）
+    - 集成测试坑: JdbcClient .param(Instant) 无法推断 SQL 类型（改 Timestamp.from）；summary 固定日期会话撞测试时钟（改"今天 1-2 点"相对时间）
+    - 文档: README Statistics & Analytics 段落（6 端点 + 参数 + 口径说明）
+    - 提交前双轴审查（Standards 1 硬违规 + 9 判断；Spec 2 偏差）后修复: ①timezoneOffset/limit 加 @Validated + @Min/@Max（非法值 400 而非 500）+ GlobalExceptionHandler 补 MethodArgumentTypeMismatchException handler（TYPE_MISMATCH，复用 traceId 模式）②DistributionType 移入 enums/（对齐 TimeOfDay）③StatsService/测试 FQCN 改 import ④StatsCalculatorTest 方法名补 _whenY + 删 what-comments（误删代码行已恢复）⑤补 heatmap/streaks/hourly 3 个 E2E 集成测试 ⑥README 补 60 req/min 限流 ⑦tasks/plan.md 删除（R10）⑧GlobalExceptionHandler 提取 buildRetryAfterResponse 私有方法，消除 handleAccountLockedException/handleTooManyRequestsException 的 8 行重复 Retry-After 片段⑨StatsCalculator TimeInterval 内部表示 LocalDateTime → OffsetDateTime（保留偏移，Duration 按 instant 计算，消除 IDE time-zone aware 警告；DST 安全）
+    - hourly 端点保留独立 /hourly（设计判断：响应结构 {hour,avg,activeDays} 与 distribution {name,seconds} 不同，spec type=hourly 为简写）
+    - 验证: 全量 tests（一次 Testcontainers Redis 临时故障重跑）+ jacoco + spotless + LSP 全绿
+    - 版本: 0.50.1 → 0.51.0（MINOR 新功能）
+    - 状态: ✅ S1 实施+审查修复完成，待提交
 - [2026-08-30] - 审计约束缺失枚举值修复（运行时日志暴露，v0.50.1）
     - 日志: audit_logs 插入撞 chk_audit_resource_type 检查约束（SYNC_PULL/CODING_SESSION 被拒）；AuditEventListener 异步 + 吞异常（continuing without error propagation）→ 集成测试静默通过、运行时暴露
     - 根因: init 迁移 chk_audit_resource_type 约束 8 值，ResourceType 枚举 10 值——CODING_SESSION（V 阶段加枚举漏同步约束）+ DEVICE（v0.48.0 加枚举漏同步约束），契约漂移两次
