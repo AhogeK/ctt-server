@@ -74,10 +74,20 @@ class SyncPushServiceTest {
 
     private SyncSessionDto dto(
             UUID sessionUuid, int clientVersion, Instant clientModifiedAt, boolean deleted) {
+        return dto(sessionUuid, "ctt-server", "Java", clientVersion, clientModifiedAt, deleted);
+    }
+
+    private SyncSessionDto dto(
+            UUID sessionUuid,
+            String project,
+            String lang,
+            int clientVersion,
+            Instant clientModifiedAt,
+            boolean deleted) {
         return new SyncSessionDto(
                 sessionUuid,
-                "ctt-server",
-                "Java",
+                project,
+                lang,
                 Instant.parse("2026-08-25T09:00:00Z"),
                 Instant.parse("2026-08-25T10:00:00Z"),
                 clientModifiedAt,
@@ -177,15 +187,54 @@ class SyncPushServiceTest {
             service.push(
                     userId,
                     deviceId,
-                    List.of(dto(sessionUuid, 2, Instant.parse("2026-08-25T10:00:00Z"), false)));
+                    List.of(
+                            dto(
+                                    sessionUuid,
+                                    "other",
+                                    "Kotlin",
+                                    2,
+                                    Instant.parse("2026-08-25T10:00:00Z"),
+                                    false)));
 
             assertThat(existing.getClientVersion()).isEqualTo(2);
             assertThat(existing.getClientModifiedAt())
                     .isEqualTo(Instant.parse("2026-08-25T10:00:00Z"));
             assertThat(existing.getServerVersion()).isEqualTo(6);
             assertThat(existing.isDeleted()).isFalse();
+            assertThat(existing.getLanguage()).isEqualTo("Kotlin");
 
             verify(jdbcTemplate).update(anyString(), any(Object[].class));
+        }
+
+        @Test
+        @DisplayName("should keep existing state when content is identical but timestamp drifted")
+        void shouldKeepExisting_whenContentSame_butClientModifiedAtDrifted() {
+            UUID sessionUuid = UUID.randomUUID();
+            CodingSession existing =
+                    existingSession(UUID.randomUUID(), 1, Instant.parse("2026-08-25T09:30:00Z"), 5);
+            existing.setSessionUuid(sessionUuid);
+            when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
+                    .thenReturn(List.of(existing));
+
+            // Same project/language/times as the server row; only clientModifiedAt is later
+            // (e.g. plugin full re-push with clock/timezone drift). Must be an idempotent no-op.
+            service.push(
+                    userId,
+                    deviceId,
+                    List.of(
+                            dto(
+                                    sessionUuid,
+                                    "ctt-server",
+                                    "Java",
+                                    2,
+                                    Instant.parse("2026-08-25T10:00:00Z"),
+                                    false)));
+
+            assertThat(existing.getClientVersion()).isEqualTo(1);
+            assertThat(existing.getServerVersion()).isEqualTo(5);
+            assertThat(existing.getLanguage()).isEqualTo("Java");
+            verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+            verify(codingSessionRepository, never()).saveAll(any());
         }
 
         @Test
