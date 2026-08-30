@@ -12,6 +12,8 @@
     - hourly 端点保留独立 /hourly（设计判断：响应结构 {hour,avg,activeDays} 与 distribution {name,seconds} 不同，spec type=hourly 为简写）
     - 验证: 全量 tests（一次 Testcontainers Redis 临时故障重跑）+ jacoco + spotless + LSP 全绿
     - 版本: 0.50.1 → 0.51.0（MINOR 新功能）
+- [2026-08-30] - Sync push 批量写入优化（multi-row insert）: SyncPushService.doPush 改为批量读（findAllByUserIdAndSessionUuidIn IN 查询）+ 手写多值 INSERT（batchInsertSessions/batchInsertChanges，一条 SQL 插多行，500 条 = 各 1 条 INSERT；实测 Hibernate saveAll + batch_size 和 PG reWriteBatchedInserts 对含 UUID 语句都退回逐条，故手写 VALUES (...),(...) 最可靠）+ Instant 参数转 OffsetDateTime（PG 驱动 setObject 不支持 Instant）；toUpdate 保留 Hibernate saveAll+flush；批内重复 sessionUuid 用内存 Map 保持 LWW 语义；SyncPushServiceTest 适配 mock JdbcTemplate.update；新增 SyncPushBatchIntegrationTest（DataSource BeanPostProcessor 捕获 SQL 文本，断言 500 条 = session/change 各 1 条多值 INSERT 且 SQL 含 500 组 VALUES——文本级证据）；批量 INSERT 加日志：info 行数 + debug 完整多值 SQL（local profile DEBUG 已开可见）；版本 0.52.0（MINOR 性能优化）
+- [2026-08-30] - 测试 Redis 限流间歇故障根因+修复: 全量测试间歇失败（Sync/UserProfile 登录空 token）根因=登录接口 @RateLimit(IP, 30/3600) + RedisRateLimiter，全量测试同 IP（127.0.0.1）登录超 30 次/小时→429→token 空；RateLimitAspect 原本不响应 ctt.security.rate-limit.enabled=false（生产 bug：local 声明禁用却仍限流）；修复=RateLimitAspect 注入 SecurityProperties 检查 enabled（禁用时跳过 enforce）+ 新增 src/test/resources/application-test.yaml（rate-limit.enabled=false）+ 依赖限流的测试类（AuthControllerForgotPasswordIntegrationTest/ApiKeyIntegrationTest）类级 @TestPropertySource 单独开启 enabled=true + RateLimitAspectTest 适配构造；验证=连续 2 次强制全量（含 --rerun-tasks）BUILD SUCCESSFUL
     - 状态: ✅ S1 实施+审查修复完成，待提交
 - [2026-08-30] - 审计约束缺失枚举值修复（运行时日志暴露，v0.50.1）
     - 日志: audit_logs 插入撞 chk_audit_resource_type 检查约束（SYNC_PULL/CODING_SESSION 被拒）；AuditEventListener 异步 + 吞异常（continuing without error propagation）→ 集成测试静默通过、运行时暴露
