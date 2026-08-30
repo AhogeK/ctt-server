@@ -17,6 +17,14 @@
 - [2026-08-30] - push 幂等去重增强（内容级）: 需求反馈=插件端 INSERT OR IGNORE vs 服务端 LWW——核心去重已有（唯一约束 + KEEP_EXISTING），gap=内容相同但 clientModifiedAt/clientVersion 微差（全量重推时区/精度）会被判 APPLY_INCOMING→覆盖+无意义 change；修复=ConflictResolver.resolve 在 delete 分支后、版本裁决前，对 live 状态检查 sameContent（projectName/language/startTime/endTime 相同→KEEP_EXISTING 幂等忽略，deleted 状态豁免保留删除版本竞争）；测试=ConflictResolverTest 的 session() 加默认内容 + APPLY_INCOMING 用例 incoming 内容不同 + 新增 ContentIdentityTests 3 用例；SyncPushServiceTest 加"内容相同时间戳微差→KEEP 不产生 change"用例；版本 0.53.0（MINOR 优化）
 - [2026-08-31] - stats 联调发现 bug+修复: 用户数据含 41 条 start==end（0 时长）会话（08-30 22:45 批量导入，cv=0）→ StatsCalculator 聚合时 TimeInterval 构造抛异常 → 整批 400；修复=toIntervals/accumulateBy 过滤 start<end（跳过非法区间）；StatsCalculatorTest 补"非法区间跳过"用例；版本 0.53.1（PATCH）
     - 状态: ✅ S1 实施+审查修复完成，待提交
+- [2026-08-31] - S2 排行基础实施（leaderboard 包，v0.54.0）
+    - 设计决策: ①score 口径=合并重叠 total（对齐 stats）+ streak max（最长连续，UTC 统一时区，排行展示历史最佳）②更新策略=push 后重算当前用户 score 用 zadd 覆盖（非累加——软删/更新会导致漂移；streak 无法增量），只影响受动用户，ZSet 自动重排 ③TTL=全局键 leaderboard:total/leaderboard:streak（键数量固定=维度数，member 是有限用户数，无需 TTL；计划稿 TTL 针对 S3 周期键）④端点=READ scope + @RateLimit(API 60/60)（对齐 stats）⑤Redis 失败容忍=updateUserScore 内部 catch 记日志不传播（排行是派生的，下次 push 自愈）
+    - 实现: LeaderboardDimension 枚举 + LeaderboardEntryDto/LeaderboardResponse + LeaderboardService（StringRedisTemplate zadd/zrevrangeWithScores/zrevrank + StatsCalculator 复用 + UserRepository 关联 displayName）+ LeaderboardController（GET /api/v1/leaderboard?dimension&limit&offset）+ SyncPushService push 后 updateLeaderboard（TOTAL+STREAK）
+    - 测试: LeaderboardServiceTest 7 用例（total 合并/streak max/Redis 失败容忍/空/条目映射/未排名/分页）+ LeaderboardIntegrationTest 6 用例（多用户 total 排名/streak 排名/并列/并发更新/401/400 非法 dimension）；并发测试踩坑：8 会话重叠合并=1h、59 分钟时长=28320，改整小时相接验证 28800
+    - 验证: 全量 tests + jacoco + spotless 全绿
+    - 版本: 0.53.1 → 0.54.0（MINOR 新功能）
+    - 提交前双轴审查修复（Standards 3 + Spec 2）: ①README 声称并列共享排名但实现顺序 rank → 实现竞赛排名（同分同 rank，与 zrevrank 语义一致）+ 集成测试补并列 rank 断言 ②并发同用户 push 竞态（updateUserScore 读-算-写非原子，READ COMMITTED 下可能覆盖过期 score）→ 用户级 Redis 锁（leaderboard:lock:{userId} setIfAbsent + TTL 5s + 自旋 5×50ms + 超时 best-effort 重算）③测试内联 FQCN LinkedHashSet → import ④集成测试绕过 push 触发（只在 mock 层）→ 补真实 push→leaderboard E2E（SYNC key push 后 push 用户 READ key 查排行验证 score+currentUserRank）
+    - 状态: ✅ 实施+双轴审查修复完成，待提交
 - [2026-08-30] - 审计约束缺失枚举值修复（运行时日志暴露，v0.50.1）
     - 日志: audit_logs 插入撞 chk_audit_resource_type 检查约束（SYNC_PULL/CODING_SESSION 被拒）；AuditEventListener 异步 + 吞异常（continuing without error propagation）→ 集成测试静默通过、运行时暴露
     - 根因: init 迁移 chk_audit_resource_type 约束 8 值，ResourceType 枚举 10 值——CODING_SESSION（V 阶段加枚举漏同步约束）+ DEVICE（v0.48.0 加枚举漏同步约束），契约漂移两次
