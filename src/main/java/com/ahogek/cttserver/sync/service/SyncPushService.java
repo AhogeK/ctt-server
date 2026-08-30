@@ -11,7 +11,6 @@ import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
 import com.ahogek.cttserver.sync.entity.CodingSession;
-import com.ahogek.cttserver.sync.entity.SessionChange;
 import com.ahogek.cttserver.sync.enums.ChangeOp;
 import com.ahogek.cttserver.sync.repository.CodingSessionRepository;
 import com.ahogek.cttserver.sync.repository.SessionChangeRepository;
@@ -19,13 +18,17 @@ import com.ahogek.cttserver.sync.service.ConflictResolver.Decision;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Push service for the bidirectional sync engine.
@@ -47,16 +50,19 @@ public class SyncPushService {
     private final SessionChangeRepository sessionChangeRepository;
     private final DeviceRepository deviceRepository;
     private final AuditLogService auditLogService;
+    private final JdbcTemplate jdbcTemplate;
 
     public SyncPushService(
             CodingSessionRepository codingSessionRepository,
             SessionChangeRepository sessionChangeRepository,
             DeviceRepository deviceRepository,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            JdbcTemplate jdbcTemplate) {
         this.codingSessionRepository = codingSessionRepository;
         this.sessionChangeRepository = sessionChangeRepository;
         this.deviceRepository = deviceRepository;
         this.auditLogService = auditLogService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /**
@@ -101,63 +107,190 @@ public class SyncPushService {
             throw new NotFoundException(ErrorCode.COMMON_002, "Device not found or access denied");
         }
 
+        List<CodingSession> existingBatch =
+                codingSessionRepository.findAllByUserIdAndSessionUuidIn(
+                        userId, sessions.stream().map(SyncSessionDto::sessionUuid).toList());
+        Map<UUID, CodingSession> known =
+                existingBatch.stream()
+                        .collect(
+                                Collectors.toMap(
+                                        CodingSession::getSessionUuid,
+                                        session -> session,
+                                        (first, _) -> first));
+
+        List<CodingSession> toCreate = new ArrayList<>();
+        List<CodingSession> toUpdate = new ArrayList<>();
+        List<ChangeDraft> pendingChanges = new ArrayList<>();
+
         for (SyncSessionDto dto : sessions) {
-            Optional<CodingSession> existingOpt =
-                    codingSessionRepository.findByUserIdAndSessionUuid(userId, dto.sessionUuid());
-            if (existingOpt.isEmpty()) {
-                createSession(userId, deviceId, dto);
-            } else {
-                applyConflict(userId, deviceId, existingOpt.get(), dto);
+            CodingSession existing = known.get(dto.sessionUuid());
+            if (existing == null) {
+                // Deleting a session the server never had is an idempotent no-op.
+                if (dto.deleted()) {
+                    continue;
+                }
+                CodingSession session = new CodingSession();
+                session.setUserId(userId);
+                session.setSessionUuid(dto.sessionUuid());
+                applyIncomingFields(session, dto);
+                session.setServerVersion(1);
+                session.setUpdatedByDeviceId(deviceId);
+                toCreate.add(session);
+                known.put(dto.sessionUuid(), session);
+                pendingChanges.add(new ChangeDraft(session, ChangeOp.UPSERT));
+                continue;
             }
+            CodingSession incoming = toIncomingState(dto);
+            Decision decision = ConflictResolver.resolve(existing, incoming);
+            switch (decision) {
+                case APPLY_INCOMING -> {
+                    applyIncomingFields(existing, dto);
+                    existing.bumpServerVersion();
+                    existing.setUpdatedByDeviceId(deviceId);
+                    toUpdate.add(existing);
+                    pendingChanges.add(new ChangeDraft(existing, ChangeOp.UPSERT));
+                }
+                case APPLY_DELETE -> {
+                    existing.softDelete(Instant.now());
+                    existing.bumpServerVersion();
+                    existing.setUpdatedByDeviceId(deviceId);
+                    toUpdate.add(existing);
+                    pendingChanges.add(new ChangeDraft(existing, ChangeOp.DELETE));
+                }
+                case KEEP_EXISTING -> {
+                    // Server state wins; leave the row untouched (idempotent no-op).
+                }
+            }
+        }
+
+        if (!toCreate.isEmpty()) {
+            // Hand-written multi-row INSERT: Hibernate saveAll (even with
+            // hibernate.jdbc.batch_size)
+            // and PG's reWriteBatchedInserts both fall back to one single-row statement per row
+            // for these statements, so issue one real multi-row INSERT per table instead.
+            batchInsertSessions(userId, deviceId, toCreate);
+        }
+        if (!toUpdate.isEmpty()) {
+            codingSessionRepository.saveAll(toUpdate);
+            codingSessionRepository.flush();
+        }
+        if (!pendingChanges.isEmpty()) {
+            batchInsertChanges(userId, deviceId, pendingChanges);
         }
 
         long nextCursor = sessionChangeRepository.findMaxChangeIdForUser(userId);
         auditLogService.logSuccess(
                 userId, AuditAction.SYNC_PUSH, ResourceType.CODING_SESSION, deviceId.toString());
-        log.info("User {} pushed {} sessions from device {}", userId, sessions.size(), deviceId);
+        log.info(
+                "User {} pushed {} sessions from device {} ({} created, {} updated, {} changes)",
+                userId,
+                sessions.size(),
+                deviceId,
+                toCreate.size(),
+                toUpdate.size(),
+                pendingChanges.size());
 
         return new SyncPushResponse(nextCursor);
     }
 
-    private void createSession(UUID userId, UUID deviceId, SyncSessionDto dto) {
-        if (dto.deleted()) {
-            // Deleting a session the server never had is an idempotent no-op: no row, no change.
-            return;
+    /** A session mutation awaiting persistence together with its change-log entry. */
+    private void batchInsertSessions(UUID userId, UUID deviceId, List<CodingSession> sessions) {
+        String sql =
+                """
+                INSERT INTO coding_sessions
+                    (id, user_id, session_uuid, project_name, language, start_time,
+                     end_time, client_modified_at, client_version, server_version,
+                     updated_by_device_id, is_deleted, deleted_at, created_at, updated_at)
+                VALUES\s"""
+                        + buildValuesClause(sessions.size(), 15);
+        List<Object> args = new ArrayList<>(sessions.size() * 15);
+        Instant now = Instant.now();
+        for (CodingSession session : sessions) {
+            if (session.getId() == null) {
+                session.setId(UUID.randomUUID());
+            }
+            args.add(session.getId());
+            args.add(userId);
+            args.add(session.getSessionUuid());
+            args.add(session.getProjectName());
+            args.add(session.getLanguage());
+            args.add(session.getStartTime().atOffset(ZoneOffset.UTC));
+            args.add(session.getEndTime().atOffset(ZoneOffset.UTC));
+            args.add(session.getClientModifiedAt().atOffset(ZoneOffset.UTC));
+            args.add(session.getClientVersion());
+            args.add(session.getServerVersion());
+            args.add(deviceId);
+            args.add(session.isDeleted());
+            args.add(
+                    session.getDeletedAt() != null
+                            ? session.getDeletedAt().atOffset(ZoneOffset.UTC)
+                            : null);
+            args.add(now.atOffset(ZoneOffset.UTC));
+            args.add(now.atOffset(ZoneOffset.UTC));
         }
-        CodingSession session = new CodingSession();
-        session.setUserId(userId);
-        session.setSessionUuid(dto.sessionUuid());
-        applyIncomingFields(session, dto);
-        session.setServerVersion(1);
-        session.setUpdatedByDeviceId(deviceId);
-        codingSessionRepository.save(session);
-        appendChange(userId, deviceId, session, ChangeOp.UPSERT);
+        log.info(
+                "Bulk inserted {} coding_sessions for user {} via a single multi-row INSERT",
+                sessions.size(),
+                userId);
+        log.debug("Bulk coding_sessions multi-row INSERT: {}", sql);
+        jdbcTemplate.update(sql, args.toArray());
     }
 
-    private void applyConflict(
-            UUID userId, UUID deviceId, CodingSession existing, SyncSessionDto dto) {
-        CodingSession incoming = toIncomingState(dto);
-        Decision decision = ConflictResolver.resolve(existing, incoming);
-        switch (decision) {
-            case APPLY_INCOMING -> {
-                applyIncomingFields(existing, dto);
-                existing.bumpServerVersion();
-                existing.setUpdatedByDeviceId(deviceId);
-                codingSessionRepository.save(existing);
-                appendChange(userId, deviceId, existing, ChangeOp.UPSERT);
-            }
-            case APPLY_DELETE -> {
-                existing.softDelete(Instant.now());
-                existing.bumpServerVersion();
-                existing.setUpdatedByDeviceId(deviceId);
-                codingSessionRepository.save(existing);
-                appendChange(userId, deviceId, existing, ChangeOp.DELETE);
-            }
-            case KEEP_EXISTING -> {
-                // Server state wins; leave the row untouched (idempotent no-op).
-            }
+    private void batchInsertChanges(UUID userId, UUID deviceId, List<ChangeDraft> drafts) {
+        String sql =
+                """
+                INSERT INTO session_changes
+                    (user_id, device_id, session_id, op, server_version)
+                VALUES\s"""
+                        + buildValuesClause(drafts.size(), 5);
+        List<Object> args = new ArrayList<>(drafts.size() * 5);
+        for (ChangeDraft draft : drafts) {
+            args.add(userId);
+            args.add(deviceId);
+            args.add(draft.session().getId());
+            args.add(draft.op().name());
+            args.add(draft.session().getServerVersion());
         }
+        log.info(
+                "Bulk inserted {} session_changes for user {} via a single multi-row INSERT",
+                drafts.size(),
+                userId);
+        log.debug("Bulk session_changes multi-row INSERT: {}", sql);
+        jdbcTemplate.update(sql, args.toArray());
     }
+
+    /**
+     * Builds the {@code (?, ?, ...), (?, ?, ...)} VALUES clause for a multi-row INSERT.
+     *
+     * <p>The SQL text is a fixed template — table and column names are hard-coded constants, the
+     * only variable part is the repeated parameter placeholder groups. Every value is bound via
+     * prepared-statement parameters (never concatenated into the SQL text), so there is no SQL
+     * injection surface.
+     *
+     * @param rowCount the number of rows to insert
+     * @param columnsPerRow the column count of the target table
+     * @return the VALUES clause, e.g. {@code (?, ?), (?, ?)}
+     */
+    private static String buildValuesClause(int rowCount, int columnsPerRow) {
+        StringBuilder values = new StringBuilder();
+        for (int row = 0; row < rowCount; row++) {
+            if (row > 0) {
+                values.append(", ");
+            }
+            values.append("(");
+            for (int column = 0; column < columnsPerRow; column++) {
+                if (column > 0) {
+                    values.append(", ");
+                }
+                values.append("?");
+            }
+            values.append(")");
+        }
+        return values.toString();
+    }
+
+    /** A session mutation awaiting persistence together with its change-log entry. */
+    private record ChangeDraft(CodingSession session, ChangeOp op) {}
 
     private CodingSession toIncomingState(SyncSessionDto dto) {
         CodingSession incoming = new CodingSession();
@@ -174,16 +307,6 @@ public class SyncPushService {
         session.setEndTime(dto.endTime());
         session.setClientModifiedAt(dto.clientModifiedAt());
         session.setClientVersion(dto.clientVersion());
-    }
-
-    private void appendChange(UUID userId, UUID deviceId, CodingSession session, ChangeOp op) {
-        SessionChange change = new SessionChange();
-        change.setUserId(userId);
-        change.setDeviceId(deviceId);
-        change.setSessionId(session.getId());
-        change.setOp(op);
-        change.setServerVersion(session.getServerVersion());
-        sessionChangeRepository.save(change);
     }
 
     private String errorCodeName(Exception e) {

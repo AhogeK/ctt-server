@@ -65,6 +65,20 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
     Optional<CodingSession> findByUserIdAndSessionUuid(UUID userId, UUID sessionUuid);
 
     /**
+     * Batch-fetches sessions of a user by their client-generated session UUIDs, including
+     * soft-deleted rows.
+     *
+     * <p>Used by the push path to load a whole client batch in one query instead of one SELECT per
+     * session. Duplicate {@code sessionUuid} values in the incoming batch are de-duplicated by the
+     * caller. The result is unordered; the caller indexes by {@code sessionUuid}.
+     *
+     * @param userId the owning user id
+     * @param sessionUuids the client session UUIDs to load
+     * @return matching sessions, including soft-deleted rows; never {@code null}
+     */
+    List<CodingSession> findAllByUserIdAndSessionUuidIn(UUID userId, Collection<UUID> sessionUuids);
+
+    /**
      * Lists all live sessions owned by a user.
      *
      * <p>Backed by the partial index {@code idx_sessions_user_time}, whose {@code WHERE is_deleted
