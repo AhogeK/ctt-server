@@ -32,8 +32,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -96,6 +98,18 @@ public class StatsController {
             }
             """;
 
+    private static final String DEVICE_NOT_FOUND_EXAMPLE =
+            """
+            {
+              "code": "COMMON_002",
+              "message": "Device not found or access denied",
+              "details": [],
+              "traceId": "abc-123",
+              "httpStatus": 404,
+              "timestamp": "2026-08-30T10:00:00Z"
+            }
+            """;
+
     private final StatsService statsService;
     private final AchievementService achievementService;
     private final CurrentUserProvider currentUserProvider;
@@ -116,6 +130,19 @@ public class StatsController {
                             + " totals in seconds, computed in the requested timezone.")
     @ApiResponses(
             value = {
+                @ApiResponse(
+                        responseCode = "404",
+                        description =
+                                "Requested deviceId unknown or owned by another user - COMMON_002",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "device-not-found",
+                                                        summary =
+                                                                "Device not found or access denied",
+                                                        value = DEVICE_NOT_FOUND_EXAMPLE))),
                 @ApiResponse(
                         responseCode = "200",
                         description = "Summary retrieved",
@@ -164,10 +191,17 @@ public class StatsController {
     @GetMapping("/summary")
     public ResponseEntity<RestApiResponse<StatsSummaryResponse>> summary(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
-                    int timezoneOffset) {
+                    int timezoneOffset,
+            @Parameter(
+                            name = "deviceId",
+                            description =
+                                    "Optional origin-device filter; omitted aggregates all devices. Unknown or"
+                                            + " foreign devices yield 404 COMMON_002.")
+                    @RequestParam(name = "deviceId", required = false)
+                    UUID deviceId) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         StatsSummaryResponse response =
-                statsService.summary(currentUser.id(), zoneOffset(timezoneOffset));
+                statsService.summary(currentUser.id(), zoneOffset(timezoneOffset), deviceId);
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -178,6 +212,19 @@ public class StatsController {
                             + " calendar year) in the requested timezone.")
     @ApiResponses(
             value = {
+                @ApiResponse(
+                        responseCode = "404",
+                        description =
+                                "Requested deviceId unknown or owned by another user - COMMON_002",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "device-not-found",
+                                                        summary =
+                                                                "Device not found or access denied",
+                                                        value = DEVICE_NOT_FOUND_EXAMPLE))),
                 @ApiResponse(
                         responseCode = "200",
                         description = "Heatmap retrieved",
@@ -224,13 +271,21 @@ public class StatsController {
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
                     int timezoneOffset,
             @RequestParam(name = "start", required = false) LocalDate start,
-            @RequestParam(name = "end", required = false) LocalDate end) {
+            @RequestParam(name = "end", required = false) LocalDate end,
+            @Parameter(
+                            name = "deviceId",
+                            description =
+                                    "Optional origin-device filter; omitted aggregates all devices. Unknown or"
+                                            + " foreign devices yield 404 COMMON_002.")
+                    @RequestParam(name = "deviceId", required = false)
+                    UUID deviceId) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         ZoneOffset zone = zoneOffset(timezoneOffset);
         LocalDate today = LocalDate.now(zone);
         LocalDate startDate = start != null ? start : today.withDayOfYear(1);
         LocalDate endDate = end != null ? end : today;
-        HeatmapResponse response = statsService.heatmap(currentUser.id(), zone, startDate, endDate);
+        HeatmapResponse response =
+                statsService.heatmap(currentUser.id(), zone, startDate, endDate, deviceId);
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -241,6 +296,19 @@ public class StatsController {
                             + " timezone.")
     @ApiResponses(
             value = {
+                @ApiResponse(
+                        responseCode = "404",
+                        description =
+                                "Requested deviceId unknown or owned by another user - COMMON_002",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "device-not-found",
+                                                        summary =
+                                                                "Device not found or access denied",
+                                                        value = DEVICE_NOT_FOUND_EXAMPLE))),
                 @ApiResponse(
                         responseCode = "200",
                         description = "Streaks retrieved",
@@ -289,20 +357,40 @@ public class StatsController {
     @GetMapping("/streaks")
     public ResponseEntity<RestApiResponse<StreakStatsResponse>> streaks(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
-                    int timezoneOffset) {
+                    int timezoneOffset,
+            @Parameter(
+                            name = "deviceId",
+                            description =
+                                    "Optional origin-device filter; omitted aggregates all devices. Unknown or"
+                                            + " foreign devices yield 404 COMMON_002.")
+                    @RequestParam(name = "deviceId", required = false)
+                    UUID deviceId) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         StreakStatsResponse response =
-                statsService.streaks(currentUser.id(), zoneOffset(timezoneOffset));
+                statsService.streaks(currentUser.id(), zoneOffset(timezoneOffset), deviceId);
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
     @Operation(
             summary = "Coding duration distribution",
             description =
-                    "Returns a duration distribution by languages, projects, time-of-day or"
-                            + " weekday, ordered by duration descending.")
+                    "Returns a duration distribution by languages, projects, time-of-day, weekday or"
+                            + " devices, ordered by duration descending.")
     @ApiResponses(
             value = {
+                @ApiResponse(
+                        responseCode = "404",
+                        description =
+                                "Requested deviceId unknown or owned by another user - COMMON_002",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "device-not-found",
+                                                        summary =
+                                                                "Device not found or access denied",
+                                                        value = DEVICE_NOT_FOUND_EXAMPLE))),
                 @ApiResponse(
                         responseCode = "200",
                         description = "Distribution retrieved",
@@ -352,10 +440,18 @@ public class StatsController {
     public ResponseEntity<RestApiResponse<DistributionResponse>> distribution(
             @RequestParam("type") DistributionType type,
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
-                    int timezoneOffset) {
+                    int timezoneOffset,
+            @Parameter(
+                            name = "deviceId",
+                            description =
+                                    "Optional origin-device filter; omitted aggregates all devices. Unknown or"
+                                            + " foreign devices yield 404 COMMON_002.")
+                    @RequestParam(name = "deviceId", required = false)
+                    UUID deviceId) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         DistributionResponse response =
-                statsService.distribution(currentUser.id(), zoneOffset(timezoneOffset), type);
+                statsService.distribution(
+                        currentUser.id(), zoneOffset(timezoneOffset), type, deviceId);
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -366,6 +462,19 @@ public class StatsController {
                             + " timezone.")
     @ApiResponses(
             value = {
+                @ApiResponse(
+                        responseCode = "404",
+                        description =
+                                "Requested deviceId unknown or owned by another user - COMMON_002",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "device-not-found",
+                                                        summary =
+                                                                "Device not found or access denied",
+                                                        value = DEVICE_NOT_FOUND_EXAMPLE))),
                 @ApiResponse(
                         responseCode = "200",
                         description = "Hourly distribution retrieved",
@@ -414,10 +523,17 @@ public class StatsController {
     @GetMapping("/hourly")
     public ResponseEntity<RestApiResponse<HourlyDistributionResponse>> hourly(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
-                    int timezoneOffset) {
+                    int timezoneOffset,
+            @Parameter(
+                            name = "deviceId",
+                            description =
+                                    "Optional origin-device filter; omitted aggregates all devices. Unknown or"
+                                            + " foreign devices yield 404 COMMON_002.")
+                    @RequestParam(name = "deviceId", required = false)
+                    UUID deviceId) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         HourlyDistributionResponse response =
-                statsService.hourly(currentUser.id(), zoneOffset(timezoneOffset));
+                statsService.hourly(currentUser.id(), zoneOffset(timezoneOffset), deviceId);
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -427,6 +543,19 @@ public class StatsController {
                     "Returns the most recent coding sessions, ordered by start time descending.")
     @ApiResponses(
             value = {
+                @ApiResponse(
+                        responseCode = "404",
+                        description =
+                                "Requested deviceId unknown or owned by another user - COMMON_002",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "device-not-found",
+                                                        summary =
+                                                                "Device not found or access denied",
+                                                        value = DEVICE_NOT_FOUND_EXAMPLE))),
                 @ApiResponse(
                         responseCode = "200",
                         description = "Recent sessions retrieved",
@@ -474,9 +603,17 @@ public class StatsController {
     @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
     @GetMapping("/recent")
     public ResponseEntity<RestApiResponse<List<RecentSessionResponse>>> recent(
-            @RequestParam(name = "limit", defaultValue = "20") @Min(1) @Max(100) int limit) {
+            @RequestParam(name = "limit", defaultValue = "20") @Min(1) @Max(100) int limit,
+            @Parameter(
+                            name = "deviceId",
+                            description =
+                                    "Optional origin-device filter; omitted aggregates all devices. Unknown or"
+                                            + " foreign devices yield 404 COMMON_002.")
+                    @RequestParam(name = "deviceId", required = false)
+                    UUID deviceId) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
-        List<RecentSessionResponse> response = statsService.recent(currentUser.id(), limit);
+        List<RecentSessionResponse> response =
+                statsService.recent(currentUser.id(), limit, deviceId);
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
