@@ -8,6 +8,8 @@ import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
+import com.ahogek.cttserver.stats.achievement.dto.AchievementResponse;
+import com.ahogek.cttserver.stats.achievement.service.AchievementService;
 import com.ahogek.cttserver.stats.dto.DistributionResponse;
 import com.ahogek.cttserver.stats.dto.HeatmapResponse;
 import com.ahogek.cttserver.stats.dto.HourlyDistributionResponse;
@@ -95,10 +97,15 @@ public class StatsController {
             """;
 
     private final StatsService statsService;
+    private final AchievementService achievementService;
     private final CurrentUserProvider currentUserProvider;
 
-    public StatsController(StatsService statsService, CurrentUserProvider currentUserProvider) {
+    public StatsController(
+            StatsService statsService,
+            AchievementService achievementService,
+            CurrentUserProvider currentUserProvider) {
         this.statsService = statsService;
+        this.achievementService = achievementService;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -470,6 +477,69 @@ public class StatsController {
             @RequestParam(name = "limit", defaultValue = "20") @Min(1) @Max(100) int limit) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         List<RecentSessionResponse> response = statsService.recent(currentUser.id(), limit);
+        return ResponseEntity.ok(RestApiResponse.ok(response));
+    }
+
+    @Operation(
+            summary = "Coding achievements",
+            description =
+                    "Returns every achievement badge with its unlock state and progress, unlocking"
+                            + " any badge whose progress reached its target. Window-based badges"
+                            + " (early bird / night owl / perfect month) use the requested timezone.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Achievements retrieved",
+                        content =
+                                @Content(
+                                        schema =
+                                                @Schema(
+                                                        implementation =
+                                                                AchievementResponse[].class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid API key or JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid API key",
+                                                        value = UNAUTHORIZED_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary = "API key lacks READ scope",
+                                                        value = SCOPE_DENIED_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "Rate limit exceeded - RATE_LIMIT_001",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rate-limited",
+                                                        summary = "Too many requests",
+                                                        value = RATE_LIMITED_EXAMPLE)))
+            })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
+    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @GetMapping("/achievements")
+    public ResponseEntity<RestApiResponse<List<AchievementResponse>>> achievements(
+            @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
+                    int timezoneOffset) {
+        CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
+        List<AchievementResponse> response =
+                achievementService.getAchievements(currentUser.id(), zoneOffset(timezoneOffset));
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 

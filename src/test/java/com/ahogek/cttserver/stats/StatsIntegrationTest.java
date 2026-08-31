@@ -15,6 +15,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -54,6 +55,7 @@ class StatsIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        jdbcClient.sql("DELETE FROM user_achievements").update();
         jdbcClient.sql("DELETE FROM coding_sessions").update();
         jdbcClient.sql("DELETE FROM devices").update();
         jdbcClient.sql("DELETE FROM api_keys").update();
@@ -408,6 +410,85 @@ class StatsIntegrationTest {
             assertThat(result).hasStatusOk();
             assertThat(result).bodyJson().extractingPath("$.data.points[9].hour").isEqualTo(9);
             assertThat(result).bodyJson().extractingPath("$.data.activeDays").isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should unlock streak badges and persist them idempotently")
+        void shouldUnlockStreakBadges_whenConsecutiveDays() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            UUID userId = UUID.fromString(auth[1]);
+            for (int i = 0; i < 3; i++) {
+                insertSession(
+                        userId,
+                        Instant.parse("2026-08-28T10:00:00Z").plus(Duration.ofDays(i)),
+                        Instant.parse("2026-08-28T11:00:00Z").plus(Duration.ofDays(i)),
+                        "ctt-server",
+                        "Java");
+            }
+
+            var first =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+            assertThat(first).hasStatusOk();
+            assertThat(first)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='STREAK_3')].unlocked")
+                    .isEqualTo(java.util.List.of(true));
+            assertThat(first)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='STREAK_3')].progress")
+                    .isEqualTo(java.util.List.of(3));
+
+            // the unlock is persisted and a second query keeps the original timestamp
+            Long unlockCount =
+                    jdbcClient
+                            .sql(
+                                    "SELECT COUNT(*) FROM user_achievements WHERE user_id = ? AND achievement_code = 'STREAK_3'")
+                            .param(userId)
+                            .query(Long.class)
+                            .single();
+            assertThat(unlockCount).isEqualTo(1);
+
+            var second =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+            assertThat(second).hasStatusOk();
+            assertThat(second)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='STREAK_3')].unlocked")
+                    .isEqualTo(java.util.List.of(true));
+            Long auditCount =
+                    jdbcClient
+                            .sql(
+                                    "SELECT COUNT(*) FROM audit_logs WHERE user_id = ? AND action = 'ACHIEVEMENT_UNLOCKED' AND resource_id = 'STREAK_3'")
+                            .param(userId)
+                            .query(Long.class)
+                            .single();
+            assertThat(auditCount).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should report all badges locked when there are no sessions")
+        void shouldReturnAllLocked_whenNoSessions() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result).bodyJson().extractingPath("$.data").asArray().hasSize(15);
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.unlocked==true)]")
+                    .asArray()
+                    .isEmpty();
         }
 
         @Test
