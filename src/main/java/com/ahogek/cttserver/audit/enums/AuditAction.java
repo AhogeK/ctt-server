@@ -188,6 +188,13 @@ public enum AuditAction {
     SYNC_PUSH("Sync push completed"),
 
     // ==========================================
+    // Achievements
+    // ==========================================
+
+    /** Achievement badge unlocked. */
+    ACHIEVEMENT_UNLOCKED("Achievement badge unlocked"),
+
+    // ==========================================
     // Mail Delivery
     // ==========================================
 

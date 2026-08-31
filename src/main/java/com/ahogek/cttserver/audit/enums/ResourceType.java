@@ -37,6 +37,9 @@ public enum ResourceType {
     /** Client device entity. */
     DEVICE,
 
+    /** Achievement badge entity. */
+    ACHIEVEMENT,
+
     /** Fallback type for system-level or uncategorized resources. */
     UNKNOWN
 }
