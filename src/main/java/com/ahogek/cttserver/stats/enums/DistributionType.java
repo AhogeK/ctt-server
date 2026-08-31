@@ -5,5 +5,6 @@ public enum DistributionType {
     LANGUAGES,
     PROJECTS,
     TIME_OF_DAY,
-    WEEKDAY
+    WEEKDAY,
+    DEVICES
 }

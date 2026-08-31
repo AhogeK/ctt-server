@@ -1,5 +1,9 @@
 package com.ahogek.cttserver.stats.service;
 
+import com.ahogek.cttserver.common.exception.ErrorCode;
+import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.device.entity.Device;
+import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.stats.dto.DailyStatPoint;
 import com.ahogek.cttserver.stats.dto.DistributionEntryDto;
 import com.ahogek.cttserver.stats.dto.DistributionResponse;
@@ -48,14 +52,17 @@ public class StatsService {
     private final CodingSessionRepository codingSessionRepository;
     private final DailyStatsRepository dailyStatsRepository;
     private final DailyStatsMaterializer dailyStatsMaterializer;
+    private final DeviceRepository deviceRepository;
 
     public StatsService(
             CodingSessionRepository codingSessionRepository,
             DailyStatsRepository dailyStatsRepository,
-            DailyStatsMaterializer dailyStatsMaterializer) {
+            DailyStatsMaterializer dailyStatsMaterializer,
+            DeviceRepository deviceRepository) {
         this.codingSessionRepository = codingSessionRepository;
         this.dailyStatsRepository = dailyStatsRepository;
         this.dailyStatsMaterializer = dailyStatsMaterializer;
+        this.deviceRepository = deviceRepository;
     }
 
     /**
@@ -63,12 +70,15 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param zone aggregation timezone
+     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
      * @return the summary in seconds
      */
     @Transactional(readOnly = true)
-    public StatsSummaryResponse summary(UUID userId, ZoneOffset zone) {
-        if (!ZoneOffset.UTC.equals(zone) || !dailyStatsMaterializer.bootstrapIfNeeded(userId)) {
-            return liveSummary(userId, zone);
+    public StatsSummaryResponse summary(UUID userId, ZoneOffset zone, UUID deviceId) {
+        if (!ZoneOffset.UTC.equals(zone)
+                || deviceId != null
+                || !dailyStatsMaterializer.bootstrapIfNeeded(userId)) {
+            return liveSummary(userId, zone, deviceId);
         }
         // UTC path reads the materialized per-day totals (week/month boundaries are whole-day
         // sums, so day-granular materialization is exact). The lower bound covers every
@@ -104,9 +114,9 @@ public class StatsService {
         return new StatsSummaryResponse(todaySeconds, dailyAverage, week, month, year, total);
     }
 
-    private StatsSummaryResponse liveSummary(UUID userId, ZoneOffset zone) {
+    private StatsSummaryResponse liveSummary(UUID userId, ZoneOffset zone, UUID deviceId) {
         StatsCalculator.Summary summary =
-                StatsCalculator.summary(sessionsOf(userId), zone, LocalDate.now(zone));
+                StatsCalculator.summary(sessionsOf(userId, deviceId), zone, LocalDate.now(zone));
         return new StatsSummaryResponse(
                 summary.today(),
                 summary.dailyAverage(),
@@ -123,11 +133,13 @@ public class StatsService {
      * @param zone aggregation timezone
      * @param start first date (inclusive)
      * @param end last date (inclusive)
+     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
      * @return daily points in date order
      */
     @Transactional(readOnly = true)
-    public HeatmapResponse heatmap(UUID userId, ZoneOffset zone, LocalDate start, LocalDate end) {
-        if (ZoneOffset.UTC.equals(zone) && dailyStatsMaterializer.bootstrapIfNeeded(userId)) {
+    public HeatmapResponse heatmap(
+            UUID userId, ZoneOffset zone, LocalDate start, LocalDate end, UUID deviceId) {
+        if (canUseMaterializedDays(userId, zone, deviceId)) {
             // UTC path: per-day totals, dense over the range (zero days included), matching the
             // live aggregation contract.
             Map<LocalDate, Long> secondsByDay =
@@ -144,7 +156,7 @@ public class StatsService {
             return new HeatmapResponse(points);
         }
         List<DailyStatPoint> points =
-                StatsCalculator.heatmap(sessionsOf(userId), zone, start, end).stream()
+                StatsCalculator.heatmap(sessionsOf(userId, deviceId), zone, start, end).stream()
                         .map(point -> new DailyStatPoint(point.date(), point.seconds()))
                         .toList();
         return new HeatmapResponse(points);
@@ -155,13 +167,17 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param zone aggregation timezone
+     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
      * @return streak lengths
      */
     @Transactional(readOnly = true)
-    public StreakStatsResponse streaks(UUID userId, ZoneOffset zone) {
-        if (!ZoneOffset.UTC.equals(zone) || !dailyStatsMaterializer.bootstrapIfNeeded(userId)) {
+    public StreakStatsResponse streaks(UUID userId, ZoneOffset zone, UUID deviceId) {
+        if (!ZoneOffset.UTC.equals(zone)
+                || deviceId != null
+                || !dailyStatsMaterializer.bootstrapIfNeeded(userId)) {
             StatsCalculator.Streaks streaks =
-                    StatsCalculator.streaks(sessionsOf(userId), zone, LocalDate.now(zone));
+                    StatsCalculator.streaks(
+                            sessionsOf(userId, deviceId), zone, LocalDate.now(zone));
             return new StreakStatsResponse(streaks.current(), streaks.max());
         }
         // UTC path: streaks derive from the set of days with coding, which the materialized
@@ -222,11 +238,13 @@ public class StatsService {
      * @param userId the owning user
      * @param zone aggregation timezone
      * @param type the distribution dimension
+     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
      * @return buckets ordered by duration descending
      */
     @Transactional(readOnly = true)
-    public DistributionResponse distribution(UUID userId, ZoneOffset zone, DistributionType type) {
-        List<CodingSession> sessions = sessionsOf(userId);
+    public DistributionResponse distribution(
+            UUID userId, ZoneOffset zone, DistributionType type, UUID deviceId) {
+        List<CodingSession> sessions = sessionsOf(userId, deviceId);
         List<StatsCalculator.DistributionEntry> entries =
                 switch (type) {
                     case LANGUAGES ->
@@ -246,6 +264,7 @@ public class StatsService {
                                                                     .getHour())
                                                     .name());
                     case WEEKDAY -> StatsCalculator.weekdayDistribution(sessions, zone);
+                    case DEVICES -> devicesDistribution(userId, sessions);
                 };
         List<DistributionEntryDto> dtoEntries =
                 entries.stream()
@@ -259,12 +278,13 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param zone aggregation timezone
+     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
      * @return per-hour averages and the active-day denominator
      */
     @Transactional(readOnly = true)
-    public HourlyDistributionResponse hourly(UUID userId, ZoneOffset zone) {
+    public HourlyDistributionResponse hourly(UUID userId, ZoneOffset zone, UUID deviceId) {
         List<StatsCalculator.HourlyPoint> hourly =
-                StatsCalculator.hourlyDistribution(sessionsOf(userId), zone);
+                StatsCalculator.hourlyDistribution(sessionsOf(userId, deviceId), zone);
         List<HourlyStatPoint> points =
                 hourly.stream()
                         .map(point -> new HourlyStatPoint(point.hour(), point.averageSeconds()))
@@ -278,19 +298,103 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param limit maximum number of sessions
+     * @param deviceId optional origin-device filter; {@code null} lists all devices
      * @return recent sessions
      */
     @Transactional(readOnly = true)
-    public List<RecentSessionResponse> recent(UUID userId, int limit) {
-        return sessionsOf(userId).stream()
+    public List<RecentSessionResponse> recent(UUID userId, int limit, UUID deviceId) {
+        return sessionsOf(userId, deviceId).stream()
                 .sorted(Comparator.comparing(CodingSession::getStartTime).reversed())
                 .limit(limit)
                 .map(this::toRecentSession)
                 .toList();
     }
 
-    private List<CodingSession> sessionsOf(UUID userId) {
-        return codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId);
+    /**
+     * Reports whether the per-user per-UTC-day materialized rows can serve the request exactly.
+     *
+     * <p>Three disqualifiers: a timezone-shifted aggregation (a session crossing local midnight
+     * lives on one UTC day but contributes to two local days), a per-device filter (materialization
+     * aggregates across devices), or a user whose history has not been bootstrapped yet.
+     *
+     * @param userId the owning user
+     * @param zone aggregation timezone
+     * @param deviceId optional origin-device filter
+     * @return {@code true} when the materialized read path is exact for the request
+     */
+    private boolean canUseMaterializedDays(UUID userId, ZoneOffset zone, UUID deviceId) {
+        return ZoneOffset.UTC.equals(zone)
+                && deviceId == null
+                && dailyStatsMaterializer.bootstrapIfNeeded(userId);
+    }
+
+    private List<CodingSession> sessionsOf(UUID userId, UUID deviceId) {
+        if (deviceId == null) {
+            return codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId);
+        }
+        requireOwnedDevice(userId, deviceId);
+        return codingSessionRepository.findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(
+                userId, deviceId);
+    }
+
+    /**
+     * Enforces ownership for a per-device view. Revoked devices still resolve so historical
+     * sessions remain attributable.
+     *
+     * @param userId the owning user
+     * @param deviceId the requested device
+     * @throws NotFoundException if the device does not exist or belongs to another user
+     */
+    private void requireOwnedDevice(UUID userId, UUID deviceId) {
+        deviceRepository
+                .findByIdAndUserId(deviceId, userId)
+                .orElseThrow(
+                        () ->
+                                new NotFoundException(
+                                        ErrorCode.COMMON_002, "Device not found or access denied"));
+    }
+
+    /**
+     * Aggregates session seconds per originating device, labeled by device name.
+     *
+     * @param userId the owning user
+     * @param sessions the user's live sessions (already device-filtered when applicable)
+     * @return per-device buckets ordered by duration descending
+     */
+    private List<StatsCalculator.DistributionEntry> devicesDistribution(
+            UUID userId, List<CodingSession> sessions) {
+        Map<UUID, String> deviceNames =
+                deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Device::getId,
+                                        device ->
+                                                device.getDeviceName() != null
+                                                        ? device.getDeviceName()
+                                                        : "Unknown device"));
+        Map<String, Long> secondsByName =
+                sessions.stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        session ->
+                                                deviceNames.getOrDefault(
+                                                        session.getOriginDeviceId(),
+                                                        "Unknown device"),
+                                        Collectors.summingLong(
+                                                session ->
+                                                        Duration.between(
+                                                                        session.getStartTime(),
+                                                                        session.getEndTime())
+                                                                .toSeconds())));
+        return secondsByName.entrySet().stream()
+                .map(
+                        entry ->
+                                new StatsCalculator.DistributionEntry(
+                                        entry.getKey(), entry.getValue()))
+                .sorted(
+                        Comparator.comparingLong(StatsCalculator.DistributionEntry::seconds)
+                                .reversed())
+                .toList();
     }
 
     private RecentSessionResponse toRecentSession(CodingSession session) {
