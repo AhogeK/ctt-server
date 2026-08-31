@@ -1,4 +1,9 @@
 # Active Context
+- [2026-08-31] - 统计 IDE 维度补充（distribution type=IDES，v0.59.0）
+    - 设计决策: IDE 维度=派生自 origin 设备注册的 ide_name（devices.ide_name 列已有），不新增列——插件端 deviceId 是安装级（共享 SQLite app_user first-write-wins，同机多 IDE 共享一个 deviceId），sync 协议不携带 per-session IDE（SyncSessionDto 只有 projectName/language/时间/版本，插件 pull 时盖自己的 localIdeName，per-session IDE 语义本就不精确），按 origin 设备的注册 IDE 分桶是零协议/零插件/零迁移的正确粒度
+    - 实现: DistributionType.IDES + StatsService.idesDistribution（deviceId→ideName 映射，无 ideName 注册的设备 fallback "Unknown IDE"）+ 提取 aggregateByLabel 共享聚合 helper（devices/ides 共用 group→sum→排序，消除设备维度遗留的重复形状——上轮 Standards 审查判断项顺手解决）
+    - 测试: StatsServiceTest +1（IDES 分桶降序含 Unknown IDE fallback）+ StatsIntegrationTest IDES 探针（IDE 名解析+原始时长累加）；测试坑：registerDevice helper 未传 ideName → IDES 桶全落 Unknown IDE 合并 10800≠断言 7200，修复 helper 加 "ideName": "IntelliJ IDEA"（两设备同 IDE → 单桶原始 2h+1h=10800，distribution 是原始累加不合并重叠）
+    - 状态: ✅ 实施+全量 1295/0 + spotless 全绿，Notion 双计划已同步（ctt-server S1 实现状态 + 关键决策；ctt-web 第三阶段 IDE 维度说明 + D6），待提交授权
 - [2026-08-31] - 用户规则：AI 用的文档（计划/验收报告等）放 `.omp/`，`docs/` 只放项目文档（本次 stats-device-dimension 计划已从 docs/plans/ 移至 .omp/stats-device-dimension-plan.md；历史记录 866/1227 行的 docs/plans 引用为当时路径，不改史）
 - [2026-08-31] - 统计设备维度实施（origin_device_id + 全端点 deviceId 过滤，v0.58.0）
     - 设计决策: ①数据模型=coding_sessions 新增 origin_device_id（push 创建时从 deviceId 盖章，跨设备更新/删除不改写——updated_by_device_id 是最后写入设备，跨设备编辑会漂移不能当归属维度）②独立迁移 V20260831233000（加列 + 存量回填 origin=updated_by_device_id 单设备用户精确/多设备用户最佳近似 + idx_sessions_user_origin 部分索引 (user_id, origin_device_id) WHERE is_deleted=false）③全 7 统计端点（除 achievements）可选 deviceId 过滤；带筛选回退实时聚合（S5 物化按 user 粒度无法服务设备维度，与非 UTC 回退同模式）④distribution 新增 type=DEVICES（设备名映射经 DeviceRepository，已吊销设备仍归属；未知设备 fallback "Unknown device"）⑤归属校验：deviceId 非本人/不存在 → 404 COMMON_002 "Device not found or access denied"（对齐 DeviceService/SyncPushService 既有语义）
