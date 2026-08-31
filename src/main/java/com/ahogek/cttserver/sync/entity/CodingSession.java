@@ -44,7 +44,7 @@ public class CodingSession {
     @Column(name = "session_uuid", nullable = false)
     private UUID sessionUuid;
 
-    @Column(name = "project_name", nullable = false, length = 255)
+    @Column(name = "project_name", nullable = false)
     private String projectName;
 
     @Column(name = "language", nullable = false, length = 50)
@@ -67,6 +67,9 @@ public class CodingSession {
 
     @Column(name = "updated_by_device_id")
     private UUID updatedByDeviceId;
+
+    @Column(name = "origin_device_id")
+    private UUID originDeviceId;
 
     @Column(name = "is_deleted", nullable = false)
     private boolean isDeleted;
@@ -122,6 +125,19 @@ public class CodingSession {
      */
     public void bumpServerVersion() {
         this.serverVersion++;
+    }
+
+    /**
+     * Records the device that produced this server-side write.
+     *
+     * <p>Called on every accepted push (create, update and delete paths) so {@code
+     * updated_by_device_id} always names the last writer. The origin device, by contrast, is
+     * stamped once at creation and never rewritten.
+     *
+     * @param deviceId the pushing device
+     */
+    public void touchByDevice(UUID deviceId) {
+        this.updatedByDeviceId = deviceId;
     }
 
     // ==========================================
@@ -208,12 +224,12 @@ public class CodingSession {
         this.serverVersion = serverVersion;
     }
 
-    public UUID getUpdatedByDeviceId() {
-        return updatedByDeviceId;
+    public UUID getOriginDeviceId() {
+        return originDeviceId;
     }
 
-    public void setUpdatedByDeviceId(UUID updatedByDeviceId) {
-        this.updatedByDeviceId = updatedByDeviceId;
+    public void setOriginDeviceId(UUID originDeviceId) {
+        this.originDeviceId = originDeviceId;
     }
 
     public boolean isDeleted() {

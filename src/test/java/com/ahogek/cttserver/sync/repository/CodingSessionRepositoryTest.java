@@ -138,15 +138,15 @@ class CodingSessionRepositoryTest {
         @DisplayName("shouldReturnOnlyLiveSessionsUpdatedByDevice")
         void shouldReturnOnlyLiveSessionsUpdatedByDevice() {
             CodingSession byDevice = persistLive(UUID.randomUUID());
-            byDevice.setUpdatedByDeviceId(deviceId);
+            byDevice.touchByDevice(deviceId);
             em.persistAndFlush(byDevice);
 
             CodingSession byOtherDevice = persistLive(UUID.randomUUID());
-            byOtherDevice.setUpdatedByDeviceId(persistDevice(userId).getId());
+            byOtherDevice.touchByDevice(persistDevice(userId).getId());
             em.persistAndFlush(byOtherDevice);
 
             CodingSession deletedByDevice = persistDeleted(UUID.randomUUID());
-            deletedByDevice.setUpdatedByDeviceId(deviceId);
+            deletedByDevice.touchByDevice(deviceId);
             em.persistAndFlush(deletedByDevice);
 
             List<CodingSession> result =
