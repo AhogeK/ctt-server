@@ -1,8 +1,13 @@
 package com.ahogek.cttserver.stats.service;
 
+import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.device.entity.Device;
+import com.ahogek.cttserver.device.repository.DeviceRepository;
+import com.ahogek.cttserver.stats.dto.DistributionResponse;
 import com.ahogek.cttserver.stats.dto.HeatmapResponse;
 import com.ahogek.cttserver.stats.dto.StatsSummaryResponse;
 import com.ahogek.cttserver.stats.dto.StreakStatsResponse;
+import com.ahogek.cttserver.stats.enums.DistributionType;
 import com.ahogek.cttserver.stats.materialization.entity.DailyStats;
 import com.ahogek.cttserver.stats.materialization.repository.DailyStatsRepository;
 import com.ahogek.cttserver.stats.materialization.service.DailyStatsMaterializer;
@@ -18,9 +23,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -33,18 +40,24 @@ class StatsServiceTest {
     private CodingSessionRepository codingSessionRepository;
     private DailyStatsRepository dailyStatsRepository;
     private DailyStatsMaterializer dailyStatsMaterializer;
+    private DeviceRepository deviceRepository;
     private StatsService service;
 
     private final UUID userId = UUID.randomUUID();
+    private final UUID deviceId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         codingSessionRepository = mock(CodingSessionRepository.class);
         dailyStatsRepository = mock(DailyStatsRepository.class);
         dailyStatsMaterializer = mock(DailyStatsMaterializer.class);
+        deviceRepository = mock(DeviceRepository.class);
         service =
                 new StatsService(
-                        codingSessionRepository, dailyStatsRepository, dailyStatsMaterializer);
+                        codingSessionRepository,
+                        dailyStatsRepository,
+                        dailyStatsMaterializer,
+                        deviceRepository);
     }
 
     private static DailyStats day(String date, long seconds) {
@@ -58,6 +71,15 @@ class StatsServiceTest {
         session.setProjectName("p");
         session.setLanguage("Java");
         return session;
+    }
+
+    private static Device device(UUID id) {
+        Device device = new Device();
+        device.setId(id);
+        device.setUserId(UUID.randomUUID());
+        device.setDeviceName("MacBook Pro");
+        device.setLastSeenAt(Instant.now());
+        return device;
     }
 
     @Nested
@@ -77,7 +99,7 @@ class StatsServiceTest {
                                     day(today.minusDays(1).toString(), 7200),
                                     day(today.toString(), 1800)));
 
-            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC);
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, null);
 
             assertThat(summary.total()).isEqualTo(12600);
             // today is the ISO week start (Monday), so only today's row falls in this week
@@ -96,7 +118,7 @@ class StatsServiceTest {
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(List.of(session("2026-08-30T10:00:00", "2026-08-30T11:00:00")));
 
-            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.ofHours(8));
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.ofHours(8), null);
 
             assertThat(summary.total()).isEqualTo(3600);
             verify(dailyStatsRepository, never()).findByUserIdOrderByUtcDateAsc(any());
@@ -115,7 +137,8 @@ class StatsServiceTest {
                             userId,
                             ZoneOffset.UTC,
                             LocalDate.of(2026, 8, 30),
-                            LocalDate.of(2026, 8, 31));
+                            LocalDate.of(2026, 8, 31),
+                            null);
 
             // dense output: zero day included
             assertThat(heatmap.points()).hasSize(2);
@@ -134,7 +157,7 @@ class StatsServiceTest {
                                     day("2026-08-30", 3600),
                                     day("2026-08-31", 3600)));
 
-            StreakStatsResponse streaks = service.streaks(userId, ZoneOffset.UTC);
+            StreakStatsResponse streaks = service.streaks(userId, ZoneOffset.UTC, null);
 
             assertThat(streaks.max()).isEqualTo(3);
             assertThat(streaks.current()).isEqualTo(3);
@@ -152,9 +175,86 @@ class StatsServiceTest {
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(List.of(session("2026-08-30T10:00:00", "2026-08-30T11:00:00")));
 
-            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC);
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, null);
 
             assertThat(summary.total()).isEqualTo(3600);
+        }
+    }
+
+    @Nested
+    @DisplayName("device dimension")
+    class DeviceDimensionTests {
+
+        @Test
+        @DisplayName("summaryShouldFilterByOriginDevice_whenDeviceIdProvided")
+        void summaryShouldFilterByOriginDevice_whenDeviceIdProvided() {
+            when(deviceRepository.findByIdAndUserId(deviceId, userId))
+                    .thenReturn(Optional.of(device(deviceId)));
+            when(codingSessionRepository.findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(
+                            userId, deviceId))
+                    .thenReturn(List.of(session("2026-08-30T10:00:00", "2026-08-30T11:00:00")));
+
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, deviceId);
+
+            assertThat(summary.total()).isEqualTo(3600);
+            verify(codingSessionRepository, never()).findAllByUserIdAndIsDeletedFalse(any());
+            // per-device reads bypass the UTC materialized path (materialization is per-user)
+            verify(dailyStatsMaterializer, never()).bootstrapIfNeeded(any());
+        }
+
+        @Test
+        @DisplayName("summaryShouldFallBackToLive_whenDeviceFilterWithNonUtcZone")
+        void summaryShouldFallBackToLive_whenDeviceFilterWithNonUtcZone() {
+            when(deviceRepository.findByIdAndUserId(deviceId, userId))
+                    .thenReturn(Optional.of(device(deviceId)));
+            when(codingSessionRepository.findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(
+                            userId, deviceId))
+                    .thenReturn(List.of(session("2026-08-30T10:00:00", "2026-08-30T11:00:00")));
+
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.ofHours(8), deviceId);
+
+            assertThat(summary.total()).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("distributionShouldReturnDevicesBucket_whenTypeDevices")
+        void distributionShouldReturnDevicesBucket_whenTypeDevices() {
+            CodingSession fromMac = session("2026-08-30T10:00:00", "2026-08-30T11:00:00");
+            fromMac.setOriginDeviceId(deviceId);
+            CodingSession unnamed = session("2026-08-30T11:00:00", "2026-08-30T12:30:00");
+            unnamed.setOriginDeviceId(UUID.randomUUID()); // deleted/foreign device -> fallback
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(fromMac, unnamed));
+            Device named = device(deviceId);
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(List.of(named));
+
+            DistributionResponse response =
+                    service.distribution(userId, ZoneOffset.UTC, DistributionType.DEVICES, null);
+
+            assertThat(response.entries()).hasSize(2);
+            // ordered by duration descending: 5400 before 3600
+            assertThat(response.entries().get(0).name()).isEqualTo("Unknown device");
+            assertThat(response.entries().get(0).seconds()).isEqualTo(5400);
+            assertThat(response.entries().get(1).name()).isEqualTo("MacBook Pro");
+            assertThat(response.entries().get(1).seconds()).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("distributionShouldThrow_whenDeviceNotOwnedByUser")
+        void distributionShouldThrow_whenDeviceNotOwnedByUser() {
+            when(deviceRepository.findByIdAndUserId(deviceId, userId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(
+                            () ->
+                                    service.distribution(
+                                            userId,
+                                            ZoneOffset.UTC,
+                                            DistributionType.LANGUAGES,
+                                            deviceId))
+                    .isInstanceOf(NotFoundException.class);
+            verify(codingSessionRepository, never())
+                    .findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(any(), any());
         }
     }
 }
