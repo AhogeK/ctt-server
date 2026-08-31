@@ -9,6 +9,8 @@ import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
+import com.ahogek.cttserver.stats.achievement.service.AchievementService;
+import com.ahogek.cttserver.stats.materialization.service.DailyStatsMaterializer;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
 import com.ahogek.cttserver.sync.entity.CodingSession;
@@ -24,10 +26,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -53,6 +58,8 @@ public class SyncPushService {
     private final AuditLogService auditLogService;
     private final JdbcTemplate jdbcTemplate;
     private final LeaderboardService leaderboardService;
+    private final DailyStatsMaterializer dailyStatsMaterializer;
+    private final AchievementService achievementService;
 
     public SyncPushService(
             CodingSessionRepository codingSessionRepository,
@@ -60,13 +67,17 @@ public class SyncPushService {
             DeviceRepository deviceRepository,
             AuditLogService auditLogService,
             JdbcTemplate jdbcTemplate,
-            LeaderboardService leaderboardService) {
+            LeaderboardService leaderboardService,
+            DailyStatsMaterializer dailyStatsMaterializer,
+            AchievementService achievementService) {
         this.codingSessionRepository = codingSessionRepository;
         this.sessionChangeRepository = sessionChangeRepository;
         this.deviceRepository = deviceRepository;
         this.auditLogService = auditLogService;
         this.jdbcTemplate = jdbcTemplate;
         this.leaderboardService = leaderboardService;
+        this.dailyStatsMaterializer = dailyStatsMaterializer;
+        this.achievementService = achievementService;
     }
 
     /**
@@ -87,6 +98,8 @@ public class SyncPushService {
     public SyncPushResponse push(UUID userId, UUID deviceId, List<SyncSessionDto> sessions) {
         try {
             SyncPushResponse response = doPush(userId, deviceId, sessions);
+            updateMaterializedStats(userId, sessions);
+            achievementService.evictCache(userId);
             updateLeaderboard(userId);
             return response;
         } catch (Exception e) {
@@ -197,6 +210,25 @@ public class SyncPushService {
                 pendingChanges.size());
 
         return new SyncPushResponse(nextCursor);
+    }
+
+    /**
+     * Recomputes the materialized daily-stats rows for the UTC dates the pushed sessions touch, so
+     * the UTC statistics read path sees the new sessions immediately. Failure-tolerant: a
+     * materialization issue never rolls back the push, and the next push retries those dates.
+     */
+    private void updateMaterializedStats(UUID userId, List<SyncSessionDto> sessions) {
+        Set<LocalDate> touched = new HashSet<>();
+        for (SyncSessionDto dto : sessions) {
+            // include deleted sessions: a soft delete changes that day's duration too
+            if (dto.startTime() != null && dto.endTime() != null) {
+                touched.add(dto.startTime().atOffset(ZoneOffset.UTC).toLocalDate());
+                touched.add(dto.endTime().atOffset(ZoneOffset.UTC).toLocalDate());
+            }
+        }
+        if (!touched.isEmpty()) {
+            dailyStatsMaterializer.recomputeDays(userId, new ArrayList<>(touched));
+        }
     }
 
     /**

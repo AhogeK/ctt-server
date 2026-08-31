@@ -15,18 +15,24 @@ import com.ahogek.cttserver.sync.repository.CodingSessionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Achievement service that lazily evaluates badges against the user's coding sessions.
@@ -51,32 +57,45 @@ public class AchievementService {
     private static final int NIGHT_OWL_START_HOUR = 22;
     private static final int NIGHT_OWL_END_HOUR = 5;
 
+    private static final String CACHE_PREFIX = "achievements:cache:";
+    private static final Duration CACHE_TTL = Duration.ofSeconds(60);
+
     private final CodingSessionRepository codingSessionRepository;
     private final UserAchievementRepository userAchievementRepository;
     private final AuditLogService auditLogService;
     private final Clock clock;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Autowired
     public AchievementService(
             CodingSessionRepository codingSessionRepository,
             UserAchievementRepository userAchievementRepository,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            StringRedisTemplate redisTemplate,
+            ObjectMapper objectMapper) {
         this(
                 codingSessionRepository,
                 userAchievementRepository,
                 auditLogService,
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                redisTemplate,
+                objectMapper);
     }
 
     AchievementService(
             CodingSessionRepository codingSessionRepository,
             UserAchievementRepository userAchievementRepository,
             AuditLogService auditLogService,
-            Clock clock) {
+            Clock clock,
+            StringRedisTemplate redisTemplate,
+            ObjectMapper objectMapper) {
         this.codingSessionRepository = codingSessionRepository;
         this.userAchievementRepository = userAchievementRepository;
         this.auditLogService = auditLogService;
         this.clock = clock;
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -89,6 +108,54 @@ public class AchievementService {
      */
     @Transactional
     public List<AchievementResponse> getAchievements(UUID userId, ZoneOffset zone) {
+        String cacheKey = CACHE_PREFIX + userId + ":" + zone.getTotalSeconds();
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                return objectMapper.readValue(
+                        cached,
+                        objectMapper
+                                .getTypeFactory()
+                                .constructCollectionType(List.class, AchievementResponse.class));
+            }
+        } catch (Exception e) {
+            log.warn("Achievements cache read failed for user {}, falling back", userId, e);
+        }
+        List<AchievementResponse> result = evaluate(userId, zone);
+        try {
+            redisTemplate
+                    .opsForValue()
+                    .set(cacheKey, objectMapper.writeValueAsString(result), CACHE_TTL);
+        } catch (Exception e) {
+            log.warn("Achievements cache write failed for user {}", userId, e);
+        }
+        return result;
+    }
+
+    /** Invalidates cached achievement lists after a push (new sessions change progress). */
+    public void evictCache(UUID userId) {
+        try {
+            // SCAN is used instead of KEYS to avoid blocking the keyspace; the per-user cache
+            // holds at most one entry per timezone so this is bounded in practice.
+            Set<String> keys = new HashSet<>();
+            var scanOptions =
+                    org.springframework.data.redis.core.ScanOptions.scanOptions()
+                            .match(CACHE_PREFIX + userId + ":*")
+                            .count(100)
+                            .build();
+            try (var cursor = redisTemplate.scan(scanOptions)) {
+                cursor.forEachRemaining(keys::add);
+            }
+            if (!keys.isEmpty()) {
+                redisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            // failure-tolerant: a stale cache entry expires by TTL, the push must not roll back
+            log.warn("Achievements cache eviction failed for user {}", userId, e);
+        }
+    }
+
+    private List<AchievementResponse> evaluate(UUID userId, ZoneOffset zone) {
         List<CodingSession> sessions =
                 codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId);
         Map<String, Instant> unlockedAt = new HashMap<>();
