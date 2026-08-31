@@ -175,13 +175,24 @@ class StatsIntegrationTest {
 
     private void insertSession(
             UUID userId, Instant start, Instant end, String project, String lang) {
+        insertSession(userId, null, start, end, project, lang);
+    }
+
+    private void insertSession(
+            UUID userId,
+            UUID originDeviceId,
+            Instant start,
+            Instant end,
+            String project,
+            String lang) {
         jdbcClient
                 .sql(
                         """
                         INSERT INTO coding_sessions
                             (id, user_id, session_uuid, project_name, language, start_time, end_time,
-                             client_modified_at, client_version, server_version, is_deleted, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                             client_modified_at, client_version, server_version, origin_device_id,
+                             is_deleted, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """)
                 .param(UUID.randomUUID())
                 .param(userId)
@@ -191,6 +202,7 @@ class StatsIntegrationTest {
                 .param(Timestamp.from(start))
                 .param(Timestamp.from(end))
                 .param(Timestamp.from(end))
+                .param(originDeviceId)
                 .update();
     }
 
@@ -613,7 +625,7 @@ class StatsIntegrationTest {
                             .param(userId)
                             .query(Long.class)
                             .single();
-            assertThat(cacheRows).isEqualTo(0);
+            assertThat(cacheRows).isZero();
 
             // push an 11h session; the cache is evicted and TOTAL_10_HOURS unlocks on next read
             String body =
@@ -677,6 +689,221 @@ class StatsIntegrationTest {
         @DisplayName("Should return 401 when not authenticated")
         void shouldReturn401_whenNotAuthenticated() {
             assertThat(mvc.get().uri("/api/v1/stats/summary").exchange()).hasStatus(401);
+        }
+    }
+
+    @Nested
+    @DisplayName("Device dimension")
+    class DeviceDimensionEndpoints {
+
+        private UUID registerDevice(String jwt, UUID deviceId) {
+            mvc.post()
+                    .uri("/api/v1/devices")
+                    .with(csrf())
+                    .header("Authorization", "Bearer " + jwt)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                            """
+                            {"deviceId": "%s", "deviceName": "Dev-%s", "platform": "macos"}
+                            """
+                                    .formatted(
+                                            deviceId.toString(),
+                                            deviceId.toString().substring(0, 8)))
+                    .exchange();
+            return deviceId;
+        }
+
+        private void pushSession(String syncKey, UUID deviceId, String sessionUuid) {
+            String pushBody =
+                    """
+                    {
+                      "deviceId": "%s",
+                      "sessions": [
+                        {"sessionUuid": "%s", "projectName": "ctt-server", "language": "Java",
+                         "startTime": "2026-08-30T10:00:00Z", "endTime": "2026-08-30T11:00:00Z",
+                         "clientModifiedAt": "2026-08-30T11:00:00Z", "clientVersion": 1,
+                         "deleted": false}
+                      ]
+                    }
+                    """
+                            .formatted(deviceId.toString(), sessionUuid);
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + syncKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pushBody))
+                    .hasStatusOk();
+        }
+
+        @Test
+        @DisplayName(
+                "Push should stamp origin device and device filter should subset every endpoint")
+        void shouldStampOriginOnPush_andFilterEndpointsByDevice() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            UUID userId = UUID.fromString(auth[1]);
+            String readKey = createApiKey(auth[0], "read", "READ");
+            String syncKey = createApiKey(auth[0], "sync", "SYNC");
+            UUID deviceA = registerDevice(auth[0], UUID.randomUUID());
+            UUID deviceB = registerDevice(auth[0], UUID.randomUUID());
+
+            // real pushes stamp the origin device at creation
+            String sessionA = UUID.randomUUID().toString();
+            String sessionB = UUID.randomUUID().toString();
+            pushSession(syncKey, deviceA, sessionA);
+            pushSession(syncKey, deviceB, sessionB);
+            UUID originA =
+                    jdbcClient
+                            .sql(
+                                    "SELECT origin_device_id FROM coding_sessions WHERE user_id = ? AND session_uuid = ?")
+                            .param(userId)
+                            .param(UUID.fromString(sessionA))
+                            .query(UUID.class)
+                            .single();
+            assertThat(originA).isEqualTo(deviceA);
+            // cross-device update must NOT rewrite the origin
+            String updateBody =
+                    """
+                    {
+                      "deviceId": "%s",
+                      "sessions": [
+                        {"sessionUuid": "%s", "projectName": "ctt-server", "language": "Kotlin",
+                         "startTime": "2026-08-30T10:00:00Z", "endTime": "2026-08-30T12:00:00Z",
+                         "clientModifiedAt": "2026-08-31T09:00:00Z", "clientVersion": 2,
+                         "deleted": false}
+                      ]
+                    }
+                    """
+                            .formatted(deviceB.toString(), sessionA);
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + syncKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(updateBody))
+                    .hasStatusOk();
+            UUID originAfterUpdate =
+                    jdbcClient
+                            .sql(
+                                    "SELECT origin_device_id FROM coding_sessions WHERE user_id = ? AND session_uuid = ?")
+                            .param(userId)
+                            .param(UUID.fromString(sessionA))
+                            .query(UUID.class)
+                            .single();
+            assertThat(originAfterUpdate).isEqualTo(deviceA);
+
+            // device-filtered summary equals the per-device subset (deviceA session now 2h,
+            // deviceB session 1h)
+            var summaryA =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?deviceId=" + deviceA)
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(summaryA).hasStatusOk();
+            assertThat(summaryA).bodyJson().extractingPath("$.data.total").isEqualTo(7200);
+
+            var summaryB =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?deviceId=" + deviceB)
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(summaryB).hasStatusOk();
+            assertThat(summaryB).bodyJson().extractingPath("$.data.total").isEqualTo(3600);
+
+            // unfiltered total = merged overlap: both sessions 10:00-12:00 overlap -> 2h,
+            // plus deviceB extra hour 10:00-11:00 already inside the window -> 7200 total
+            var summaryAll =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(summaryAll).hasStatusOk();
+            assertThat(summaryAll).bodyJson().extractingPath("$.data.total").isEqualTo(7200);
+
+            // DEVICES distribution: names resolved, ordered by seconds desc
+            var dist =
+                    mvc.get()
+                            .uri("/api/v1/stats/distribution?type=DEVICES")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(dist).hasStatusOk();
+            assertThat(dist).bodyJson().extractingPath("$.data.entries[0].seconds").isEqualTo(7200);
+
+            // heatmap filter falls back to live aggregation (materialized path is per-user)
+            var heatmap =
+                    mvc.get()
+                            .uri(
+                                    "/api/v1/stats/heatmap?start=2026-08-30&end=2026-08-30&deviceId="
+                                            + deviceA)
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(heatmap).hasStatusOk();
+            assertThat(heatmap)
+                    .bodyJson()
+                    .extractingPath("$.data.points[0].seconds")
+                    .isEqualTo(7200);
+        }
+
+        @Test
+        @DisplayName("Should return 404 when deviceId belongs to another user")
+        void shouldReturn404_whenDeviceIdForeign() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(auth[0], "read", "READ");
+            String[] other = registerVerifyAndLogin(uniqueEmail());
+            UUID foreignDevice = registerDevice(other[0], UUID.randomUUID());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?deviceId=" + foreignDevice)
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatus(404);
+            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("COMMON_002");
+        }
+
+        @Test
+        @DisplayName("Should keep attributing sessions to a revoked device")
+        void shouldKeepAttribution_whenDeviceRevoked() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(auth[0], "read", "READ");
+            String syncKey = createApiKey(auth[0], "sync", "SYNC");
+            String writeKey = createApiKey(auth[0], "write", "WRITE");
+            UUID deviceA = registerDevice(auth[0], UUID.randomUUID());
+
+            pushSession(syncKey, deviceA, UUID.randomUUID().toString());
+
+            // revoke the device via the WRITE-scoped key
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/devices/" + deviceA)
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + writeKey))
+                    .hasStatusOk();
+
+            // sessions of the revoked device remain attributable under the device filter
+            var summaryA =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?deviceId=" + deviceA)
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(summaryA).hasStatusOk();
+            assertThat(summaryA).bodyJson().extractingPath("$.data.total").isEqualTo(3600);
+
+            // and in the per-device distribution by display name
+            var dist =
+                    mvc.get()
+                            .uri("/api/v1/stats/distribution?type=DEVICES")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(dist).hasStatusOk();
+            assertThat(dist)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[0].name")
+                    .isEqualTo("Dev-" + deviceA.toString().substring(0, 8));
+            assertThat(dist).bodyJson().extractingPath("$.data.entries[0].seconds").isEqualTo(3600);
         }
     }
 }
