@@ -2,6 +2,7 @@ package com.ahogek.cttserver.leaderboard.service;
 
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ValidationException;
+import com.ahogek.cttserver.common.lock.RedisLockService;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardEntryDto;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardResponse;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
@@ -65,10 +66,9 @@ public class LeaderboardService {
     private static final String KEY_PREFIX = "leaderboard:";
     private static final String LOCK_PREFIX = "leaderboard:lock:";
     private static final Duration LOCK_TTL = Duration.ofSeconds(5);
-    private static final int LOCK_ATTEMPTS = 5;
-    private static final long LOCK_RETRY_MILLIS = 50;
 
     private final StringRedisTemplate redisTemplate;
+    private final RedisLockService redisLock;
     private final CodingSessionRepository codingSessionRepository;
     private final UserRepository userRepository;
     private final Clock clock;
@@ -76,17 +76,20 @@ public class LeaderboardService {
     @Autowired
     public LeaderboardService(
             StringRedisTemplate redisTemplate,
+            RedisLockService redisLock,
             CodingSessionRepository codingSessionRepository,
             UserRepository userRepository) {
-        this(redisTemplate, codingSessionRepository, userRepository, Clock.systemUTC());
+        this(redisTemplate, redisLock, codingSessionRepository, userRepository, Clock.systemUTC());
     }
 
     LeaderboardService(
             StringRedisTemplate redisTemplate,
+            RedisLockService redisLock,
             CodingSessionRepository codingSessionRepository,
             UserRepository userRepository,
             Clock clock) {
         this.redisTemplate = redisTemplate;
+        this.redisLock = redisLock;
         this.codingSessionRepository = codingSessionRepository;
         this.userRepository = userRepository;
         this.clock = clock;
@@ -111,7 +114,7 @@ public class LeaderboardService {
         // residual staleness anyway).
         String lockKey = LOCK_PREFIX + userId;
         try {
-            if (tryAcquireLock(lockKey)) {
+            if (redisLock.tryAcquire(lockKey, LOCK_TTL)) {
                 try {
                     recomputeAndWriteAll(userId);
                 } finally {
@@ -298,21 +301,5 @@ public class LeaderboardService {
             case MONTH -> Duration.ofDays(32);
             case YEAR -> Duration.ofDays(370);
         };
-    }
-
-    private boolean tryAcquireLock(String lockKey) {
-        for (int attempt = 0; attempt < LOCK_ATTEMPTS; attempt++) {
-            if (Boolean.TRUE.equals(
-                    redisTemplate.opsForValue().setIfAbsent(lockKey, "1", LOCK_TTL))) {
-                return true;
-            }
-            try {
-                Thread.sleep(LOCK_RETRY_MILLIS);
-            } catch (InterruptedException _) {
-                Thread.currentThread().interrupt();
-                return false;
-            }
-        }
-        return false;
     }
 }
