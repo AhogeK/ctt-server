@@ -228,6 +228,18 @@
 
 可使用skills访问 gemini.google.com / perplexity.ai 咨询高级AI（需选择模型）及网络搜索。
 
+### R22: 数据库迁移管理（强制）
+
+**核心原则：init 迁移（`V20260303210000__init_base_schema.sql`）一旦被任何环境应用过，禁止再修改其内容**——Flyway 对已应用迁移做 checksum 校验，改动会导致 validate 失败、服务启动崩溃。
+
+| 场景 | 正确做法 |
+|---|---|
+| 新表 / 新列 / 新约束 / 约束修改 | 新建独立迁移 `V{时间戳}__{描述}.sql`（如 `V20260831230001__xxx.sql`），版本号递增 |
+| 既有约束加枚举值 | 独立迁移中 `ALTER TABLE ... DROP CONSTRAINT` + `ADD CONSTRAINT` 重建 |
+| 依赖 init 的测试 | 约束/结构断言需读取独立迁移（如 ResourceTypeTest 读 `ADD CONSTRAINT` 所在文件），不得假设在 init 内 |
+
+触发条件：任何对 `db/migration/` 下已提交文件的修改，先确认该文件是否已被应用（提交过 = 已应用）；已应用 → 绝不直接改，另起迁移。
+
 ## 执行流程
 
 会话开始 → 读memory-bank → 创建todo（如需）→ 处理请求 → 清理临时文件 → 更新记忆 → 检查行数修剪 → 代码修改+编辑验证 → 提交前审查+Git授权+版本号
