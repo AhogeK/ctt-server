@@ -285,6 +285,26 @@ class StatsServiceTest {
         }
 
         @Test
+        @DisplayName("distributionShouldFallbackToUnknownIde_whenIdeNameIsBlank")
+        void distributionShouldFallbackToUnknownIde_whenIdeNameIsBlank() {
+            CodingSession fromBlank = session("2026-08-30T10:00:00", "2026-08-30T11:00:00");
+            fromBlank.setOriginDeviceId(deviceId);
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(fromBlank));
+            Device blank = device(deviceId);
+            blank.setIdeName("");
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(List.of(blank));
+
+            DistributionResponse response =
+                    service.distribution(userId, ZoneOffset.UTC, DistributionType.IDES, null);
+
+            assertThat(response.entries()).hasSize(1);
+            assertThat(response.entries().getFirst().name()).isEqualTo("Unknown IDE");
+            assertThat(response.entries().getFirst().seconds()).isEqualTo(3600);
+        }
+
+        @Test
         @DisplayName("distributionShouldThrow_whenDeviceNotOwnedByUser")
         void distributionShouldThrow_whenDeviceNotOwnedByUser() {
             when(deviceRepository.findByIdAndUserId(deviceId, userId)).thenReturn(Optional.empty());

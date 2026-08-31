@@ -412,7 +412,7 @@ public class StatsService {
                                 Device::getId,
                                 device -> {
                                     String label = labelExtractor.apply(device);
-                                    return label != null ? label : fallback;
+                                    return label != null && !label.isBlank() ? label : fallback;
                                 }));
     }
 
