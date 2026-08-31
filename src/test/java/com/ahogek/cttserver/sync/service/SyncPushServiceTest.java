@@ -169,11 +169,12 @@ class SyncPushServiceTest {
             assertThat(sessionArgs).isNotNull();
             // (id, user_id, session_uuid, project_name, language, start_time, end_time,
             //  client_modified_at, client_version, server_version, updated_by_device_id,
-            //  is_deleted, deleted_at, created_at, updated_at)
+            //  origin_device_id, is_deleted, deleted_at, created_at, updated_at)
             assertThat(sessionArgs[2]).isEqualTo(sessionUuid);
             assertThat(sessionArgs[9]).isEqualTo(1L);
             assertThat(sessionArgs[10]).isEqualTo(deviceId);
-            assertThat(sessionArgs[11]).isEqualTo(false);
+            assertThat(sessionArgs[11]).isEqualTo(deviceId);
+            assertThat(sessionArgs[12]).isEqualTo(false);
 
             verify(jdbcTemplate, atLeastOnce()).update(anyString(), any(Object[].class));
 
@@ -384,7 +385,7 @@ class SyncPushServiceTest {
                     .thenAnswer(
                             _ -> {
                                 Object[] args = updateArgs.getValue();
-                                for (int i = 0; i + 2 < args.length; i += 15) {
+                                for (int i = 0; i + 2 < args.length; i += 16) {
                                     if (sessionUuid2.equals(args[i + 2])) {
                                         throw new IllegalStateException("persistence failure");
                                     }

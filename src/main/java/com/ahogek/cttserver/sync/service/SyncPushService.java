@@ -153,7 +153,8 @@ public class SyncPushService {
                 session.setSessionUuid(dto.sessionUuid());
                 applyIncomingFields(session, dto);
                 session.setServerVersion(1);
-                session.setUpdatedByDeviceId(deviceId);
+                session.touchByDevice(deviceId);
+                session.setOriginDeviceId(deviceId);
                 toCreate.add(session);
                 known.put(dto.sessionUuid(), session);
                 pendingChanges.add(new ChangeDraft(session, ChangeOp.UPSERT));
@@ -165,14 +166,14 @@ public class SyncPushService {
                 case APPLY_INCOMING -> {
                     applyIncomingFields(existing, dto);
                     existing.bumpServerVersion();
-                    existing.setUpdatedByDeviceId(deviceId);
+                    existing.touchByDevice(deviceId);
                     toUpdate.add(existing);
                     pendingChanges.add(new ChangeDraft(existing, ChangeOp.UPSERT));
                 }
                 case APPLY_DELETE -> {
                     existing.softDelete(Instant.now());
                     existing.bumpServerVersion();
-                    existing.setUpdatedByDeviceId(deviceId);
+                    existing.touchByDevice(deviceId);
                     toUpdate.add(existing);
                     pendingChanges.add(new ChangeDraft(existing, ChangeOp.DELETE));
                 }
@@ -247,10 +248,11 @@ public class SyncPushService {
                 INSERT INTO coding_sessions
                     (id, user_id, session_uuid, project_name, language, start_time,
                      end_time, client_modified_at, client_version, server_version,
-                     updated_by_device_id, is_deleted, deleted_at, created_at, updated_at)
+                     updated_by_device_id, origin_device_id, is_deleted, deleted_at,
+                     created_at, updated_at)
                 VALUES\s"""
-                        + buildValuesClause(sessions.size(), 15);
-        List<Object> args = new ArrayList<>(sessions.size() * 15);
+                        + buildValuesClause(sessions.size(), 16);
+        List<Object> args = new ArrayList<>(sessions.size() * 16);
         Instant now = Instant.now();
         for (CodingSession session : sessions) {
             if (session.getId() == null) {
@@ -267,6 +269,7 @@ public class SyncPushService {
             args.add(session.getClientVersion());
             args.add(session.getServerVersion());
             args.add(deviceId);
+            args.add(session.getOriginDeviceId());
             args.add(session.isDeleted());
             args.add(
                     session.getDeletedAt() != null
