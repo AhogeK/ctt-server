@@ -428,12 +428,17 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 | `/api/v1/stats/distribution` | GET | Duration distribution by languages / projects / time-of-day / weekday | READ |
 | `/api/v1/stats/hourly` | GET | Per-hour average coding seconds across active days | READ |
 | `/api/v1/stats/recent` | GET | Most recent coding sessions (default 20, max 100) | READ |
+| `/api/v1/stats/achievements` | GET | Achievement badges with unlock state and progress, unlocking newly reached badges | READ |
 
 **Parameters**: `timezoneOffset` (minutes, e.g. `480` for UTC+8) shifts day/week/month/hour
-boundaries to the caller's timezone; heatmap accepts `start` / `end` dates (ISO). Aggregations
-merge overlapping sessions for summary/heatmap/streaks and accumulate raw durations for
-distributions, matching the plugin StatisticsView semantics. All stats endpoints are
-rate-limited to 60 req/min (`RATE_LIMIT_001`).
+boundaries to the caller's timezone; heatmap accepts `start` / `end` dates (ISO); achievements
+evaluate window-based badges (early bird 06:00-09:00, night owl 22:00-05:00, perfect month) in the
+requested timezone. Aggregations merge overlapping sessions for summary/heatmap/streaks and
+accumulate raw durations for distributions, matching the plugin StatisticsView semantics. Badges
+are unlocked lazily on query — 15 badges across streak / total duration / language count / time
+windows / daily burst / perfect month — and unlock records are idempotent (unique constraint, one
+`ACHIEVEMENT_UNLOCKED` audit event per badge). All stats endpoints are rate-limited to 60 req/min
+(`RATE_LIMIT_001`).
 
 ### Global Leaderboard
 
