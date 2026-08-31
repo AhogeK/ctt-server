@@ -241,6 +241,30 @@ class StatsServiceTest {
         }
 
         @Test
+        @DisplayName("idesDistributionShouldBucketByIdeName_whenTypeIdes")
+        void idesDistributionShouldBucketByIdeName_whenTypeIdes() {
+            CodingSession fromIdea = session("2026-08-30T10:00:00", "2026-08-30T12:00:00");
+            fromIdea.setOriginDeviceId(deviceId);
+            CodingSession legacy = session("2026-08-30T12:00:00", "2026-08-30T13:00:00");
+            legacy.setOriginDeviceId(UUID.randomUUID()); // deleted device -> Unknown IDE
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(fromIdea, legacy));
+            Device device = device(deviceId);
+            device.setIdeName("IntelliJ IDEA");
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(List.of(device));
+
+            DistributionResponse response =
+                    service.distribution(userId, ZoneOffset.UTC, DistributionType.IDES, null);
+
+            assertThat(response.entries()).hasSize(2);
+            assertThat(response.entries().get(0).name()).isEqualTo("IntelliJ IDEA");
+            assertThat(response.entries().get(0).seconds()).isEqualTo(7200);
+            assertThat(response.entries().get(1).name()).isEqualTo("Unknown IDE");
+            assertThat(response.entries().get(1).seconds()).isEqualTo(3600);
+        }
+
+        @Test
         @DisplayName("distributionShouldThrow_whenDeviceNotOwnedByUser")
         void distributionShouldThrow_whenDeviceNotOwnedByUser() {
             when(deviceRepository.findByIdAndUserId(deviceId, userId)).thenReturn(Optional.empty());

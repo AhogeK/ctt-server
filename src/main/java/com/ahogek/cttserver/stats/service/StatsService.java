@@ -34,6 +34,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -265,6 +266,7 @@ public class StatsService {
                                                     .name());
                     case WEEKDAY -> StatsCalculator.weekdayDistribution(sessions, zone);
                     case DEVICES -> devicesDistribution(userId, sessions);
+                    case IDES -> idesDistribution(userId, sessions);
                 };
         List<DistributionEntryDto> dtoEntries =
                 entries.stream()
@@ -357,6 +359,9 @@ public class StatsService {
     /**
      * Aggregates session seconds per originating device, labeled by device name.
      *
+     * <p>Devices are resolved from the user's device registry; sessions whose origin device was
+     * deleted (or never stamped, for legacy rows) fall back to an "Unknown device" bucket.
+     *
      * @param userId the owning user
      * @param sessions the user's live sessions (already device-filtered when applicable)
      * @return per-device buckets ordered by duration descending
@@ -372,21 +377,61 @@ public class StatsService {
                                                 device.getDeviceName() != null
                                                         ? device.getDeviceName()
                                                         : "Unknown device"));
-        Map<String, Long> secondsByName =
+        return aggregateByLabel(
+                sessions,
+                session -> deviceNames.getOrDefault(session.getOriginDeviceId(), "Unknown device"));
+    }
+
+    /**
+     * Aggregates session seconds per IDE product, derived from the device registry.
+     *
+     * <p>The sync protocol does not carry per-session IDE metadata, so the IDE attribution comes
+     * from the origin device's registration ({@code devices.ide_name}). A deviceId is
+     * installation-scoped, so every IDE on one machine shares it; sessions pushed by a device
+     * registered without an IDE name fall back to an "Unknown IDE" bucket.
+     *
+     * @param userId the owning user
+     * @param sessions the user's live sessions (already device-filtered when applicable)
+     * @return per-IDE buckets ordered by duration descending
+     */
+    private List<StatsCalculator.DistributionEntry> idesDistribution(
+            UUID userId, List<CodingSession> sessions) {
+        Map<UUID, String> ideNames =
+                deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
+                        .collect(
+                                Collectors.toMap(
+                                        Device::getId,
+                                        device ->
+                                                device.getIdeName() != null
+                                                        ? device.getIdeName()
+                                                        : "Unknown IDE"));
+        return aggregateByLabel(
+                sessions,
+                session -> ideNames.getOrDefault(session.getOriginDeviceId(), "Unknown IDE"));
+    }
+
+    /**
+     * Groups raw session durations under the given label function and orders buckets by duration
+     * descending. Shared shape of the registry-backed distributions (devices / IDEs).
+     *
+     * @param sessions the sessions to aggregate
+     * @param labeler maps a session to its bucket label
+     * @return buckets ordered by duration descending
+     */
+    private static List<StatsCalculator.DistributionEntry> aggregateByLabel(
+            List<CodingSession> sessions, Function<CodingSession, String> labeler) {
+        Map<String, Long> secondsByLabel =
                 sessions.stream()
                         .collect(
                                 Collectors.groupingBy(
-                                        session ->
-                                                deviceNames.getOrDefault(
-                                                        session.getOriginDeviceId(),
-                                                        "Unknown device"),
+                                        labeler,
                                         Collectors.summingLong(
                                                 session ->
                                                         Duration.between(
                                                                         session.getStartTime(),
                                                                         session.getEndTime())
                                                                 .toSeconds())));
-        return secondsByName.entrySet().stream()
+        return secondsByLabel.entrySet().stream()
                 .map(
                         entry ->
                                 new StatsCalculator.DistributionEntry(
