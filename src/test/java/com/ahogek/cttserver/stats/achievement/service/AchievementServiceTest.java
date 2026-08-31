@@ -69,7 +69,7 @@ class AchievementServiceTest {
         inserted.clear();
         when(userAchievementRepository.findByUserId(userId))
                 .thenAnswer(
-                    _ ->
+                        _ ->
                                 inserted.stream()
                                         .map(
                                                 code -> {
@@ -167,8 +167,7 @@ class AchievementServiceTest {
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(
                             List.of(session("2026-08-30T10:00:00", "2026-08-30T21:00:00", "Java")));
-            when(userAchievementRepository.insertIfAbsent(userId, "TOTAL_10_HOURS"))
-                    .thenReturn(0);
+            when(userAchievementRepository.insertIfAbsent(userId, "TOTAL_10_HOURS")).thenReturn(0);
             when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of());
 
             List<AchievementResponse> result = service.getAchievements(userId, ZONE);
