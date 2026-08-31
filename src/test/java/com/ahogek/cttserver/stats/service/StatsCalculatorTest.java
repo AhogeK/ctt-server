@@ -485,5 +485,183 @@ class StatsCalculatorTest {
 
             assertThat(seconds).isZero();
         }
+
+        @Test
+        @DisplayName("shouldCountActiveDays_whenWindowHasCodingOnDistinctDays")
+        void shouldCountActiveDays_whenWindowHasCodingOnDistinctDays() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T07:00:00"),
+                                    at("2026-08-30T08:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T07:30:00"),
+                                    at("2026-08-30T08:30:00"),
+                                    "b",
+                                    "Kotlin"),
+                            session(
+                                    at("2026-08-31T07:00:00"),
+                                    at("2026-08-31T08:00:00"),
+                                    "a",
+                                    "Java"));
+
+            int days = StatsCalculator.activeDaysInDailyWindow(sessions, UTC, 6, 9);
+
+            // 08-30 and 08-31, same-day overlaps collapse into one active day
+            assertThat(days).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("shouldCountPreviousDayWindow_whenSessionStartsBeforeWindowHour")
+        void shouldCountPreviousDayWindow_whenSessionStartsBeforeWindowHour() {
+            // 01:00 belongs to the previous day's 22:00-05:00 window
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T01:00:00"),
+                                    at("2026-08-30T02:00:00"),
+                                    "a",
+                                    "Java"));
+
+            int days = StatsCalculator.activeDaysInDailyWindow(sessions, UTC, 22, 5);
+
+            assertThat(days).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("shouldReturnZeroActiveDays_whenNoWindowCoding")
+        void shouldReturnZeroActiveDays_whenNoWindowCoding() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "Java"));
+
+            int days = StatsCalculator.activeDaysInDailyWindow(sessions, UTC, 6, 9);
+
+            assertThat(days).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("maxDaily")
+    class MaxDailyTests {
+
+        @Test
+        @DisplayName("shouldReturnLongestSingleDay_whenSessionsSpanDays")
+        void shouldReturnLongestSingleDay_whenSessionsSpanDays() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T09:00:00"),
+                                    at("2026-08-30T13:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T14:00:00"),
+                                    at("2026-08-30T16:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-31T10:00:00"),
+                                    at("2026-08-31T11:00:00"),
+                                    "b",
+                                    "Kotlin"));
+
+            long max = StatsCalculator.maxDailySeconds(sessions, UTC);
+
+            // 08-30: 09:00-13:00 + 14:00-16:00 = 6h = 21600s (no overlap, both count)
+            assertThat(max).isEqualTo(21600);
+        }
+
+        @Test
+        @DisplayName("shouldCollapseOverlapsWithinSameDay")
+        void shouldCollapseOverlapsWithinSameDay() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T09:00:00"),
+                                    at("2026-08-30T13:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T12:00:00"),
+                                    at("2026-08-30T15:00:00"),
+                                    "b",
+                                    "Kotlin"));
+
+            long max = StatsCalculator.maxDailySeconds(sessions, UTC);
+
+            // merged 09:00-15:00 = 6h, not 7h
+            assertThat(max).isEqualTo(21600);
+        }
+
+        @Test
+        @DisplayName("shouldReturnZero_whenNoSessions")
+        void shouldReturnZero_whenNoSessions() {
+            assertThat(StatsCalculator.maxDailySeconds(List.of(), UTC)).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("perfectMonth")
+    class PerfectMonthTests {
+
+        @Test
+        @DisplayName("shouldReturnTrue_whenOneMonthCodedEveryDay")
+        void shouldReturnTrue_whenOneMonthCodedEveryDay() {
+            // August 2026 has 31 days; code 1h every day
+            List<CodingSession> sessions =
+                    java.util.stream.IntStream.rangeClosed(1, 31)
+                            .mapToObj(
+                                    day ->
+                                            session(
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T10:00:00"),
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T11:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .toList();
+
+            assertThat(StatsCalculator.hasPerfectMonth(sessions, UTC)).isTrue();
+        }
+
+        @Test
+        @DisplayName("shouldReturnFalse_whenOneDayMissing")
+        void shouldReturnFalse_whenOneDayMissing() {
+            List<CodingSession> sessions =
+                    java.util.stream.IntStream.rangeClosed(1, 30)
+                            .mapToObj(
+                                    day ->
+                                            session(
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T10:00:00"),
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T11:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .toList();
+
+            assertThat(StatsCalculator.hasPerfectMonth(sessions, UTC)).isFalse();
+        }
+
+        @Test
+        @DisplayName("shouldReturnFalse_whenNoSessions")
+        void shouldReturnFalse_whenNoSessions() {
+            assertThat(StatsCalculator.hasPerfectMonth(List.of(), UTC)).isFalse();
+        }
     }
 }

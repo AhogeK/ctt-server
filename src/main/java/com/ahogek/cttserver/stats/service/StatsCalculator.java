@@ -6,10 +6,13 @@ import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -370,14 +373,111 @@ public final class StatsCalculator {
             OffsetDateTime periodEnd) {
         List<TimeInterval> intervals =
                 mergeOverlapping(clipTo(toIntervals(sessions, zone), periodStart, periodEnd));
-        long totalSeconds = 0;
+        return windowDays(intervals, zone, windowStartHour, windowEndHour).stream()
+                .mapToLong(day -> day.duration().toSeconds())
+                .sum();
+    }
+
+    /**
+     * Computes the number of distinct days with any coding inside a daily recurring window.
+     *
+     * <p>Uses the same window-day attribution as {@link #mergedDurationInDailyWindow}: a session
+     * beginning before the window start hour belongs to the previous day's window. Only the
+     * lifetime is considered (no period bound), matching the cumulative nature of achievements.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param windowStartHour first hour of the window (inclusive, 0-23)
+     * @param windowEndHour hour just after the window ends (exclusive, 0-23; may be before {@code
+     *     windowStartHour} to cross midnight)
+     * @return the number of distinct active window days
+     */
+    public static int activeDaysInDailyWindow(
+            List<CodingSession> sessions, ZoneOffset zone, int windowStartHour, int windowEndHour) {
+        return (int)
+                windowDays(
+                                mergeOverlapping(toIntervals(sessions, zone)),
+                                zone,
+                                windowStartHour,
+                                windowEndHour)
+                        .stream()
+                        .map(WindowDay::day)
+                        .distinct()
+                        .count();
+    }
+
+    /**
+     * Returns the longest single-day merged coding duration in seconds.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @return the maximum daily duration in seconds (0 when there are no sessions)
+     */
+    public static long maxDailySeconds(List<CodingSession> sessions, ZoneOffset zone) {
+        Map<LocalDate, Duration> byDay = new HashMap<>();
+        for (TimeInterval interval : mergeOverlapping(toIntervals(sessions, zone))) {
+            splitIntervalByDay(interval, byDay);
+        }
+        return byDay.values().stream().mapToLong(Duration::toSeconds).max().orElse(0);
+    }
+
+    /**
+     * Returns whether any full calendar month has coding on every single day.
+     *
+     * <p>A month is only considered perfect when the active-day count equals the month's total
+     * days, so an in-progress month never qualifies by itself.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @return {@code true} when at least one calendar month was coded on every day
+     */
+    public static boolean hasPerfectMonth(List<CodingSession> sessions, ZoneOffset zone) {
+        Map<YearMonth, Set<LocalDate>> activeByMonth = new HashMap<>();
+        for (TimeInterval interval : toIntervals(sessions, zone)) {
+            Map<LocalDate, Duration> byDay = new HashMap<>();
+            splitIntervalByDay(interval, byDay);
+            for (LocalDate day : byDay.keySet()) {
+                activeByMonth.computeIfAbsent(YearMonth.from(day), _ -> new HashSet<>()).add(day);
+            }
+        }
+        for (Map.Entry<YearMonth, Set<LocalDate>> entry : activeByMonth.entrySet()) {
+            if (entry.getValue().size() == entry.getKey().lengthOfMonth()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A day that overlaps a daily recurring window together with the overlap duration.
+     *
+     * @param day the window day
+     * @param duration the coding duration inside the window on that day
+     */
+    private record WindowDay(LocalDate day, Duration duration) {}
+
+    /**
+     * Intersects intervals with a daily recurring window, emitting one entry per window day that
+     * overlaps any interval.
+     *
+     * <p>A window day starts at the window's start hour, so an interval beginning before that hour
+     * (e.g. 01:00 under a 22:00-05:00 window) belongs to the previous day's window.
+     *
+     * @param intervals merged, period-clipped intervals
+     * @param zone aggregation timezone
+     * @param windowStartHour first hour of the window (inclusive, 0-23)
+     * @param windowEndHour hour just after the window ends (exclusive, 0-23; may be before {@code
+     *     windowStartHour} to cross midnight)
+     * @return overlapping window-day entries
+     */
+    private static List<WindowDay> windowDays(
+            List<TimeInterval> intervals, ZoneOffset zone, int windowStartHour, int windowEndHour) {
+        List<WindowDay> result = new ArrayList<>();
         int windowHours = windowEndHour - windowStartHour;
         if (windowHours <= 0) {
             windowHours += 24;
         }
         for (TimeInterval interval : intervals) {
-            // A window day starts at the window's start hour, so an interval beginning before that
-            // hour (e.g. 01:00 under a 22:00-05:00 window) belongs to the previous day's window.
             LocalDate firstWindowDay = interval.start().toLocalDate();
             if (interval.start().getHour() < windowStartHour) {
                 firstWindowDay = firstWindowDay.minusDays(1);
@@ -389,14 +489,14 @@ public final class StatsCalculator {
                 OffsetDateTime overlapStart = max(interval.start(), windowStart);
                 OffsetDateTime overlapEnd = min(interval.end(), windowEnd);
                 if (overlapStart.isBefore(overlapEnd)) {
-                    totalSeconds += Duration.between(overlapStart, overlapEnd).toSeconds();
+                    result.add(new WindowDay(day, Duration.between(overlapStart, overlapEnd)));
                 }
                 if (!windowEnd.isBefore(interval.end())) {
                     break;
                 }
             }
         }
-        return totalSeconds;
+        return result;
     }
 
     /**
