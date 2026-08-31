@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.leaderboard.service;
 
 import com.ahogek.cttserver.common.exception.ValidationException;
+import com.ahogek.cttserver.common.lock.RedisLockService;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardResponse;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardPeriod;
@@ -35,6 +36,7 @@ import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,6 +48,7 @@ class LeaderboardServiceTest {
             Clock.fixed(Instant.parse("2026-08-31T12:00:00Z"), ZoneOffset.UTC);
 
     private StringRedisTemplate redisTemplate;
+    private RedisLockService redisLock;
     private ZSetOperations<String, String> zsetOps;
     private ValueOperations<String, String> valueOps;
     private CodingSessionRepository codingSessionRepository;
@@ -59,6 +62,8 @@ class LeaderboardServiceTest {
     @SuppressWarnings("unchecked")
     void setUp() {
         redisTemplate = mock(StringRedisTemplate.class);
+        redisLock = mock(RedisLockService.class);
+        when(redisLock.tryAcquire(anyString(), any(Duration.class))).thenReturn(true);
         zsetOps = mock(ZSetOperations.class);
         valueOps = mock(ValueOperations.class);
         codingSessionRepository = mock(CodingSessionRepository.class);
@@ -68,7 +73,11 @@ class LeaderboardServiceTest {
         when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
         service =
                 new LeaderboardService(
-                        redisTemplate, codingSessionRepository, userRepository, FIXED_CLOCK);
+                        redisTemplate,
+                        redisLock,
+                        codingSessionRepository,
+                        userRepository,
+                        FIXED_CLOCK);
     }
 
     private CodingSession session(Instant start, Instant end) {
@@ -101,8 +110,7 @@ class LeaderboardServiceTest {
             service.updateUserScores(userId);
 
             ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-            verify(zsetOps, org.mockito.Mockito.times(8))
-                    .add(keyCaptor.capture(), anyString(), anyDouble());
+            verify(zsetOps, times(8)).add(keyCaptor.capture(), anyString(), anyDouble());
             assertThat(keyCaptor.getAllValues())
                     .containsExactlyInAnyOrder(
                             "leaderboard:total",
@@ -207,8 +215,7 @@ class LeaderboardServiceTest {
             service.updateUserScores(userId);
 
             // week x2 (total-week, growth-week), month, year
-            verify(redisTemplate, org.mockito.Mockito.times(4))
-                    .expire(anyString(), any(Duration.class));
+            verify(redisTemplate, times(4)).expire(anyString(), any(Duration.class));
         }
 
         @Test
