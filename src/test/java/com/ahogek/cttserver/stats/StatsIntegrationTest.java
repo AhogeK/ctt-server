@@ -704,7 +704,7 @@ class StatsIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                             """
-                            {"deviceId": "%s", "deviceName": "Dev-%s", "platform": "macos"}
+                            {"deviceId": "%s", "deviceName": "Dev-%s", "platform": "macos", "ideName": "IntelliJ IDEA"}
                             """
                                     .formatted(
                                             deviceId.toString(),
@@ -830,6 +830,24 @@ class StatsIntegrationTest {
                             .exchange();
             assertThat(dist).hasStatusOk();
             assertThat(dist).bodyJson().extractingPath("$.data.entries[0].seconds").isEqualTo(7200);
+
+            // IDES distribution derives the bucket from the origin device's registration
+            var ides =
+                    mvc.get()
+                            .uri("/api/v1/stats/distribution?type=IDES")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(ides).hasStatusOk();
+            assertThat(ides).bodyJson().extractingPath("$.data.type").isEqualTo("IDES");
+            // both devices registered as "IntelliJ IDEA": raw durations 2h + 1h = 10800
+            assertThat(ides)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[0].name")
+                    .isEqualTo("IntelliJ IDEA");
+            assertThat(ides)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[0].seconds")
+                    .isEqualTo(10800);
 
             // heatmap filter falls back to live aggregation (materialized path is per-user)
             var heatmap =
