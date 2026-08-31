@@ -500,6 +500,28 @@ public final class StatsCalculator {
     }
 
     /**
+     * Computes the overlap-collapsed coding seconds attributed to each UTC day.
+     *
+     * <p>Sessions are merged first so overlapping spans are not double counted, then split at UTC
+     * midnight boundaries. This is the exact per-day aggregation the materialized daily-stats table
+     * stores.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @return UTC day to merged seconds
+     */
+    public static Map<LocalDate, Long> mergedSecondsByDay(
+            List<CodingSession> sessions, ZoneOffset zone) {
+        Map<LocalDate, Duration> byDay = new HashMap<>();
+        for (TimeInterval interval : mergeOverlapping(toIntervals(sessions, zone))) {
+            splitIntervalByDay(interval, byDay);
+        }
+        Map<LocalDate, Long> secondsByDay = new HashMap<>();
+        byDay.forEach((day, duration) -> secondsByDay.put(day, duration.toSeconds()));
+        return secondsByDay;
+    }
+
+    /**
      * Splits a single interval across day boundaries, merging into the per-day map.
      *
      * @param interval the interval
