@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
@@ -20,6 +21,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,6 +50,7 @@ class StatsIntegrationTest {
     @Autowired private MockMvcTester mvc;
     @Autowired private JdbcClient jdbcClient;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private StringRedisTemplate redisTemplate;
 
     private static final String PASSWORD = "StrongPass123!";
     private static final String DISPLAY_NAME = "StatsTestUser";
@@ -55,6 +59,10 @@ class StatsIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        Set<String> rateLimitKeys = redisTemplate.keys("rate_limit:ip:AuthController.*");
+        if (rateLimitKeys != null) {
+            redisTemplate.delete(rateLimitKeys);
+        }
         jdbcClient.sql("DELETE FROM user_achievements").update();
         jdbcClient.sql("DELETE FROM coding_sessions").update();
         jdbcClient.sql("DELETE FROM devices").update();
@@ -435,11 +443,11 @@ class StatsIntegrationTest {
             assertThat(first)
                     .bodyJson()
                     .extractingPath("$.data[?(@.code=='STREAK_3')].unlocked")
-                    .isEqualTo(java.util.List.of(true));
+                    .isEqualTo(List.of(true));
             assertThat(first)
                     .bodyJson()
                     .extractingPath("$.data[?(@.code=='STREAK_3')].progress")
-                    .isEqualTo(java.util.List.of(3));
+                    .isEqualTo(List.of(3));
 
             // the unlock is persisted and a second query keeps the original timestamp
             Long unlockCount =
@@ -460,7 +468,7 @@ class StatsIntegrationTest {
             assertThat(second)
                     .bodyJson()
                     .extractingPath("$.data[?(@.code=='STREAK_3')].unlocked")
-                    .isEqualTo(java.util.List.of(true));
+                    .isEqualTo(List.of(true));
             Long auditCount =
                     jdbcClient
                             .sql(
@@ -489,6 +497,180 @@ class StatsIntegrationTest {
                     .extractingPath("$.data[?(@.unlocked==true)]")
                     .asArray()
                     .isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should materialize daily rows on push and serve UTC reads from them")
+        void shouldMaterializeDailyRows_onPush() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            UUID userId = UUID.fromString(auth[1]);
+            String syncKey = createApiKey(auth[0], "s5-sync", "SYNC");
+            UUID deviceId = registerDevice(syncKey);
+
+            // push two sessions on 08-30 (one crossing midnight into 08-31)
+            String uuid1 = UUID.randomUUID().toString();
+            String uuid2 = UUID.randomUUID().toString();
+            String pushBody =
+                    """
+                    {
+                      "deviceId": "%s",
+                      "sessions": [
+                        {"sessionUuid": "%s", "projectName": "ctt-server", "language": "Java",
+                         "startTime": "2026-08-30T10:00:00Z", "endTime": "2026-08-30T11:00:00Z",
+                         "clientModifiedAt": "2026-08-30T11:00:00Z", "clientVersion": 1, "deleted": false},
+                        {"sessionUuid": "%s", "projectName": "ctt-web", "language": "Kotlin",
+                         "startTime": "2026-08-30T23:00:00Z", "endTime": "2026-08-31T00:00:00Z",
+                         "clientModifiedAt": "2026-08-31T00:00:00Z", "clientVersion": 1, "deleted": false}
+                      ]
+                    }
+                    """
+                            .formatted(deviceId, uuid1, uuid2);
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + syncKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pushBody)
+                                    .exchange())
+                    .hasStatusOk();
+
+            // push triggered materialization: 08-30 row = 1h + 1h = 7200s; 08-31 row absent (0s)
+            Long daySeconds =
+                    jdbcClient
+                            .sql(
+                                    "SELECT merged_seconds FROM daily_stats WHERE user_id = ? AND utc_date = '2026-08-30'")
+                            .param(userId)
+                            .query(Long.class)
+                            .single();
+            assertThat(daySeconds).isEqualTo(7200);
+
+            // UTC heatmap serves the materialized rows
+            var heatmap =
+                    mvc.get()
+                            .uri("/api/v1/stats/heatmap?start=2026-08-30&end=2026-08-31")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+            assertThat(heatmap).hasStatusOk();
+            assertThat(heatmap)
+                    .bodyJson()
+                    .extractingPath("$.data.points[0].seconds")
+                    .isEqualTo(7200);
+
+            // soft-delete the first session via push: the affected UTC day is recomputed to 1h
+            String deleteBody =
+                    """
+                    {
+                      "deviceId": "%s",
+                      "sessions": [
+                        {"sessionUuid": "%s", "projectName": "ctt-server", "language": "Java",
+                         "startTime": "2026-08-30T10:00:00Z", "endTime": "2026-08-30T11:00:00Z",
+                         "clientModifiedAt": "2026-08-30T12:00:00Z", "clientVersion": 2, "deleted": true}
+                      ]
+                    }
+                    """
+                            .formatted(deviceId, uuid1);
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + syncKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(deleteBody)
+                                    .exchange())
+                    .hasStatusOk();
+
+            Long afterDelete =
+                    jdbcClient
+                            .sql(
+                                    "SELECT merged_seconds FROM daily_stats WHERE user_id = ? AND utc_date = '2026-08-30'")
+                            .param(userId)
+                            .query(Long.class)
+                            .single();
+            // only the night session remains: 1h
+            assertThat(afterDelete).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("Should cache achievements and invalidate after a push")
+        void shouldCacheAchievements_andInvalidateAfterPush() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            UUID userId = UUID.fromString(auth[1]);
+            String syncKey = createApiKey(auth[0], "s5-sync", "SYNC");
+            UUID deviceId = registerDevice(syncKey);
+
+            // first read populates the cache
+            assertThat(
+                            mvc.get()
+                                    .uri("/api/v1/stats/achievements")
+                                    .header("Authorization", "Bearer " + auth[0])
+                                    .exchange())
+                    .hasStatusOk();
+
+            Long cacheRows =
+                    jdbcClient
+                            .sql("SELECT COUNT(*) FROM daily_stats WHERE user_id = ?")
+                            .param(userId)
+                            .query(Long.class)
+                            .single();
+            assertThat(cacheRows).isEqualTo(0);
+
+            // push an 11h session; the cache is evicted and TOTAL_10_HOURS unlocks on next read
+            String body =
+                    """
+                    {
+                      "deviceId": "%s",
+                      "sessions": [
+                        {
+                          "sessionUuid": "%s",
+                          "projectName": "ctt-server",
+                          "language": "Java",
+                          "startTime": "2026-08-30T09:00:00Z",
+                          "endTime": "2026-08-30T20:00:00Z",
+                          "clientModifiedAt": "2026-08-30T20:00:00Z",
+                          "clientVersion": 1,
+                          "deleted": false
+                        }
+                      ]
+                    }
+                    """
+                            .formatted(deviceId, UUID.randomUUID());
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + syncKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body)
+                                    .exchange())
+                    .hasStatusOk();
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+            assertThat(result).hasStatusOk();
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='TOTAL_10_HOURS')].unlocked")
+                    .isEqualTo(List.of(true));
+        }
+
+        private UUID registerDevice(String syncKey) {
+            UUID deviceId = UUID.randomUUID();
+            mvc.post()
+                    .uri("/api/v1/devices")
+                    .with(csrf())
+                    .header("Authorization", "Bearer " + syncKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                            """
+                            {"deviceId": "%s", "deviceName": "s5", "platform": "macos"}
+                            """
+                                    .formatted(deviceId))
+                    .exchange();
+            return deviceId;
         }
 
         @Test

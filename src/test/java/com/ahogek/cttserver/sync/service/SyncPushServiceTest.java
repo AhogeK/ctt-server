@@ -53,8 +53,14 @@ class SyncPushServiceTest {
     @Mock private AuditLogService auditLogService;
     @Mock private LeaderboardService leaderboardService;
 
-    private SyncPushService service;
+    @Mock
+    private com.ahogek.cttserver.stats.materialization.service.DailyStatsMaterializer
+            dailyStatsMaterializer;
 
+    @Mock
+    private com.ahogek.cttserver.stats.achievement.service.AchievementService achievementService;
+
+    private SyncPushService service;
     private final UUID userId = UUID.randomUUID();
     private final UUID deviceId = UUID.randomUUID();
 
@@ -67,7 +73,9 @@ class SyncPushServiceTest {
                         deviceRepository,
                         auditLogService,
                         jdbcTemplate,
-                        leaderboardService);
+                        leaderboardService,
+                        dailyStatsMaterializer,
+                        achievementService);
         when(deviceRepository.findByIdAndUserId(deviceId, userId))
                 .thenReturn(Optional.of(new Device()));
         when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -48,21 +49,6 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
      */
     Optional<CodingSession> findByUserIdAndSessionUuidAndIsDeletedFalse(
             UUID userId, UUID sessionUuid);
-
-    /**
-     * Finds a session by owner and client-generated session UUID, including soft-deleted rows.
-     *
-     * <p>Used by the push path so {@code ConflictResolver} can adjudicate against soft-deleted
-     * rows: a live submission for a session the server already soft-deleted must resolve to {@code
-     * KEEP_EXISTING} (server delete wins) instead of falling through to an insert that would
-     * violate the {@code uk_coding_sessions_user_session_uuid} unique constraint. The unique
-     * constraint guarantees at most one match.
-     *
-     * @param userId the owning user id
-     * @param sessionUuid the client-generated session UUID
-     * @return {@code Optional} containing the session when found, live or soft-deleted
-     */
-    Optional<CodingSession> findByUserIdAndSessionUuid(UUID userId, UUID sessionUuid);
 
     /**
      * Batch-fetches sessions of a user by their client-generated session UUIDs, including
@@ -153,4 +139,26 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
      */
     List<CodingSession> findAllByUserIdAndServerVersionGreaterThanAndIsDeletedFalse(
             UUID userId, long serverVersion);
+
+    /**
+     * Lists live sessions of a user that overlap the half-open instant range {@code [start,
+     * endExclusive)}.
+     *
+     * <p>Used by the materialization recompute: the caller passes the instant bounds of the touched
+     * UTC days (midnight to midnight), so only sessions overlapping those days are loaded and the
+     * recompute cost is bounded by the range instead of the whole history. Backed by {@code
+     * idx_sessions_user_time} (partial index on user + time range where not deleted).
+     *
+     * @param userId the owning user id
+     * @param start first instant (inclusive)
+     * @param endExclusive instant just after the last moment (exclusive)
+     * @return the overlapping live sessions; never {@code null}
+     */
+    @Query(
+            "SELECT s FROM CodingSession s WHERE s.userId = :userId AND s.isDeleted = false "
+                    + "AND s.startTime < :endExclusive AND s.endTime >= :start")
+    List<CodingSession> findLiveInUtcDayRange(
+            @Param("userId") UUID userId,
+            @Param("start") Instant start,
+            @Param("endExclusive") Instant endExclusive);
 }

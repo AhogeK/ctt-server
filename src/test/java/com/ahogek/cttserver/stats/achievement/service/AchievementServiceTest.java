@@ -13,6 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -22,6 +24,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,25 +46,30 @@ class AchievementServiceTest {
     private UserAchievementRepository userAchievementRepository;
     private AuditLogService auditLogService;
     private AchievementService service;
-
     private final UUID userId = UUID.randomUUID();
     private final Set<String> inserted = new HashSet<>();
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         codingSessionRepository = mock(CodingSessionRepository.class);
         userAchievementRepository = mock(UserAchievementRepository.class);
         auditLogService = mock(AuditLogService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
         service =
                 new AchievementService(
                         codingSessionRepository,
                         userAchievementRepository,
                         auditLogService,
-                        FIXED_CLOCK);
+                        FIXED_CLOCK,
+                        redisTemplate,
+                        new ObjectMapper());
         inserted.clear();
         when(userAchievementRepository.findByUserId(userId))
                 .thenAnswer(
-                        inv ->
+                    _ ->
                                 inserted.stream()
                                         .map(
                                                 code -> {
@@ -158,7 +167,7 @@ class AchievementServiceTest {
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(
                             List.of(session("2026-08-30T10:00:00", "2026-08-30T21:00:00", "Java")));
-            when(userAchievementRepository.insertIfAbsent(eq(userId), eq("TOTAL_10_HOURS")))
+            when(userAchievementRepository.insertIfAbsent(userId, "TOTAL_10_HOURS"))
                     .thenReturn(0);
             when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of());
 
