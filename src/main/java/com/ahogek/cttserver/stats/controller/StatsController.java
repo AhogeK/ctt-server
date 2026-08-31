@@ -374,8 +374,8 @@ public class StatsController {
     @Operation(
             summary = "Coding duration distribution",
             description =
-                    "Returns a duration distribution by languages, projects, time-of-day, weekday or"
-                            + " devices, ordered by duration descending.")
+                    "Returns a duration distribution by languages, projects, time-of-day, weekday,"
+                            + " device or IDE, ordered by duration descending.")
     @ApiResponses(
             value = {
                 @ApiResponse(

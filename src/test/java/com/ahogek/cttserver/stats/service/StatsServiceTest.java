@@ -241,8 +241,8 @@ class StatsServiceTest {
         }
 
         @Test
-        @DisplayName("idesDistributionShouldBucketByIdeName_whenTypeIdes")
-        void idesDistributionShouldBucketByIdeName_whenTypeIdes() {
+        @DisplayName("distributionShouldBucketByIdeName_whenTypeIdes")
+        void distributionShouldBucketByIdeName_whenTypeIdes() {
             CodingSession fromIdea = session("2026-08-30T10:00:00", "2026-08-30T12:00:00");
             fromIdea.setOriginDeviceId(deviceId);
             CodingSession legacy = session("2026-08-30T12:00:00", "2026-08-30T13:00:00");
@@ -262,6 +262,26 @@ class StatsServiceTest {
             assertThat(response.entries().get(0).seconds()).isEqualTo(7200);
             assertThat(response.entries().get(1).name()).isEqualTo("Unknown IDE");
             assertThat(response.entries().get(1).seconds()).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("distributionShouldFallbackToUnknownIde_whenDeviceHasNoIdeName")
+        void distributionShouldFallbackToUnknownIde_whenDeviceHasNoIdeName() {
+            CodingSession fromUnnamed = session("2026-08-30T10:00:00", "2026-08-30T11:00:00");
+            fromUnnamed.setOriginDeviceId(deviceId);
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(fromUnnamed));
+            Device unnamed = device(deviceId);
+            unnamed.setIdeName(null);
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(List.of(unnamed));
+
+            DistributionResponse response =
+                    service.distribution(userId, ZoneOffset.UTC, DistributionType.IDES, null);
+
+            assertThat(response.entries()).hasSize(1);
+            assertThat(response.entries().getFirst().name()).isEqualTo("Unknown IDE");
+            assertThat(response.entries().getFirst().seconds()).isEqualTo(3600);
         }
 
         @Test

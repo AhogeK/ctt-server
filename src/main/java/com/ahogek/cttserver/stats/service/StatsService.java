@@ -369,14 +369,7 @@ public class StatsService {
     private List<StatsCalculator.DistributionEntry> devicesDistribution(
             UUID userId, List<CodingSession> sessions) {
         Map<UUID, String> deviceNames =
-                deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
-                        .collect(
-                                Collectors.toMap(
-                                        Device::getId,
-                                        device ->
-                                                device.getDeviceName() != null
-                                                        ? device.getDeviceName()
-                                                        : "Unknown device"));
+                deviceLabelMap(userId, Device::getDeviceName, "Unknown device");
         return aggregateByLabel(
                 sessions,
                 session -> deviceNames.getOrDefault(session.getOriginDeviceId(), "Unknown device"));
@@ -396,18 +389,31 @@ public class StatsService {
      */
     private List<StatsCalculator.DistributionEntry> idesDistribution(
             UUID userId, List<CodingSession> sessions) {
-        Map<UUID, String> ideNames =
-                deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
-                        .collect(
-                                Collectors.toMap(
-                                        Device::getId,
-                                        device ->
-                                                device.getIdeName() != null
-                                                        ? device.getIdeName()
-                                                        : "Unknown IDE"));
+        Map<UUID, String> ideNames = deviceLabelMap(userId, Device::getIdeName, "Unknown IDE");
         return aggregateByLabel(
                 sessions,
                 session -> ideNames.getOrDefault(session.getOriginDeviceId(), "Unknown IDE"));
+    }
+
+    /**
+     * Builds a device-id-to-label map from the user's device registry, mapping null registry values
+     * to the given fallback label.
+     *
+     * @param userId the owning user
+     * @param labelExtractor reads the registry field that names the bucket
+     * @param fallback label used when a device's field is absent
+     * @return device id to label, for every registered device
+     */
+    private Map<UUID, String> deviceLabelMap(
+            UUID userId, Function<Device, String> labelExtractor, String fallback) {
+        return deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
+                .collect(
+                        Collectors.toMap(
+                                Device::getId,
+                                device -> {
+                                    String label = labelExtractor.apply(device);
+                                    return label != null ? label : fallback;
+                                }));
     }
 
     /**
