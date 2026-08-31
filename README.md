@@ -437,8 +437,15 @@ requested timezone. Aggregations merge overlapping sessions for summary/heatmap/
 accumulate raw durations for distributions, matching the plugin StatisticsView semantics. Badges
 are unlocked lazily on query — 15 badges across streak / total duration / language count / time
 windows / daily burst / perfect month — and unlock records are idempotent (unique constraint, one
-`ACHIEVEMENT_UNLOCKED` audit event per badge). All stats endpoints are rate-limited to 60 req/min
-(`RATE_LIMIT_001`).
+`ACHIEVEMENT_UNLOCKED` audit event per badge). Achievements responses are cached in Redis for 60s
+and invalidated on push. All stats endpoints are rate-limited to 60 req/min (`RATE_LIMIT_001`).
+
+**Materialization**: per-user per-UTC-day coding statistics are materialized in the
+`daily_stats` table and maintained incrementally on every push (only the touched UTC dates are
+recomputed); a user's first UTC read bootstraps the full history once under a per-user lock.
+UTC statistics reads (summary / heatmap / streaks) are served from the materialized rows;
+timezone-shifted requests aggregate live because a session crossing local midnight contributes
+to two local days while living on a single UTC day.
 
 ### Global Leaderboard
 
