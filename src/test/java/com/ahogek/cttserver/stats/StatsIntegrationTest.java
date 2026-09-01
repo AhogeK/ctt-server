@@ -865,6 +865,67 @@ class StatsIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should filter by IDE name across endpoints")
+        void shouldFilterByIdeName_acrossEndpoints() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(auth[0], "read", "READ");
+            String syncKey = createApiKey(auth[0], "sync", "SYNC");
+            UUID ideaDevice = registerDevice(auth[0], UUID.randomUUID());
+            UUID pycharmDevice = registerDevice(auth[0], UUID.randomUUID());
+
+            pushSession(syncKey, ideaDevice, UUID.randomUUID().toString());
+            pushSession(syncKey, pycharmDevice, UUID.randomUUID().toString());
+            // registerDevice now always sends ideName "IntelliJ IDEA" — push a second session on
+            // the same IDE via a second device to distinguish IDE-filter from device-filter
+            UUID ideaDevice2 = registerDevice(auth[0], UUID.randomUUID());
+            pushSession(syncKey, ideaDevice2, UUID.randomUUID().toString());
+
+            // ide-filters lists distinct registered IDE names (both are IntelliJ IDEA)
+            var filters =
+                    mvc.get()
+                            .uri("/api/v1/stats/ide-filters")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(filters).hasStatusOk();
+            assertThat(filters)
+                    .bodyJson()
+                    .extractingPath("$.data")
+                    .asArray()
+                    .containsExactly("IntelliJ IDEA");
+
+            // ideName filter: the three IDEA devices' sessions all overlap (same 1h window),
+            // so summary merges them into 3600 — proves IDE filtering narrows the set and the
+            // merge semantics are unchanged
+            var summary =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?ideName=" + "IntelliJ IDEA")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(summary).hasStatusOk();
+            assertThat(summary).bodyJson().extractingPath("$.data.total").isEqualTo(3600);
+
+            // unknown IDE -> 404
+            var unknown =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?ideName=" + "WebStorm")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(unknown).hasStatus(404);
+            assertThat(unknown).bodyJson().extractingPath("$.code").isEqualTo("COMMON_002");
+
+            // ideName + deviceId -> 400
+            var both =
+                    mvc.get()
+                            .uri(
+                                    "/api/v1/stats/summary?ideName=IntelliJ%20IDEA&deviceId="
+                                            + ideaDevice)
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(both).hasStatus(400);
+            assertThat(both).bodyJson().extractingPath("$.code").isEqualTo("COMMON_003");
+        }
+
+        @Test
         @DisplayName("Should return 404 when deviceId belongs to another user")
         void shouldReturn404_whenDeviceIdForeign() throws Exception {
             String[] auth = registerVerifyAndLogin(uniqueEmail());

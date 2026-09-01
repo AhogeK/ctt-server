@@ -18,6 +18,7 @@ import com.ahogek.cttserver.stats.dto.StatsSummaryResponse;
 import com.ahogek.cttserver.stats.dto.StreakStatsResponse;
 import com.ahogek.cttserver.stats.enums.DistributionType;
 import com.ahogek.cttserver.stats.service.StatsService;
+import com.ahogek.cttserver.stats.service.StatsService.SessionFilter;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -198,10 +199,21 @@ public class StatsController {
                                     "Optional origin-device filter; omitted aggregates all devices. Unknown or"
                                             + " foreign devices yield 404 COMMON_002.")
                     @RequestParam(name = "deviceId", required = false)
-                    UUID deviceId) {
+                    UUID deviceId,
+            @Parameter(
+                            name = "ideName",
+                            description =
+                                    "Optional exact IDE-name filter against the device registry; omitted"
+                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
+                                            + " unknown IDE names yield 404 COMMON_002.")
+                    @RequestParam(name = "ideName", required = false)
+                    String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         StatsSummaryResponse response =
-                statsService.summary(currentUser.id(), zoneOffset(timezoneOffset), deviceId);
+                statsService.summary(
+                        currentUser.id(),
+                        zoneOffset(timezoneOffset),
+                        new SessionFilter(deviceId, ideName));
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -278,14 +290,27 @@ public class StatsController {
                                     "Optional origin-device filter; omitted aggregates all devices. Unknown or"
                                             + " foreign devices yield 404 COMMON_002.")
                     @RequestParam(name = "deviceId", required = false)
-                    UUID deviceId) {
+                    UUID deviceId,
+            @Parameter(
+                            name = "ideName",
+                            description =
+                                    "Optional exact IDE-name filter against the device registry; omitted"
+                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
+                                            + " unknown IDE names yield 404 COMMON_002.")
+                    @RequestParam(name = "ideName", required = false)
+                    String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         ZoneOffset zone = zoneOffset(timezoneOffset);
         LocalDate today = LocalDate.now(zone);
         LocalDate startDate = start != null ? start : today.withDayOfYear(1);
         LocalDate endDate = end != null ? end : today;
         HeatmapResponse response =
-                statsService.heatmap(currentUser.id(), zone, startDate, endDate, deviceId);
+                statsService.heatmap(
+                        currentUser.id(),
+                        zone,
+                        startDate,
+                        endDate,
+                        new SessionFilter(deviceId, ideName));
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -364,10 +389,21 @@ public class StatsController {
                                     "Optional origin-device filter; omitted aggregates all devices. Unknown or"
                                             + " foreign devices yield 404 COMMON_002.")
                     @RequestParam(name = "deviceId", required = false)
-                    UUID deviceId) {
+                    UUID deviceId,
+            @Parameter(
+                            name = "ideName",
+                            description =
+                                    "Optional exact IDE-name filter against the device registry; omitted"
+                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
+                                            + " unknown IDE names yield 404 COMMON_002.")
+                    @RequestParam(name = "ideName", required = false)
+                    String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         StreakStatsResponse response =
-                statsService.streaks(currentUser.id(), zoneOffset(timezoneOffset), deviceId);
+                statsService.streaks(
+                        currentUser.id(),
+                        zoneOffset(timezoneOffset),
+                        new SessionFilter(deviceId, ideName));
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -447,11 +483,22 @@ public class StatsController {
                                     "Optional origin-device filter; omitted aggregates all devices. Unknown or"
                                             + " foreign devices yield 404 COMMON_002.")
                     @RequestParam(name = "deviceId", required = false)
-                    UUID deviceId) {
+                    UUID deviceId,
+            @Parameter(
+                            name = "ideName",
+                            description =
+                                    "Optional exact IDE-name filter against the device registry; omitted"
+                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
+                                            + " unknown IDE names yield 404 COMMON_002.")
+                    @RequestParam(name = "ideName", required = false)
+                    String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         DistributionResponse response =
                 statsService.distribution(
-                        currentUser.id(), zoneOffset(timezoneOffset), type, deviceId);
+                        currentUser.id(),
+                        zoneOffset(timezoneOffset),
+                        type,
+                        new SessionFilter(deviceId, ideName));
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -530,10 +577,21 @@ public class StatsController {
                                     "Optional origin-device filter; omitted aggregates all devices. Unknown or"
                                             + " foreign devices yield 404 COMMON_002.")
                     @RequestParam(name = "deviceId", required = false)
-                    UUID deviceId) {
+                    UUID deviceId,
+            @Parameter(
+                            name = "ideName",
+                            description =
+                                    "Optional exact IDE-name filter against the device registry; omitted"
+                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
+                                            + " unknown IDE names yield 404 COMMON_002.")
+                    @RequestParam(name = "ideName", required = false)
+                    String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         HourlyDistributionResponse response =
-                statsService.hourly(currentUser.id(), zoneOffset(timezoneOffset), deviceId);
+                statsService.hourly(
+                        currentUser.id(),
+                        zoneOffset(timezoneOffset),
+                        new SessionFilter(deviceId, ideName));
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -610,11 +668,52 @@ public class StatsController {
                                     "Optional origin-device filter; omitted aggregates all devices. Unknown or"
                                             + " foreign devices yield 404 COMMON_002.")
                     @RequestParam(name = "deviceId", required = false)
-                    UUID deviceId) {
+                    UUID deviceId,
+            @Parameter(
+                            name = "ideName",
+                            description =
+                                    "Optional exact IDE-name filter against the device registry; omitted"
+                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
+                                            + " unknown IDE names yield 404 COMMON_002.")
+                    @RequestParam(name = "ideName", required = false)
+                    String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         List<RecentSessionResponse> response =
-                statsService.recent(currentUser.id(), limit, deviceId);
+                statsService.recent(currentUser.id(), limit, new SessionFilter(deviceId, ideName));
         return ResponseEntity.ok(RestApiResponse.ok(response));
+    }
+
+    @Operation(
+            summary = "IDE filter options",
+            description =
+                    "Lists the distinct non-blank IDE names registered by the user's devices, sorted."
+                            + " Feed for the dashboard's IDE filter dropdown; the 'Unknown IDE' fallback"
+                            + " bucket is never listed because it is not a registered value.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "IDE names retrieved",
+                        content = @Content(schema = @Schema(implementation = String[].class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid API key or JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid API key",
+                                                        value = UNAUTHORIZED_EXAMPLE)))
+            })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
+    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @GetMapping("/ide-filters")
+    public ResponseEntity<RestApiResponse<List<String>>> ideFilters() {
+        CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
+        List<String> ides = statsService.ideFilters(currentUser.id());
+        return ResponseEntity.ok(RestApiResponse.ok(ides));
     }
 
     @Operation(

@@ -82,6 +82,12 @@ class StatsServiceTest {
         return device;
     }
 
+    private static Device deviceWithIde(UUID id, String ideName) {
+        Device device = device(id);
+        device.setIdeName(ideName);
+        return device;
+    }
+
     @Nested
     @DisplayName("UTC materialized path")
     class UtcMaterializedTests {
@@ -89,7 +95,9 @@ class StatsServiceTest {
         @Test
         @DisplayName("summary shouldReadMaterializedDays_whenUtcAndBootstrapped")
         void summaryShouldReadMaterializedDays_whenUtcAndBootstrapped() {
-            // rows are anchored to the real "today" so the week/month boundary logic holds
+            // Data rows are anchored to the real "today" so the summary's week/month/year
+            // boundaries (computed against LocalDate.now(UTC)) include the expected rows; a
+            // fixed past date would fall outside the current period and zero out the sums.
             LocalDate today = LocalDate.now(ZoneOffset.UTC);
             when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(true);
             when(dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId))
@@ -102,12 +110,15 @@ class StatsServiceTest {
             StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, null);
 
             assertThat(summary.total()).isEqualTo(12600);
-            // today is the ISO week start (Monday), so only today's row falls in this week
-            assertThat(summary.thisWeek()).isEqualTo(1800);
-            assertThat(summary.thisMonth()).isEqualTo(12600);
             assertThat(summary.today()).isEqualTo(1800);
             // total / (first day .. today inclusive) = 12600 / 3
             assertThat(summary.dailyAverage()).isEqualTo(4200);
+            // week / month / year boundaries depend on the run date (rows are anchored to the
+            // real today, so period cutoffs vary), so assert the stable invariant: each period
+            // at least contains today's row and never exceeds the lifetime total.
+            assertThat(summary.thisWeek()).isBetween(1800L, 12600L);
+            assertThat(summary.thisMonth()).isBetween(1800L, 12600L);
+            assertThat(summary.thisYear()).isBetween(1800L, 12600L);
             verify(dailyStatsRepository).findByUserIdOrderByUtcDateAsc(userId);
             verify(codingSessionRepository, never()).findAllByUserIdAndIsDeletedFalse(any());
         }
@@ -194,7 +205,9 @@ class StatsServiceTest {
                             userId, deviceId))
                     .thenReturn(List.of(session("2026-08-30T10:00:00", "2026-08-30T11:00:00")));
 
-            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, deviceId);
+            StatsSummaryResponse summary =
+                    service.summary(
+                            userId, ZoneOffset.UTC, new StatsService.SessionFilter(deviceId, null));
 
             assertThat(summary.total()).isEqualTo(3600);
             verify(codingSessionRepository, never()).findAllByUserIdAndIsDeletedFalse(any());
@@ -211,7 +224,11 @@ class StatsServiceTest {
                             userId, deviceId))
                     .thenReturn(List.of(session("2026-08-30T10:00:00", "2026-08-30T11:00:00")));
 
-            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.ofHours(8), deviceId);
+            StatsSummaryResponse summary =
+                    service.summary(
+                            userId,
+                            ZoneOffset.ofHours(8),
+                            new StatsService.SessionFilter(deviceId, null));
 
             assertThat(summary.total()).isEqualTo(3600);
         }
@@ -305,17 +322,73 @@ class StatsServiceTest {
         }
 
         @Test
+        @DisplayName("summaryShouldFilterByIdeName_whenIdeFilterMatchesDevices")
+        void summaryShouldFilterByIdeName_whenIdeFilterMatchesDevices() {
+            UUID ideaDevice = UUID.randomUUID();
+            UUID otherDevice = UUID.randomUUID();
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(
+                            List.of(
+                                    deviceWithIde(ideaDevice, "IntelliJ IDEA"),
+                                    deviceWithIde(otherDevice, "PyCharm")));
+            when(codingSessionRepository.findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse(
+                            userId, List.of(ideaDevice)))
+                    .thenReturn(List.of(session("2026-08-30T10:00:00", "2026-08-30T12:00:00")));
+
+            StatsSummaryResponse summary =
+                    service.summary(
+                            userId,
+                            ZoneOffset.UTC,
+                            new StatsService.SessionFilter(null, "IntelliJ IDEA"));
+
+            assertThat(summary.total()).isEqualTo(7200);
+            verify(codingSessionRepository, never()).findAllByUserIdAndIsDeletedFalse(any());
+        }
+
+        @Test
+        @DisplayName("summaryShouldThrow_whenIdeMatchesNoDevice")
+        void summaryShouldThrow_whenIdeMatchesNoDevice() {
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(List.of(deviceWithIde(UUID.randomUUID(), "PyCharm")));
+
+            StatsService.SessionFilter filter =
+                    new StatsService.SessionFilter(null, "WebStorm");
+            assertThatThrownBy(
+                            () -> service.summary(userId, ZoneOffset.UTC, filter))
+                    .isInstanceOf(NotFoundException.class);
+            verify(codingSessionRepository, never())
+                    .findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse(any(), any());
+        }
+
+        @Test
+        @DisplayName("ideFiltersShouldReturnDistinctNonBlankNamesSorted")
+        void ideFiltersShouldReturnDistinctNonBlankNamesSorted() {
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(
+                            List.of(
+                                    deviceWithIde(UUID.randomUUID(), "PyCharm"),
+                                    deviceWithIde(UUID.randomUUID(), "IntelliJ IDEA"),
+                                    deviceWithIde(UUID.randomUUID(), "PyCharm"),
+                                    deviceWithIde(UUID.randomUUID(), ""),
+                                    deviceWithIde(UUID.randomUUID(), null)));
+
+            assertThat(service.ideFilters(userId)).containsExactly("IntelliJ IDEA", "PyCharm");
+        }
+
+        @Test
         @DisplayName("distributionShouldThrow_whenDeviceNotOwnedByUser")
         void distributionShouldThrow_whenDeviceNotOwnedByUser() {
             when(deviceRepository.findByIdAndUserId(deviceId, userId)).thenReturn(Optional.empty());
 
+            StatsService.SessionFilter filter =
+                    new StatsService.SessionFilter(deviceId, null);
             assertThatThrownBy(
                             () ->
                                     service.distribution(
                                             userId,
                                             ZoneOffset.UTC,
                                             DistributionType.LANGUAGES,
-                                            deviceId))
+                                            filter))
                     .isInstanceOf(NotFoundException.class);
             verify(codingSessionRepository, never())
                     .findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(any(), any());

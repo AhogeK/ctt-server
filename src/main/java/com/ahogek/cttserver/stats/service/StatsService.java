@@ -2,6 +2,7 @@ package com.ahogek.cttserver.stats.service;
 
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.stats.dto.DailyStatPoint;
@@ -71,15 +72,13 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param zone aggregation timezone
-     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
+     * @param filter optional origin-device or IDE filter; {@code null} aggregates all sessions
      * @return the summary in seconds
      */
     @Transactional(readOnly = true)
-    public StatsSummaryResponse summary(UUID userId, ZoneOffset zone, UUID deviceId) {
-        if (!ZoneOffset.UTC.equals(zone)
-                || deviceId != null
-                || !dailyStatsMaterializer.bootstrapIfNeeded(userId)) {
-            return liveSummary(userId, zone, deviceId);
+    public StatsSummaryResponse summary(UUID userId, ZoneOffset zone, SessionFilter filter) {
+        if (!canUseMaterializedDays(userId, zone, filter)) {
+            return liveSummary(userId, zone, filter);
         }
         // UTC path reads the materialized per-day totals (week/month boundaries are whole-day
         // sums, so day-granular materialization is exact). The lower bound covers every
@@ -115,9 +114,9 @@ public class StatsService {
         return new StatsSummaryResponse(todaySeconds, dailyAverage, week, month, year, total);
     }
 
-    private StatsSummaryResponse liveSummary(UUID userId, ZoneOffset zone, UUID deviceId) {
+    private StatsSummaryResponse liveSummary(UUID userId, ZoneOffset zone, SessionFilter filter) {
         StatsCalculator.Summary summary =
-                StatsCalculator.summary(sessionsOf(userId, deviceId), zone, LocalDate.now(zone));
+                StatsCalculator.summary(sessionsOf(userId, filter), zone, LocalDate.now(zone));
         return new StatsSummaryResponse(
                 summary.today(),
                 summary.dailyAverage(),
@@ -134,13 +133,13 @@ public class StatsService {
      * @param zone aggregation timezone
      * @param start first date (inclusive)
      * @param end last date (inclusive)
-     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
+     * @param filter optional origin-device or IDE filter; {@code null} aggregates all devices
      * @return daily points in date order
      */
     @Transactional(readOnly = true)
     public HeatmapResponse heatmap(
-            UUID userId, ZoneOffset zone, LocalDate start, LocalDate end, UUID deviceId) {
-        if (canUseMaterializedDays(userId, zone, deviceId)) {
+            UUID userId, ZoneOffset zone, LocalDate start, LocalDate end, SessionFilter filter) {
+        if (canUseMaterializedDays(userId, zone, filter)) {
             // UTC path: per-day totals, dense over the range (zero days included), matching the
             // live aggregation contract.
             Map<LocalDate, Long> secondsByDay =
@@ -157,7 +156,7 @@ public class StatsService {
             return new HeatmapResponse(points);
         }
         List<DailyStatPoint> points =
-                StatsCalculator.heatmap(sessionsOf(userId, deviceId), zone, start, end).stream()
+                StatsCalculator.heatmap(sessionsOf(userId, filter), zone, start, end).stream()
                         .map(point -> new DailyStatPoint(point.date(), point.seconds()))
                         .toList();
         return new HeatmapResponse(points);
@@ -168,17 +167,14 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param zone aggregation timezone
-     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
+     * @param filter optional origin-device or IDE filter; {@code null} aggregates all sessions
      * @return streak lengths
      */
     @Transactional(readOnly = true)
-    public StreakStatsResponse streaks(UUID userId, ZoneOffset zone, UUID deviceId) {
-        if (!ZoneOffset.UTC.equals(zone)
-                || deviceId != null
-                || !dailyStatsMaterializer.bootstrapIfNeeded(userId)) {
+    public StreakStatsResponse streaks(UUID userId, ZoneOffset zone, SessionFilter filter) {
+        if (!canUseMaterializedDays(userId, zone, filter)) {
             StatsCalculator.Streaks streaks =
-                    StatsCalculator.streaks(
-                            sessionsOf(userId, deviceId), zone, LocalDate.now(zone));
+                    StatsCalculator.streaks(sessionsOf(userId, filter), zone, LocalDate.now(zone));
             return new StreakStatsResponse(streaks.current(), streaks.max());
         }
         // UTC path: streaks derive from the set of days with coding, which the materialized
@@ -239,13 +235,13 @@ public class StatsService {
      * @param userId the owning user
      * @param zone aggregation timezone
      * @param type the distribution dimension
-     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
+     * @param filter optional origin-device or IDE filter; {@code null} aggregates all devices
      * @return buckets ordered by duration descending
      */
     @Transactional(readOnly = true)
     public DistributionResponse distribution(
-            UUID userId, ZoneOffset zone, DistributionType type, UUID deviceId) {
-        List<CodingSession> sessions = sessionsOf(userId, deviceId);
+            UUID userId, ZoneOffset zone, DistributionType type, SessionFilter filter) {
+        List<CodingSession> sessions = sessionsOf(userId, filter);
         List<StatsCalculator.DistributionEntry> entries =
                 switch (type) {
                     case LANGUAGES ->
@@ -280,13 +276,13 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param zone aggregation timezone
-     * @param deviceId optional origin-device filter; {@code null} aggregates all devices
+     * @param filter optional origin-device or IDE filter; {@code null} aggregates all devices
      * @return per-hour averages and the active-day denominator
      */
     @Transactional(readOnly = true)
-    public HourlyDistributionResponse hourly(UUID userId, ZoneOffset zone, UUID deviceId) {
+    public HourlyDistributionResponse hourly(UUID userId, ZoneOffset zone, SessionFilter filter) {
         List<StatsCalculator.HourlyPoint> hourly =
-                StatsCalculator.hourlyDistribution(sessionsOf(userId, deviceId), zone);
+                StatsCalculator.hourlyDistribution(sessionsOf(userId, filter), zone);
         List<HourlyStatPoint> points =
                 hourly.stream()
                         .map(point -> new HourlyStatPoint(point.hour(), point.averageSeconds()))
@@ -300,12 +296,12 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param limit maximum number of sessions
-     * @param deviceId optional origin-device filter; {@code null} lists all devices
+     * @param filter optional origin-device or IDE filter; {@code null} lists all devices
      * @return recent sessions
      */
     @Transactional(readOnly = true)
-    public List<RecentSessionResponse> recent(UUID userId, int limit, UUID deviceId) {
-        return sessionsOf(userId, deviceId).stream()
+    public List<RecentSessionResponse> recent(UUID userId, int limit, SessionFilter filter) {
+        return sessionsOf(userId, filter).stream()
                 .sorted(Comparator.comparing(CodingSession::getStartTime).reversed())
                 .limit(limit)
                 .map(this::toRecentSession)
@@ -321,22 +317,69 @@ public class StatsService {
      *
      * @param userId the owning user
      * @param zone aggregation timezone
-     * @param deviceId optional origin-device filter
+     * @param filter optional origin-device or IDE filter; {@code null} aggregates all sessions
      * @return {@code true} when the materialized read path is exact for the request
      */
-    private boolean canUseMaterializedDays(UUID userId, ZoneOffset zone, UUID deviceId) {
+    private boolean canUseMaterializedDays(UUID userId, ZoneOffset zone, SessionFilter filter) {
         return ZoneOffset.UTC.equals(zone)
-                && deviceId == null
+                && (filter == null || filter.deviceId() == null && filter.ideName() == null)
                 && dailyStatsMaterializer.bootstrapIfNeeded(userId);
     }
 
-    private List<CodingSession> sessionsOf(UUID userId, UUID deviceId) {
-        if (deviceId == null) {
+    private List<CodingSession> sessionsOf(UUID userId, SessionFilter filter) {
+        if (filter == null) {
             return codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId);
         }
-        requireOwnedDevice(userId, deviceId);
-        return codingSessionRepository.findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(
-                userId, deviceId);
+        if (filter.deviceId() != null) {
+            requireOwnedDevice(userId, filter.deviceId());
+            return codingSessionRepository.findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(
+                    userId, filter.deviceId());
+        }
+        if (filter.ideName() != null) {
+            return sessionsOfIde(userId, filter.ideName());
+        }
+        return codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId);
+    }
+
+    /**
+     * Resolves the registered devices whose IDE name matches exactly and loads their sessions.
+     *
+     * @param userId the owning user
+     * @param ideName the exact IDE name to match
+     * @return the union of matching devices' live sessions
+     * @throws NotFoundException if no registered device carries that IDE name
+     */
+    private List<CodingSession> sessionsOfIde(UUID userId, String ideName) {
+        List<UUID> deviceIds =
+                deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
+                        .filter(device -> ideName.equals(device.getIdeName()))
+                        .map(Device::getId)
+                        .toList();
+        if (deviceIds.isEmpty()) {
+            throw new NotFoundException(
+                    ErrorCode.COMMON_002, "No device registered for IDE: " + ideName);
+        }
+        return codingSessionRepository.findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse(
+                userId, deviceIds);
+    }
+
+    /**
+     * Lists the distinct non-blank IDE names registered by the user's devices, sorted.
+     *
+     * <p>Source is the device registry; revoked devices stay included so historical attribution
+     * remains selectable. The caller-facing filter list must never expose the "Unknown IDE"
+     * fallback bucket (it is not a registered value).
+     *
+     * @param userId the owning user
+     * @return distinct IDE names, sorted
+     */
+    public List<String> ideFilters(UUID userId) {
+        return deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
+                .map(Device::getIdeName)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     /**
@@ -457,5 +500,21 @@ public class StatsService {
                 session.getStartTime(),
                 session.getEndTime(),
                 Duration.between(session.getStartTime(), session.getEndTime()).toSeconds());
+    }
+
+    /**
+     * Session-set filter for a statistics request.
+     *
+     * @param deviceId origin-device filter; {@code null} means all devices
+     * @param ideName exact IDE-name filter against the device registry; {@code null} means all
+     *     IDEs; at most one of the two may be set
+     */
+    public record SessionFilter(UUID deviceId, String ideName) {
+        public SessionFilter {
+            if (deviceId != null && ideName != null) {
+                throw new ValidationException(
+                        ErrorCode.COMMON_003, "deviceId and ideName cannot both be set");
+            }
+        }
     }
 }

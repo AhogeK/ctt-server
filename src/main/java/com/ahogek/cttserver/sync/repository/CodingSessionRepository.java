@@ -104,6 +104,20 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
             UUID userId, UUID originDeviceId);
 
     /**
+     * Lists live sessions of a user originating from any of the given devices.
+     *
+     * <p>Used by the IDE filter, which resolves a device set from the registry before querying.
+     * Backed by {@code idx_sessions_user_origin} ({@code (user_id, origin_device_id) WHERE
+     * is_deleted = FALSE}) via its user + origin-device prefix.
+     *
+     * @param userId the owning user id
+     * @param originDeviceIds the device set to include
+     * @return matching live sessions; never {@code null}
+     */
+    List<CodingSession> findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse(
+            UUID userId, Collection<UUID> originDeviceIds);
+
+    /**
      * Counts live sessions owned by a user.
      *
      * <p>Backed by the partial index {@code idx_sessions_user_time} via an index-only scan.
