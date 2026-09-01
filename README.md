@@ -428,12 +428,16 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 | `/api/v1/stats/distribution` | GET | Duration distribution by languages / projects / time-of-day / weekday / devices / IDEs | READ |
 | `/api/v1/stats/hourly` | GET | Per-hour average coding seconds across active days | READ |
 | `/api/v1/stats/recent` | GET | Most recent coding sessions (default 20, max 100) | READ |
+| `/api/v1/stats/ide-filters` | GET | Distinct registered IDE names for filter dropdowns | READ |
 | `/api/v1/stats/achievements` | GET | Achievement badges with unlock state and progress, unlocking newly reached badges | READ |
 
 **Parameters**: `timezoneOffset` (minutes, e.g. `480` for UTC+8) shifts day/week/month/hour
 boundaries to the caller's timezone; heatmap accepts `start` / `end` dates (ISO); every endpoint
-except achievements accepts an optional `deviceId` (origin-device filter; the distribution endpoint
-additionally supports `type=DEVICES` / `type=IDES` (per-device / per-IDE seconds; IDE buckets derive from the origin device's registered IDE name), unknown or foreign devices yield 404);
+except achievements accepts an optional `deviceId` (origin-device filter) or `ideName` (exact
+IDE-name filter against the device registry; mutually exclusive with deviceId, unknown IDE names
+yield 404); the distribution endpoint additionally supports `type=DEVICES` / `type=IDES`
+(per-device / per-IDE seconds; IDE buckets derive from the origin device's registered IDE name);
+`GET /api/v1/stats/ide-filters` lists the distinct registered IDE names for the dashboard filter;
 achievements
 evaluate window-based badges (early bird 06:00-09:00, night owl 22:00-05:00, perfect month) in the
 requested timezone. Aggregations merge overlapping sessions for summary/heatmap/streaks and
