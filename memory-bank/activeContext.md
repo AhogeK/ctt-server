@@ -1,4 +1,11 @@
 # Active Context
+- [2026-09-01] - 统计 IDE 过滤实施（ideName 参数 + ide-filters 端点，v0.60.0）
+    - 需求: ctt-web 提案——统计接口支持 IDE 维度过滤（方案 1+2，方案 3 协议扩展明确拒绝）；评估确认 Unknown IDE 在任何过滤下排除、按注册表精确匹配、ideName 未匹配任何设备 404、与 deviceId 同传 400
+    - 设计: SessionFilter record（deviceId/ideName 二选一，互斥抛 ValidationException COMMON_003——项目惯例对齐 LeaderboardService）收敛过滤器参数消除 Data Clumps；canUseMaterializedDays 泛化（过滤请求回退实时聚合）；sessionsOfIde 按注册表 ide_name 精确匹配解析设备集 → 新增 repository IN 查询；ideFilters() 返回 distinct 非空 ide_name 排序（revoked 设备保留、Unknown 桶永不列出）
+    - 实现: StatsService 6 方法签名 UUID deviceId → SessionFilter + ideFilters() + Controller 6 端点加 ideName @Parameter + 新 GET /ide-filters + CodingSessionRepository.findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse
+    - 测试: StatsServiceTest +4（IDE 过滤匹配/无匹配 404/ideFilters distinct 排序）+ 集成 +1（ide-filters 列表/ideName 过滤合并语义/未知 404/双参数 400）+ 既有物化 summary 测试日期缺陷修复（今天周二撞"今天=周一"假设——用 LocalDate.now() 锚定数据 + 周期断言改不变量范围 [1800,12600]，DEBUG 排查确认 stub 命中但 thisMonth 跨月截断）
+    - 踩坑: ①Controller ide-filters 插入错位致 @Operation 重复注解（两次脚本重排块位置）②SessionFilter 嵌套类型 import 需全限定 StatsService.SessionFilter ③物化 summary 测试在非周一跑红是既有时间假设缺陷（git stash 验证 HEAD 也失败，非本次回归）④集成断言重叠会话合并=3600 非 7200（pushSession 固定同一 1h 窗口）
+    - 状态: ✅ 实施+全量 1301/0 + spotless 全绿，待提交授权
 - [2026-09-01] - 用户纠正：未授权提交（R23 固化）+ memory-bank 冷热分层（R13 重写）
     - 纠正: 修复审查发现后自行 commit+push（把「需要修」当成了提交授权）——R6 授权边界误判，已固化 R23「修复≠提交」：修复完成报告后必须停，等当次交互的明确提交指令；本次 7edf735/c066f54 不回滚，下不为例
     - 冷热分层: memory-bank/archive/ 按月分片归档冷数据（修剪=归档而非删除）；activeContext.md 1598→243 行（27 热条目 + 归档指针），150 冷条目入 5 个月度 shard（2026-03..07），完整性校验通过（1622 = 1598 + 6 shard 头）；R13 重写为归档制（禁止直接删除、shard 只写不改、完整性校验步骤）
