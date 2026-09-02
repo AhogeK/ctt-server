@@ -1,4 +1,12 @@
 # Active Context
+- [2026-09-01] - 热力图年份列表端点（GET /heatmap-years，v0.61.0）
+    - 需求: ctt-web 提案——Dashboard 热力图"按年查看"需要年份下拉选项；前端无法自推导（拉全量热力图不现实），需轻量端点
+    - 设计决策: 数据源=coding_sessions 而非 daily_stats 物化表（物化惰性自举，冷启动用户物化表空但 sessions 有历史；idx_sessions_user_time (user_id, start_time, end_time) 部分索引直接支撑 distinct year 查询）；有效性规则沿用 StatsCalculator 的 start_time < end_time（零时长会话不计入年份），保证年份列表与聚合口径不分裂；倒序返回
+    - 实现: CodingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse（原生 @Query EXTRACT(YEAR) + 非删除 + start<end）+ StatsService.heatmapYears（descending）+ StatsController GET /heatmap-years（READ + 60/60，对齐 ide-filters 模式）
+    - 测试: StatsServiceTest +2（降序/空）+ StatsIntegrationTest +1（真实 push 2026+2025 两会话 → [2026,2025]）
+    - 踩坑: Controller 端点插入位置再次触发 @Operation 重复注解（anchor 匹配到 recent 的 @GetMapping 前，新端点 @Operation 叠在 recent 的 @Operation 后）——同 ide-filters 先例，脚本移除块后插到 recent 方法之后修复；第三次同类教训，考虑后续插入端点先定位方法尾
+    - 提交: ✅ 2026-09-02 原子提交完成（feat 2ba33cb → fix(test) 2b71510 → docs 01fce54 → bump 0.61.0 → memory）
+    - 补充: 提交前全量验证发现既有日期敏感测试失效——streaksShouldReadActiveDays_whenUtcAndBootstrapped 用固定日期 2026-08-29..31，currentStreak 要求最新活跃日是今天/昨天，2026-09-02 起 current=0（git stash 验证 HEAD 也失败，非本次回归）；修复=按同文件 summary 测试惯例锚定 LocalDate.now() 三连天，修复后 StatsServiceTest+StatsIntegrationTest 全绿
 - [2026-09-01] - 统计 IDE 过滤实施（ideName 参数 + ide-filters 端点，v0.60.0）
     - 需求: ctt-web 提案——统计接口支持 IDE 维度过滤（方案 1+2，方案 3 协议扩展明确拒绝）；评估确认 Unknown IDE 在任何过滤下排除、按注册表精确匹配、ideName 未匹配任何设备 404、与 deviceId 同传 400
     - 设计: SessionFilter record（deviceId/ideName 二选一，互斥抛 ValidationException COMMON_003——项目惯例对齐 LeaderboardService）收敛过滤器参数消除 Data Clumps；canUseMaterializedDays 泛化（过滤请求回退实时聚合）；sessionsOfIde 按注册表 ide_name 精确匹配解析设备集 → 新增 repository IN 查询；ideFilters() 返回 distinct 非空 ide_name 排序（revoked 设备保留、Unknown 桶永不列出）
