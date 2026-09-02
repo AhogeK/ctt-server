@@ -1,4 +1,13 @@
 # Active Context
+- [2026-09-02] - Pull 分页实施（hasMore + ctt.sync.pull-batch-size，v0.62.0）
+    - 需求: 用户指出 push 方向已优化（插件端 500/批 + 服务端多行 INSERT）但 pull 反方向缺失——新设备同账号服务端有大量数据时一次全量下发（实测 3198 条 ~1MB），应分页
+    - 设计决策: ①服务端截断而非客户端循环（客户端对无 LIMIT 响应循环无意义）②fetch LIMIT+1 模式——取 batchSize+1 条判定 hasMore 后裁剪，单查询同时回答"本页"与"是否还有"，无需 count 二次查询 ③batch 可配置（新 SyncProperties record，@ConfigurationProperties ctt.sync.pull-batch-size 默认 1000，对齐 SecurityProperties/CttMailProperties 模式；集成测试 @TestPropertySource 注 5 真实 HTTP 分页验证）④兼容性三方组合全验证：新服务端+旧插件（旧端拿前 N 条推进游标下次续拉，不丢只慢）✓ 旧服务端+新插件（hasMore 缺失=false 退化一次性）✓
+    - 实现: SessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc 重载加 Limit 参数（Spring Data 3.2+ 原生支持）+ SyncPullService 双构造器（@Autowired 5 参注入 SyncProperties / package-private 6 参 int 供测试，对齐 LeaderboardService Clock 先例）+ doPull fetch+1 裁剪 + SyncPullResponse 加 hasMore 字段（@Schema 带循环语义说明）
+    - 测试: SyncPullServiceTest +2（超批次截断 hasMore=true 游标=本页末/尾页 hasMore=false）+ 既有 4 处 stub 迁移三参 Limit 变体（eq(cursor),eq(userId),any()）+ SyncPullPagingIntegrationTest 新建（batch=5 推 12 会话 → 3 页拉完 hasMore 终止/无重复/升序/游标单调到 pushCursor）+ SyncControllerMockMvcTest 构造器适配
+    - 踩坑: ①Edit 工具三次损坏文件（repository 吞签名行、service 重复 import/吞 }、测试文本块重复行）→ python 行级修复+重读验证（既有记录第 4 次）②application.yaml sync: 块先插错到 security: 内部（cors/oauth 之间）→ python 重定位到 ctt: 直接子节点 mail: 前 ③UserRegisterRequest 第 4 字段是 termsVersion 非 clientVersion、LoginRequest 必填 deviceId 非 deviceName——新建集成测试直接复用 SyncIntegrationTest 的 DTO 构造器模式更稳
+    - 文档: dev-docs/sync/frontend-integration.md（响应示例 hasMore + 字段表 + 游标语义两条：分页循环/旧客户端兼容）+ README Sync Engine pull 段
+    - 插件端（未实施，用户专人负责）: SyncPullResponse 加 hasMore 字段 + SyncCoordinator 两处 pull 改循环（apply→持久化游标→while hasMore）+ SessionRepository.upsertSyncedSessions 批量化（JDBC batch 单事务，applier 逐条 upsert 每行一次事务 fsync 是分钟级瓶颈）+ applier 失败改抛出（吞异常+游标推进=丢行，批量原子性+游标未推进=零丢失）；已交付交接报告
+    - 状态: ✅ 实施+全量 1307/0 + jacoco 门禁 + spotless 全绿，待提交授权
 - [2026-09-01] - 热力图年份列表端点（GET /heatmap-years，v0.61.0）
     - 需求: ctt-web 提案——Dashboard 热力图"按年查看"需要年份下拉选项；前端无法自推导（拉全量热力图不现实），需轻量端点
     - 设计决策: 数据源=coding_sessions 而非 daily_stats 物化表（物化惰性自举，冷启动用户物化表空但 sessions 有历史；idx_sessions_user_time (user_id, start_time, end_time) 部分索引直接支撑 distinct year 查询）；有效性规则沿用 StatsCalculator 的 start_time < end_time（零时长会话不计入年份），保证年份列表与聚合口径不分裂；倒序返回
@@ -216,45 +225,6 @@ S3 排行进阶实施（周期与趣味维度，v0.55.0）
     - 验证: 全量测试 BUILD SUCCESSFUL + jacoco PASS + spotless PASS + LSP clean；E2E 真实 Redis 链路断言 Retry-After 正数 + body retryAfter 晚于 now
     - 版本: 0.42.1 → **0.43.0**（MINOR 新增可选字段）
     - 状态: ✅ 实施 + 双轴审查完成，本次提交
-
-- [2026-08-16] - 拆分 AUTH_014 双语义：新增 AUTH_024（API Key 上限专属错误码）
-    - 背景: AUTH_014 被双语义复用（设计债）：(1) API Key 每用户上限（ApiKeyServiceImpl）(2) 三类 token 唯一约束冲突（GlobalExceptionHandler:427，refresh/email/password token hash 冲突，"Token creation failed" 对该场景正确）
-    - 决策（方案 A 已确认）: 新增 AUTH_024("Maximum active API keys reached", 409)，场景 1 改抛 AUTH_024，场景 2 保留 AUTH_014
-    - 文案不含硬编码数字（maxKeysPerUser 可配置 @DefaultValue("20")，静态 "20" 会在配置变更时失真）
-    - 实施（子 agent quick/opencode-go-deepseek-v4-flash）: 10 文件 +18/-16
-      - 代码: ErrorCode +AUTH_024 / ApiKeyServiceImpl:73 改抛 / ApiKeyService Javadoc / ApiKeyController 409 example（description+code+message）
-      - 测试: MockMvc DisplayName+mock+断言 / Integration DisplayName×2+断言 / ErrorCodeTest +AUTH_024（ApiKeyServiceImplTest 仅断言 isInstanceOf 未动 / GlobalExceptionHandlerTest 保留 token 场景）
-      - 文档: README / developer-handbook / frontend-integration.md（4 处限流行）
-    - 独立复核: AUTH_014 残留仅 3 处 token 语义；"Token creation failed" 仅 ErrorCode:44；AUTH_024 全量到位
-    - 验证: 全量 1059 tests / 0 failed; spotless PASS; jacoco PASS
-    - 版本: 0.42.0 → **0.42.1**（PATCH）
-    - 状态: ✅ 实施完成，待用户授权提交
-
-- [2026-08-13] - Ubuntu 部署环境 collation version mismatch 排障（非代码问题）
-    - 现象: 启动后日志两条警告（HHH000247 + "database ctt_server has a collation version mismatch"），Hibernate 透传 JDBC 警告（SQLState 01000 = 非错误）
-    - 根因: Ubuntu 系统 glibc 升级（2.39 → 2.43）后，pg_database.datcollversion 记录过期
-    - 修复: `ALTER DATABASE ctt_server REFRESH COLLATION VERSION;`（12+ 原生，元数据级，不停服不锁表）→ datcollversion 2.39 → 2.43 ✓
-    - 注意: pg_collation_actual_version() 在该环境报 does not exist（参数类型问题），诊断用简单 SELECT datcollversion 即可
-    - 防复发: 系统 glibc 再升级后警告重现 → 同命令重跑；生产可追加 REINDEX DATABASE
-    - 状态: ✅ 已修复（重启应用后警告消失）
-
-- [2026-08-12] - API Key 删除接口放开 EXPIRED 直接删除（前端需求）
-    - 背景: 前端 QA 反馈 EXPIRED 密钥无法清理（ACTIVE→Revoke / REVOKED→Delete / EXPIRED→无操作，"废行"）；EXPIRED 认证已被拒（401 AUTH_011），revoke 中间步骤无安全意义
-    - 决策（think skill 流程 + 主 agent 判断）:
-      - 校验条件: `getRevokedAt() == null` → **`isActive()` 单条件**（优化需求建议的 `revokedAt == null && isActive()`——isActive() 已内含 revokedAt 检查，REVOKED/EXPIRED 均 false，仅 ACTIVE true，等价且无冗余 R9）
-      - 错误码: 复用 AUTH_023，message → "Active API keys must be revoked before they can be deleted"（R8.5 复用优先）
-      - 版本: MINOR 0.41.1 → **0.42.0**（行为扩展）
-    - 契约: ACTIVE→409 AUTH_023 / EXPIRED→204 / REVOKED→204 / BOLA 401 不变 / 审计 API_KEY_DELETED 不变
-    - 实施（子 agent quick/opencode-go-deepseek-v4-flash）: 10 文件 +65/-33
-      - 代码 4: ApiKeyServiceImpl / ErrorCode / ApiKeyService Javadoc / ApiKeyController（Javadoc+@Operation+@ExampleObject）
-      - 测试 3: ServiceTest（更名 whenKeyStillActive + 新增 whenKeyExpired）/ IntegrationTest（EXPIRED 409→204 成功用例改造）/ MockMvcTest（命名同步）
-      - 文档 3: README / developer-handbook / frontend-integration.md（业务规则+错误码表+交互）
-    - 验证: *ApiKey* 117 tests + 全量 **1059 tests** / 0 failed; spotless PASS; jacoco PASS; grep 旧文案零残留; LSP clean
-    - 双轴 Code Review（子 agent ×2，quick/deepseek-v4-flash）: Standards PASS + Spec COMPLETE，2 个命名一致性 Low 问题已修复
-      - @ExampleObject name "not-revoked" → "still-active"（409 现仅 ACTIVE 触发）
-      - 集成测试 shouldReturn409_whenKeyNotRevoked → whenKeyStillActive + DisplayName（对齐 Service/MockMvc 改名）
-    - 状态: ✅ 实施 + 审查修复完成，待用户授权提交
-
 
 ---
 

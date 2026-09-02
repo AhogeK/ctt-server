@@ -1,0 +1,38 @@
+> 冷数据归档（R13）。仅供回溯，不再更新。
+- [2026-08-16] - 拆分 AUTH_014 双语义：新增 AUTH_024（API Key 上限专属错误码）
+    - 背景: AUTH_014 被双语义复用（设计债）：(1) API Key 每用户上限（ApiKeyServiceImpl）(2) 三类 token 唯一约束冲突（GlobalExceptionHandler:427，refresh/email/password token hash 冲突，"Token creation failed" 对该场景正确）
+    - 决策（方案 A 已确认）: 新增 AUTH_024("Maximum active API keys reached", 409)，场景 1 改抛 AUTH_024，场景 2 保留 AUTH_014
+    - 文案不含硬编码数字（maxKeysPerUser 可配置 @DefaultValue("20")，静态 "20" 会在配置变更时失真）
+    - 实施（子 agent quick/opencode-go-deepseek-v4-flash）: 10 文件 +18/-16
+      - 代码: ErrorCode +AUTH_024 / ApiKeyServiceImpl:73 改抛 / ApiKeyService Javadoc / ApiKeyController 409 example（description+code+message）
+      - 测试: MockMvc DisplayName+mock+断言 / Integration DisplayName×2+断言 / ErrorCodeTest +AUTH_024（ApiKeyServiceImplTest 仅断言 isInstanceOf 未动 / GlobalExceptionHandlerTest 保留 token 场景）
+      - 文档: README / developer-handbook / frontend-integration.md（4 处限流行）
+    - 独立复核: AUTH_014 残留仅 3 处 token 语义；"Token creation failed" 仅 ErrorCode:44；AUTH_024 全量到位
+    - 验证: 全量 1059 tests / 0 failed; spotless PASS; jacoco PASS
+    - 版本: 0.42.0 → **0.42.1**（PATCH）
+    - 状态: ✅ 实施完成，待用户授权提交
+
+- [2026-08-13] - Ubuntu 部署环境 collation version mismatch 排障（非代码问题）
+    - 现象: 启动后日志两条警告（HHH000247 + "database ctt_server has a collation version mismatch"），Hibernate 透传 JDBC 警告（SQLState 01000 = 非错误）
+    - 根因: Ubuntu 系统 glibc 升级（2.39 → 2.43）后，pg_database.datcollversion 记录过期
+    - 修复: `ALTER DATABASE ctt_server REFRESH COLLATION VERSION;`（12+ 原生，元数据级，不停服不锁表）→ datcollversion 2.39 → 2.43 ✓
+    - 注意: pg_collation_actual_version() 在该环境报 does not exist（参数类型问题），诊断用简单 SELECT datcollversion 即可
+    - 防复发: 系统 glibc 再升级后警告重现 → 同命令重跑；生产可追加 REINDEX DATABASE
+    - 状态: ✅ 已修复（重启应用后警告消失）
+
+- [2026-08-12] - API Key 删除接口放开 EXPIRED 直接删除（前端需求）
+    - 背景: 前端 QA 反馈 EXPIRED 密钥无法清理（ACTIVE→Revoke / REVOKED→Delete / EXPIRED→无操作，"废行"）；EXPIRED 认证已被拒（401 AUTH_011），revoke 中间步骤无安全意义
+    - 决策（think skill 流程 + 主 agent 判断）:
+      - 校验条件: `getRevokedAt() == null` → **`isActive()` 单条件**（优化需求建议的 `revokedAt == null && isActive()`——isActive() 已内含 revokedAt 检查，REVOKED/EXPIRED 均 false，仅 ACTIVE true，等价且无冗余 R9）
+      - 错误码: 复用 AUTH_023，message → "Active API keys must be revoked before they can be deleted"（R8.5 复用优先）
+      - 版本: MINOR 0.41.1 → **0.42.0**（行为扩展）
+    - 契约: ACTIVE→409 AUTH_023 / EXPIRED→204 / REVOKED→204 / BOLA 401 不变 / 审计 API_KEY_DELETED 不变
+    - 实施（子 agent quick/opencode-go-deepseek-v4-flash）: 10 文件 +65/-33
+      - 代码 4: ApiKeyServiceImpl / ErrorCode / ApiKeyService Javadoc / ApiKeyController（Javadoc+@Operation+@ExampleObject）
+      - 测试 3: ServiceTest（更名 whenKeyStillActive + 新增 whenKeyExpired）/ IntegrationTest（EXPIRED 409→204 成功用例改造）/ MockMvcTest（命名同步）
+      - 文档 3: README / developer-handbook / frontend-integration.md（业务规则+错误码表+交互）
+    - 验证: *ApiKey* 117 tests + 全量 **1059 tests** / 0 failed; spotless PASS; jacoco PASS; grep 旧文案零残留; LSP clean
+    - 双轴 Code Review（子 agent ×2，quick/deepseek-v4-flash）: Standards PASS + Spec COMPLETE，2 个命名一致性 Low 问题已修复
+      - @ExampleObject name "not-revoked" → "still-active"（409 现仅 ACTIVE 触发）
+      - 集成测试 shouldReturn409_whenKeyNotRevoked → whenKeyStillActive + DisplayName（对齐 Service/MockMvc 改名）
+    - 状态: ✅ 实施 + 审查修复完成，待用户授权提交
