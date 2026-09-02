@@ -160,13 +160,17 @@ class StatsServiceTest {
         @Test
         @DisplayName("streaksShouldReadActiveDays_whenUtcAndBootstrapped")
         void streaksShouldReadActiveDays_whenUtcAndBootstrapped() {
+            // Days are anchored to the real "today" so the current streak stays alive:
+            // currentStreak requires the latest active day to be today (or yesterday),
+            // which fixed past dates would outgrow as time passes.
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
             when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(true);
             when(dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId))
                     .thenReturn(
                             List.of(
-                                    day("2026-08-29", 3600),
-                                    day("2026-08-30", 3600),
-                                    day("2026-08-31", 3600)));
+                                    day(today.minusDays(2).toString(), 3600),
+                                    day(today.minusDays(1).toString(), 3600),
+                                    day(today.toString(), 3600)));
 
             StreakStatsResponse streaks = service.streaks(userId, ZoneOffset.UTC, null);
 
