@@ -171,6 +171,10 @@ ctt:
       verify-url: https://api.hcaptcha.com/siteverify
       timeout: 5s
 
+  sync:
+    # Maximum change-log entries returned per sync pull; clients page with nextCursor
+    pull-batch-size: ${SYNC_PULL_BATCH_SIZE:1000}
+
   mail:
     from:
       address: ${MAIL_FROM_ADDRESS:noreply@localhost}
@@ -203,3 +207,4 @@ ctt:
       verify-email-path: /auth/verify-email
       reset-password-path: /auth/reset-password
       change-email-path: /auth/change-email
+

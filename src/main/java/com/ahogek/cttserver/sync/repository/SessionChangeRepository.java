@@ -2,6 +2,7 @@ package com.ahogek.cttserver.sync.repository;
 
 import com.ahogek.cttserver.sync.entity.SessionChange;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -44,6 +45,21 @@ public interface SessionChangeRepository extends JpaRepository<SessionChange, Lo
      */
     List<SessionChange> findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
             long cursor, UUID userId);
+
+    /**
+     * Pulls at most {@code limit} changes of a user after a watermark, in change order.
+     *
+     * <p>Paged variant of the incremental pull: the caller fetches {@code limit + 1} rows to detect
+     * a next page and trims the extra row, so one query answers both "the page" and "is there
+     * more". Backed by {@code idx_session_changes_user_change}.
+     *
+     * @param cursor the exclusive lower bound on change id (the device's watermark)
+     * @param userId the owning user id
+     * @param limit the maximum number of changes to return
+     * @return up to {@code limit} matching changes in ascending change-id order; never {@code null}
+     */
+    List<SessionChange> findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
+            long cursor, UUID userId, Limit limit);
 
     /**
      * Lists the full change history of a single session for a user.
