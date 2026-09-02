@@ -351,10 +351,8 @@ class StatsServiceTest {
             when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
                     .thenReturn(List.of(deviceWithIde(UUID.randomUUID(), "PyCharm")));
 
-            StatsService.SessionFilter filter =
-                    new StatsService.SessionFilter(null, "WebStorm");
-            assertThatThrownBy(
-                            () -> service.summary(userId, ZoneOffset.UTC, filter))
+            StatsService.SessionFilter filter = new StatsService.SessionFilter(null, "WebStorm");
+            assertThatThrownBy(() -> service.summary(userId, ZoneOffset.UTC, filter))
                     .isInstanceOf(NotFoundException.class);
             verify(codingSessionRepository, never())
                     .findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse(any(), any());
@@ -376,12 +374,29 @@ class StatsServiceTest {
         }
 
         @Test
+        @DisplayName("heatmapYearsShouldReturnDescending_whenSessionsExist")
+        void heatmapYearsShouldReturnDescending_whenSessionsExist() {
+            when(codingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(2024, 2026, 2025));
+
+            assertThat(service.heatmapYears(userId)).containsExactly(2026, 2025, 2024);
+        }
+
+        @Test
+        @DisplayName("heatmapYearsShouldReturnEmpty_whenNoSessions")
+        void heatmapYearsShouldReturnEmpty_whenNoSessions() {
+            when(codingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of());
+
+            assertThat(service.heatmapYears(userId)).isEmpty();
+        }
+
+        @Test
         @DisplayName("distributionShouldThrow_whenDeviceNotOwnedByUser")
         void distributionShouldThrow_whenDeviceNotOwnedByUser() {
             when(deviceRepository.findByIdAndUserId(deviceId, userId)).thenReturn(Optional.empty());
 
-            StatsService.SessionFilter filter =
-                    new StatsService.SessionFilter(deviceId, null);
+            StatsService.SessionFilter filter = new StatsService.SessionFilter(deviceId, null);
             assertThatThrownBy(
                             () ->
                                     service.distribution(

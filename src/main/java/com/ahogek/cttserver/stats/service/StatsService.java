@@ -364,6 +364,24 @@ public class StatsService {
     }
 
     /**
+     * Lists the calendar years that contain valid coding sessions, newest first.
+     *
+     * <p>Data source is {@code coding_sessions} (not the materialized table): materialization is
+     * lazily bootstrapped, so a cold user's daily_stats can be empty while sessions hold history,
+     * and the partial index {@code idx_sessions_user_time} serves the distinct-year query. The
+     * validity rule ({@code start_time < end_time}) matches the heatmap aggregation so the year
+     * list never includes a year whose only sessions are zero-duration.
+     *
+     * @param userId the owning user
+     * @return years with valid sessions, descending
+     */
+    public List<Integer> heatmapYears(UUID userId) {
+        return codingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse(userId).stream()
+                .sorted(Comparator.reverseOrder())
+                .toList();
+    }
+
+    /**
      * Lists the distinct non-blank IDE names registered by the user's devices, sorted.
      *
      * <p>Source is the device registry; revoked devices stay included so historical attribution

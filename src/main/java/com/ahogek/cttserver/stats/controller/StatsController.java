@@ -684,6 +684,40 @@ public class StatsController {
     }
 
     @Operation(
+            summary = "Heatmap year options",
+            description =
+                    "Lists the calendar years that contain valid coding sessions, newest first."
+                            + " Feed for the dashboard heatmap year dropdown; derived from session"
+                            + " data (start_time < end_time), not the lazily bootstrapped"
+                            + " materialized table.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Years retrieved",
+                        content = @Content(schema = @Schema(implementation = Integer[].class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid API key or JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid API key",
+                                                        value = UNAUTHORIZED_EXAMPLE)))
+            })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
+    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @GetMapping("/heatmap-years")
+    public ResponseEntity<RestApiResponse<List<Integer>>> heatmapYears() {
+        CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
+        List<Integer> years = statsService.heatmapYears(currentUser.id());
+        return ResponseEntity.ok(RestApiResponse.ok(years));
+    }
+
+    @Operation(
             summary = "IDE filter options",
             description =
                     "Lists the distinct non-blank IDE names registered by the user's devices, sorted."

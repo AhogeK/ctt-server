@@ -118,6 +118,22 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
             UUID userId, Collection<UUID> originDeviceIds);
 
     /**
+     * Lists the distinct calendar years that contain at least one valid coding session.
+     *
+     * <p>Only sessions with a positive duration count ({@code start_time < end_time}), matching the
+     * StatsCalculator validity rule, so the year list never diverges from the aggregation
+     * dimension. Backed by the partial index {@code idx_sessions_user_time}.
+     *
+     * @param userId the owning user
+     * @return distinct years of the user's valid sessions, unordered
+     */
+    @Query(
+            "SELECT DISTINCT EXTRACT(YEAR FROM s.startTime) FROM CodingSession s "
+                    + "WHERE s.userId = :userId AND s.isDeleted = false "
+                    + "AND s.startTime < s.endTime")
+    List<Integer> findDistinctYearsByUserIdAndIsDeletedFalse(@Param("userId") UUID userId);
+
+    /**
      * Counts live sessions owned by a user.
      *
      * <p>Backed by the partial index {@code idx_sessions_user_time} via an index-only scan.

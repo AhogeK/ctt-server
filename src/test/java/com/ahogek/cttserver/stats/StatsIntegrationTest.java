@@ -713,6 +713,36 @@ class StatsIntegrationTest {
             return deviceId;
         }
 
+        private void pushSessionWithWindow(
+                String syncKey,
+                UUID deviceId,
+                String sessionUuid,
+                String startTime,
+                String endTime) {
+            String pushBody =
+                    """
+                    {
+                      "deviceId": "%s",
+                      "sessions": [
+                        {"sessionUuid": "%s", "projectName": "ctt-server", "language": "Java",
+                         "startTime": "%s", "endTime": "%s",
+                         "clientModifiedAt": "%s", "clientVersion": 1,
+                         "deleted": false}
+                      ]
+                    }
+                    """
+                            .formatted(
+                                    deviceId.toString(), sessionUuid, startTime, endTime, endTime);
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + syncKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pushBody))
+                    .hasStatusOk();
+        }
+
         private void pushSession(String syncKey, UUID deviceId, String sessionUuid) {
             String pushBody =
                     """
@@ -923,6 +953,41 @@ class StatsIntegrationTest {
                             .exchange();
             assertThat(both).hasStatus(400);
             assertThat(both).bodyJson().extractingPath("$.code").isEqualTo("COMMON_003");
+        }
+
+        @Test
+        @DisplayName("Should list distinct years of valid sessions descending")
+        void shouldListYears_whenSessionsSpanMultipleYears() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(auth[0], "read", "READ");
+            String syncKey = createApiKey(auth[0], "sync", "SYNC");
+            UUID device = registerDevice(auth[0], UUID.randomUUID());
+
+            // 2026 session (1h) and 2025 session (2h) via real pushes
+            pushSessionWithWindow(
+                    syncKey,
+                    device,
+                    UUID.randomUUID().toString(),
+                    "2026-08-30T10:00:00Z",
+                    "2026-08-30T11:00:00Z");
+            pushSessionWithWindow(
+                    syncKey,
+                    device,
+                    UUID.randomUUID().toString(),
+                    "2025-08-30T10:00:00Z",
+                    "2025-08-30T12:00:00Z");
+
+            var years =
+                    mvc.get()
+                            .uri("/api/v1/stats/heatmap-years")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(years).hasStatusOk();
+            assertThat(years)
+                    .bodyJson()
+                    .extractingPath("$.data")
+                    .asArray()
+                    .containsExactly(2026, 2025);
         }
 
         @Test
