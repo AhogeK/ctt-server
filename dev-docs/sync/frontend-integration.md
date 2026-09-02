@@ -223,7 +223,8 @@ POST /api/v1/sync/pull
         "deleted": false
       }
     ],
-    "nextCursor": 43
+    "nextCursor": 43,
+    "hasMore": false
   },
   "timestamp": "2026-08-25T10:30:00Z"
 }
@@ -234,6 +235,7 @@ POST /api/v1/sync/pull
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `changes` | array | 需要应用的变更，按 changeId 升序排列；无新变更时为空数组 |
+| `hasMore` | boolean | 是否还有更多变更未下发；为 `true` 时应立即用 `nextCursor` 继续 Pull |
 | `nextCursor` | long | 下一次 Pull 应携带的游标 |
 
 ### changes[] 字段说明（SyncChangeDto）
@@ -260,6 +262,8 @@ POST /api/v1/sync/pull
 - **游标复用**：每次 Pull 后，将响应中的 `nextCursor` 作为下一次请求的 `lastPulledChangeId`。
 - **幂等性**：当没有新变更时，服务端返回空 `changes` 数组和当前游标（`nextCursor` 不变），重复拉取不会产生副作用。
 - **水印单调性**：服务端按设备持久化游标，实际查询游标取「服务端持久化游标」与「客户端传入游标」的较大值，因此客户端无法回退水印；即使客户端传入过期游标，也不会重复下发已消费的变更。
+- **服务端分页（v0.62.0 起）**：单次 Pull 最多返回 `ctt.sync.pull-batch-size`（默认 1000）条变更。响应 `hasMore=true` 表示还有剩余，客户端应**循环 Pull**（用返回的 `nextCursor` 继续请求）直到 `hasMore=false`。每页应用后持久化游标，中断后可从该游标续拉，协议幂等。
+- **旧客户端兼容**：忽略 `hasMore` 字段的客户端仍能正常工作——本次拿到前 N 条并推进游标，下次同步续拉剩余部分，数据不丢失，只是收敛变慢。
 - **变更顺序**：`changes` 按 `changeId` 升序返回，插件应按顺序应用。
 
 ## Push 接口
