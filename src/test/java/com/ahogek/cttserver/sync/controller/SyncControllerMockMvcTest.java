@@ -90,7 +90,7 @@ class SyncControllerMockMvcTest {
         void shouldReturn200_whenJwtUserPulls() {
             when(currentUserProvider.getCurrentUserRequired()).thenReturn(currentUser());
             when(syncPullService.pull(any(), any(), anyLong()))
-                    .thenReturn(new SyncPullResponse(List.of(), 42L));
+                    .thenReturn(new SyncPullResponse(List.of(), 42L, false));
 
             assertThat(
                             mvc.post()

@@ -3,6 +3,7 @@ package com.ahogek.cttserver.sync.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.common.config.properties.SyncProperties;
 import com.ahogek.cttserver.common.exception.BusinessException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
@@ -19,6 +20,8 @@ import com.ahogek.cttserver.sync.repository.SyncCursorRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,18 +52,38 @@ public class SyncPullService {
     private final SyncCursorRepository syncCursorRepository;
     private final DeviceRepository deviceRepository;
     private final AuditLogService auditLogService;
+    private final int pullBatchSize;
 
+    @Autowired
     public SyncPullService(
             SessionChangeRepository sessionChangeRepository,
             CodingSessionRepository codingSessionRepository,
             SyncCursorRepository syncCursorRepository,
             DeviceRepository deviceRepository,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            SyncProperties syncProperties) {
+        this(
+                sessionChangeRepository,
+                codingSessionRepository,
+                syncCursorRepository,
+                deviceRepository,
+                auditLogService,
+                syncProperties.pullBatchSize());
+    }
+
+    SyncPullService(
+            SessionChangeRepository sessionChangeRepository,
+            CodingSessionRepository codingSessionRepository,
+            SyncCursorRepository syncCursorRepository,
+            DeviceRepository deviceRepository,
+            AuditLogService auditLogService,
+            int pullBatchSize) {
         this.sessionChangeRepository = sessionChangeRepository;
         this.codingSessionRepository = codingSessionRepository;
         this.syncCursorRepository = syncCursorRepository;
         this.deviceRepository = deviceRepository;
         this.auditLogService = auditLogService;
+        this.pullBatchSize = pullBatchSize;
     }
 
     /**
@@ -113,9 +136,13 @@ public class SyncPullService {
                         .orElse(0L);
         long queryCursor = Math.max(persistedCursor, lastPulledChangeId);
 
-        List<SessionChange> changes =
+        // Fetch one extra row to detect a next page, then trim it: a single query answers
+        // both "the page" and "is there more" without a separate count.
+        List<SessionChange> fetched =
                 sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
-                        queryCursor, userId);
+                        queryCursor, userId, Limit.of(pullBatchSize + 1));
+        boolean hasMore = fetched.size() > pullBatchSize;
+        List<SessionChange> changes = hasMore ? fetched.subList(0, pullBatchSize) : fetched;
 
         List<SyncChangeDto> changeDtos = toChangeDtos(changes);
         long nextCursor =
@@ -126,9 +153,14 @@ public class SyncPullService {
         syncCursorRepository.advancePullWatermark(userId, deviceId, nextCursor);
         auditLogService.logSuccess(
                 userId, AuditAction.SYNC_PULL, ResourceType.CODING_SESSION, deviceId.toString());
-        log.info("User {} pulled {} changes for device {}", userId, changes.size(), deviceId);
+        log.info(
+                "User {} pulled {} changes for device {} (hasMore: {})",
+                userId,
+                changes.size(),
+                deviceId,
+                hasMore);
 
-        return new SyncPullResponse(changeDtos, nextCursor);
+        return new SyncPullResponse(changeDtos, nextCursor, hasMore);
     }
 
     private List<SyncChangeDto> toChangeDtos(List<SessionChange> changes) {

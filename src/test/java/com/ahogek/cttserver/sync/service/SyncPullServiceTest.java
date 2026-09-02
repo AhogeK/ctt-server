@@ -54,6 +54,8 @@ class SyncPullServiceTest {
 
     private SyncPullService service;
 
+    private static final int DEFAULT_BATCH = 1000;
+
     private final UUID userId = UUID.randomUUID();
     private final UUID deviceId = UUID.randomUUID();
 
@@ -65,7 +67,8 @@ class SyncPullServiceTest {
                         codingSessionRepository,
                         syncCursorRepository,
                         deviceRepository,
-                        auditLogService);
+                        auditLogService,
+                        SyncPullServiceTest.DEFAULT_BATCH);
         when(deviceRepository.findByIdAndUserId(deviceId, userId))
                 .thenReturn(Optional.of(new Device()));
     }
@@ -120,7 +123,7 @@ class SyncPullServiceTest {
             when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
                     .thenReturn(Optional.of(cursor(10)));
             when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
-                            10, userId))
+                            eq(10L), eq(userId), any()))
                     .thenReturn(
                             List.of(
                                     change(11, sessionId1, ChangeOp.UPSERT, 3),
@@ -162,7 +165,7 @@ class SyncPullServiceTest {
             when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
                     .thenReturn(Optional.of(cursor(10)));
             when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
-                            10, userId))
+                            eq(10L), eq(userId), any()))
                     .thenReturn(List.of());
 
             SyncPullResponse response = service.pull(userId, deviceId, 10);
@@ -179,7 +182,7 @@ class SyncPullServiceTest {
             when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
                     .thenReturn(Optional.empty());
             when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
-                            0, userId))
+                            eq(0L), eq(userId), any()))
                     .thenReturn(List.of(change(5, sessionId, ChangeOp.UPSERT, 1)));
             when(codingSessionRepository.findAllByIdIn(any()))
                     .thenReturn(List.of(session(sessionId, false)));
@@ -198,7 +201,7 @@ class SyncPullServiceTest {
             when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
                     .thenReturn(Optional.of(cursor(10)));
             when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
-                            10, userId))
+                            eq(10L), eq(userId), any()))
                     .thenReturn(List.of(change(11, sessionId, ChangeOp.DELETE, 4)));
             when(codingSessionRepository.findAllByIdIn(any())).thenReturn(List.of());
 
@@ -231,7 +234,8 @@ class SyncPullServiceTest {
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COMMON_002);
 
             verify(sessionChangeRepository, never())
-                    .findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(anyLong(), any());
+                    .findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
+                            anyLong(), any(), any());
             verify(auditLogService)
                     .logFailure(
                             eq(userId),
@@ -239,6 +243,67 @@ class SyncPullServiceTest {
                             eq(ResourceType.CODING_SESSION),
                             eq(deviceId.toString()),
                             eq(ErrorCode.COMMON_002.name()));
+        }
+
+        @Test
+        @DisplayName("should truncate a page and flag hasMore when the batch size is exceeded")
+        void shouldTruncatePageAndFlagHasMore_whenMoreThanBatchSize() {
+            SyncPullService paged =
+                    new SyncPullService(
+                            sessionChangeRepository,
+                            codingSessionRepository,
+                            syncCursorRepository,
+                            deviceRepository,
+                            auditLogService,
+                            2);
+            UUID sessionId = UUID.randomUUID();
+            when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
+                    .thenReturn(Optional.of(cursor(10)));
+            when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
+                            eq(10L), eq(userId), any()))
+                    .thenReturn(
+                            List.of(
+                                    change(11, sessionId, ChangeOp.UPSERT, 1),
+                                    change(12, sessionId, ChangeOp.UPSERT, 2),
+                                    change(13, sessionId, ChangeOp.UPSERT, 3)));
+            when(codingSessionRepository.findAllByIdIn(any()))
+                    .thenReturn(List.of(session(sessionId, false)));
+
+            SyncPullResponse response = paged.pull(userId, deviceId, 10);
+
+            assertThat(response.changes()).hasSize(2);
+            assertThat(response.changes().get(0).changeId()).isEqualTo(11);
+            assertThat(response.changes().get(1).changeId()).isEqualTo(12);
+            assertThat(response.hasMore()).isTrue();
+            assertThat(response.nextCursor()).isEqualTo(12);
+            verify(syncCursorRepository).advancePullWatermark(userId, deviceId, 12);
+        }
+
+        @Test
+        @DisplayName("should return the final page with hasMore false when remaining fit the batch")
+        void shouldReturnFinalPageWithHasMoreFalse_whenRemainingFitBatch() {
+            SyncPullService paged =
+                    new SyncPullService(
+                            sessionChangeRepository,
+                            codingSessionRepository,
+                            syncCursorRepository,
+                            deviceRepository,
+                            auditLogService,
+                            2);
+            UUID sessionId = UUID.randomUUID();
+            when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
+                    .thenReturn(Optional.of(cursor(12)));
+            when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
+                            eq(12L), eq(userId), any()))
+                    .thenReturn(List.of(change(13, sessionId, ChangeOp.UPSERT, 3)));
+            when(codingSessionRepository.findAllByIdIn(any()))
+                    .thenReturn(List.of(session(sessionId, false)));
+
+            SyncPullResponse response = paged.pull(userId, deviceId, 12);
+
+            assertThat(response.changes()).hasSize(1);
+            assertThat(response.hasMore()).isFalse();
+            assertThat(response.nextCursor()).isEqualTo(13);
         }
     }
 }
