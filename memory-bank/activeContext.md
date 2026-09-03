@@ -1,4 +1,17 @@
 # Active Context
+- [2026-09-03] - Weekly Coding Activity by Hour 端点（GET /stats/week-hour，v0.63.0）
+    - 需求: 前端渲染 7x24 交叉热力图，需 weekday x hour 平均秒 + 可被 dashboard 日期区间（?start&end）控制；对齐插件端 DailyHourDataProvider 口径（R3 已读源码：逐小时切片 + weekdayCount 除数字典）
+    - 设计决策: ①切片复用 hourlyDistribution 的逐小时循环模式，仅加 weekday 维度（slice start 落桶）②除数=窗口内每个星期几出现的天数（非活跃天数）——weekdayCounts 字典随响应返回供前端复核 ③只返回有数据的格子（前端补零渲染）④窗口为空 → 聚合全史（对齐插件端 determineTimeRange 回退 min/max）⑤窗口裁剪用既有 clipTo 模式（首实现漏裁剪被自写测试抓出——08-25 会话漏进 09-01..09-07 窗口，修后 clipTo/半开边界 fallback）
+    - 实现: StatsCalculator.weekHourDistribution + WeekHourPoint/WeekHourDistribution record + StatsService.weekHour（end<start 抛 COMMON_003）+ StatsController GET /week-hour（READ + 60/60，timezoneOffset/start/end/deviceId/ideName 全参数，@ApiResponses 200/401/403/404/429——与 heatmap 等同参数端点一致不列 400）
+    - 测试: StatsCalculatorTest WeekHourTests +5（跨小时切片 3 格 6300s/时区平移 weekday+hour 漂移/同星期重复平均=7200/2/窗口裁剪+全窗口计数/空会话）+ StatsServiceTest +3（裁剪委托/空/双过滤 400）+ StatsIntegrationTest +2（区间裁剪 HTTP 全链路 6300s/设备过滤+互斥 400）
+    - 踩坑: ①需求验收示例自相矛盾（说按逐小时切片却断言"两条 points"——10:30-12:15 实为 3 格 1800+3600+900=6300，测试按算法口径写）②集成测试 origin_device_id FK 违约——裸 UUID 不在 devices 表，须先 POST /devices 注册（registerDevice helper 已有，新测试直接调用）③Edit 工具损坏第 5/6 次（import 重复/RecentSessionResponse 被吞/README 段落错位）→ python 行级修复
+    - 验证: 全量 1317/0（+10）+ jacoco 门禁 + spotless 全绿
+    - 双轴审查修复（reviewer x2 并行）: ①P1 真实 bug——单边界窗口（只给 start 或只给 end）裁剪时 new TimeInterval 在 filter 前构造，会话整体在窗外（start>=end）抛 IAE→400 COMMON_001（TimeInterval 紧凑构造器拒绝 start>=end），修复=先判 start.isBefore(end) 再构造、空则丢弃 + 回归测试锁定（shouldClipSingleBound_whenOnlyStartGiven）②README /stats/recent 行被编辑连带删除（端点仍存活）→ 恢复 ③WeekHourDistributionResponse 字段补 @Schema example（R9）④判断性保留: 逐小时切片循环与 hourlyDistribution 重复（Fowler Duplicated Code，可提取共享 helper）——两热力图锁步演进风险记录，暂不重构（改动面/收益比不划算，留待第三个同形状出现）
+    - 审查后验证: 全量 1318/0 + jacoco + spotless 全绿
+    - 用户裁决+修正: 重叠会话语义——需求"对齐插件端 DailyHourDataProvider"字面落地为原始累加，但用户判定"累加就是 bug，很明显的逻辑错误"（并行窗口双计）。修正=切片前先 mergeOverlapping（并集=最早 start 到最晚 end，一行复用既有 helper），跨日/跨小时截断语义不变；新增 calculator 重叠合并测试（10:00-11:00 + 10:30-10:45 → hour10 计 3600s 非 3900s）。已出插件端 bug 报告：插件 getDailyHourDistribution/fetchDailyHourlyData 无 merge，同样双计
+    - 审查后验证: 全量 1319/0 + jacoco + spotless 全绿
+    - 状态: ✅ 实施+双轴审查+修复完成，待提交授权
+
 - [2026-09-02] - Pull 分页实施（hasMore + ctt.sync.pull-batch-size，v0.62.0）
     - 需求: 用户指出 push 方向已优化（插件端 500/批 + 服务端多行 INSERT）但 pull 反方向缺失——新设备同账号服务端有大量数据时一次全量下发（实测 3198 条 ~1MB），应分页
     - 设计决策: ①服务端截断而非客户端循环（客户端对无 LIMIT 响应循环无意义）②fetch LIMIT+1 模式——取 batchSize+1 条判定 hasMore 后裁剪，单查询同时回答"本页"与"是否还有"，无需 count 二次查询 ③batch 可配置（新 SyncProperties record，@ConfigurationProperties ctt.sync.pull-batch-size 默认 1000，对齐 SecurityProperties/CttMailProperties 模式；集成测试 @TestPropertySource 注 5 真实 HTTP 分页验证）④兼容性三方组合全验证：新服务端+旧插件（旧端拿前 N 条推进游标下次续拉，不丢只慢）✓ 旧服务端+新插件（hasMore 缺失=false 退化一次性）✓
