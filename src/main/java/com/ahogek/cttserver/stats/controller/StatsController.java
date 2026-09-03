@@ -16,6 +16,7 @@ import com.ahogek.cttserver.stats.dto.HourlyDistributionResponse;
 import com.ahogek.cttserver.stats.dto.RecentSessionResponse;
 import com.ahogek.cttserver.stats.dto.StatsSummaryResponse;
 import com.ahogek.cttserver.stats.dto.StreakStatsResponse;
+import com.ahogek.cttserver.stats.dto.WeekHourDistributionResponse;
 import com.ahogek.cttserver.stats.enums.DistributionType;
 import com.ahogek.cttserver.stats.service.StatsService;
 import com.ahogek.cttserver.stats.service.StatsService.SessionFilter;
@@ -591,6 +592,120 @@ public class StatsController {
                 statsService.hourly(
                         currentUser.id(),
                         zoneOffset(timezoneOffset),
+                        new SessionFilter(deviceId, ideName));
+        return ResponseEntity.ok(RestApiResponse.ok(response));
+    }
+
+    @Operation(
+            summary = "Weekly coding activity by hour",
+            description =
+                    "Returns the weekly coding heatmap: average seconds per weekday-hour cell in"
+                            + " the requested timezone. Sessions crossing hour or day boundaries are"
+                            + " sliced accordingly. Optional start/end dates (inclusive) clip the"
+                            + " aggregation window; omitted bounds aggregate the full history."
+                            + " Only exercised cells are returned; clients render missing cells as"
+                            + " zero.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Weekly heatmap retrieved",
+                        content =
+                                @Content(
+                                        schema =
+                                                @Schema(
+                                                        implementation =
+                                                                WeekHourDistributionResponse
+                                                                        .class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid API key or JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid API key",
+                                                        value = UNAUTHORIZED_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary = "API key lacks READ scope",
+                                                        value = SCOPE_DENIED_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "404",
+                        description =
+                                "Requested deviceId unknown or owned by another user - COMMON_002",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "device-not-found",
+                                                        summary =
+                                                                "Device not found or access denied",
+                                                        value = DEVICE_NOT_FOUND_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "Rate limit exceeded - RATE_LIMIT_001",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rate-limited",
+                                                        summary = "Too many requests",
+                                                        value = RATE_LIMITED_EXAMPLE)))
+            })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
+    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @GetMapping("/week-hour")
+    public ResponseEntity<RestApiResponse<WeekHourDistributionResponse>> weekHour(
+            @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
+                    int timezoneOffset,
+            @Parameter(
+                            name = "start",
+                            description =
+                                    "Optional window start date (inclusive, ISO yyyy-MM-dd);"
+                                            + " omitted aggregates the full history")
+                    @RequestParam(name = "start", required = false)
+                    LocalDate start,
+            @Parameter(
+                            name = "end",
+                            description =
+                                    "Optional window end date (inclusive, ISO yyyy-MM-dd);"
+                                            + " omitted aggregates the full history")
+                    @RequestParam(name = "end", required = false)
+                    LocalDate end,
+            @Parameter(
+                            name = "deviceId",
+                            description =
+                                    "Optional origin-device filter; omitted aggregates all devices. Unknown or"
+                                            + " foreign devices yield 404 COMMON_002.")
+                    @RequestParam(name = "deviceId", required = false)
+                    UUID deviceId,
+            @Parameter(
+                            name = "ideName",
+                            description =
+                                    "Optional exact IDE-name filter against the device registry; omitted"
+                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
+                                            + " unknown IDE names yield 404 COMMON_002.")
+                    @RequestParam(name = "ideName", required = false)
+                    String ideName) {
+        CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
+        WeekHourDistributionResponse response =
+                statsService.weekHour(
+                        currentUser.id(),
+                        zoneOffset(timezoneOffset),
+                        start,
+                        end,
                         new SessionFilter(deviceId, ideName));
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }

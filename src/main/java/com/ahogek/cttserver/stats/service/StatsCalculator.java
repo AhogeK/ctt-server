@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -331,6 +332,146 @@ public final class StatsCalculator {
             points.add(new HourlyPoint(hour, average, (int) activeDays));
         }
         return points;
+    }
+
+    /** Average coding seconds for one weekday-hour cell. */
+    public record WeekHourPoint(int dayOfWeek, int hour, long averageSeconds) {}
+
+    /** Weekday-hour grid averaged per weekday appearance, plus the per-weekday day counts. */
+    public record WeekHourDistribution(
+            List<WeekHourPoint> points, Map<Integer, Integer> weekdayCounts) {}
+
+    /**
+     * Computes per-weekday per-hour average usage, matching the plugin's weekly heatmap.
+     *
+     * <p>Each session is sliced at hour boundaries in the caller's zone; a slice lands in the
+     * (localWeekday, localHour) bucket of its slice start. A bucket's average divides its total
+     * seconds by the number of days that weekday appears in the aggregation window, so the
+     * denominator matches how many times that cell could have been exercised. Only exercised cells
+     * are returned; the caller renders missing cells as zero.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param windowStart window start date (inclusive), or {@code null} for the sessions' own
+     *     earliest date
+     * @param windowEnd window end date (inclusive), or {@code null} for the sessions' own latest
+     *     date
+     * @return exercised weekday-hour cells with per-weekday denominators
+     */
+    public static WeekHourDistribution weekHourDistribution(
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            LocalDate windowStart,
+            LocalDate windowEnd) {
+        // Overlapping sessions describe the same wall-clock activity (e.g. parallel project
+        // windows): merge them first so a shared hour is counted once, matching the summary and
+        // heatmap semantics. The union spans the earliest start to the latest end.
+        List<TimeInterval> intervals = mergeOverlapping(toIntervals(sessions, zone));
+        if (windowStart != null || windowEnd != null) {
+            // Window bounds are inclusive calendar dates; the window closes at the end date's
+            // midnight so a session starting before it (or spilling past it) is clipped away.
+            OffsetDateTime from =
+                    windowStart != null ? windowStart.atStartOfDay(zone).toOffsetDateTime() : null;
+            OffsetDateTime to =
+                    windowEnd != null
+                            ? windowEnd.plusDays(1).atStartOfDay(zone).toOffsetDateTime()
+                            : null;
+            if (from != null && to != null) {
+                intervals = clipTo(intervals, from, to);
+            } else {
+                // One-sided bound: clamp each side independently and drop sessions that fall
+                // entirely outside the window. Bounds are clamped on raw values and only
+                // non-empty results are materialized, since TimeInterval rejects start >= end.
+                final OffsetDateTime floor = from;
+                final OffsetDateTime ceiling = to;
+                intervals =
+                        intervals.stream()
+                                .map(
+                                        interval -> {
+                                            OffsetDateTime start =
+                                                    floor != null
+                                                                    && interval.start()
+                                                                            .isBefore(floor)
+                                                            ? floor
+                                                            : interval.start();
+                                            OffsetDateTime end =
+                                                    ceiling != null
+                                                                    && interval.end()
+                                                                            .isAfter(ceiling)
+                                                            ? ceiling
+                                                            : interval.end();
+                                            return start.isBefore(end)
+                                                    ? new TimeInterval(start, end)
+                                                    : null;
+                                        })
+                                .filter(Objects::nonNull)
+                                .toList();
+            }
+        }
+        long[][] cellSeconds = new long[7][24];
+        for (TimeInterval interval : intervals) {
+            OffsetDateTime cursor = interval.start();
+            while (cursor.isBefore(interval.end())) {
+                int weekday = cursor.getDayOfWeek().getValue() - 1;
+                int hour = cursor.getHour();
+                OffsetDateTime nextHour = cursor.truncatedTo(ChronoUnit.HOURS).plusHours(1);
+                OffsetDateTime sliceEnd =
+                        nextHour.isBefore(interval.end()) ? nextHour : interval.end();
+                cellSeconds[weekday][hour] += Duration.between(cursor, sliceEnd).toSeconds();
+                cursor = sliceEnd;
+            }
+        }
+        Map<Integer, Integer> weekdayCounts =
+                weekdayAppearanceCounts(intervals, windowStart, windowEnd);
+        List<WeekHourPoint> points = new ArrayList<>();
+        for (int weekday = 0; weekday < 7; weekday++) {
+            int dayOfWeek = weekday + 1;
+            Integer days = weekdayCounts.get(dayOfWeek);
+            if (days == null || days == 0) {
+                continue;
+            }
+            for (int hour = 0; hour < 24; hour++) {
+                if (cellSeconds[weekday][hour] > 0) {
+                    points.add(
+                            new WeekHourPoint(dayOfWeek, hour, cellSeconds[weekday][hour] / days));
+                }
+            }
+        }
+        return new WeekHourDistribution(points, weekdayCounts);
+    }
+
+    /**
+     * Counts how often each weekday occurs in the aggregation window, falling back to the sessions'
+     * own date span when the window is open.
+     *
+     * @param intervals zone-shifted session intervals
+     * @param windowStart window start date (inclusive), or {@code null} to derive from sessions
+     * @param windowEnd window end date (inclusive), or {@code null} to derive from sessions
+     * @return ISO weekday (1=Monday..7=Sunday) to day count
+     */
+    private static Map<Integer, Integer> weekdayAppearanceCounts(
+            List<TimeInterval> intervals, LocalDate windowStart, LocalDate windowEnd) {
+        if (intervals.isEmpty()) {
+            return Map.of();
+        }
+        LocalDate start = windowStart;
+        LocalDate end = windowEnd;
+        if (start == null || end == null) {
+            List<TimeInterval> sorted =
+                    intervals.stream().sorted(Comparator.comparing(TimeInterval::start)).toList();
+            LocalDate firstDay = sorted.getFirst().start().toLocalDate();
+            LocalDate lastDay = sorted.getLast().end().minusNanos(1).toLocalDate();
+            start = start != null ? start : firstDay;
+            end = end != null ? end : lastDay;
+        }
+        if (end.isBefore(start)) {
+            return Map.of();
+        }
+        Map<Integer, Integer> counts = new LinkedHashMap<>();
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            counts.merge(date.getDayOfWeek().getValue(), 1, Integer::sum);
+        }
+        return counts;
     }
 
     /**
