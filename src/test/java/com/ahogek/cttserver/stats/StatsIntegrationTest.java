@@ -1049,5 +1049,115 @@ class StatsIntegrationTest {
                     .isEqualTo("Dev-" + deviceA.toString().substring(0, 8));
             assertThat(dist).bodyJson().extractingPath("$.data.entries[0].seconds").isEqualTo(3600);
         }
+
+        @Test
+        @DisplayName("Should return weekday-hour averages clipped by date range")
+        void shouldReturnWeekHour_whenSessionsExist() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String jwt = auth[0];
+            UUID userId = UUID.fromString(auth[1]);
+            String readKey = createApiKey(jwt, "read", "READ");
+            // 2026-09-01 (Tuesday) 10:30-12:15 UTC slices into three hour cells totalling 6300s;
+            // 2026-08-25 (also a Tuesday) sits outside the 09-01..09-07 window and is clipped.
+            insertSession(
+                    userId,
+                    Instant.parse("2026-09-01T10:30:00Z"),
+                    Instant.parse("2026-09-01T12:15:00Z"),
+                    "a",
+                    "Java");
+            insertSession(
+                    userId,
+                    Instant.parse("2026-08-25T10:00:00Z"),
+                    Instant.parse("2026-08-25T11:00:00Z"),
+                    "a",
+                    "Java");
+
+            var result =
+                    mvc.get()
+                            .uri(
+                                    "/api/v1/stats/week-hour?timezoneOffset=0&start=2026-09-01&end=2026-09-07")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            var points =
+                    objectMapper
+                            .readTree(result.getResponse().getContentAsString())
+                            .path("data")
+                            .path("points");
+            assertThat(points).hasSize(3);
+            assertThat(points.get(0).path("dayOfWeek").asInt()).isEqualTo(2);
+            assertThat(points.get(0).path("hour").asInt()).isEqualTo(10);
+            assertThat(points.get(0).path("averageSeconds").asLong()).isEqualTo(1800);
+            assertThat(points.get(2).path("hour").asInt()).isEqualTo(12);
+            assertThat(points.get(2).path("averageSeconds").asLong()).isEqualTo(900);
+            long total = 0;
+            for (var point : points) {
+                total += point.path("averageSeconds").asLong();
+            }
+            assertThat(total).isEqualTo(6300);
+            assertThat(
+                            objectMapper
+                                    .readTree(result.getResponse().getContentAsString())
+                                    .path("data")
+                                    .path("weekdayCounts")
+                                    .path("2")
+                                    .asInt())
+                    .isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should filter week-hour by origin device and reject both filters")
+        void shouldFilterWeekHourByDevice_whenDeviceIdGiven() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            UUID userId = UUID.fromString(auth[1]);
+            String jwt = auth[0];
+            String readKey = createApiKey(jwt, "read", "READ");
+            UUID deviceA = UUID.randomUUID();
+            mvc.post()
+                    .uri("/api/v1/devices")
+                    .with(csrf())
+                    .header("Authorization", "Bearer " + jwt)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                            """
+                            {"deviceId": "%s", "deviceName": "Dev-A", "platform": "macos", "ideName": "IntelliJ IDEA"}
+                            """
+                                    .formatted(deviceA))
+                    .exchange();
+            insertSession(
+                    userId,
+                    deviceA,
+                    Instant.parse("2026-09-01T10:00:00Z"),
+                    Instant.parse("2026-09-01T11:00:00Z"),
+                    "a",
+                    "Java");
+
+            var filtered =
+                    mvc.get()
+                            .uri("/api/v1/stats/week-hour?deviceId=" + deviceA)
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(filtered).hasStatusOk();
+            var points =
+                    objectMapper
+                            .readTree(filtered.getResponse().getContentAsString())
+                            .path("data")
+                            .path("points");
+            assertThat(points).hasSize(1);
+            assertThat(points.get(0).path("dayOfWeek").asInt()).isEqualTo(2);
+            assertThat(points.get(0).path("averageSeconds").asLong()).isEqualTo(3600);
+
+            var both =
+                    mvc.get()
+                            .uri(
+                                    "/api/v1/stats/week-hour?deviceId="
+                                            + deviceA
+                                            + "&ideName=IntelliJ%20IDEA")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(both).hasStatus(400);
+            assertThat(both).bodyJson().extractingPath("$.code").isEqualTo("COMMON_003");
+        }
     }
 }

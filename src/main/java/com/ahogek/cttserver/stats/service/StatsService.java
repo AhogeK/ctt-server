@@ -14,6 +14,8 @@ import com.ahogek.cttserver.stats.dto.HourlyStatPoint;
 import com.ahogek.cttserver.stats.dto.RecentSessionResponse;
 import com.ahogek.cttserver.stats.dto.StatsSummaryResponse;
 import com.ahogek.cttserver.stats.dto.StreakStatsResponse;
+import com.ahogek.cttserver.stats.dto.WeekHourDistributionResponse;
+import com.ahogek.cttserver.stats.dto.WeekHourStatPoint;
 import com.ahogek.cttserver.stats.enums.DistributionType;
 import com.ahogek.cttserver.stats.enums.TimeOfDay;
 import com.ahogek.cttserver.stats.materialization.entity.DailyStats;
@@ -289,6 +291,37 @@ public class StatsService {
                         .toList();
         int activeDays = hourly.isEmpty() ? 0 : hourly.getFirst().activeDays();
         return new HourlyDistributionResponse(points, activeDays);
+    }
+
+    /**
+     * Computes the weekly coding heatmap: average seconds per weekday-hour cell in the requested
+     * timezone, optionally clipped to a date range (open bounds aggregate the full history).
+     *
+     * @param userId the owning user
+     * @param zone aggregation timezone
+     * @param start window start date (inclusive), or {@code null} for the full history
+     * @param end window end date (inclusive), or {@code null} for the full history
+     * @param filter optional origin-device or IDE filter; {@code null} aggregates all devices
+     * @return exercised weekday-hour cells with per-weekday day-count denominators
+     */
+    @Transactional(readOnly = true)
+    public WeekHourDistributionResponse weekHour(
+            UUID userId, ZoneOffset zone, LocalDate start, LocalDate end, SessionFilter filter) {
+        if (start != null && end != null && end.isBefore(start)) {
+            throw new ValidationException(ErrorCode.COMMON_003, "end must not be before start");
+        }
+        StatsCalculator.WeekHourDistribution distribution =
+                StatsCalculator.weekHourDistribution(sessionsOf(userId, filter), zone, start, end);
+        List<WeekHourStatPoint> points =
+                distribution.points().stream()
+                        .map(
+                                point ->
+                                        new WeekHourStatPoint(
+                                                point.dayOfWeek(),
+                                                point.hour(),
+                                                point.averageSeconds()))
+                        .toList();
+        return new WeekHourDistributionResponse(points, distribution.weekdayCounts());
     }
 
     /**

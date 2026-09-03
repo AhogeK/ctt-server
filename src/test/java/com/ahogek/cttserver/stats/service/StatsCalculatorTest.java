@@ -18,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 @DisplayName("StatsCalculator")
 class StatsCalculatorTest {
@@ -336,6 +337,211 @@ class StatsCalculatorTest {
     }
 
     @Nested
+    @DisplayName("weekHour")
+    class WeekHourTests {
+
+        @Test
+        @DisplayName("shouldSliceAcrossHoursWithinOneWeekday")
+        void shouldSliceAcrossHours_whenSessionCrossesHourBoundary() {
+            // 2026-09-01 is a Tuesday; 10:30-12:15 slices at hour boundaries into
+            // 30 min at hour 10, 60 min at hour 11 and 15 min at hour 12 (6300 seconds total).
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-01T10:30:00"),
+                                    at("2026-09-01T12:15:00"),
+                                    "a",
+                                    "Java"));
+
+            StatsCalculator.WeekHourDistribution distribution =
+                    StatsCalculator.weekHourDistribution(sessions, UTC, null, null);
+
+            assertThat(distribution.points())
+                    .extracting(
+                            StatsCalculator.WeekHourPoint::dayOfWeek,
+                            StatsCalculator.WeekHourPoint::hour,
+                            StatsCalculator.WeekHourPoint::averageSeconds)
+                    .containsExactly(tuple(2, 10, 1800L), tuple(2, 11, 3600L), tuple(2, 12, 900L));
+            long total =
+                    distribution.points().stream()
+                            .mapToLong(StatsCalculator.WeekHourPoint::averageSeconds)
+                            .sum();
+            assertThat(total).isEqualTo(6300);
+            assertThat(distribution.weekdayCounts()).containsEntry(2, 1);
+        }
+
+        @Test
+        @DisplayName("shouldShiftWeekdayAndHour_whenZoneShifted")
+        void shouldShiftWeekdayAndHour_whenZoneShifted() {
+            // 2026-09-01T18:30Z is 2026-09-02T02:30 in UTC+8: Wednesday, hour 2.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-01T18:30:00"),
+                                    at("2026-09-01T20:15:00"),
+                                    "a",
+                                    "Java"));
+
+            StatsCalculator.WeekHourDistribution distribution =
+                    StatsCalculator.weekHourDistribution(
+                            sessions, ZoneOffset.ofHours(8), null, null);
+
+            assertThat(distribution.points())
+                    .extracting(
+                            StatsCalculator.WeekHourPoint::dayOfWeek,
+                            StatsCalculator.WeekHourPoint::hour,
+                            StatsCalculator.WeekHourPoint::averageSeconds)
+                    .containsExactly(tuple(3, 2, 1800L), tuple(3, 3, 3600L), tuple(3, 4, 900L));
+        }
+
+        @Test
+        @DisplayName("shouldAverageByWeekdayAppearances_whenSameWeekdayRepeats")
+        void shouldAverageByWeekdayAppearances_whenSameWeekdayRepeats() {
+            // Two Tuesdays (09-01 and 09-08), one hour each at hour 10: total 7200 / 2 days = 3600.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-01T10:00:00"),
+                                    at("2026-09-01T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-08T10:00:00"),
+                                    at("2026-09-08T11:00:00"),
+                                    "a",
+                                    "Java"));
+
+            StatsCalculator.WeekHourDistribution distribution =
+                    StatsCalculator.weekHourDistribution(
+                            sessions, UTC, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 14));
+
+            assertThat(distribution.weekdayCounts()).containsEntry(2, 2);
+            assertThat(distribution.points())
+                    .singleElement()
+                    .satisfies(
+                            point -> {
+                                assertThat(point.dayOfWeek()).isEqualTo(2);
+                                assertThat(point.hour()).isEqualTo(10);
+                                assertThat(point.averageSeconds()).isEqualTo(3600);
+                            });
+        }
+
+        @Test
+        @DisplayName("shouldClipWindowAndCountAllWindowDays")
+        void shouldClipWindow_whenStartAndEndGiven() {
+            // Window 09-01..09-07 counts every day once; a session before the window start is
+            // clipped away.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-25T10:00:00"),
+                                    at("2026-08-25T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-02T10:00:00"),
+                                    at("2026-09-02T11:00:00"),
+                                    "a",
+                                    "Java"));
+
+            StatsCalculator.WeekHourDistribution distribution =
+                    StatsCalculator.weekHourDistribution(
+                            sessions, UTC, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 7));
+
+            assertThat(distribution.weekdayCounts())
+                    .containsEntry(1, 1)
+                    .containsEntry(2, 1)
+                    .containsEntry(3, 1)
+                    .containsEntry(7, 1)
+                    .hasSize(7);
+            assertThat(distribution.points())
+                    .singleElement()
+                    .satisfies(
+                            point -> {
+                                assertThat(point.dayOfWeek()).isEqualTo(3);
+                                assertThat(point.hour()).isEqualTo(10);
+                                assertThat(point.averageSeconds()).isEqualTo(3600);
+                            });
+        }
+
+        @Test
+        @DisplayName("shouldClipSingleBoundWithoutThrowing_whenSessionsFallOutside")
+        void shouldClipSingleBound_whenOnlyStartGiven() {
+            // Regression: with only a start bound, sessions entirely before it used to crash
+            // (TimeInterval rejects start >= end) instead of being dropped.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-20T10:00:00"),
+                                    at("2026-08-20T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-05T10:00:00"),
+                                    at("2026-09-05T11:00:00"),
+                                    "a",
+                                    "Java"));
+
+            StatsCalculator.WeekHourDistribution distribution =
+                    StatsCalculator.weekHourDistribution(
+                            sessions, UTC, LocalDate.of(2026, 9, 1), null);
+
+            // 2026-09-05 is a Saturday (dayOfWeek 6)
+            assertThat(distribution.points())
+                    .singleElement()
+                    .satisfies(
+                            point -> {
+                                assertThat(point.dayOfWeek()).isEqualTo(6);
+                                assertThat(point.hour()).isEqualTo(10);
+                                assertThat(point.averageSeconds()).isEqualTo(3600);
+                            });
+            // Weekday counts derive from the sessions' own (clipped) span
+            assertThat(distribution.weekdayCounts()).containsEntry(6, 1);
+        }
+
+        @Test
+        @DisplayName("shouldMergeOverlappingSessionsBeforeSlicing")
+        void shouldMergeOverlappingSessions_whenParallelWindows() {
+            // Two overlapping sessions at 10:00-11:00 and 10:30-10:45 describe the same
+            // activity; the union is 10:00-11:00 and hour 10 must count 3600s, not 3900s.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-01T10:00:00"),
+                                    at("2026-09-01T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-01T10:30:00"),
+                                    at("2026-09-01T10:45:00"),
+                                    "b",
+                                    "Kotlin"));
+
+            StatsCalculator.WeekHourDistribution distribution =
+                    StatsCalculator.weekHourDistribution(sessions, UTC, null, null);
+
+            assertThat(distribution.points())
+                    .singleElement()
+                    .satisfies(
+                            point -> {
+                                assertThat(point.dayOfWeek()).isEqualTo(2);
+                                assertThat(point.hour()).isEqualTo(10);
+                                assertThat(point.averageSeconds()).isEqualTo(3600);
+                            });
+        }
+
+        @Test
+        @DisplayName("shouldReturnEmpty_whenNoSessions")
+        void shouldReturnEmpty_whenNoSessions() {
+            StatsCalculator.WeekHourDistribution distribution =
+                    StatsCalculator.weekHourDistribution(List.of(), UTC, null, null);
+
+            assertThat(distribution.points()).isEmpty();
+            assertThat(distribution.weekdayCounts()).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("dailyWindow")
     class DailyWindowTests {
 
@@ -439,6 +645,7 @@ class StatsCalculatorTest {
             assertThat(seconds).isEqualTo(7200);
         }
 
+        @Test
         @DisplayName("shouldCountAcrossDays_whenSessionCrossesMidnight")
         void shouldCountAcrossDays_whenSessionCrossesMidnight() {
             List<CodingSession> sessions =

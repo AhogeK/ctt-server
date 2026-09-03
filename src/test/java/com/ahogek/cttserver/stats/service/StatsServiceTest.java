@@ -1,12 +1,14 @@
 package com.ahogek.cttserver.stats.service;
 
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.stats.dto.DistributionResponse;
 import com.ahogek.cttserver.stats.dto.HeatmapResponse;
 import com.ahogek.cttserver.stats.dto.StatsSummaryResponse;
 import com.ahogek.cttserver.stats.dto.StreakStatsResponse;
+import com.ahogek.cttserver.stats.dto.WeekHourDistributionResponse;
 import com.ahogek.cttserver.stats.enums.DistributionType;
 import com.ahogek.cttserver.stats.materialization.entity.DailyStats;
 import com.ahogek.cttserver.stats.materialization.repository.DailyStatsRepository;
@@ -411,6 +413,51 @@ class StatsServiceTest {
                     .isInstanceOf(NotFoundException.class);
             verify(codingSessionRepository, never())
                     .findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(any(), any());
+        }
+
+        @Test
+        @DisplayName("weekHourShouldClipRangeAndDelegate_whenRangeGiven")
+        void weekHourShouldClipRangeAndDelegate_whenRangeGiven() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session("2026-08-25T10:00:00", "2026-08-25T11:00:00"),
+                                    session("2026-09-02T10:00:00", "2026-09-02T11:00:00")));
+
+            WeekHourDistributionResponse response =
+                    service.weekHour(
+                            userId,
+                            ZoneOffset.UTC,
+                            LocalDate.of(2026, 9, 1),
+                            LocalDate.of(2026, 9, 7),
+                            null);
+
+            assertThat(response.points()).hasSize(1);
+            assertThat(response.points().getFirst().dayOfWeek()).isEqualTo(3);
+            assertThat(response.points().getFirst().averageSeconds()).isEqualTo(3600);
+            assertThat(response.weekdayCounts()).hasSize(7);
+        }
+
+        @Test
+        @DisplayName("weekHourShouldReturnEmpty_whenNoSessions")
+        void weekHourShouldReturnEmpty_whenNoSessions() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of());
+
+            WeekHourDistributionResponse response =
+                    service.weekHour(userId, ZoneOffset.UTC, null, null, null);
+
+            assertThat(response.points()).isEmpty();
+            assertThat(response.weekdayCounts()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("sessionFilterShouldReject_whenBothFiltersSet")
+        void sessionFilterShouldReject_whenBothFiltersSet() {
+            // The both-set guard lives in SessionFilter's canonical constructor, so a service
+            // call can never receive a filter with both deviceId and ideName set.
+            assertThatThrownBy(() -> new StatsService.SessionFilter(deviceId, "IDE"))
+                    .isInstanceOf(ValidationException.class);
         }
     }
 }
