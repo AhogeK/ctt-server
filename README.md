@@ -434,7 +434,8 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 | `/api/v1/stats/achievements` | GET | Achievement badges with unlock state and progress, unlocking newly reached badges | READ |
 
 **Parameters**: `timezoneOffset` (minutes, e.g. `480` for UTC+8) shifts day/week/month/hour
-boundaries to the caller's timezone; heatmap accepts `start` / `end` dates (ISO); every endpoint
+boundaries to the caller's timezone; heatmap and hourly accept `start` / `end` dates (ISO,
+inclusive, full history when omitted); every endpoint
 except achievements accepts an optional `deviceId` (origin-device filter) or `ideName` (exact
 IDE-name filter against the device registry; mutually exclusive with deviceId, unknown IDE names
 yield 404); the distribution endpoint additionally supports `type=DEVICES` / `type=IDES`
