@@ -6,6 +6,7 @@ import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.stats.dto.DistributionResponse;
 import com.ahogek.cttserver.stats.dto.HeatmapResponse;
+import com.ahogek.cttserver.stats.dto.HourlyDistributionResponse;
 import com.ahogek.cttserver.stats.dto.StatsSummaryResponse;
 import com.ahogek.cttserver.stats.dto.StreakStatsResponse;
 import com.ahogek.cttserver.stats.dto.WeekHourDistributionResponse;
@@ -413,6 +414,41 @@ class StatsServiceTest {
                     .isInstanceOf(NotFoundException.class);
             verify(codingSessionRepository, never())
                     .findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse(any(), any());
+        }
+
+        @Test
+        @DisplayName("hourlyShouldClipRange_whenRangeGiven")
+        void hourlyShouldClipRange_whenRangeGiven() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session("2026-08-25T10:00:00", "2026-08-25T11:00:00"),
+                                    session("2026-09-02T10:00:00", "2026-09-02T11:00:00")));
+
+            HourlyDistributionResponse response =
+                    service.hourly(
+                            userId,
+                            ZoneOffset.UTC,
+                            LocalDate.of(2026, 9, 1),
+                            LocalDate.of(2026, 9, 7),
+                            null);
+
+            assertThat(response.points().get(10).averageSeconds()).isEqualTo(3600);
+            assertThat(response.activeDays()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("hourlyShouldThrow_whenEndBeforeStart")
+        void hourlyShouldThrow_whenEndBeforeStart() {
+            assertThatThrownBy(
+                            () ->
+                                    service.hourly(
+                                            userId,
+                                            ZoneOffset.UTC,
+                                            LocalDate.of(2026, 9, 7),
+                                            LocalDate.of(2026, 9, 1),
+                                            null))
+                    .isInstanceOf(ValidationException.class);
         }
 
         @Test

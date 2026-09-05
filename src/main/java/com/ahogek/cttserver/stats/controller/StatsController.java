@@ -573,6 +573,20 @@ public class StatsController {
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
                     int timezoneOffset,
             @Parameter(
+                            name = "start",
+                            description =
+                                    "Optional window start date (inclusive, ISO yyyy-MM-dd);"
+                                            + " omitted aggregates the full history")
+                    @RequestParam(name = "start", required = false)
+                    LocalDate start,
+            @Parameter(
+                            name = "end",
+                            description =
+                                    "Optional window end date (inclusive, ISO yyyy-MM-dd);"
+                                            + " omitted aggregates the full history")
+                    @RequestParam(name = "end", required = false)
+                    LocalDate end,
+            @Parameter(
                             name = "deviceId",
                             description =
                                     "Optional origin-device filter; omitted aggregates all devices. Unknown or"
@@ -592,6 +606,8 @@ public class StatsController {
                 statsService.hourly(
                         currentUser.id(),
                         zoneOffset(timezoneOffset),
+                        start,
+                        end,
                         new SessionFilter(deviceId, ideName));
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }

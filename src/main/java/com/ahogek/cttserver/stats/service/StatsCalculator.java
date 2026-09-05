@@ -145,6 +145,59 @@ public final class StatsCalculator {
     }
 
     /**
+     * Clips intervals to an inclusive calendar-date window, dropping sessions that fall entirely
+     * outside it.
+     *
+     * <p>Either bound may be {@code null} for an open-ended window. The end bound closes at the end
+     * date's midnight (exclusive), so a session starting before it or spilling past it is clipped
+     * rather than dropped whole.
+     *
+     * @param intervals zone-shifted session intervals
+     * @param zone aggregation timezone
+     * @param windowStart window start date (inclusive), or {@code null} for no lower bound
+     * @param windowEnd window end date (inclusive), or {@code null} for no upper bound
+     * @return intervals clipped to the window
+     */
+    public static List<TimeInterval> clipToWindow(
+            List<TimeInterval> intervals,
+            ZoneOffset zone,
+            LocalDate windowStart,
+            LocalDate windowEnd) {
+        if (windowStart == null && windowEnd == null) {
+            return intervals;
+        }
+        OffsetDateTime from =
+                windowStart != null ? windowStart.atStartOfDay(zone).toOffsetDateTime() : null;
+        OffsetDateTime to =
+                windowEnd != null
+                        ? windowEnd.plusDays(1).atStartOfDay(zone).toOffsetDateTime()
+                        : null;
+        if (from != null && to != null) {
+            return clipTo(intervals, from, to);
+        }
+        // One-sided bound: clamp each side independently and drop sessions that fall entirely
+        // outside the window. Bounds are clamped on raw values and only non-empty results are
+        // materialized, since TimeInterval rejects start >= end.
+        final OffsetDateTime floor = from;
+        final OffsetDateTime ceiling = to;
+        return intervals.stream()
+                .map(
+                        interval -> {
+                            OffsetDateTime start =
+                                    floor != null && interval.start().isBefore(floor)
+                                            ? floor
+                                            : interval.start();
+                            OffsetDateTime end =
+                                    ceiling != null && interval.end().isAfter(ceiling)
+                                            ? ceiling
+                                            : interval.end();
+                            return start.isBefore(end) ? new TimeInterval(start, end) : null;
+                        })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
      * Total merged duration within a period, in seconds.
      *
      * @param intervals the intervals
@@ -301,16 +354,24 @@ public final class StatsCalculator {
      * Computes per-hour average usage across active days.
      *
      * <p>Each hour bucket accumulates the seconds coded in that hour; the average is the bucket
-     * total divided by the number of active days.
+     * total divided by the number of active days. When a date window is given, sessions are clipped
+     * to it first and {@code activeDays} counts the days with coding inside the window only.
      *
      * @param sessions live sessions
      * @param zone aggregation timezone
+     * @param windowStart window start date (inclusive), or {@code null} for the full history
+     * @param windowEnd window end date (inclusive), or {@code null} for the full history
      * @return one entry per hour (0-23), hour order
      */
     public static List<HourlyPoint> hourlyDistribution(
-            List<CodingSession> sessions, ZoneOffset zone) {
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            LocalDate windowStart,
+            LocalDate windowEnd) {
+        List<TimeInterval> intervals =
+                clipToWindow(toIntervals(sessions, zone), zone, windowStart, windowEnd);
         long[] hourSeconds = new long[24];
-        for (TimeInterval interval : toIntervals(sessions, zone)) {
+        for (TimeInterval interval : intervals) {
             OffsetDateTime cursor = interval.start();
             while (cursor.isBefore(interval.end())) {
                 int hour = cursor.getHour();
@@ -322,7 +383,7 @@ public final class StatsCalculator {
             }
         }
         long activeDays =
-                toIntervals(sessions, zone).stream()
+                intervals.stream()
                         .map(interval -> interval.start().toLocalDate())
                         .distinct()
                         .count();
@@ -366,48 +427,15 @@ public final class StatsCalculator {
         // Overlapping sessions describe the same wall-clock activity (e.g. parallel project
         // windows): merge them first so a shared hour is counted once, matching the summary and
         // heatmap semantics. The union spans the earliest start to the latest end.
-        List<TimeInterval> intervals = mergeOverlapping(toIntervals(sessions, zone));
-        if (windowStart != null || windowEnd != null) {
-            // Window bounds are inclusive calendar dates; the window closes at the end date's
-            // midnight so a session starting before it (or spilling past it) is clipped away.
-            OffsetDateTime from =
-                    windowStart != null ? windowStart.atStartOfDay(zone).toOffsetDateTime() : null;
-            OffsetDateTime to =
-                    windowEnd != null
-                            ? windowEnd.plusDays(1).atStartOfDay(zone).toOffsetDateTime()
-                            : null;
-            if (from != null && to != null) {
-                intervals = clipTo(intervals, from, to);
-            } else {
-                // One-sided bound: clamp each side independently and drop sessions that fall
-                // entirely outside the window. Bounds are clamped on raw values and only
-                // non-empty results are materialized, since TimeInterval rejects start >= end.
-                final OffsetDateTime floor = from;
-                final OffsetDateTime ceiling = to;
-                intervals =
-                        intervals.stream()
-                                .map(
-                                        interval -> {
-                                            OffsetDateTime start =
-                                                    floor != null
-                                                                    && interval.start()
-                                                                            .isBefore(floor)
-                                                            ? floor
-                                                            : interval.start();
-                                            OffsetDateTime end =
-                                                    ceiling != null
-                                                                    && interval.end()
-                                                                            .isAfter(ceiling)
-                                                            ? ceiling
-                                                            : interval.end();
-                                            return start.isBefore(end)
-                                                    ? new TimeInterval(start, end)
-                                                    : null;
-                                        })
-                                .filter(Objects::nonNull)
-                                .toList();
-            }
-        }
+        // Overlapping sessions describe the same wall-clock activity (e.g. parallel project
+        // windows): merge them first so a shared hour is counted once, matching the summary
+        // and heatmap semantics. The union spans the earliest start to the latest end.
+        List<TimeInterval> intervals =
+                clipToWindow(
+                        mergeOverlapping(toIntervals(sessions, zone)),
+                        zone,
+                        windowStart,
+                        windowEnd);
         long[][] cellSeconds = new long[7][24];
         for (TimeInterval interval : intervals) {
             OffsetDateTime cursor = interval.start();

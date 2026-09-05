@@ -274,17 +274,24 @@ public class StatsService {
     }
 
     /**
-     * Computes per-hour average usage across active days.
+     * Computes per-hour average usage across active days, optionally clipped to a date range (open
+     * bounds aggregate the full history).
      *
      * @param userId the owning user
      * @param zone aggregation timezone
+     * @param start window start date (inclusive), or {@code null} for the full history
+     * @param end window end date (inclusive), or {@code null} for the full history
      * @param filter optional origin-device or IDE filter; {@code null} aggregates all devices
-     * @return per-hour averages and the active-day denominator
+     * @return per-hour averages and the active-day denominator within the window
      */
     @Transactional(readOnly = true)
-    public HourlyDistributionResponse hourly(UUID userId, ZoneOffset zone, SessionFilter filter) {
+    public HourlyDistributionResponse hourly(
+            UUID userId, ZoneOffset zone, LocalDate start, LocalDate end, SessionFilter filter) {
+        if (start != null && end != null && end.isBefore(start)) {
+            throw new ValidationException(ErrorCode.COMMON_003, "end must not be before start");
+        }
         List<StatsCalculator.HourlyPoint> hourly =
-                StatsCalculator.hourlyDistribution(sessionsOf(userId, filter), zone);
+                StatsCalculator.hourlyDistribution(sessionsOf(userId, filter), zone, start, end);
         List<HourlyStatPoint> points =
                 hourly.stream()
                         .map(point -> new HourlyStatPoint(point.hour(), point.averageSeconds()))
