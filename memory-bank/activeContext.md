@@ -1,4 +1,12 @@
 # Active Context
+- [2026-09-03] - Hourly 端点日期范围过滤（GET /stats/hourly?start&end，v0.64.0）
+    - 需求: ctt-web 提案——Dashboard 顶部筛选器日期区间已实现但前端丢弃 start/end（后端不支持），hourly 图表始终全量数据与筛选器语义冲突
+    - 设计决策: ①提取 StatsCalculator.clipToWindow 共享裁剪 helper（消除上轮审查标记的 Duplicated Code——weekHour 的内联单边界裁剪与 both-bounds clipTo 分支收敛为一个 helper），weekHourDistribution 同步改用 ②hourlyDistribution 加 windowStart/windowEnd 参数，activeDays=窗口内活跃天数（需求备注明确选择"过滤范围内的活跃天数"）③校验与 weekHour 一致（end<start → 400 COMMON_003）④向后兼容：不传参数全量历史
+    - 实现: StatsCalculator.clipToWindow + hourlyDistribution 扩展 + StatsService.hourly 5 参（start/end/filter）+ StatsController /hourly 加 start/end @Parameter（同 week-hour 模式，@Operation 描述补日期语义）
+    - 测试: StatsCalculatorTest +2（窗口裁剪 activeDays=窗口内/单边界回归）+ StatsServiceTest +2（裁剪委托/end<start 400）+ StatsIntegrationTest +2（跨 2025/2026 会话 start=2026 过滤后 activeDays=1 且 unfiltered=2 对比/end<start 400 COMMON_003）
+    - 踩坑: 集成断言初版把 2h 会话写成 hour10=7200——hourly 是 per-hour 平均，2h 跨 hour10+hour11 各 3600
+    - 验证: 全量 1324/0（+4）+ jacoco 门禁 + spotless 全绿
+    - 状态: ✅ 实施完成，待提交授权
 - [2026-09-03] - Weekly Coding Activity by Hour 端点（GET /stats/week-hour，v0.63.0）
     - 需求: 前端渲染 7x24 交叉热力图，需 weekday x hour 平均秒 + 可被 dashboard 日期区间（?start&end）控制；对齐插件端 DailyHourDataProvider 口径（R3 已读源码：逐小时切片 + weekdayCount 除数字典）
     - 设计决策: ①切片复用 hourlyDistribution 的逐小时循环模式，仅加 weekday 维度（slice start 落桶）②除数=窗口内每个星期几出现的天数（非活跃天数）——weekdayCounts 字典随响应返回供前端复核 ③只返回有数据的格子（前端补零渲染）④窗口为空 → 聚合全史（对齐插件端 determineTimeRange 回退 min/max）⑤窗口裁剪用既有 clipTo 模式（首实现漏裁剪被自写测试抓出——08-25 会话漏进 09-01..09-07 窗口，修后 clipTo/半开边界 fallback）
