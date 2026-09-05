@@ -1051,6 +1051,67 @@ class StatsIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should clip hourly distribution by date range")
+        void shouldFilterHourlyByDateRange_whenStartEndGiven() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String jwt = auth[0];
+            UUID userId = UUID.fromString(auth[1]);
+            String readKey = createApiKey(jwt, "read", "READ");
+            insertSession(
+                    userId,
+                    Instant.parse("2025-01-01T10:00:00Z"),
+                    Instant.parse("2025-01-01T11:00:00Z"),
+                    "a",
+                    "Java");
+            insertSession(
+                    userId,
+                    Instant.parse("2026-06-01T10:00:00Z"),
+                    Instant.parse("2026-06-01T12:00:00Z"),
+                    "a",
+                    "Java");
+
+            var filtered =
+                    mvc.get()
+                            .uri("/api/v1/stats/hourly?start=2026-01-01&end=2026-12-31")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(filtered).hasStatusOk();
+            var data =
+                    objectMapper.readTree(filtered.getResponse().getContentAsString()).path("data");
+            assertThat(data.path("points").get(10).path("averageSeconds").asLong()).isEqualTo(3600);
+            assertThat(data.path("points").get(11).path("averageSeconds").asLong()).isEqualTo(3600);
+            assertThat(data.path("activeDays").asInt()).isEqualTo(1);
+
+            var unfiltered =
+                    mvc.get()
+                            .uri("/api/v1/stats/hourly")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(unfiltered).hasStatusOk();
+            var allData =
+                    objectMapper
+                            .readTree(unfiltered.getResponse().getContentAsString())
+                            .path("data");
+            assertThat(allData.path("activeDays").asInt()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("Should return 400 when hourly end is before start")
+        void shouldReturn400_whenHourlyRangeInvalid() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(auth[0], "read", "READ");
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/hourly?start=2026-01-01&end=2025-01-01")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatus(400);
+            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("COMMON_003");
+        }
+
+        @Test
         @DisplayName("Should return weekday-hour averages clipped by date range")
         void shouldReturnWeekHour_whenSessionsExist() throws Exception {
             String[] auth = registerVerifyAndLogin(uniqueEmail());

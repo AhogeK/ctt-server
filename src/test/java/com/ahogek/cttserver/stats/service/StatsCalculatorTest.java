@@ -313,6 +313,57 @@ class StatsCalculatorTest {
     class HourlyTests {
 
         @Test
+        @DisplayName("shouldClipWindowAndCountWindowActiveDays_whenRangeGiven")
+        void shouldClipHourlyWindow_whenStartAndEndGiven() {
+            // 08-25 sits outside the 09-01..09-07 window and must be dropped; activeDays
+            // counts only in-window coding days.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-25T10:00:00"),
+                                    at("2026-08-25T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-02T10:00:00"),
+                                    at("2026-09-02T11:00:00"),
+                                    "a",
+                                    "Java"));
+
+            List<HourlyPoint> points =
+                    StatsCalculator.hourlyDistribution(
+                            sessions, UTC, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 7));
+
+            assertThat(points.get(10).averageSeconds()).isEqualTo(3600);
+            assertThat(points.get(10).activeDays()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("shouldCountSingleBoundActiveDays_whenOnlyStartGiven")
+        void shouldClipHourlyWindow_whenOnlyStartGiven() {
+            // Regression: one-sided bounds must drop out-of-window sessions, not crash.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-20T10:00:00"),
+                                    at("2026-08-20T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-05T10:00:00"),
+                                    at("2026-09-05T11:00:00"),
+                                    "a",
+                                    "Java"));
+
+            List<HourlyPoint> points =
+                    StatsCalculator.hourlyDistribution(
+                            sessions, UTC, LocalDate.of(2026, 9, 1), null);
+
+            assertThat(points.get(10).averageSeconds()).isEqualTo(3600);
+            assertThat(points.get(10).activeDays()).isEqualTo(1);
+        }
+
+        @Test
         @DisplayName("shouldSplitAcrossHoursAndAverageByActiveDays")
         void shouldComputeHourly_whenSessionsSpanHours() {
             List<CodingSession> sessions =
@@ -328,7 +379,8 @@ class StatsCalculatorTest {
                                     "b",
                                     "Java"));
 
-            List<HourlyPoint> points = StatsCalculator.hourlyDistribution(sessions, UTC);
+            List<HourlyPoint> points =
+                    StatsCalculator.hourlyDistribution(sessions, UTC, null, null);
 
             assertThat(points.get(9).averageSeconds()).isEqualTo(1800);
             assertThat(points.get(9).activeDays()).isEqualTo(2);
