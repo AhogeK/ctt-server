@@ -1,4 +1,12 @@
 # Active Context
+- [2026-09-06] - 依赖升级审计与补丁升级（v0.64.1）
+    - 流程: 用户给定依赖升级策略（直接升到最新含主版本，仅 Java/Kotlin 大版本需确认；分层升级每层 clean build 验证）
+    - 检测: ben-manes 0.61.0 报 outdated 仅 2 项且 available=None（元数据解析 bug），改用 Maven Central maven-metadata.xml 人工比对全部坐标兜底
+    - 发现: ①flyway-database-postgresql 13.4.0 与 boot BOM 管理 flyway-core 12.4.0 版本错配（13 模块 POM 强依赖同版本 core）——测试全绿因恰好兼容，属隐性隐患 ②spotless/gjf 落后补丁 ③其余全部坐标已是最新（BOM 管理）④Gradle 9.7.1 最新 ⑤ben-manes com.github 与 io.github 坐标 0.61.0 并行发布，迁移无版本收益不改
+    - 升级（用户裁定 flyway 双升覆盖 BOM）: spotless 8.10.1→8.10.2 + google-java-format 1.35.0→1.36.1 + flyway-database-postgresql 13.4.0→13.5.0 + flyway-core 显式 strictly(13.5.0) 覆盖 BOM 12.4.0
+    - 验证: clean build 全绿 + 全量 1326/0（零回归）+ spotlessCheck 通过（gjf 新版本无格式漂移）+ dependencyUpdates outdated=0
+    - 教训: ben-manes 对部分坐标报 available=None 不可信，关键坐标用 Maven Central 元数据人工核实；flyway 双模块必须同版本（db 模块 POM parent.version 强绑定）
+    - 状态: ✅ 完成，待提交授权
 - [2026-09-03] - Hourly 端点日期范围过滤（GET /stats/hourly?start&end，v0.64.0）
     - 需求: ctt-web 提案——Dashboard 顶部筛选器日期区间已实现但前端丢弃 start/end（后端不支持），hourly 图表始终全量数据与筛选器语义冲突
     - 设计决策: ①提取 StatsCalculator.clipToWindow 共享裁剪 helper（消除上轮审查标记的 Duplicated Code——weekHour 的内联单边界裁剪与 both-bounds clipTo 分支收敛为一个 helper），weekHourDistribution 同步改用 ②hourlyDistribution 加 windowStart/windowEnd 参数，activeDays=窗口内活跃天数（需求备注明确选择"过滤范围内的活跃天数"）③校验与 weekHour 一致（end<start → 400 COMMON_003）④向后兼容：不传参数全量历史
