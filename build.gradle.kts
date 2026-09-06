@@ -43,6 +43,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.flywaydb:flyway-core") {
+        version { strictly("13.5.0") }
+    }
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation(libs.flyway.database.postgresql)
     implementation(libs.springdoc.openapi.starter.webmvc.ui)
@@ -73,7 +76,7 @@ tasks.withType<Test> {
 // Code formatting with Spotless
 spotless {
     java {
-        googleJavaFormat("1.35.0").aosp()
+        googleJavaFormat("1.36.1").aosp()
         trimTrailingWhitespace()
         endWithNewline()
         importOrder("com.ahogek", "jakarta", "org", "java", "javax", "", "static ")
