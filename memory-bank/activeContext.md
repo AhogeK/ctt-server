@@ -1,4 +1,14 @@
 # Active Context
+- [2026-09-07] - TIME_OF_DAY 分桶语义对齐插件端（fix(stats)，v0.65.0）
+    - 需求: ctt-web 报告 distribution?type=TIME_OF_DAY 与插件端不一致——服务端旧实现按会话开始小时整段入桶且边界 Morning 5-11/Daytime 12-16/Evening 17-21/Night 22-4，插件端逐桶切片且 Night 0-5/Morning 6-11/Daytime 12-17/Evening 18-23（与截图 TimeOfDayPanel 一致）；用户裁决选 (a) 服务端对齐插件 + 重叠会话按并集（最早→最晚）合并后切片（呼应 week-hour 合并裁决）；"总时间与统计概览不一致"根因=重叠双计 + 跨桶会话整段误归开始桶
+    - 实现: TimeOfDay 枚举新边界 + boundaryAfter(hour) 切片辅助（Evening 边界 24=次日零点）+ StatsCalculator.timeOfDayDistribution（mergeOverlapping → 桶边界切片 → 桶累加，时长降序）+ StatsService TIME_OF_DAY 分支改调新方法（删旧 fromHour 累积路径）
+    - 测试: StatsCalculatorTest DistributionTests +4（新边界四桶/跨桶切片 11-13→Morning+Daytime/重叠并集 3600 非 5100/跨午夜总和守恒）+ StatsIntegrationTest +1（11-13 + 23:50-00:10 两会话桶总和 8400 == summary.total 一致性断言——用户报告的核心问题）
+    - 踩坑: ①Evening 边界 boundaryAfter=24，cursor.withHour(24) 抛 DateTimeException——需走次日零点分支（boundaryHour==24 特判）②测试断言 06:00-06:59 误写 3600（59 分钟=3540）③leaderboard NIGHT_OWL(22-5)/EARLY_BIRD(6-9) 与 achievement 窗口是独立语义不受影响（它们用 mergedDurationInDailyWindow/activeDaysInDailyWindow，本就合并+切片）
+    - 文档: README Parameters 段——TIME_OF_DAY 切分语义 + 合并语义从 summary/heatmap/streaks 扩展到 TIME_OF_DAY（修正族述"accumulate raw durations for distributions"的范围）
+    - 狩猎第二轮（用户实测仍差，先 1472s 后 2s）: ①1472s 根因=每切片 Duration.toSeconds() 丢亚秒尾差（插件写毫秒，3267/3460 会话亚秒起步 × ~0.45s）；修复=byBucket 累加全精度 Duration、单次截断 ②剩余 2s 根因=四桶各自独立 floor，小数余量 0.481/0.702/0.166/0.817 合计 2.17s 被 floor（用户复算逐桶全中）③修复=最大余数法配平（floor 后 leftover∈[0,n-1] 按余量降序 +1）——数学保证桶总和 == 全精度单次截断 == summary.total，对所有用户/时区/未来数据 100% 成立 ④教训: 我方探针两次假绿——SQL 导出 ::bigint 已截亚秒（探针有损）+ 整秒 fixture 踩不中亚秒路径；复刻必须用生产同精度数据
+    - 测试补充: shouldNotLoseSubSeconds_whenSessionsStartOffSecond（红绿实跑：注入旧逻辑红/恢复绿）+ shouldApportionRemainder_soBucketSumEqualsTruncatedTotal（4 桶 .1/.2/.3/.9 尾差 → 桶和 14398 == 截断总量）
+    - 验证: 全量 1333/0 + jacoco 门禁 + spotless 全绿
+    - 状态: ✅ 实施完成，待提交授权
 - [2026-09-06] - 依赖升级审计与补丁升级（v0.64.1）
     - 流程: 用户给定依赖升级策略（直接升到最新含主版本，仅 Java/Kotlin 大版本需确认；分层升级每层 clean build 验证）
     - 检测: ben-manes 0.61.0 报 outdated 仅 2 项且 available=None（元数据解析 bug），改用 Maven Central maven-metadata.xml 人工比对全部坐标兜底
@@ -14,6 +24,7 @@
     - 测试: StatsCalculatorTest +2（窗口裁剪 activeDays=窗口内/单边界回归）+ StatsServiceTest +2（裁剪委托/end<start 400）+ StatsIntegrationTest +2（跨 2025/2026 会话 start=2026 过滤后 activeDays=1 且 unfiltered=2 对比/end<start 400 COMMON_003）
     - 踩坑: 集成断言初版把 2h 会话写成 hour10=7200——hourly 是 per-hour 平均，2h 跨 hour10+hour11 各 3600
     - 验证: 全量 1324/0（+4）+ jacoco 门禁 + spotless 全绿
+    - 验证: 全量 1332/0（+4 截断修复后）+ jacoco + spotless 全绿
     - 状态: ✅ 实施完成，待提交授权
 - [2026-09-03] - Weekly Coding Activity by Hour 端点（GET /stats/week-hour，v0.63.0）
     - 需求: 前端渲染 7x24 交叉热力图，需 weekday x hour 平均秒 + 可被 dashboard 日期区间（?start&end）控制；对齐插件端 DailyHourDataProvider 口径（R3 已读源码：逐小时切片 + weekdayCount 除数字典）
