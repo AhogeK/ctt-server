@@ -447,8 +447,12 @@ newest first, for the heatmap year dropdown; `GET /api/v1/stats/week-hour` rende
 averaged over the days each weekday appears in the window, optional `start`/`end` bounds
 (inclusive, full history when omitted), only exercised cells returned;
 achievements evaluate window-based badges (early bird 06:00-09:00, night owl 22:00-05:00, perfect
-month) in the requested timezone. Aggregations merge overlapping sessions for
-summary/heatmap/streaks and accumulate raw durations for distributions, matching the plugin StatisticsView semantics. Badges
+month) in the requested timezone. Aggregations merge overlapping sessions into unions (earliest
+start to latest end) for summary/heatmap/streaks and the TIME_OF_DAY distribution; TIME_OF_DAY
+buckets follow the plugin's statistics (Night 00:00-05:59, Morning 06:00-11:59, Daytime 12:00-17:59,
+Evening 18:00-23:59) and slice bucket-spanning sessions at bucket boundaries, so its entries sum to
+the summary total; other distributions accumulate raw durations per session, matching the plugin
+StatisticsView semantics. Badges
 are unlocked lazily on query — 15 badges across streak / total duration / language count / time
 windows / daily burst / perfect month — and unlock records are idempotent (unique constraint, one
 `ACHIEVEMENT_UNLOCKED` audit event per badge). Achievements responses are cached in Redis for 60s
