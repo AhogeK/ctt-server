@@ -17,7 +17,6 @@ import com.ahogek.cttserver.stats.dto.StreakStatsResponse;
 import com.ahogek.cttserver.stats.dto.WeekHourDistributionResponse;
 import com.ahogek.cttserver.stats.dto.WeekHourStatPoint;
 import com.ahogek.cttserver.stats.enums.DistributionType;
-import com.ahogek.cttserver.stats.enums.TimeOfDay;
 import com.ahogek.cttserver.stats.materialization.entity.DailyStats;
 import com.ahogek.cttserver.stats.materialization.repository.DailyStatsRepository;
 import com.ahogek.cttserver.stats.materialization.service.DailyStatsMaterializer;
@@ -252,16 +251,7 @@ public class StatsService {
                     case PROJECTS ->
                             StatsCalculator.accumulateBy(
                                     sessions, zone, CodingSession::getProjectName);
-                    case TIME_OF_DAY ->
-                            StatsCalculator.accumulateBy(
-                                    sessions,
-                                    zone,
-                                    session ->
-                                            TimeOfDay.fromHour(
-                                                            session.getStartTime()
-                                                                    .atOffset(zone)
-                                                                    .getHour())
-                                                    .name());
+                    case TIME_OF_DAY -> StatsCalculator.timeOfDayDistribution(sessions, zone);
                     case WEEKDAY -> StatsCalculator.weekdayDistribution(sessions, zone);
                     case DEVICES -> devicesDistribution(userId, sessions);
                     case IDES -> idesDistribution(userId, sessions);

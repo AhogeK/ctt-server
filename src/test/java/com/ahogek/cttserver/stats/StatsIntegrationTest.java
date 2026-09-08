@@ -1112,6 +1112,63 @@ class StatsIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should bucket time-of-day by slicing and match summary total")
+        void shouldBucketTimeOfDayMatchingSummary_whenSessionsSpanBuckets() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String jwt = auth[0];
+            UUID userId = UUID.fromString(auth[1]);
+            String readKey = createApiKey(jwt, "read", "READ");
+            // 11:00-13:00 spans Morning (1h) + Daytime (1h); 23:50-00:10 spans Evening
+            // (10m) + Night (10m) - the exact cross-midnight case the old code mis-bucketed.
+            insertSession(
+                    userId,
+                    Instant.parse("2026-09-01T11:00:00Z"),
+                    Instant.parse("2026-09-01T13:00:00Z"),
+                    "a",
+                    "Java");
+            insertSession(
+                    userId,
+                    Instant.parse("2026-09-01T23:50:00Z"),
+                    Instant.parse("2026-09-02T00:10:00Z"),
+                    "a",
+                    "Java");
+
+            var dist =
+                    mvc.get()
+                            .uri("/api/v1/stats/distribution?type=TIME_OF_DAY")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(dist).hasStatusOk();
+            var entries =
+                    objectMapper
+                            .readTree(dist.getResponse().getContentAsString())
+                            .path("data")
+                            .path("entries");
+            long bucketTotal = 0;
+            for (var entry : entries) {
+                bucketTotal += entry.path("seconds").asLong();
+            }
+            // sliced: Morning 3600 + Daytime 3600 + Evening 600 + Night 600 = 8400
+            assertThat(bucketTotal).isEqualTo(8400);
+
+            var summary =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?timezoneOffset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(summary).hasStatusOk();
+            long summaryTotal =
+                    objectMapper
+                            .readTree(summary.getResponse().getContentAsString())
+                            .path("data")
+                            .path("total")
+                            .asLong();
+            assertThat(bucketTotal)
+                    .as("time-of-day buckets must sum to the summary total")
+                    .isEqualTo(summaryTotal);
+        }
+
+        @Test
         @DisplayName("Should return weekday-hour averages clipped by date range")
         void shouldReturnWeekHour_whenSessionsExist() throws Exception {
             String[] auth = registerVerifyAndLogin(uniqueEmail());
