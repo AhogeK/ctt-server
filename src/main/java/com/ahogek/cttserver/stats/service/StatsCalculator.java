@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.stats.service;
 
+import com.ahogek.cttserver.stats.enums.TimeOfDay;
 import com.ahogek.cttserver.sync.entity.CodingSession;
 
 import java.time.DayOfWeek;
@@ -393,6 +394,76 @@ public final class StatsCalculator {
             points.add(new HourlyPoint(hour, average, (int) activeDays));
         }
         return points;
+    }
+
+    /**
+     * Computes the time-of-day distribution with the plugin's weekly-statistics semantics.
+     *
+     * <p>Overlapping sessions are merged into unions first (earliest start to latest end), then
+     * each union is sliced at the time-of-day bucket boundaries (Night 00:00-05:59, Morning
+     * 06:00-11:59, Daytime 12:00-17:59, Evening 18:00-23:59) so every second lands in exactly one
+     * bucket. The bucket totals therefore sum to the same coding time the summary reports.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @return entries ordered by duration descending
+     */
+    public static List<DistributionEntry> timeOfDayDistribution(
+            List<CodingSession> sessions, ZoneOffset zone) {
+        // Buckets accumulate full-precision durations; truncating per slice would floor away
+        // the sub-second remainder of every session that starts off the second (the plugin
+        // writes milliseconds), losing ~0.5s per session versus summary.total.
+        Map<TimeOfDay, Duration> byBucket = new LinkedHashMap<>();
+        for (TimeInterval interval : mergeOverlapping(toIntervals(sessions, zone))) {
+            OffsetDateTime cursor = interval.start();
+            while (cursor.isBefore(interval.end())) {
+                TimeOfDay bucket = TimeOfDay.fromHour(cursor.getHour());
+                int boundaryHour = TimeOfDay.boundaryAfter(cursor.getHour());
+                // Evening ends at midnight (24), which is the next day's 00:00; the other
+                // buckets close within the same day.
+                OffsetDateTime nextBoundary =
+                        boundaryHour == 24
+                                ? cursor.plusDays(1).truncatedTo(ChronoUnit.DAYS)
+                                : cursor.withHour(boundaryHour).truncatedTo(ChronoUnit.HOURS);
+                OffsetDateTime sliceEnd =
+                        nextBoundary.isBefore(interval.end()) ? nextBoundary : interval.end();
+                byBucket.merge(bucket, Duration.between(cursor, sliceEnd), Duration::plus);
+                cursor = sliceEnd;
+            }
+        }
+        // Largest-remainder apportionment: floor each bucket, then hand out the leftover
+        // seconds (0..n-1) to the buckets with the biggest fractional parts. The assigned
+        // sum equals the full-precision total truncated once — the same single truncation
+        // summary.total performs — so buckets and summary agree to the second, always.
+        Duration fullTotal = byBucket.values().stream().reduce(Duration.ZERO, Duration::plus);
+        long totalSeconds = fullTotal.toSeconds();
+        List<Map.Entry<TimeOfDay, Long>> floored = new ArrayList<>();
+        long flooredSum = 0;
+        for (Map.Entry<TimeOfDay, Duration> entry : byBucket.entrySet()) {
+            long seconds = entry.getValue().toSeconds();
+            flooredSum += seconds;
+            floored.add(Map.entry(entry.getKey(), seconds));
+        }
+        long leftover = totalSeconds - flooredSum;
+        Map<TimeOfDay, Long> assigned = new LinkedHashMap<>();
+        for (Map.Entry<TimeOfDay, Long> entry : floored) {
+            assigned.put(entry.getKey(), entry.getValue());
+        }
+        // byBucket is insertion-ordered (first touch), ranked is duration-descending;
+        // the leftover goes to the largest fractional remainders.
+        List<TimeOfDay> order =
+                byBucket.entrySet().stream()
+                        .sorted(Map.Entry.<TimeOfDay, Duration>comparingByValue().reversed())
+                        .map(Map.Entry::getKey)
+                        .toList();
+        for (int i = 0; i < leftover; i++) {
+            TimeOfDay bucket = order.get(i % order.size());
+            assigned.put(bucket, assigned.get(bucket) + 1);
+        }
+        return assigned.entrySet().stream()
+                .sorted(Map.Entry.<TimeOfDay, Long>comparingByValue().reversed())
+                .map(entry -> new DistributionEntry(entry.getKey().name(), entry.getValue()))
+                .toList();
     }
 
     /** Average coding seconds for one weekday-hour cell. */

@@ -259,6 +259,183 @@ class StatsCalculatorTest {
     class DistributionTests {
 
         @Test
+        @DisplayName("shouldUsePluginBoundaries_whenBucketing")
+        void shouldUsePluginBoundaries_whenBucketing() {
+            // New boundaries: Night 0-5, Morning 6-11, Daytime 12-17, Evening 18-23.
+            // 05:59 falls in Night, 06:00 in Morning, 11:59 in Morning, 12:00 in Daytime.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T05:00:00"),
+                                    at("2026-08-30T05:59:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T06:00:00"),
+                                    at("2026-08-30T06:59:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T12:00:00"),
+                                    at("2026-08-30T12:59:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T18:00:00"),
+                                    at("2026-08-30T18:59:00"),
+                                    "a",
+                                    "Java"));
+
+            List<DistributionEntry> entries = StatsCalculator.timeOfDayDistribution(sessions, UTC);
+
+            assertThat(entries)
+                    .extracting(DistributionEntry::name, DistributionEntry::seconds)
+                    .containsExactlyInAnyOrder(
+                            tuple("NIGHT", 3540L),
+                            tuple("MORNING", 3540L),
+                            tuple("DAYTIME", 3540L),
+                            tuple("EVENING", 3540L));
+        }
+
+        @Test
+        @DisplayName("shouldSliceAcrossBuckets_whenSessionSpansBoundary")
+        void shouldSliceAcrossBuckets_whenSessionSpansBoundary() {
+            // 11:00-13:00 splits into Morning 11:00-12:00 (1h) and Daytime 12:00-13:00 (1h);
+            // nothing is attributed wholly to the start bucket.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T11:00:00"),
+                                    at("2026-08-30T13:00:00"),
+                                    "a",
+                                    "Java"));
+
+            List<DistributionEntry> entries = StatsCalculator.timeOfDayDistribution(sessions, UTC);
+
+            assertThat(entries)
+                    .extracting(DistributionEntry::name, DistributionEntry::seconds)
+                    .containsExactlyInAnyOrder(tuple("MORNING", 3600L), tuple("DAYTIME", 3600L));
+        }
+
+        @Test
+        @DisplayName("shouldMergeOverlappingSessionsBeforeBucketing")
+        void shouldMergeOverlappingSessions_whenParallelWindows() {
+            // 10:00-11:00 and 10:30-10:45 overlap: union 10:00-11:00 = 1h in Morning,
+            // not 5100s raw accumulation.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T10:30:00"),
+                                    at("2026-08-30T10:45:00"),
+                                    "b",
+                                    "Kotlin"));
+
+            List<DistributionEntry> entries = StatsCalculator.timeOfDayDistribution(sessions, UTC);
+
+            assertThat(entries)
+                    .singleElement()
+                    .satisfies(
+                            entry -> {
+                                assertThat(entry.name()).isEqualTo("MORNING");
+                                assertThat(entry.seconds()).isEqualTo(3600);
+                            });
+        }
+
+        @Test
+        @DisplayName("shouldSumToSessionTime_whenSpanningMidnight")
+        void shouldSumToSessionTime_whenSpanningMidnight() {
+            // 22:00-02:00 crosses midnight: Evening 22:00-24:00 (2h) + Night 00:00-02:00 (2h).
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T22:00:00"),
+                                    at("2026-08-31T02:00:00"),
+                                    "a",
+                                    "Java"));
+
+            List<DistributionEntry> entries = StatsCalculator.timeOfDayDistribution(sessions, UTC);
+
+            assertThat(entries)
+                    .extracting(DistributionEntry::name, DistributionEntry::seconds)
+                    .containsExactlyInAnyOrder(tuple("EVENING", 7200L), tuple("NIGHT", 7200L));
+        }
+
+        @Test
+        @DisplayName("shouldNotLoseSubSecondRemainders_whenSessionsStartOffSecond")
+        void shouldNotLoseSubSeconds_whenSessionsStartOffSecond() {
+            // Regression: per-slice Duration.toSeconds() floored away the sub-second tail of
+            // every session starting off the second, deflating buckets vs summary.total.
+            // 5 sessions of 59.9s each, each inside Morning: total 299.5s -> 299 after a
+            // single end-of-aggregation truncation (raw 5*59.9 = 299.5).
+            List<CodingSession> sessions = new java.util.ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                Instant start =
+                        at("2026-08-30T06:00:00").plusSeconds(i * 3600L).plusNanos(900_000_000);
+                CodingSession s =
+                        session(start, start.plusSeconds(59).plusNanos(900_000_000), "a", "Java");
+                sessions.add(s);
+            }
+
+            List<DistributionEntry> entries = StatsCalculator.timeOfDayDistribution(sessions, UTC);
+
+            long total = entries.stream().mapToLong(DistributionEntry::seconds).sum();
+            // full-precision 5 * 59.9 = 299.5s; single truncation keeps 299
+            assertThat(total).isEqualTo(299);
+        }
+
+        @Test
+        @DisplayName("shouldApportionRemainderSoBucketsSumToFullPrecisionTotal")
+        void shouldApportionRemainder_soBucketSumEqualsTruncatedTotal() {
+            // Four sessions in four different buckets, each with a 0.9s fractional tail:
+            // naive per-bucket flooring would lose 3s; largest-remainder hands the 3
+            // leftover seconds back to the three buckets with the biggest remainders,
+            // so the bucket sum equals the single-truncated full-precision total (396s).
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T02:00:00").plusNanos(100_000_000),
+                                    at("2026-08-30T03:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T06:00:00").plusNanos(200_000_000),
+                                    at("2026-08-30T07:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T12:00:00").plusNanos(300_000_000),
+                                    at("2026-08-30T13:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T18:00:00").plusNanos(900_000_000),
+                                    at("2026-08-30T19:00:00"),
+                                    "a",
+                                    "Java"));
+
+            List<DistributionEntry> entries = StatsCalculator.timeOfDayDistribution(sessions, UTC);
+
+            long sum = entries.stream().mapToLong(DistributionEntry::seconds).sum();
+            // full-precision total = 4*3600 - (0.1+0.2+0.3+0.9) = 14398.5 -> truncates to 14398
+            assertThat(sum).isEqualTo(14398);
+            // leftover 3s (fractional remainders .9/.8/.7/.1 per bucket) goes to the
+            // three buckets with the largest remainders: NIGHT, MORNING, DAYTIME; EVENING
+            // keeps its floor. Sum still equals the truncated full-precision total.
+            assertThat(entries)
+                    .extracting(DistributionEntry::name, DistributionEntry::seconds)
+                    .containsExactlyInAnyOrder(
+                            tuple("NIGHT", 3600L),
+                            tuple("MORNING", 3600L),
+                            tuple("DAYTIME", 3599L),
+                            tuple("EVENING", 3599L));
+        }
+
+        @Test
         @DisplayName("shouldAccumulateByLanguageDescending")
         void shouldAccumulateLanguages_whenMultipleLanguages() {
             List<CodingSession> sessions =
