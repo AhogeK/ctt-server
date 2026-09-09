@@ -1,4 +1,13 @@
 # Active Context
+- [2026-09-09] - distribution 日期窗口 + 全类型精度修复（v0.66.0）
+    - 需求: ctt-web 报告 ①/distribution 缺 start/end 窗口参数 ②type=LANGUAGES 的 Total 精度与概览不一致
+    - 根因确认: LANGUAGES/PROJECTS/WEEKDAY（accumulateBy）与 DEVICES/IDES（aggregateByLabel）都是每会话 toSeconds() 截断——与 TIME_OF_DAY 第二个 bug 同类（用户数据 3460 会话亚秒起步，累计丢 ~1470s）
+    - 设计决策: ①窗口=clipSessions（保留会话身份：project/language/originDeviceId 复制，仅 clamp start/end Instant；与 clipToWindow 语义对齐但保持 CodingSession 类型）②精度=全类型统一收敛到 StatsCalculator.apportion（最大余数法：全精度累加 → floor → leftover∈[0,n-1] 按余量降序 +1）——所有 distribution 桶总和 == summary.total 数学保证
+    - 实现: StatsCalculator.clipSessions + apportion 共享 helper + accumulateBy 全精度化 + StatsService.aggregateByLabel 全精度化（reducing Duration::plus）+ timeOfDay 尾部改调 apportion 消重复 + StatsService.distribution 6 参（start/end 校验 end<start→COMMON_003）+ Controller /distribution 加 start/end
+    - 测试: StatsCalculatorTest +2（LANGUAGES 亚秒回归 119 vs 逐会话 floor 118/apportion 配平 14398 锁定）+ StatsServiceTest 5 处调用适配 + StatsIntegrationTest +2（LANGUAGES 窗口过滤+亚秒会话 1799 锁定/end<start 400 COMMON_003）
+    - 事故: 尾部替换 marker 匹配错位吞掉 weekHourDistribution+两 record（107 行）→ 从 git HEAD 原文恢复（R18 精神：用 git show 取原文，未用 reset）——教训: 跨方法大段 marker 替换前后必须 diff 边界确认
+    - 验证: 全量 1336/0（+3）+ jacoco 门禁 + spotless 全绿
+    - 状态: ✅ 实施完成，待提交授权
 - [2026-09-07] - TIME_OF_DAY 分桶语义对齐插件端（fix(stats)，v0.65.0）
     - 需求: ctt-web 报告 distribution?type=TIME_OF_DAY 与插件端不一致——服务端旧实现按会话开始小时整段入桶且边界 Morning 5-11/Daytime 12-16/Evening 17-21/Night 22-4，插件端逐桶切片且 Night 0-5/Morning 6-11/Daytime 12-17/Evening 18-23（与截图 TimeOfDayPanel 一致）；用户裁决选 (a) 服务端对齐插件 + 重叠会话按并集（最早→最晚）合并后切片（呼应 week-hour 合并裁决）；"总时间与统计概览不一致"根因=重叠双计 + 跨桶会话整段误归开始桶
     - 实现: TimeOfDay 枚举新边界 + boundaryAfter(hour) 切片辅助（Evening 边界 24=次日零点）+ StatsCalculator.timeOfDayDistribution（mergeOverlapping → 桶边界切片 → 桶累加，时长降序）+ StatsService TIME_OF_DAY 分支改调新方法（删旧 fromHour 累积路径）
