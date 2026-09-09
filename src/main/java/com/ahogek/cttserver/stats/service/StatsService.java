@@ -231,18 +231,30 @@ public class StatsService {
     }
 
     /**
-     * Computes a duration distribution by the requested dimension.
+     * Computes a duration distribution by the requested dimension, optionally clipped to a date
+     * range (open bounds aggregate the full history).
      *
      * @param userId the owning user
      * @param zone aggregation timezone
      * @param type the distribution dimension
+     * @param start window start date (inclusive), or {@code null} for the full history
+     * @param end window end date (inclusive), or {@code null} for the full history
      * @param filter optional origin-device or IDE filter; {@code null} aggregates all devices
      * @return buckets ordered by duration descending
      */
     @Transactional(readOnly = true)
     public DistributionResponse distribution(
-            UUID userId, ZoneOffset zone, DistributionType type, SessionFilter filter) {
-        List<CodingSession> sessions = sessionsOf(userId, filter);
+            UUID userId,
+            ZoneOffset zone,
+            DistributionType type,
+            LocalDate start,
+            LocalDate end,
+            SessionFilter filter) {
+        if (start != null && end != null && end.isBefore(start)) {
+            throw new ValidationException(ErrorCode.COMMON_003, "end must not be before start");
+        }
+        List<CodingSession> sessions =
+                StatsCalculator.clipSessions(sessionsOf(userId, filter), zone, start, end);
         List<StatsCalculator.DistributionEntry> entries =
                 switch (type) {
                     case LANGUAGES ->
@@ -517,26 +529,22 @@ public class StatsService {
      */
     private static List<StatsCalculator.DistributionEntry> aggregateByLabel(
             List<CodingSession> sessions, Function<CodingSession, String> labeler) {
-        Map<String, Long> secondsByLabel =
+        // Full-precision accumulation: flooring per session would lose each session's
+        // sub-second tail (the plugin writes milliseconds) and deflate bucket totals
+        // relative to summary.total; truncate once per bucket instead.
+        Map<String, Duration> secondsByLabel =
                 sessions.stream()
                         .collect(
                                 Collectors.groupingBy(
                                         labeler,
-                                        Collectors.summingLong(
+                                        Collectors.reducing(
+                                                Duration.ZERO,
                                                 session ->
                                                         Duration.between(
-                                                                        session.getStartTime(),
-                                                                        session.getEndTime())
-                                                                .toSeconds())));
-        return secondsByLabel.entrySet().stream()
-                .map(
-                        entry ->
-                                new StatsCalculator.DistributionEntry(
-                                        entry.getKey(), entry.getValue()))
-                .sorted(
-                        Comparator.comparingLong(StatsCalculator.DistributionEntry::seconds)
-                                .reversed())
-                .toList();
+                                                                session.getStartTime(),
+                                                                session.getEndTime()),
+                                                Duration::plus)));
+        return StatsCalculator.apportion(secondsByLabel);
     }
 
     private RecentSessionResponse toRecentSession(CodingSession session) {

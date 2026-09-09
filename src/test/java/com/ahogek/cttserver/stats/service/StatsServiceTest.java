@@ -254,7 +254,8 @@ class StatsServiceTest {
                     .thenReturn(List.of(named));
 
             DistributionResponse response =
-                    service.distribution(userId, ZoneOffset.UTC, DistributionType.DEVICES, null);
+                    service.distribution(
+                            userId, ZoneOffset.UTC, DistributionType.DEVICES, null, null, null);
 
             assertThat(response.entries()).hasSize(2);
             // ordered by duration descending: 5400 before 3600
@@ -279,7 +280,8 @@ class StatsServiceTest {
                     .thenReturn(List.of(device));
 
             DistributionResponse response =
-                    service.distribution(userId, ZoneOffset.UTC, DistributionType.IDES, null);
+                    service.distribution(
+                            userId, ZoneOffset.UTC, DistributionType.IDES, null, null, null);
 
             assertThat(response.entries()).hasSize(2);
             assertThat(response.entries().get(0).name()).isEqualTo("IntelliJ IDEA");
@@ -301,7 +303,8 @@ class StatsServiceTest {
                     .thenReturn(List.of(unnamed));
 
             DistributionResponse response =
-                    service.distribution(userId, ZoneOffset.UTC, DistributionType.IDES, null);
+                    service.distribution(
+                            userId, ZoneOffset.UTC, DistributionType.IDES, null, null, null);
 
             assertThat(response.entries()).hasSize(1);
             assertThat(response.entries().getFirst().name()).isEqualTo("Unknown IDE");
@@ -321,7 +324,8 @@ class StatsServiceTest {
                     .thenReturn(List.of(blank));
 
             DistributionResponse response =
-                    service.distribution(userId, ZoneOffset.UTC, DistributionType.IDES, null);
+                    service.distribution(
+                            userId, ZoneOffset.UTC, DistributionType.IDES, null, null, null);
 
             assertThat(response.entries()).hasSize(1);
             assertThat(response.entries().getFirst().name()).isEqualTo("Unknown IDE");
@@ -410,6 +414,8 @@ class StatsServiceTest {
                                             userId,
                                             ZoneOffset.UTC,
                                             DistributionType.LANGUAGES,
+                                            null,
+                                            null,
                                             filter))
                     .isInstanceOf(NotFoundException.class);
             verify(codingSessionRepository, never())

@@ -199,6 +199,58 @@ public final class StatsCalculator {
     }
 
     /**
+     * Clips live sessions to an inclusive calendar-date window, dropping sessions that fall
+     * entirely outside it. Session identity is preserved (project/language/device attribution stay
+     * intact); only the start/end instants are clamped. Either bound may be {@code null} for an
+     * open-ended window.
+     *
+     * @param sessions live coding sessions owned by the user
+     * @param zone aggregation timezone
+     * @param windowStart window start date (inclusive), or {@code null} for no lower bound
+     * @param windowEnd window end date (inclusive), or {@code null} for no upper bound
+     * @return sessions whose instants are clipped to the window
+     */
+    public static List<CodingSession> clipSessions(
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            LocalDate windowStart,
+            LocalDate windowEnd) {
+        if (windowStart == null && windowEnd == null) {
+            return sessions;
+        }
+        OffsetDateTime from =
+                windowStart != null ? windowStart.atStartOfDay(zone).toOffsetDateTime() : null;
+        OffsetDateTime to =
+                windowEnd != null
+                        ? windowEnd.plusDays(1).atStartOfDay(zone).toOffsetDateTime()
+                        : null;
+        List<CodingSession> clipped = new ArrayList<>();
+        List<TimeInterval> intervals = toIntervals(sessions, zone);
+        for (int i = 0; i < intervals.size(); i++) {
+            TimeInterval interval = intervals.get(i);
+            OffsetDateTime start =
+                    from != null && interval.start().isBefore(from) ? from : interval.start();
+            OffsetDateTime end = to != null && interval.end().isAfter(to) ? to : interval.end();
+            if (!start.isBefore(end)) {
+                continue;
+            }
+            CodingSession session = sessions.get(i);
+            CodingSession copy = new CodingSession();
+            copy.setId(session.getId());
+            copy.setSessionUuid(session.getSessionUuid());
+            copy.setProjectName(session.getProjectName());
+            copy.setLanguage(session.getLanguage());
+            copy.setStartTime(start.toInstant());
+            copy.setEndTime(end.toInstant());
+            copy.setClientModifiedAt(session.getClientModifiedAt());
+            copy.setClientVersion(session.getClientVersion());
+            copy.setOriginDeviceId(session.getOriginDeviceId());
+            clipped.add(copy);
+        }
+        return clipped;
+    }
+
+    /**
      * Total merged duration within a period, in seconds.
      *
      * @param intervals the intervals
@@ -333,22 +385,22 @@ public final class StatsCalculator {
             List<CodingSession> sessions,
             ZoneOffset zone,
             Function<CodingSession, String> keyExtractor) {
-        Map<String, Long> byKey = new LinkedHashMap<>();
+        // Full-precision accumulation: flooring per session would lose each session's
+        // sub-second tail (the plugin writes milliseconds) and deflate the bucket totals
+        // relative to summary.total; truncate once per bucket instead.
+        Map<String, Duration> byKey = new LinkedHashMap<>();
         for (CodingSession session : sessions) {
             if (!session.getStartTime().isBefore(session.getEndTime())) {
                 continue;
             }
-            long seconds =
+            byKey.merge(
+                    keyExtractor.apply(session),
                     Duration.between(
-                                    session.getStartTime().atOffset(zone),
-                                    session.getEndTime().atOffset(zone))
-                            .toSeconds();
-            byKey.merge(keyExtractor.apply(session), seconds, Long::sum);
+                            session.getStartTime().atOffset(zone),
+                            session.getEndTime().atOffset(zone)),
+                    Duration::plus);
         }
-        return byKey.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .map(entry -> new DistributionEntry(entry.getKey(), entry.getValue()))
-                .toList();
+        return apportion(byKey);
     }
 
     /**
@@ -431,39 +483,9 @@ public final class StatsCalculator {
                 cursor = sliceEnd;
             }
         }
-        // Largest-remainder apportionment: floor each bucket, then hand out the leftover
-        // seconds (0..n-1) to the buckets with the biggest fractional parts. The assigned
-        // sum equals the full-precision total truncated once — the same single truncation
-        // summary.total performs — so buckets and summary agree to the second, always.
-        Duration fullTotal = byBucket.values().stream().reduce(Duration.ZERO, Duration::plus);
-        long totalSeconds = fullTotal.toSeconds();
-        List<Map.Entry<TimeOfDay, Long>> floored = new ArrayList<>();
-        long flooredSum = 0;
-        for (Map.Entry<TimeOfDay, Duration> entry : byBucket.entrySet()) {
-            long seconds = entry.getValue().toSeconds();
-            flooredSum += seconds;
-            floored.add(Map.entry(entry.getKey(), seconds));
-        }
-        long leftover = totalSeconds - flooredSum;
-        Map<TimeOfDay, Long> assigned = new LinkedHashMap<>();
-        for (Map.Entry<TimeOfDay, Long> entry : floored) {
-            assigned.put(entry.getKey(), entry.getValue());
-        }
-        // byBucket is insertion-ordered (first touch), ranked is duration-descending;
-        // the leftover goes to the largest fractional remainders.
-        List<TimeOfDay> order =
-                byBucket.entrySet().stream()
-                        .sorted(Map.Entry.<TimeOfDay, Duration>comparingByValue().reversed())
-                        .map(Map.Entry::getKey)
-                        .toList();
-        for (int i = 0; i < leftover; i++) {
-            TimeOfDay bucket = order.get(i % order.size());
-            assigned.put(bucket, assigned.get(bucket) + 1);
-        }
-        return assigned.entrySet().stream()
-                .sorted(Map.Entry.<TimeOfDay, Long>comparingByValue().reversed())
-                .map(entry -> new DistributionEntry(entry.getKey().name(), entry.getValue()))
-                .toList();
+        Map<String, Duration> byLabel = new LinkedHashMap<>();
+        byBucket.forEach((bucket, duration) -> byLabel.put(bucket.name(), duration));
+        return apportion(byLabel);
     }
 
     /** Average coding seconds for one weekday-hour cell. */
@@ -571,6 +593,41 @@ public final class StatsCalculator {
             counts.merge(date.getDayOfWeek().getValue(), 1, Integer::sum);
         }
         return counts;
+    }
+
+    /**
+     * Converts full-precision per-bucket durations into second-granularity entries via
+     * largest-remainder apportionment: each bucket is floored, and the leftover seconds (0..n-1)
+     * are handed to the buckets with the biggest fractional remainders. The assigned sum equals the
+     * full-precision total truncated once — the same single truncation summary.total performs — so
+     * every distribution's bucket sum equals the summary total.
+     *
+     * @param byBucket full-precision durations keyed by bucket label
+     * @return entries ordered by assigned seconds descending
+     */
+    public static List<DistributionEntry> apportion(Map<String, Duration> byBucket) {
+        long fullTotal =
+                byBucket.values().stream().reduce(Duration.ZERO, Duration::plus).toSeconds();
+        long flooredSum = 0;
+        Map<String, Long> assigned = new LinkedHashMap<>();
+        for (Map.Entry<String, Duration> entry : byBucket.entrySet()) {
+            long seconds = entry.getValue().toSeconds();
+            flooredSum += seconds;
+            assigned.put(entry.getKey(), seconds);
+        }
+        List<String> order =
+                byBucket.entrySet().stream()
+                        .sorted(Map.Entry.<String, Duration>comparingByValue().reversed())
+                        .map(Map.Entry::getKey)
+                        .toList();
+        for (int i = 0; i < fullTotal - flooredSum; i++) {
+            String bucket = order.get(i % order.size());
+            assigned.put(bucket, assigned.get(bucket) + 1);
+        }
+        return assigned.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .map(entry -> new DistributionEntry(entry.getKey(), entry.getValue()))
+                .toList();
     }
 
     /**
