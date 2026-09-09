@@ -436,6 +436,40 @@ class StatsCalculatorTest {
         }
 
         @Test
+        @DisplayName("shouldNotLoseSubSecondRemainders_whenAccumulatingLanguages")
+        void shouldNotLoseSubSeconds_whenAccumulatingLanguages() {
+            // Two 59.9s sessions in different languages: per-session flooring would give
+            // 59+59=118, full-precision accumulation truncates once to 119.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00").plusNanos(100_000_000),
+                                    at("2026-08-30T10:00:00")
+                                            .plusNanos(100_000_000)
+                                            .plusSeconds(59)
+                                            .plusNanos(900_000_000),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T11:00:00").plusNanos(200_000_000),
+                                    at("2026-08-30T11:00:00")
+                                            .plusNanos(200_000_000)
+                                            .plusSeconds(59)
+                                            .plusNanos(900_000_000),
+                                    "a",
+                                    "Kotlin"));
+
+            List<DistributionEntry> entries =
+                    StatsCalculator.accumulateBy(sessions, UTC, CodingSession::getLanguage);
+
+            long total = entries.stream().mapToLong(DistributionEntry::seconds).sum();
+            assertThat(total).isEqualTo(119);
+            assertThat(entries)
+                    .extracting(DistributionEntry::name, DistributionEntry::seconds)
+                    .containsExactlyInAnyOrder(tuple("Java", 60L), tuple("Kotlin", 59L));
+        }
+
+        @Test
         @DisplayName("shouldAccumulateByLanguageDescending")
         void shouldAccumulateLanguages_whenMultipleLanguages() {
             List<CodingSession> sessions =
