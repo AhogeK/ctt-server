@@ -427,7 +427,8 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 | `/api/v1/stats/streaks` | GET | Current and longest consecutive coding day streaks | READ |
 | `/api/v1/stats/distribution` | GET | Duration distribution by languages / projects / time-of-day / weekday / devices / IDEs | READ |
 | `/api/v1/stats/hourly` | GET | Per-hour average coding seconds across active days | READ |
-| `/api/v1/stats/heatmap-years` | GET | Calendar years with valid coding sessions, descending | READ |
+| `/api/v1/stats/heatmap-years` | GET | Years with coding activity (timezone-aware), descending | READ |
+| `/api/v1/stats/heatmap-months` | GET | Months (`yyyy-MM`) with coding activity, descending | READ |
 | `/api/v1/stats/week-hour` | GET | Weekly coding heatmap: average seconds per weekday-hour cell | READ |
 | `/api/v1/stats/recent` | GET | Most recent coding sessions (default 20, max 100) | READ |
 | `/api/v1/stats/ide-filters` | GET | Distinct registered IDE names for filter dropdowns | READ |
@@ -441,8 +442,11 @@ IDE-name filter against the device registry; mutually exclusive with deviceId, u
 yield 404); the distribution endpoint additionally supports `type=DEVICES` / `type=IDES`
 (per-device / per-IDE seconds; IDE buckets derive from the origin device's registered IDE name);
 `GET /api/v1/stats/ide-filters` lists the distinct registered IDE names for the dashboard filter and
-`GET /api/v1/stats/heatmap-years` lists the years with valid sessions (start_time < end_time),
-newest first, for the heatmap year dropdown; `GET /api/v1/stats/week-hour` renders the plugin's
+`GET /api/v1/stats/heatmap-years` and `GET /api/v1/stats/heatmap-months` list the years and
+`yyyy-MM` months that contain at least one non-zero coding day in the requested timezone
+(`timezoneOffset`), newest first, for the heatmap year/month dropdowns — both derive from the
+same activity rule as the heatmap, so a session crossing a month or year boundary contributes
+to both and no listed option renders empty; `GET /api/v1/stats/week-hour` renders the plugin's
 "Weekly Coding Activity by Hour" heatmap: weekday-hour cells (ISO weekday 1=Monday..7=Sunday)
 averaged over the days each weekday appears in the window, optional `start`/`end` bounds
 (inclusive, full history when omitted), only exercised cells returned;
