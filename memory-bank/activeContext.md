@@ -1,4 +1,27 @@
 # Active Context
+- [2026-09-11] - AGENTS.md 优化：吸收 ctt-web 的 6 条规则补缺（R14 流程）
+    - 触发: 用户要求对照 `../ctt-web/AGENTS.md` 优化本项目规则
+    - 事实核查: `.agents/` 在 ctt-server 有 48 个受跟踪文件（AI 技能工作区却无保护规则，真实缺口）；`.omp/` 已 gitignore（第 55 行）；AGENTS.md 仅存在于 develop（master 无 AI 文件，R17 一致）
+    - 吸收（仅取能补齐真实缺口的，不照搬前端专属）:
+      ① R3 扩为「关联项目（只读红线）」——新增 `../ctt-web`，明确严禁修改关联项目任何文件、契约变更走需求文本（此前 R3 只说"主动读取"，无禁止修改；与 ctt-web R3/R23 对齐）
+      ② R8 新增「讨论信号」bullet——"为什么/能不能/是否应该/你看呢/是不是…更好" = 讨论确认信号，先分析后实施，严禁当实施指令
+      ③ R9「编辑前验证」补全整文件阅读原则（片段不足直接整文件读，不反复片段读）
+      ④ 新增 R24 AI 边界——身份（唯一可写仓库=ctt-server）+ `.agents/` 只读保护（对齐 ctt-web R16/R23）+ 审查/调查子任务严格只读禁 --fix（对齐 ctt-web R22，附"子 agent 写盘污染工作区"红线）
+      ⑤ 新增 R25 领域知识库——domains/<domain>/ 五件套（meta/principles/scenarios/practices/references），按需建档禁占位，横切规范留 systemPatterns 不重复
+      ⑥ 新增 R26 AI 产物位置——docs/ 只放用户文档，AI 产物进 .omp/（此前仅存在于 2026-08-31 activeContext 条目，未固化为规则）
+    - 未吸收: ctt-web R13（API 对接 Zod/组件规范）、R9 的 Vue/Tailwind 条目、R7 的状态管理/路由项——前端专属，不适用后端；ctt-web R6 的 `git add` 需授权更严——本项目 R6 已覆盖 commit/push 授权，`git add` 属提交准备动作，保持现状
+    - 结构: 记忆库结构段拆为「时间线层 / 领域层」两层（对齐 ctt-web）；现无领域目录（按需建档，不建空结构）
+    - 验证: 纯文档规则变更，无代码影响；规则编号 R23→R24/R25/R26 追加、原 R14-R22 保持原位不改号（R14 命名约定）
+    - 状态: ✅ 待提交授权
+- [2026-09-11] - heatmap-months 端点 + heatmap-years 时区口径修正（v0.67.0）
+    - 需求: ctt-web——Coding trend 面板加「自然月」选择器（与年选择同级），选项须限定在有数据的月份；并指出 heatmap-years 无 timezoneOffset、年份按 UTC 提取的同源口径问题（授权我判断是否一并修）
+    - 判定: 一并修——年列表与月列表必须互相自洽（否则前端年份行会渲染出空月网格/漏年），且跨年会话在原 SQL 口径下已与 heatmap 不一致
+    - 设计决策: ①存在性口径 = 「该月/年至少有一个非零日（timezoneOffset 折算后）」——复用 mergedSecondsByDay（与 heatmap 同一 day-split），filter>0 精确对齐「heatmap 有非零点」，规避亚秒日（floor 后 0 秒）导致的假存在 ②数据源镜像 heatmap：UTC+bootstrapped 读 daily_stats（与 heatmap UTC 路径同源），否则 live sessions —— 保证列表与渲染同源不漂移 ③年与月共用 activeYearMonths(userId, zone) 私有方法，自洽由构造保证 ④删除已无用的 SQL findDistinctYearsByUserIdAndIsDeletedFalse（其 EXTRACT 口径即 bug 源）
+    - 实现: StatsCalculator.activeYearMonths(sessions, zone)（public，供 calculator 测试）+ StatsService.activeYearMonths 私有（源选择）/ heatmapYears(userId, zone) / heatmapMonths(userId, zone) + Controller GET /heatmap-months（READ+60/60，timezoneOffset @Min(-720)@Max(720) 默认 0）+ /heatmap-years 加同参数
+    - 测试: StatsCalculatorTest ActiveYearMonthsTests +5（UTC+8 边界折算 8/31T16:30Z→2026-09、跨月双向 8+9、跨年双向 2025-12+2026-01、重叠合并+零时长会话不计、空）+ StatsServiceTest 重写 2 + 新增 3（降序/live 时区折算双断言/物化源+零秒日不计+verify 不查 sessions）+ StatsIntegrationTest +2（月列表与 heatmap 逐点一致性断言（需求验收 4）+ 空用户 []）
+    - 契约: 纯新增端点；/heatmap-years 加可选 timezoneOffset（默认 0）——非破坏性，但跨年会话年份值会修正（多出溢出年）
+    - 验证: 全量 1346/0 + jacoco 门禁 + spotless 全绿
+    - 状态: ✅ 实施完成，待提交授权
 - [2026-09-09] - distribution 日期窗口 + 全类型精度修复（v0.66.0）
     - 需求: ctt-web 报告 ①/distribution 缺 start/end 窗口参数 ②type=LANGUAGES 的 Total 精度与概览不一致
     - 根因确认: LANGUAGES/PROJECTS/WEEKDAY（accumulateBy）与 DEVICES/IDES（aggregateByLabel）都是每会话 toSeconds() 截断——与 TIME_OF_DAY 第二个 bug 同类（用户数据 3460 会话亚秒起步，累计丢 ~1470s）
