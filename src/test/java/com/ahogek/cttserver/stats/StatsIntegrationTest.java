@@ -1112,6 +1112,106 @@ class StatsIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should list active months by local timezone and agree with heatmap")
+        void shouldListActiveMonths_matchingHeatmapPoints() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String jwt = auth[0];
+            UUID userId = UUID.fromString(auth[1]);
+            String readKey = createApiKey(jwt, "read", "READ");
+            // Stored 2026-08-31T16:30Z = local 2026-09-01 00:30 in UTC+8: the month list must
+            // report 2026-09 for a UTC+8 caller, and no month may be advertised without data.
+            insertSession(
+                    userId,
+                    Instant.parse("2026-08-31T16:30:00Z"),
+                    Instant.parse("2026-08-31T17:30:00Z"),
+                    "a",
+                    "Java");
+            insertSession(
+                    userId,
+                    Instant.parse("2026-06-10T10:00:00Z"),
+                    Instant.parse("2026-06-10T11:00:00Z"),
+                    "a",
+                    "Java");
+
+            var monthsResp =
+                    mvc.get()
+                            .uri("/api/v1/stats/heatmap-months?timezoneOffset=480")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(monthsResp).hasStatusOk();
+            List<String> months =
+                    objectMapper.convertValue(
+                            objectMapper
+                                    .readTree(monthsResp.getResponse().getContentAsString())
+                                    .path("data"),
+                            new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+            assertThat(months).containsExactly("2026-09", "2026-06");
+
+            // Every listed month must have at least one non-zero heatmap point.
+            for (String month : months) {
+                LocalDate start = LocalDate.parse(month + "-01");
+                LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+                var heatmap =
+                        mvc.get()
+                                .uri(
+                                        "/api/v1/stats/heatmap?timezoneOffset=480&start="
+                                                + start
+                                                + "&end="
+                                                + end)
+                                .header("Authorization", "Bearer " + readKey)
+                                .exchange();
+                assertThat(heatmap).hasStatusOk();
+                var points =
+                        objectMapper
+                                .readTree(heatmap.getResponse().getContentAsString())
+                                .path("data")
+                                .path("points");
+                long nonZero = 0;
+                for (var point : points) {
+                    if (point.path("seconds").asLong() > 0) {
+                        nonZero++;
+                    }
+                }
+                assertThat(nonZero).as("month %s must have heatmap data", month).isPositive();
+            }
+
+            var yearsResp =
+                    mvc.get()
+                            .uri("/api/v1/stats/heatmap-years?timezoneOffset=480")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(yearsResp).hasStatusOk();
+            assertThat(
+                            objectMapper
+                                    .readTree(yearsResp.getResponse().getContentAsString())
+                                    .path("data")
+                                    .get(0)
+                                    .asInt())
+                    .isEqualTo(2026);
+        }
+
+        @Test
+        @DisplayName("Should return empty month list when the user has no sessions")
+        void shouldReturnEmptyMonths_whenNoSessions() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(auth[0], "read", "READ");
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/heatmap-months")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(
+                            objectMapper
+                                    .readTree(result.getResponse().getContentAsString())
+                                    .path("data")
+                                    .isEmpty())
+                    .isTrue();
+        }
+
+        @Test
         @DisplayName("Should clip languages distribution by date range and match summary total")
         void shouldFilterLanguagesByDateRange_matchingSummaryTotal() throws Exception {
             String[] auth = registerVerifyAndLogin(uniqueEmail());

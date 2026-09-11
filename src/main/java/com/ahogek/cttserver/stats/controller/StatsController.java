@@ -833,10 +833,11 @@ public class StatsController {
     @Operation(
             summary = "Heatmap year options",
             description =
-                    "Lists the calendar years that contain valid coding sessions, newest first."
-                            + " Feed for the dashboard heatmap year dropdown; derived from session"
-                            + " data (start_time < end_time), not the lazily bootstrapped"
-                            + " materialized table.")
+                    "Lists the calendar years that contain at least one non-zero coding day in the"
+                            + " requested timezone, newest first. Feed for the dashboard heatmap"
+                            + " year dropdown; matches the heatmap rendering contract, so a listed"
+                            + " year always has data and a session crossing the year boundary"
+                            + " contributes to both years.")
     @ApiResponses(
             value = {
                 @ApiResponse(
@@ -858,10 +859,51 @@ public class StatsController {
     @RequiresApiKeyScope(ApiKeyScope.READ)
     @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
     @GetMapping("/heatmap-years")
-    public ResponseEntity<RestApiResponse<List<Integer>>> heatmapYears() {
+    public ResponseEntity<RestApiResponse<List<Integer>>> heatmapYears(
+            @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
+                    int timezoneOffset) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
-        List<Integer> years = statsService.heatmapYears(currentUser.id());
+        List<Integer> years =
+                statsService.heatmapYears(currentUser.id(), zoneOffset(timezoneOffset));
         return ResponseEntity.ok(RestApiResponse.ok(years));
+    }
+
+    @Operation(
+            summary = "Heatmap month options",
+            description =
+                    "Lists the calendar months (yyyy-MM) that contain at least one non-zero coding"
+                            + " day in the requested timezone, newest first. Feed for the dashboard"
+                            + " trend-panel month picker; matches the heatmap rendering contract, so"
+                            + " a listed month always has data and a session crossing the month"
+                            + " boundary contributes to both months.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Months retrieved",
+                        content = @Content(schema = @Schema(implementation = String[].class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid API key or JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid API key",
+                                                        value = UNAUTHORIZED_EXAMPLE)))
+            })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
+    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @GetMapping("/heatmap-months")
+    public ResponseEntity<RestApiResponse<List<String>>> heatmapMonths(
+            @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
+                    int timezoneOffset) {
+        CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
+        List<String> months =
+                statsService.heatmapMonths(currentUser.id(), zoneOffset(timezoneOffset));
+        return ResponseEntity.ok(RestApiResponse.ok(months));
     }
 
     @Operation(

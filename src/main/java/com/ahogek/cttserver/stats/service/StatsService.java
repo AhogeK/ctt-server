@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -406,21 +407,61 @@ public class StatsService {
     }
 
     /**
-     * Lists the calendar years that contain valid coding sessions, newest first.
+     * Lists the calendar years that contain at least one non-zero coding day in the requested
+     * timezone, newest first.
      *
-     * <p>Data source is {@code coding_sessions} (not the materialized table): materialization is
-     * lazily bootstrapped, so a cold user's daily_stats can be empty while sessions hold history,
-     * and the partial index {@code idx_sessions_user_time} serves the distinct-year query. The
-     * validity rule ({@code start_time < end_time}) matches the heatmap aggregation so the year
-     * list never includes a year whose only sessions are zero-duration.
+     * <p>Shares {@link #activeYearMonths} with the month list, so the two option lists cannot
+     * disagree; see that method for the source selection and the existence rule.
      *
      * @param userId the owning user
-     * @return years with valid sessions, descending
+     * @param zone aggregation timezone
+     * @return years with coding activity, descending
      */
-    public List<Integer> heatmapYears(UUID userId) {
-        return codingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse(userId).stream()
+    @Transactional(readOnly = true)
+    public List<Integer> heatmapYears(UUID userId, ZoneOffset zone) {
+        return activeYearMonths(userId, zone).stream()
+                .map(YearMonth::getYear)
+                .distinct()
                 .sorted(Comparator.reverseOrder())
                 .toList();
+    }
+
+    /**
+     * Lists the calendar months that contain at least one non-zero coding day in the requested
+     * timezone, newest first.
+     *
+     * <p>Matches the heatmap rendering contract (see {@link #heatmap}): a month qualifies when a
+     * local day inside it has positive seconds, so sessions crossing a month or year boundary
+     * contribute to both sides and the list never advertises an empty month.
+     *
+     * @param userId the owning user
+     * @param zone aggregation timezone
+     * @return {@code yyyy-MM} labels in descending order
+     */
+    @Transactional(readOnly = true)
+    public List<String> heatmapMonths(UUID userId, ZoneOffset zone) {
+        return activeYearMonths(userId, zone).stream().map(YearMonth::toString).toList();
+    }
+
+    /**
+     * Resolves the months with coding activity from the same source the heatmap reads: the
+     * materialized per-UTC-day rows when the request is UTC and bootstrapped, live sessions
+     * otherwise. Year and month option lists share this method so they cannot disagree.
+     *
+     * @param userId the owning user
+     * @param zone aggregation timezone
+     * @return the active months in descending order
+     */
+    private List<YearMonth> activeYearMonths(UUID userId, ZoneOffset zone) {
+        if (canUseMaterializedDays(userId, zone, null)) {
+            return dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId).stream()
+                    .filter(day -> day.getMergedSeconds() > 0)
+                    .map(day -> YearMonth.from(day.getUtcDate()))
+                    .distinct()
+                    .sorted(Comparator.reverseOrder())
+                    .toList();
+        }
+        return StatsCalculator.activeYearMonths(sessionsOf(userId, null), zone);
     }
 
     /**

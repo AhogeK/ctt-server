@@ -819,6 +819,28 @@ public final class StatsCalculator {
     }
 
     /**
+     * Lists the calendar months that contain at least one non-zero coding day in the given zone,
+     * newest first.
+     *
+     * <p>This is the existence test the heatmap renders: a month qualifies when some local day
+     * inside it carries a positive (second-granularity) total. Sessions straddling a month or year
+     * boundary contribute to both months, and the zone conversion happens before truncation, so the
+     * list never advertises a month whose heatmap would be empty.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @return the active months in descending order
+     */
+    public static List<YearMonth> activeYearMonths(List<CodingSession> sessions, ZoneOffset zone) {
+        return mergedSecondsByDay(sessions, zone).entrySet().stream()
+                .filter(entry -> entry.getValue() > 0)
+                .map(entry -> YearMonth.from(entry.getKey()))
+                .distinct()
+                .sorted(Comparator.reverseOrder())
+                .toList();
+    }
+
+    /**
      * Splits a single interval across day boundaries, merging into the per-day map.
      *
      * @param interval the interval
