@@ -277,14 +277,16 @@
 
 ### R17: 分支管理（强制 - 防止生产事故）
 
-**核心原则：master 是生产分支，永远保持干净（无 AI 文件）。**
+**核心原则：master 是生产分支，永远保持干净（无 AI 文件、无开发内容）。**
 
 | 分支 | 用途 | 允许 | 禁止 |
 |---|---|---|---|
-| master | 生产环境 | 业务代码/测试/文档/版本号 | AI文件（memory-bank/.agents/.opencode/AGENTS.md） |
-| develop | 开发环境 | 业务代码 + AI文件 | 无 |
+| master | 生产环境 | 业务代码/测试/版本号/面向用户的项目文档（`docs/` 下的 handbook、strategy、governance 等） | AI文件（memory-bank/.agents/.opencode/AGENTS.md/CLAUDE.md/SKILL_GRAPH.md/skills-lock.json）+ 开发内容（`dev-docs/`、`docs/plans/`、面向对接方的前端/QA 指南） |
+| develop | 开发环境 | 业务代码 + AI文件 + 开发内容 | 无 |
 
-**master同步规则**：从固定起点 → `git rm -rf` AI文件 → cherry-pick develop（排除 `docs(memory-bank)`） → 冲突处理（memory-bank冲突用 `git rm -f`，版本号冲突用 `--theirs`） → 验证（`git ls-files` 无AI文件 + `./gradlew build` 通过）
+**内容边界判据**：「面向本项目的使用者/运维」=项目文档（进 master）；「面向 AI 或面向对接方开发者（前端/插件）的实施过程与对接说明」= AI/开发内容（不进 master）。位于 `docs/` 但内容是对接指南的文件，按**内容**判定，不按目录。
+
+**master同步规则**：从固定起点 → `git rm -rf` AI文件 → cherry-pick develop（排除 `docs(memory-bank)`、`dev-docs/`、`docs/plans/` 路径的变更——feature 提交常携带这些路径，会随 cherry-pick 被捎带进 master） → 冲突处理（memory-bank冲突用 `git rm -f`，版本号冲突用 `--theirs`） → 验证（`git ls-files` 无 AI 文件、无 `dev-docs/`、无 `docs/plans/` + `./gradlew build` 通过）
 
 **禁止操作**：直接merge develop、在master创建AI文件、在master提交docs(memory-bank)、`git reset --hard develop`、反向cherry-pick（master→develop）、在master直接修改代码
 

@@ -6,10 +6,11 @@
       · `85cdc51 chore: remove AI implementation plan from production branch`（删 docs/plans/2026-05-02-terms-acceptance.md，457 行）
       · `3779ef7 chore: remove dev-only documentation from production branch`（删 dev-docs/{apikey,oauth,sync,user}/frontend-integration.md，1301 行）
     - 溯源: 4 份 dev-docs 非刻意添加——随 `feat(oauth)`/`docs(pull paging protocol)` 等 cherry-pick 的提交捎带进 master；README/docs 均未引用
-    - 待裁决（规则冲突）: `docs/terms-acceptance-frontend-guide.md` 内容是"前端对接指南"（与 dev-docs 同类 = 开发内容），但位于 `docs/`（R26 定义的项目文档目录）——「按内容分类」与「按目录分类」两条规则在此文件冲突，已向用户提问
-    - 流程建议（待确认，R14）: R17 master 同步规则应显式排除 `dev-docs/` 路径，否则后续 cherry-pick 携带 dev-docs 变更的提交会把它再带进 master
-    - 验证: master `git ls-tree` 对 `dev-docs|docs/plans|memory-bank|.agents|AGENTS.md|SKILL_GRAPH|.opencode|.claude` 零命中；构建 BUILD SUCCESSFUL（纯文档删除）；develop 保有全部 6 份 dev-docs（零内容丢失）；两分支 clean，已回 develop
-    - 状态: ✅ 已推送，待用户就上述两个待决项回示
+    - 用户裁决: ①`docs/terms-acceptance-frontend-guide.md` 从 master 删除（同一内容判据）→ `0be68a1`，430 行 ②R17 加 dev-docs 排除规则
+    - R17 加固: 核心原则改为"无 AI 文件、无开发内容"；master 禁止项补 CLAUDE.md/SKILL_GRAPH.md/skills-lock.json + dev-docs/、docs/plans/、对接方指南；新增**内容边界判据**（面向本项目使用者=项目文档进 master；面向 AI 或面向对接方开发者的实施/对接说明=不进 master；位于 docs/ 但内容是接指南者按内容判定不按目录）；master同步规则 cherry-pick 排除 `dev-docs/`、`docs/plans/`（feature 提交常携带这些路径被捎带进 master）；验证项补"无 dev-docs、无 docs/plans"
+    - master 终态: `docs/` 仅 6 份面向用户项目文档（api-governance/audit-boundary-spec/case-normalization/developer-handbook/security-architecture/time-strategy）；对 AI 与开发内容零命中
+    - 验证: 构建 BUILD SUCCESSFUL；develop 保有全部 dev-docs 与初始 plans（零内容丢失，仅在 master 侧清除）；两分支 clean，工作分支 develop
+    - 状态: ✅ 全部推送完成
 - [2026-09-11] - 领域知识库建设（memory-bank/domains/，R25 落地）+ systemPatterns 去重
     - 背景: R25 规则已立（上一轮吸收自 ctt-web）但 `domains/` 目录不存在——规则搬了、库没建。用户确认「按你推荐来，不从简、不保守」
     - 判定: 建 **4 个**领域（非原荐 3 个）——核查 auth 域知识密度后追加 `auth-lifecycle`：86 个源文件、219+ 历史条目，且 `OAuthStatePayload.Action` 三处同步约定**错放在 AGENTS.md R8.5（规则文件）**，正是 R25 要归位的领域判断
