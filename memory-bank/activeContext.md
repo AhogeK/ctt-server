@@ -1,4 +1,21 @@
 # Active Context
+- [2026-09-11] - 领域知识库建设（memory-bank/domains/，R25 落地）+ systemPatterns 去重
+    - 背景: R25 规则已立（上一轮吸收自 ctt-web）但 `domains/` 目录不存在——规则搬了、库没建。用户确认「按你推荐来，不从简、不保守」
+    - 判定: 建 **4 个**领域（非原荐 3 个）——核查 auth 域知识密度后追加 `auth-lifecycle`：86 个源文件、219+ 历史条目，且 `OAuthStatePayload.Action` 三处同步约定**错放在 AGENTS.md R8.5（规则文件）**，正是 R25 要归位的领域判断
+    - 建树（21 文件，全部 ≤78 行，无占位符，链接零断链）:
+      · `domains/README.md` 索引（两层分工 + 领域表 + 五件套说明）
+      · `stats-aggregation/` — 时间轴 vs 分类维度守恒律、单次截断、时区先于截断、最大余数配平、物化与 live 等价、选项列表同源、插件对齐
+      · `sync-protocol/` — LWW 四级优先级链 + 内容幂等、游标不可回卷、push 原子性、origin vs last-writer、水位乐观推进的已知缺口
+      · `api-contract/` — 错误码复用优先、状态码归注册表、404 不泄露存在性、兄弟端点错误集一致、429 双发 retryAfter、scope 失败关闭
+      · `auth-lifecycle/` — BIND 不发 token 会话不变量、登录元数据全路径、分层解锁、杀开关、防枚举、terms 版本门、token 用途隔离、captcha 配置开关
+    - 去重迁移（R25「不得两处重复」）:
+      · `systemPatterns.md` 的「同步策略 LWW+软删除」→ 留一行指针指向 sync-protocol/principles.md
+      · 「登录元数据设置模式」表 → 迁至 auth-lifecycle/practices.md，systemPatterns 留指针
+      · AGENTS.md R8.5 的 `OAuthStatePayload.Action` 约定 → 迁至 auth-lifecycle/scenarios.md，R8.5 改为「领域判断归领域文件」原则条款 + 链接
+      · 「客户端分配 ID 实体模式（Device）」保留在 systemPatterns（横切持久层规范），sync-protocol/practices.md 改为链接不复制
+    - 保留未迁: 时间策略/邮箱规范/测试风格/接口治理/接口安全/客户端上下文/传输安全/架构风格/安全底座——均为横切规范，符合 R25 分层
+    - 验证: 链接完整性脚本零断链；行数全部 ≤200；占位符扫描零命中（两条 grep 命中为 "never as a stub"/"Backfills" 误报）
+    - 状态: ✅ 待提交授权
 - [2026-09-11] - AGENTS.md 优化：吸收 ctt-web 的 6 条规则补缺（R14 流程）
     - 触发: 用户要求对照 `../ctt-web/AGENTS.md` 优化本项目规则
     - 事实核查: `.agents/` 在 ctt-server 有 48 个受跟踪文件（AI 技能工作区却无保护规则，真实缺口）；`.omp/` 已 gitignore（第 55 行）；AGENTS.md 仅存在于 develop（master 无 AI 文件，R17 一致）
