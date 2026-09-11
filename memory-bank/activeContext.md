@@ -1,4 +1,15 @@
 # Active Context
+- [2026-09-11] - master 生产分支内容边界清理（非 AI 的"开发内容"一并清出）
+    - 触发: 用户指出 master 上的 `docs/plans/2026-05-02-terms-acceptance.md` 属 AI 内容必须删除；并纠正我的误判——`dev-docs/` 下的两份 QA 文档是**开发内容**，本就不属 master（我此前建议 cherry-pick 过去是错的）
+    - 判据（用户给定）: master = 项目文档（`docs/` 面向用户者）+ 业务代码/测试/版本；`docs/plans/`（AI 计划）与 `dev-docs/`（开发/对接内容）均不进 master
+    - 执行:
+      · `85cdc51 chore: remove AI implementation plan from production branch`（删 docs/plans/2026-05-02-terms-acceptance.md，457 行）
+      · `3779ef7 chore: remove dev-only documentation from production branch`（删 dev-docs/{apikey,oauth,sync,user}/frontend-integration.md，1301 行）
+    - 溯源: 4 份 dev-docs 非刻意添加——随 `feat(oauth)`/`docs(pull paging protocol)` 等 cherry-pick 的提交捎带进 master；README/docs 均未引用
+    - 待裁决（规则冲突）: `docs/terms-acceptance-frontend-guide.md` 内容是"前端对接指南"（与 dev-docs 同类 = 开发内容），但位于 `docs/`（R26 定义的项目文档目录）——「按内容分类」与「按目录分类」两条规则在此文件冲突，已向用户提问
+    - 流程建议（待确认，R14）: R17 master 同步规则应显式排除 `dev-docs/` 路径，否则后续 cherry-pick 携带 dev-docs 变更的提交会把它再带进 master
+    - 验证: master `git ls-tree` 对 `dev-docs|docs/plans|memory-bank|.agents|AGENTS.md|SKILL_GRAPH|.opencode|.claude` 零命中；构建 BUILD SUCCESSFUL（纯文档删除）；develop 保有全部 6 份 dev-docs（零内容丢失）；两分支 clean，已回 develop
+    - 状态: ✅ 已推送，待用户就上述两个待决项回示
 - [2026-09-11] - 领域知识库建设（memory-bank/domains/，R25 落地）+ systemPatterns 去重
     - 背景: R25 规则已立（上一轮吸收自 ctt-web）但 `domains/` 目录不存在——规则搬了、库没建。用户确认「按你推荐来，不从简、不保守」
     - 判定: 建 **4 个**领域（非原荐 3 个）——核查 auth 域知识密度后追加 `auth-lifecycle`：86 个源文件、219+ 历史条目，且 `OAuthStatePayload.Action` 三处同步约定**错放在 AGENTS.md R8.5（规则文件）**，正是 R25 要归位的领域判断
