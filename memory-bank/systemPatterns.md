@@ -6,7 +6,8 @@
 
 ## 同步策略: LWW + 软删除
 
-多设备双向同步采用基于时间戳的 LWW (Last-Write-Wins) 策略，软删除防止数据丢失。
+多设备双向同步采用 LWW (Last-Write-Wins) + 软删除。**优先级链、幂等规则、游标语义、分页契约见
+[`domains/sync-protocol/principles.md`](domains/sync-protocol/principles.md)**（领域文件是权威，此处不重复）。
 
 ## 认证方式: JWT + API Key 双轨制
 
@@ -54,22 +55,14 @@ X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP。
 - 遵循 AGENTS.md R12（禁止擅自添加依赖）
 - AssertJ `then()` 与 `assertThat()` 功能相同，无实际改进价值
 
-## 登录元数据设置模式
+## 登录元数据（见领域文件）
 
-登录成功后必须同步更新 User 实体的 `lastLoginAt` 和 `lastLoginIp` 字段：
-
-| 登录流程 | lastLoginAt | lastLoginIp | 位置 |
-|---|---|---|---|
-| 邮箱密码登录 | `Instant.now()` | `RequestContext.current().map(RequestInfo::clientIp)` | `UserLoginService.login()` |
-| OAuth 已有绑定登录 | `Instant.now()` | `clientIp`（从 state payload 取得，authorize 时捕获） | `OAuthLoginOrRegisterService.handleExistingBinding()` |
-| OAuth 新用户注册 | `Instant.now()` | `clientIp`（同上） | `OAuthLoginOrRegisterService.registerNewUser()` |
-| BIND 流程 | 不设置（不是登录） | 不设置 | — |
-| UNBIND 流程 | 不设置（不是登录） | 不设置 | — |
-
-**防复发检查清单**：实现新登录/注册流程时，必须检查 User 实体的时间戳字段是否需要同步更新。
+登录成功必须同步 `lastLoginAt` / `lastLoginIp`（各流程逐一对照表 + 防复发清单在
+[`domains/auth-lifecycle/practices.md`](domains/auth-lifecycle/practices.md)）。
 
 ## 详细文档
 
+- [领域知识图谱](domains/README.md) — 领域级不变量/判断/做法（R25 治理）
 - [时间策略](../docs/time-strategy.md)
 - [大小写规范](../docs/case-normalization.md)
 - [接口治理](../docs/api-governance.md)

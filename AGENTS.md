@@ -136,7 +136,7 @@
 
 发现冲突 → 暂停 → grep搜索现有模式 → 向用户确认 → 按项目一致性调整
 
-- **OAuthStatePayload.Action 枚举使用约定**：扩展 Action 时必须同步更新三处：(1) OAuthStatePayload canonical constructor 校验；(2) OAuthCallbackController authorize + callback 分支；(3) 至少三个测试文件（OAuthStatePayloadTest + OAuthStateServiceTest + OAuthCallbackControllerMockMvcTest + OAuthLoginOrRegisterServiceTest）
+- **领域判断归领域文件**：领域专属的约定/不变量不再堆在规则文件里。例：`OAuthStatePayload.Action` 扩展时的三处同步约定已迁至 [`memory-bank/domains/auth-lifecycle/scenarios.md`](memory-bank/domains/auth-lifecycle/scenarios.md)（R25）
 
 ### R9: 代码规范
 
