@@ -387,19 +387,68 @@ class StatsServiceTest {
         @Test
         @DisplayName("heatmapYearsShouldReturnDescending_whenSessionsExist")
         void heatmapYearsShouldReturnDescending_whenSessionsExist() {
-            when(codingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse(userId))
-                    .thenReturn(List.of(2024, 2026, 2025));
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(false);
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session("2025-03-10T10:00:00", "2025-03-10T11:00:00"),
+                                    session("2026-06-10T10:00:00", "2026-06-10T11:00:00"),
+                                    session("2026-08-10T10:00:00", "2026-08-10T11:00:00")));
 
-            assertThat(service.heatmapYears(userId)).containsExactly(2026, 2025, 2024);
+            assertThat(service.heatmapYears(userId, ZoneOffset.UTC)).containsExactly(2026, 2025);
         }
 
         @Test
         @DisplayName("heatmapYearsShouldReturnEmpty_whenNoSessions")
         void heatmapYearsShouldReturnEmpty_whenNoSessions() {
-            when(codingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse(userId))
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(false);
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(List.of());
 
-            assertThat(service.heatmapYears(userId)).isEmpty();
+            assertThat(service.heatmapYears(userId, ZoneOffset.UTC)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("heatmapMonthsShouldReturnDescending_whenSessionsExist")
+        void heatmapMonthsShouldReturnDescending_whenSessionsExist() {
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(false);
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session("2025-03-10T10:00:00", "2025-03-10T11:00:00"),
+                                    session("2026-08-10T10:00:00", "2026-08-10T11:00:00"),
+                                    session("2026-06-10T10:00:00", "2026-06-10T11:00:00")));
+
+            assertThat(service.heatmapMonths(userId, ZoneOffset.UTC))
+                    .containsExactly("2026-08", "2026-06", "2025-03");
+        }
+
+        @Test
+        @DisplayName("heatmapMonthsShouldShiftMonth_whenZoneConversionMovesDayOverBoundary")
+        void heatmapMonthsShouldShiftMonth_whenZoneConversionMovesDayOverBoundary() {
+            // Stored 2026-08-31T16:30Z is local 2026-09-01 00:30 in UTC+8.
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(false);
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(session("2026-08-31T16:30:00", "2026-08-31T17:00:00")));
+
+            assertThat(service.heatmapMonths(userId, ZoneOffset.ofHours(8)))
+                    .containsExactly("2026-09");
+            assertThat(service.heatmapMonths(userId, ZoneOffset.UTC)).containsExactly("2026-08");
+        }
+
+        @Test
+        @DisplayName("heatmapMonthsShouldReadMaterializedRows_whenUtcAndBootstrapped")
+        void heatmapMonthsShouldReadMaterializedRows_whenUtcAndBootstrapped() {
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(true);
+            when(dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId))
+                    .thenReturn(
+                            List.of(
+                                    day("2026-07-15", 3600),
+                                    // zero-second day must not register its month
+                                    day("2026-08-15", 0)));
+
+            assertThat(service.heatmapMonths(userId, ZoneOffset.UTC)).containsExactly("2026-07");
+            verify(codingSessionRepository, never()).findAllByUserIdAndIsDeletedFalse(any());
         }
 
         @Test

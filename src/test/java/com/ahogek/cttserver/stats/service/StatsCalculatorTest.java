@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
 
@@ -801,6 +802,93 @@ class StatsCalculatorTest {
 
             assertThat(distribution.points()).isEmpty();
             assertThat(distribution.weekdayCounts()).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("activeYearMonths")
+    class ActiveYearMonthsTests {
+
+        @Test
+        @DisplayName("shouldConvertZoneBeforeTruncating_whenSessionNearMonthBoundary")
+        void shouldConvertZoneBeforeTruncating_whenSessionNearMonthBoundary() {
+            // Local 2026-09-01 00:30 (+08:00) = 2026-08-31T16:30Z: the month list must report
+            // September for a UTC+8 caller, not the UTC month it was stored under.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-31T16:30:00"),
+                                    at("2026-08-31T17:00:00"),
+                                    "a",
+                                    "Java"));
+
+            assertThat(StatsCalculator.activeYearMonths(sessions, UTC_PLUS_8))
+                    .containsExactly(YearMonth.of(2026, 9));
+            assertThat(StatsCalculator.activeYearMonths(sessions, UTC))
+                    .containsExactly(YearMonth.of(2026, 8));
+        }
+
+        @Test
+        @DisplayName("shouldListBothMonths_whenSessionCrossesMonthBoundary")
+        void shouldListBothMonths_whenSessionCrossesMonthBoundary() {
+            // 2026-08-31 23:00 -> 2026-09-01 01:00 contributes a non-zero day to both months.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-31T23:00:00"),
+                                    at("2026-09-01T01:00:00"),
+                                    "a",
+                                    "Java"));
+
+            assertThat(StatsCalculator.activeYearMonths(sessions, UTC))
+                    .containsExactly(YearMonth.of(2026, 9), YearMonth.of(2026, 8));
+        }
+
+        @Test
+        @DisplayName("shouldListBothYears_whenSessionCrossesYearBoundary")
+        void shouldListBothYears_whenSessionCrossesYearBoundary() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2025-12-31T23:00:00"),
+                                    at("2026-01-01T01:00:00"),
+                                    "a",
+                                    "Java"));
+
+            assertThat(StatsCalculator.activeYearMonths(sessions, UTC))
+                    .containsExactly(YearMonth.of(2026, 1), YearMonth.of(2025, 12));
+        }
+
+        @Test
+        @DisplayName("shouldMergeOverlapsAndIgnoreInvalid_whenDerivingMonths")
+        void shouldMergeOverlapsAndIgnoreInvalid_whenDerivingMonths() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-06-10T10:00:00"),
+                                    at("2026-06-10T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-06-10T10:30:00"),
+                                    at("2026-06-10T11:30:00"),
+                                    "b",
+                                    "Kotlin"),
+                            // zero-duration: must not register a month of its own
+                            session(
+                                    at("2026-07-01T10:00:00"),
+                                    at("2026-07-01T10:00:00"),
+                                    "c",
+                                    "Java"));
+
+            assertThat(StatsCalculator.activeYearMonths(sessions, UTC))
+                    .containsExactly(YearMonth.of(2026, 6));
+        }
+
+        @Test
+        @DisplayName("shouldReturnEmpty_whenNoSessions")
+        void shouldReturnEmpty_whenNoSessions() {
+            assertThat(StatsCalculator.activeYearMonths(List.of(), UTC)).isEmpty();
         }
     }
 
