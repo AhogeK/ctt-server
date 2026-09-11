@@ -22,9 +22,11 @@
 
 **更新格式**：`[YYYY-MM-DD] - 变更标题` + 文件/影响说明
 
-### R3: 关联项目
+### R3: 关联项目（只读红线）
 
-`../code-time-tracker` - API 变更、数据结构修改、协议更新时主动读取。
+`../code-time-tracker`（JetBrains 插件端）与 `../ctt-web`（Vue 前端）均为**只读**关联项目：API 契约、数据结构、认证协议、同步协议、统计口径、响应格式变更时**主动读取**其源码/文档验证实际行为，不猜测接口形状。
+
+**严禁修改关联项目任何文件**（含源码/测试/文档/版本号）。关联方能力不足或契约需变更时，以**需求文本**形式提出（现状 / 期望行为 / 理由 / 影响面 / 对接方配合），由用户决策实施。
 
 ### R4: README 同步
 
@@ -111,6 +113,7 @@
 ### R8: 边界原则
 
 - **不懂就问**：不确定时停下来问用户，禁止盲目猜测
+- **讨论信号**：用户提出"为什么 / 能不能 / 是否应该 / 你看呢 / 是不是…更好"类问题 = 讨论与确认信号，先给分析 + 方案，**确认后才实施**；严禁把质疑性提问当作实施指令
 - **现代 Java**：优先 `record`、`sealed class`、`pattern matching`，避免 Lombok
 - **验证优先**：不确定内容先验证再使用
 - **变更溯源**：发现与预期/记忆不一致时，优先猜想"是否被用户修改了"而非"AI 忘了改/改错了"
@@ -142,7 +145,7 @@
 - **OpenAPI Schema（强制）**：所有DTO/Response加 `@Schema(description)`，每个字段加 `@Schema(description, example)`，校验注解不可遗漏，禁止硬编码版本号（用 `@Value("${info.app.version}")`），@ApiResponse必须带content，错误响应必须有独立示例
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试**：多断言链式调用 `.isX().isY().isZ()`，方法名 `shouldX_whenY`
-- **编辑前验证（强制）**：先读完整文件 → 编辑后LSP diagnostics → 编译验证 → 运行相关测试
+- **编辑前验证（强制）**：先读完整文件（片段读取不足时直接整文件读取，不反复片段读同一文件）→ 编辑后LSP diagnostics → 编译验证 → 运行相关测试
 
 ### R10: 任务规划（强制）
 
@@ -196,6 +199,53 @@
 修复完成后的正确收尾：报告修复内容 + 验证结果 + 「待授权提交」，**停**。
 
 例外：用户在同一次交互中已明示「修复并提交」的完整链条（如「需要修」+ 上下文明确包含提交意图）→ 可提交，但模糊时一律停下问（R6 红线）。
+
+### R24: AI 边界（身份 / AI 文件 / 子任务只读）（强制）
+
+**AI 身份**：本仓库（ctt-server）的后端开发者，**唯一可写仓库 = ctt-server**；`../code-time-tracker`、`../ctt-web` 一律只读 + 提需求（R3）。
+
+**AI 文件保护**：`.agents/` 是 AI 技能工作区，不是项目源码。
+
+- ❌ 禁止读取/修改/删除 `.agents/skills/` 下任何文件，禁止因"发现问题"而改动
+- ❌ 禁止将 `.agents/` 纳入代码审查 / 重构 / 清理范围
+- ✅ 仅当用户明确要求时才可操作；发现问题只提醒用户
+
+**子任务只读**：审查/检查/调查类子任务（code-review、explore、scout 等）严格只读——禁止 `--fix` 类命令（`spotlessApply`、格式化写盘）与任何文件写入；需要验证仅允许只读检查（不带 `--fix` 的检查、不写盘的定位分析）。
+
+**红线**：子 agent 写盘会全项目污染工作区；越权跨仓库改动须回退并记录。
+
+### R25: 领域知识库（强制）
+
+**核心原则：知识按「领域」沉淀，不按「时间」堆积。** 时间线（activeContext / progress）只回答"最近发生了什么"；跨轮次可复用的判断沉淀到 `memory-bank/domains/<domain>/`。
+
+**第一层永远是领域**（业务/技术能力面，如 `stats-aggregation`、`sync-protocol`），禁止按文档类型建第一层（`principles/`、`practices/` 这类全局扁平目录）。
+
+**每领域五件套**（缺一不可，建立即填实，禁止占位）：
+
+| 文件 | 职责 | 判定标准 |
+|---|---|---|
+| `meta.md` | 领域边界、负责范围、代码入口、领域术语 | 只看这一个就知道"归哪、从哪看起" |
+| `principles.md` | 不变量与第一性原理（决策依据） | 能用来裁决新情况 |
+| `scenarios.md` | 触发场景 → 判断 → 动作 | 遇到 X 该怎么做，不用重新推理 |
+| `practices.md` | 具体做法、参数、代码模式、踩坑与规避 | 可直接照做，含反例与"为什么" |
+| `references.md` | 外部契约、端点、数据字典、文件路径 | 事实性查表，不含判断 |
+
+**生长规则**：按需建档（宁可少而实，禁止为凑结构建空领域）；新知识先归类再更新对应文件；`memory-bank/domains/README.md` 索引必须与目录同步；横切规范留 `systemPatterns.md`，领域专属判断进领域文件，**不得两处重复**。
+
+**红线**：❌ 占位文件 / `TODO: fill` / 空章节 ❌ 把领域文件当 changelog 用（版本流水账属 `progress.md`）❌ 与代码/契约不一致的表述（涉契约先只读核对源码）；单文件仍受 ≤200 行约束。
+
+### R26: AI 产物位置（强制）
+
+`docs/` 只放**面向用户的项目文档**（developer-handbook、time-strategy、api-governance 等）；AI 工作产物一律放 `.omp/`（已 gitignore，不进仓库）：
+
+| 产物 | 位置 |
+|---|---|
+| 实施计划 | `.omp/plans/<feature>-plan.md`（**不带日期**，日期写文件内 `Date:` 字段） |
+| 交付报告 / 需求草案 | `.omp/<topic>-delivery-report.md`、`.omp/<topic>-requirement.md` |
+| Agent 记忆 | `memory-bank/`（受 R1/R2/R13/R25 治理，**需要提交**） |
+| 面向用户的项目文档 | `docs/` |
+
+**红线**：禁止把实施计划写进 `docs/plans/`。
 
 ### R14: AGENTS.md 自更新（强制）
 
@@ -289,4 +339,10 @@
 
 ## 记忆库结构
 
-`memory-bank/`：projectbrief.md（目标）、techContext.md（技术栈）、systemPatterns.md（规范）、activeContext.md（当前）、progress.md（进度）
+**时间线层**（回答"最近发生了什么"）：
+
+`memory-bank/`：projectbrief.md（目标）、techContext.md（技术栈）、systemPatterns.md（横切规范）、activeContext.md（当前）、progress.md（进度）、`memory-bank/archive/`（R13 冷归档，唯一豁免行数限制）
+
+**领域层**（回答"这里什么是真的、该怎么做"，R25 治理）：
+
+`memory-bank/domains/<domain>/` — 每领域五件套 `meta.md` / `principles.md` / `scenarios.md` / `practices.md` / `references.md`；入口 `domains/README.md`（按需建档，无领域时不存在）
