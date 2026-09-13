@@ -463,7 +463,10 @@ idempotent (unique constraint, one `ACHIEVEMENT_UNLOCKED` audit event per badge)
 the instant the badge was **earned**, back-inferred from the session history by the same
 computation that produced the progress (the third consecutive day, the moment a cumulative total
 crossed its threshold), not the moment the page was opened; evaluation is lazy, so stamping the
-observation time would misdate every badge a user collects before visiting. Each badge carries
+observation time would misdate every badge a user collects before visiting. Reported progress is
+monotonic: the highest value ever measured per family is persisted in `achievement_progress`, so
+deleting sessions cannot make an awarded badge read "3 of 10" — the reported number is floored by
+the stored mark and by the highest rung already earned for that family. Each badge carries
 its family (`type`) and its 1-based rung within that family (`tier`), so a client groups badges into
 ladders without maintaining its own code-to-family table; thresholds step up per family so the gap
 between consecutive unlocks grows, and `PERFECT_MONTH` measures the best calendar month's coverage
