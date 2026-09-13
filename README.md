@@ -457,9 +457,10 @@ buckets follow the plugin's statistics (Night 00:00-05:59, Morning 06:00-11:59, 
 Evening 18:00-23:59) and slice bucket-spanning sessions at bucket boundaries, so its entries sum to
 the summary total; other distributions accumulate raw durations per session, matching the plugin
 StatisticsView semantics. Badges
-are unlocked lazily on query — 51 badges across seven families (streak 8, total duration 8, language
-count 9, early bird 8, night owl 8, daily burst 5, perfect month 5) — and unlock records are
-idempotent (unique constraint, one `ACHIEVEMENT_UNLOCKED` audit event per badge). `unlockedAt` is
+are unlocked lazily on query — 67 badges: 51 perpetual ones across seven families (streak 8, total
+duration 8, language count 9, early bird 8, night owl 8, daily burst 5, perfect month 5) plus 16
+windowed ones that reset every period (daily 3, weekly 5, monthly 4, yearly 4) — and unlock records
+are idempotent (one `ACHIEVEMENT_UNLOCKED` audit event per badge per period). `unlockedAt` is
 the instant the badge was **earned**, back-inferred from the session history by the same
 computation that produced the progress (the third consecutive day, the moment a cumulative total
 crossed its threshold), not the moment the page was opened; evaluation is lazy, so stamping the
@@ -468,7 +469,11 @@ monotonic: the highest value ever measured per family is persisted in `achieveme
 deleting sessions cannot make an awarded badge read "3 of 10" — the reported number is floored by
 the stored mark and by the highest rung already earned for that family. Each badge carries
 its family (`type`) and its 1-based rung within that family (`tier`), so a client groups badges into
-ladders without maintaining its own code-to-family table; thresholds step up per family so the gap
+ladders without maintaining its own code-to-family table; `window` (`LIFETIME` / `DAY` / `WEEK` /
+`MONTH` / `YEAR`) says whether the badge resets, with `windowStart` / `windowEnd` giving the current
+local period bounds (`null` for `LIFETIME`), and rungs are numbered per family *and* window, so a
+day's 2-hour goal is not compared against the lifetime ladder's thresholds. Thresholds step up per
+family so the gap
 between consecutive unlocks grows, and `PERFECT_MONTH` measures the best calendar month's coverage
 as a percentage of that month's own length (`progress` 0-100, `unit` `percent`), so a fully coded
 28-day February scores 100 rather than being penalised for being short. Achievements responses are
