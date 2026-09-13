@@ -1,4 +1,25 @@
 # Active Context
+- [2026-09-11] - 成就系统扩展 Batch 1（type/tier 投影 + 阶梯扩容 + PERFECT_MONTH 连续化）
+    - 需求来源: ctt-web 六类问题文档（成就终局/阶梯太短/步长失衡/PERFECT_MONTH 二值/unlockedAt 语义/progress 可倒退）。核实后**前端文档 3 处错误 + 2 处缺口**：①DAILY_BURST progress 已是秒（MAX_DAILY_SECONDS）不需改语义 ②阶梯提案丢了 3 个现存 code（LANGUAGES_10/EARLY_BIRD_30/NIGHT_OWL_30）会孤立已解锁记录 ③tier 非"枚举已持有"需推导；缺口：周期成就需 period_key 改唯一约束（前端的"高"成本实为 schema 变更）、46 阶会退化成 46 次全量扫描
+    - 评审报告: `.omp/achievement-expansion-review.md`（267 行，已 gitignore）
+    - 实施: Achievement 枚举 15 → **51 阶**（STREAK 8 / TOTAL 8 / LANGUAGES 9 / EARLY_BIRD 8 / NIGHT_OWL 8 / DAILY_BURST 5 / PERFECT_MONTH 5），**保留全部 15 个既存 code**；tier 由静态 TIERS 表按 type 分组 + target 升序推导（不手写序数）；AchievementResponse 增 type/tier；AchievementService 加 **per-type EnumMap 记忆化**（51 阶 → 7 次计算，原为每常量一次）；`LocalDate.now(clock)` → `LocalDate.now(clock.withZone(zone))` 修正 UTC 与本地日不一致
+    - PERFECT_MONTH 语义变更: `hasPerfectMonth(...)?1:0`（二值、零容错）→ `bestPerfectMonthPercent`（历史最佳月份的**百分比覆盖** 0-100，unit `month`→`percent`）。百分比制而非整数天数阶梯：28 天月全勤=100、31 天月 29 天=93，跨月长语义一致
+    - 测试: 新增 `AchievementTest`（3 组不变量：既存 code 不可丢/每家族 ≥5 阶/target 单调且 tier 连续）；StatsCalculatorTest perfectMonth 改写为百分比（含 2 月满勤=100、96% 下取整、取最佳月）；集成测试 `hasSize(15)` → `hasSize(Achievement.values().length)`（去硬编码）；Service 测试补 type/tier 断言
+    - 验证: 全量 **BUILD SUCCESSFUL** + jacoco PASS + spotless PASS（1346 → 更多用例）
+    - 双轴 code review（parallel sub-agents，各自独立上下文）:
+      · Standards 轴 4 项硬违规：README 仍写"15 badges"+PERFECT_MONTH 陈旧（R4/R17 违反）/ AchievementTest 缺 `_whenY` / 枚举 Javadoc「×1.6-2.2 倍率」与实际不符（实测 TOTAL 2.0-2.5、BURST 1.2-1.5、PERFECT 1.05-1.4）/ AchievementType.PERFECT_MONTH Javadoc 仍是旧二值语义
+      · Spec 轴：in-scope 全部实现（51 阶 7 家族、15 个既存 code 全保留、百分比制 2 月满勤=100 已测）；越界 2 项（PERFECT_MONTH_50/_70 为满足 §2「≥5 阶」下限所必需；today 用 zone 投影属第 7 步前置修正，此处行为中性）；0 功能错误
+      · 两轴**独立命中同一处 Javadoc 缺陷**——最高可信度发现
+      · 额外发现（子 agent 未提，我方核查）：新 DTO 字段无 MVC/Jackson 全链路断言；缓存键未版本化 → 滚动部署 60s 内旧 JSON 反序列化得 type=null/tier=0 且服务旧阶梯（已实测 Jackson 非严格 + `default-property-inclusion: non_null` 确认可静默成功）
+    - 审查后修复:
+      · README 成就段重写（51 badges 七家族分布 + type/tier + PERFECT_MONTH 百分比语义 + 版本化缓存键）
+      · Achievement 枚举 Javadoc 倍率声明改为"按家族分别校准"（不再声称统一几何带）
+      · AchievementType.PERFECT_MONTH Javadoc 改为百分比语义
+      · 缓存键 `achievements:cache:` → `achievements:cache:v2:`（格式版本化，evictCache 复用同一常量自动跟随）
+      · AchievementTest 重写：`shouldGiveEveryFamily_atLeastFiveRungs` 补全 `_whenY`；消除与 buildTiers 重复的分组逻辑，改走 public API
+      · 集成测试补 type/tier 经 HTTP/Jackson 的断言（STREAK_7 → type=STREAK, tier=2）
+    - 最终验证: 全量 **1352 tests / 0 failures / 0 errors**（1 skipped）；jacoco INSTRUCTION **95.24%**（阈值 80%）+ BRANCH **84.57%**（阈值 70%）；spotlessCheck PASS；compileJava + compileTestJava PASS
+    - 状态: ✅ Batch 1 完成（含审查修复），待授权提交（Batch 2 = achievedAt 回推；Batch 3 = progress 高水位；Batch 4 = 周期成就）
 - [2026-09-11] - master 生产分支内容边界清理（非 AI 的"开发内容"一并清出）
     - 触发: 用户指出 master 上的 `docs/plans/2026-05-02-terms-acceptance.md` 属 AI 内容必须删除；并纠正我的误判——`dev-docs/` 下的两份 QA 文档是**开发内容**，本就不属 master（我此前建议 cherry-pick 过去是错的）
     - 判据（用户给定）: master = 项目文档（`docs/` 面向用户者）+ 业务代码/测试/版本；`docs/plans/`（AI 计划）与 `dev-docs/`（开发/对接内容）均不进 master
@@ -127,206 +148,6 @@
 - [2026-09-01] - 用户纠正：未授权提交（R23 固化）+ memory-bank 冷热分层（R13 重写）
     - 纠正: 修复审查发现后自行 commit+push（把「需要修」当成了提交授权）——R6 授权边界误判，已固化 R23「修复≠提交」：修复完成报告后必须停，等当次交互的明确提交指令；本次 7edf735/c066f54 不回滚，下不为例
     - 冷热分层: memory-bank/archive/ 按月分片归档冷数据（修剪=归档而非删除）；activeContext.md 1598→243 行（27 热条目 + 归档指针），150 冷条目入 5 个月度 shard（2026-03..07），完整性校验通过（1622 = 1598 + 6 shard 头）；R13 重写为归档制（禁止直接删除、shard 只写不改、完整性校验步骤）
-- [2026-08-31] - 统计 IDE 维度补充（distribution type=IDES，v0.59.0）
-    - 设计决策: IDE 维度=派生自 origin 设备注册的 ide_name（devices.ide_name 列已有），不新增列——插件端 deviceId 是安装级（共享 SQLite app_user first-write-wins，同机多 IDE 共享一个 deviceId），sync 协议不携带 per-session IDE（SyncSessionDto 只有 projectName/language/时间/版本，插件 pull 时盖自己的 localIdeName，per-session IDE 语义本就不精确），按 origin 设备的注册 IDE 分桶是零协议/零插件/零迁移的正确粒度
-    - 实现: DistributionType.IDES + StatsService.idesDistribution（deviceId→ideName 映射，无 ideName 注册的设备 fallback "Unknown IDE"）+ 提取 aggregateByLabel 共享聚合 helper（devices/ides 共用 group→sum→排序，消除设备维度遗留的重复形状——上轮 Standards 审查判断项顺手解决）
-    - 测试: StatsServiceTest +1（IDES 分桶降序含 Unknown IDE fallback）+ StatsIntegrationTest IDES 探针（IDE 名解析+原始时长累加）；测试坑：registerDevice helper 未传 ideName → IDES 桶全落 Unknown IDE 合并 10800≠断言 7200，修复 helper 加 "ideName": "IntelliJ IDEA"（两设备同 IDE → 单桶原始 2h+1h=10800，distribution 是原始累加不合并重叠）
-    - 状态: ✅ 实施+全量 1295/0 + spotless 全绿，Notion 双计划已同步（ctt-server S1 实现状态 + 关键决策；ctt-web 第三阶段 IDE 维度说明 + D6），待提交授权
-- [2026-08-31] - 用户规则：AI 用的文档（计划/验收报告等）放 `.omp/`，`docs/` 只放项目文档（本次 stats-device-dimension 计划已从 docs/plans/ 移至 .omp/stats-device-dimension-plan.md；历史记录 866/1227 行的 docs/plans 引用为当时路径，不改史）
-- [2026-08-31] - 统计设备维度实施（origin_device_id + 全端点 deviceId 过滤，v0.58.0）
-    - 设计决策: ①数据模型=coding_sessions 新增 origin_device_id（push 创建时从 deviceId 盖章，跨设备更新/删除不改写——updated_by_device_id 是最后写入设备，跨设备编辑会漂移不能当归属维度）②独立迁移 V20260831233000（加列 + 存量回填 origin=updated_by_device_id 单设备用户精确/多设备用户最佳近似 + idx_sessions_user_origin 部分索引 (user_id, origin_device_id) WHERE is_deleted=false）③全 7 统计端点（除 achievements）可选 deviceId 过滤；带筛选回退实时聚合（S5 物化按 user 粒度无法服务设备维度，与非 UTC 回退同模式）④distribution 新增 type=DEVICES（设备名映射经 DeviceRepository，已吊销设备仍归属；未知设备 fallback "Unknown device"）⑤归属校验：deviceId 非本人/不存在 → 404 COMMON_002 "Device not found or access denied"（对齐 DeviceService/SyncPushService 既有语义）
-    - 实现: CodingSession.originDeviceId 字段 + SyncPushService 创建路径盖章（toCreate 仅一处，更新/删除不动）+ batchInsertSessions 16 列（多值 INSERT 加 origin 列）+ CodingSessionRepository.findAllByUserIdAndOriginDeviceIdAndIsDeletedFalse + DistributionType.DEVICES + StatsService 全方法 deviceId 参数（sessionsOf 过滤 + requireOwnedDevice + devicesDistribution）+ StatsController 6 端点 deviceId @Parameter
-    - 测试: StatsServiceTest +4（设备过滤走实时路径/非 UTC+设备回退/DEVICES 分布降序含 Unknown fallback/他人设备 404）+ StatsIntegrationTest +2（真实 push 盖章 origin + 跨设备更新不漂移 + 设备筛选 summary/heatmap 子集正确 + DEVICES 分布 + 他人设备 404）+ SyncPushServiceTest 适配 16 列（INSERT 断言 origin 列 + 回滚测试步进 15→16）
-    - 踩坑: ①Edit 工具再次损坏文件（CodingSession/SyncPushService 双处）→ 改用 python 脚本修复+后续编辑全走脚本（memory-bank 有先例记录）②isDeleted() getter 在修复中被吞 → 编译期暴露补回 ③全量测试 EOFException 假失败（Gradle binary 结果文件被后台终止写坏）→ rm -rf build/test-results 后重跑 1293/0 真绿 ④集成测试 LIMIT 1 无 ORDER BY 撞两行 → 按 session_uuid 精确查询 ⑤text block .formatted() 不接受 UUID → toString()
-    - 联动: ctt-web Notion 开发计划同步更新（第三阶段设备筛选恢复 + 风险表标记已解决 + 引用 v0.58.0 deviceId 契约）
-    - 双轴审查修复（reviewer ×2 并行）: ①六端点 @ApiResponses 补 404 COMMON_002（R9 错误响应规范，对齐 DeviceController 先例 DEVICE_NOT_FOUND_EXAMPLE）②distribution @Operation 描述补 devices（计划明示项）③补吊销设备归属集成测试（sync key push + write key 吊销 + READ 过滤/DEVICES 分布仍归属——评审发现的测试缺口）④devicesDistribution 删死参数 zone（Speculative Generality）⑤提取 canUseMaterializedDays 谓词消除 summary/heatmap/streaks 三处守卫重复 ⑥规格措辞勘误记录：Success Criteria "all 7 endpoints" 应为 6（achievements 无 deviceId 属规格内部矛盾非代码缺口）；"filtered totals equal subsets" 字面不可满足（summary 合并重叠，意图已满足）
-    - 状态: ✅ 实施+双轴审查+修复完成，全量 1294/0 + jacoco(stats/service 94.9%) + spotless 全绿，待用户授权提交
-- [2026-08-31] - S5 性能与物化实施（stats/materialization 子包，v0.57.0）
-    - 设计决策: ①物化粒度=per-user per-UTC-day（daily_stats 表，主键 user_id+utc_date，merged_seconds+languages JSONB）——UTC 日物化可服务 UTC 读路径零精度损失；时区偏移读保留实时聚合（跨本地午夜会话归两天，UTC 单日无法无损服务偏移边界）②增量物化=push 事务内仅重算触及时 UTC 日（toCreate/toUpdate 触及日期），O(触明日数) ③惰性自举=存量用户首次 UTC 读触发全量重建一次（用户级 Redis 锁，bootstrapIfNeeded REQUIRES_NEW 脱离只读事务——readOnly 事务内 DELETE 会崩）④achievements 结果 Redis 缓存 TTL 60s + push 失效（15 成就全量重算是最重读路径）
-    - 实现: DailyStats 实体（IdClass 复合主键）+ DailyStatsRepository（upsertDay ON CONFLICT/deleteByUserId/范围查询）+ DailyStatsMaterializer（recomputeDays/bootstrapIfNeeded，锁+失败容忍）+ StatsCalculator.mergedSecondsByDay/languagesByDay（新增公开方法）+ StatsService summary/heatmap/streaks UTC 读物化+非 UTC 实时回退 + AchievementService 缓存/失效 + SyncPushService 接入两个触发
-    - 测试: DailyStatsMaterializerTest 6（触明日 upsert/零行/跳过/失败容忍+锁释放/自举重建/已存在跳过/锁竞争返回 false）+ StatsIntegrationTest +2（物化行 push 写入+UTC 读一致/缓存失效后 TOTAL_10_HOURS 解锁）
-    - 踩坑: ①bootstrapIfNeeded 在 readOnly 事务内 DELETE 崩（read-only transaction）→ REQUIRES_NEW ②rebuildAll 收集触明日只看 start_time 漏跨午夜次日 → 用 mergedSecondsByDay/languagesByDay keySet 并集 ③createApiKey(jwt, "SYNC") 漏传 scope varargs（name 与 scopes 参数混淆）④bash UID 只读变量 + Edit 工具反复损坏文件（改用 python 脚本）
-    - 状态: ✅ 实施完成，全量验证中
-- [2026-08-31] - S4 成就系统实施（stats/achievement 子包，v0.56.0）
-    - 设计决策: ①成就=个人维度（对齐 stats）→ stats/achievement/ 子包 + GET /stats/achievements（timezoneOffset 参数，窗口成就按请求时区；区别于全局排行榜的 UTC）②15 成就：连续 3/7/30 天 + 累计 10/100/500 小时 + 语言 3/5/10 + 早起鸟 10/30 + 夜猫子 10/30 + 单日爆发（>8h）+ 全勤月 ③幂等解锁=INSERT ... ON CONFLICT DO NOTHING 原生 SQL（返回 1 新/0 已存在，无异常流，原子防并发双解锁）+ 唯一约束 (user_id, achievement_code) ④惰性判定=查询时对全部成就算进度，达标即解锁；已解锁不再重复解锁/审计 ⑤审计=AuditAction.ACHIEVEMENT_UNLOCKED + ResourceType.ACHIEVEMENT（约束修改走独立迁移 V20260831230001__add_achievement_audit_resource_type.sql 重建 chk_audit_resource_type——用户纠正：init 迁移已应用后禁止修改，改了 Flyway checksum 校验失败启动失败；ResourceTypeTest hasSize 11 + 约束覆盖测试改读独立迁移的 ADD CONSTRAINT）⑥新表 user_achievements 走独立迁移 V20260831230000__create_user_achievements.sql ⑦displayName/description 英文（代码全英文惯例，前端 i18n 映射 code）
-    - 领域层: StatsCalculator 重构提取 windowDays（窗口日交集共享，消除 mergedDurationInDailyWindow 与 activeDaysInDailyWindow 重复）+ 新增 activeDaysInDailyWindow（窗口活跃天数）/ maxDailySeconds（单日最大）/ hasPerfectMonth（全勤月，未完成月不会误判）
-    - 实现: Achievement/AchievementType 枚举（15 成就定义内聚）+ UserAchievement 实体 + UserAchievementRepository.insertIfAbsent + AchievementService（惰性判定+幂等解锁+审计）+ AchievementResponse DTO + StatsController /achievements 端点（READ scope + 60/60）
-    - 测试: StatsCalculatorTest +9（窗口活跃天 3/单日最大 3/全勤月 3）+ AchievementServiceTest 8（解锁+审计/未达标不解锁/并发跳过不重复审计/已解锁保留时间戳/语言数/窗口活跃天/爆发/全勤月）+ StatsIntegrationTest +3（HTTP 解锁持久化+幂等/空数据全锁定/401 已覆盖）+ ResourceTypeTest 同步（hasSize 11 + 约束覆盖）
-    - 踩坑: ①AchievementService 单构造器含 Clock 无 bean → Spring 加载失败（对齐 LeaderboardService 双构造器 @Autowired 三参 + package-private 四参）②README 编辑又错位（Statistics 段标题/6 行丢失）→ python 重建整段 ③UserAchievement getter 编辑丢失 + 多余 } 反复（Edit 工具不稳定性，改用脚本）④**修改了 init 迁移（chk_audit_resource_type 加 ACHIEVEMENT）被用户纠正**——init 已应用后禁止修改（Flyway checksum 失败启动崩溃）→ git checkout 恢复 + 独立迁移重建约束 + ResourceTypeTest 改读独立迁移（已固化 AGENTS.md R22）
-    - 双轴审查修复: ①H1 存量用户永不全量物化（existsByUserId 只要有任一行就跳过 bootstrap）→ 物化表加 bootstrapped 标记列，bootstrap 判断改 existsBootstrapped（独立迁移 V20260831230002 未提交可直接改）②H2 软删 push 不重算（updateMaterializedStats 跳过 deleted DTO）→ touched 收集不排除 deleted ③H3 evictCache 在 push 事务内非失败容忍 → 包 try-catch ④M1 KEYS O(N) → SCAN ⑤M2 物化 heatmap 稀疏 → 补零稠密 ⑥M3 summary total 漏未来会话 → 查询去上界 ⑦M4 languages JSONB write-only（scope creep）→ 删列 + 实体/Repository/物化器清理 ⑧M5 recomputeDays O(history) → 加 findLiveInUtcDayRange 范围查询只查触及日 ⑨M6 StatsService 无单测 → 新增 StatsServiceTest（UTC 物化/非 UTC 实时/bootstrap 不可用）⑩FQCN 清理（SyncPushService/两个测试）⑪memory-bank 三条重复 S5 条目去重 ⑫重复实现（StatsService 物化路径复制 StatsCalculator 逻辑）保留——物化是读物化行，语义不同于实时聚合，双真相源已通过同一 StatsCalculator 计算源收敛
-    - 集成测试重写: 物化测试改真实 push 触发（H2 覆盖：push 两会话→物化 7200s→软删 push→重算 3600s）；缓存放失效测试保留
-    - 锁重构（用户指出 tryAcquireLock 13 行重复）: 新建 common/lock/RedisLockService（SET NX EX + 5×50ms 重试 + release，共享组件）替代 LeaderboardService/DailyStatsMaterializer 各自的私有 tryAcquireLock（Duplicated Code 消除）；两测试类锁 mock 从 setIfAbsent 换成 RedisLockService mock，release 验证经 redisLock.release
-    - 状态: ✅ 实施+双轴审查修复+锁重构+全量验证完成，待提交授权
-S3 排行进阶实施（周期与趣味维度，v0.55.0）
-    - 设计决策: ①LeaderboardPeriod 枚举（ALL/WEEK/MONTH/YEAR）+ 维度-周期合法组合（TOTAL×全周期 / STREAK×ALL / NIGHT_OWL/EARLY_BIRD×ALL / GROWTH×WEEK，非法组合 400 COMMON_003）②键=ALL 保持 leaderboard:{dim}（S2 兼容），周期键 leaderboard:{dim}:{period}:{bucket}（周=ISO 周一，月=1 号，年=1 月 1 日）③周期键 TTL（WEEK 8d/MONTH 32d/YEAR 370d，滚动自清理），ALL 无 TTL ④score=total 周期合并时长（复用 mergedDurationSeconds）/ streak max / nightOwl 窗口(22,5)/ earlyBird 窗口(6,9) 合并时长（新 StatsCalculator.mergedDurationInDailyWindow，支持跨午夜）/ growth=本周−上周净增长秒 ⑤时段窗口 UTC 统一基准（全球排行单一时区）⑥更新策略=S2 重算覆盖延续，改为 updateUserScores(userId) 一次锁+一次 DB 查询+批量写 8 键（SyncPushService 触发改调）；Clock 注入（固定 today 可测，@Autowired 三参 + package-private 四参）⑦period 参数默认 ALL，GROWTH 未传默认 WEEK（维度感知默认，否则 dimension=GROWTH 直接 400 体验差）
-    - 实现: LeaderboardPeriod 新枚举 + LeaderboardDimension 加 NIGHT_OWL/EARLY_BIRD/GROWTH + supports(period) + StatsCalculator.mergedDurationInDailyWindow + LeaderboardService 批量更新/周期键/TTL/组合校验 + LeaderboardController period 参数+400 示例
-    - 测试: StatsCalculatorTest +6（窗口交集/裁剪/合并/跨午夜/period 外）+ LeaderboardServiceTest 重写（批量 8 键断言/周期分数/nightOwl/earlyBird/growth 净增长/TTL 仅周期键/Redis 失败容忍/非法组合）+ LeaderboardIntegrationTest +5（WEEK 周期排行/NIGHT_OWL/EARLY_BIRD/GROWTH 排行/非法组合 400）+ SyncPushServiceTest verify 改 updateUserScores
-    - 双轴审查修复: ①Spec 真缺陷——mergedDurationInDailyWindow 跨午夜窗口凌晨时段漏计（01:00-03:00 归前一天窗口，原实现漏为 0）→ 窗口日归属修复 + 补测试 ②Standards 硬违规——非法组合抛 IllegalArgumentException 映射 COMMON_001，与文档/相邻非法枚举 COMMON_003 不一致 → 改抛 ValidationException(COMMON_003) ③测试方法名补 _whenY（R9）④嵌套三元扁平化 ⑤窗口小时移入 LeaderboardDimension 枚举字段消除重复 case + 原始 int 常量
-    - 实际接口验证（2026-08-31 服务重启后，swagger http://localhost:8080/ctt-server/swagger-ui）: 真实服务注册→READ/SYNC key→设备→push 4 会话（本周 3h + 上周 1h，UTC 周一 08-24 起）→ 8 组合全 PASS（TOTAL ALL/WEEK/MONTH/YEAR=14400/10800/14400/14400、STREAK=1、NIGHT_OWL=3600、EARLY_BIRD=3600、GROWTH=7200）+ 非法组合 400 COMMON_003 + 非法枚举 400；验证脚本教训：①bash UID 是只读内置变量不可赋值（用 S3ID）②每次 get-token.sh 生成新用户，验证需同一次注册的 token 解析 userId（JWT sub）避免用户错位 ③UTC 今天是 08-30（本地 UTC+8 是 08-31），周期边界按 UTC（服务 timestamp 为准）
-    - 状态: ✅ 实施+双轴审查+实际接口验证完成，待提交授权
-- [2026-08-30] - S1 统计聚合基础实施（stats 包，v0.51.0）
-    - 规划: planning-and-task-breakdown → tasks/plan.md + 9 任务（T1-T9）
-    - 实现: StatsCalculator（纯领域聚合：summary/heatmap/streaks/accumulateBy/hourlyDistribution/weekdayDistribution + 区间合并 + 周期裁剪 + 跨天切分 + 时区感知）+ 10 DTO + TimeOfDay 枚举 + StatsService + StatsController（6 端点）
-    - 口径（对齐插件端）: summary 用合并时长（overlap merge），分布类（languages/projects/timeOfDay/hourly/weekday）用原始累加；dailyAverage = total/(首会话日到今天+1)；周从周一开始；timeOfDay 按会话 startHour 分桶（5-12/12-17/17-22/22-5）
-    - 端点: GET /api/v1/stats/summary|heatmap|streaks|distribution|hourly|recent，READ scope + @RateLimit(API 60/60)，timezoneOffset 分钟参数
-    - 实施中修复: ①clipTo 完全在周期外的区间构造非法 TimeInterval（先过滤交集再裁剪）②hourly 切片错用 withMinute(0) 退回整点（改 truncatedTo(HOURS)+1）③StatsService hourly 三次重复聚合（提取变量）④switch 表达式后直接 .stream() 语法错误（先赋变量）
-    - 测试: StatsCalculatorTest 11 用例（summary 周期/合并/空/时区 + heatmap 跨天/同日合并 + streaks + 分布 + hourly 跨小时平均）+ StatsIntegrationTest 6 用例（E2E：summary 数据/空、distribution、recent、scope 403、401）
-    - 集成测试坑: JdbcClient .param(Instant) 无法推断 SQL 类型（改 Timestamp.from）；summary 固定日期会话撞测试时钟（改"今天 1-2 点"相对时间）
-    - 文档: README Statistics & Analytics 段落（6 端点 + 参数 + 口径说明）
-    - 提交前双轴审查（Standards 1 硬违规 + 9 判断；Spec 2 偏差）后修复: ①timezoneOffset/limit 加 @Validated + @Min/@Max（非法值 400 而非 500）+ GlobalExceptionHandler 补 MethodArgumentTypeMismatchException handler（TYPE_MISMATCH，复用 traceId 模式）②DistributionType 移入 enums/（对齐 TimeOfDay）③StatsService/测试 FQCN 改 import ④StatsCalculatorTest 方法名补 _whenY + 删 what-comments（误删代码行已恢复）⑤补 heatmap/streaks/hourly 3 个 E2E 集成测试 ⑥README 补 60 req/min 限流 ⑦tasks/plan.md 删除（R10）⑧GlobalExceptionHandler 提取 buildRetryAfterResponse 私有方法，消除 handleAccountLockedException/handleTooManyRequestsException 的 8 行重复 Retry-After 片段⑨StatsCalculator TimeInterval 内部表示 LocalDateTime → OffsetDateTime（保留偏移，Duration 按 instant 计算，消除 IDE time-zone aware 警告；DST 安全）
-    - hourly 端点保留独立 /hourly（设计判断：响应结构 {hour,avg,activeDays} 与 distribution {name,seconds} 不同，spec type=hourly 为简写）
-    - 验证: 全量 tests（一次 Testcontainers Redis 临时故障重跑）+ jacoco + spotless + LSP 全绿
-    - 版本: 0.50.1 → 0.51.0（MINOR 新功能）
-- [2026-08-30] - Sync push 批量写入优化（multi-row insert）: SyncPushService.doPush 改为批量读（findAllByUserIdAndSessionUuidIn IN 查询）+ 手写多值 INSERT（batchInsertSessions/batchInsertChanges，一条 SQL 插多行，500 条 = 各 1 条 INSERT；实测 Hibernate saveAll + batch_size 和 PG reWriteBatchedInserts 对含 UUID 语句都退回逐条，故手写 VALUES (...),(...) 最可靠）+ Instant 参数转 OffsetDateTime（PG 驱动 setObject 不支持 Instant）；toUpdate 保留 Hibernate saveAll+flush；批内重复 sessionUuid 用内存 Map 保持 LWW 语义；SyncPushServiceTest 适配 mock JdbcTemplate.update；新增 SyncPushBatchIntegrationTest（DataSource BeanPostProcessor 捕获 SQL 文本，断言 500 条 = session/change 各 1 条多值 INSERT 且 SQL 含 500 组 VALUES——文本级证据）；批量 INSERT 加日志：info 行数 + debug 完整多值 SQL（local profile DEBUG 已开可见）；版本 0.52.0（MINOR 性能优化）
-- [2026-08-30] - 测试 Redis 限流间歇故障根因+修复: 全量测试间歇失败（Sync/UserProfile 登录空 token）根因=登录接口 @RateLimit(IP, 30/3600) + RedisRateLimiter，全量测试同 IP（127.0.0.1）登录超 30 次/小时→429→token 空；RateLimitAspect 原本不响应 ctt.security.rate-limit.enabled=false（生产 bug：local 声明禁用却仍限流）；修复=RateLimitAspect 注入 SecurityProperties 检查 enabled（禁用时跳过 enforce）+ 新增 src/test/resources/application-test.yaml（rate-limit.enabled=false）+ 依赖限流的测试类（AuthControllerForgotPasswordIntegrationTest/ApiKeyIntegrationTest）类级 @TestPropertySource 单独开启 enabled=true + RateLimitAspectTest 适配构造；验证=连续 2 次强制全量（含 --rerun-tasks）BUILD SUCCESSFUL
-- [2026-08-30] - push 幂等去重增强（内容级）: 需求反馈=插件端 INSERT OR IGNORE vs 服务端 LWW——核心去重已有（唯一约束 + KEEP_EXISTING），gap=内容相同但 clientModifiedAt/clientVersion 微差（全量重推时区/精度）会被判 APPLY_INCOMING→覆盖+无意义 change；修复=ConflictResolver.resolve 在 delete 分支后、版本裁决前，对 live 状态检查 sameContent（projectName/language/startTime/endTime 相同→KEEP_EXISTING 幂等忽略，deleted 状态豁免保留删除版本竞争）；测试=ConflictResolverTest 的 session() 加默认内容 + APPLY_INCOMING 用例 incoming 内容不同 + 新增 ContentIdentityTests 3 用例；SyncPushServiceTest 加"内容相同时间戳微差→KEEP 不产生 change"用例；版本 0.53.0（MINOR 优化）
-- [2026-08-31] - stats 联调发现 bug+修复: 用户数据含 41 条 start==end（0 时长）会话（08-30 22:45 批量导入，cv=0）→ StatsCalculator 聚合时 TimeInterval 构造抛异常 → 整批 400；修复=toIntervals/accumulateBy 过滤 start<end（跳过非法区间）；StatsCalculatorTest 补"非法区间跳过"用例；版本 0.53.1（PATCH）
-    - 状态: ✅ S1 实施+审查修复完成，待提交
-- [2026-08-31] - S2 排行基础实施（leaderboard 包，v0.54.0）
-    - 设计决策: ①score 口径=合并重叠 total（对齐 stats）+ streak max（最长连续，UTC 统一时区，排行展示历史最佳）②更新策略=push 后重算当前用户 score 用 zadd 覆盖（非累加——软删/更新会导致漂移；streak 无法增量），只影响受动用户，ZSet 自动重排 ③TTL=全局键 leaderboard:total/leaderboard:streak（键数量固定=维度数，member 是有限用户数，无需 TTL；计划稿 TTL 针对 S3 周期键）④端点=READ scope + @RateLimit(API 60/60)（对齐 stats）⑤Redis 失败容忍=updateUserScore 内部 catch 记日志不传播（排行是派生的，下次 push 自愈）
-    - 实现: LeaderboardDimension 枚举 + LeaderboardEntryDto/LeaderboardResponse + LeaderboardService（StringRedisTemplate zadd/zrevrangeWithScores/zrevrank + StatsCalculator 复用 + UserRepository 关联 displayName）+ LeaderboardController（GET /api/v1/leaderboard?dimension&limit&offset）+ SyncPushService push 后 updateLeaderboard（TOTAL+STREAK）
-    - 测试: LeaderboardServiceTest 7 用例（total 合并/streak max/Redis 失败容忍/空/条目映射/未排名/分页）+ LeaderboardIntegrationTest 6 用例（多用户 total 排名/streak 排名/并列/并发更新/401/400 非法 dimension）；并发测试踩坑：8 会话重叠合并=1h、59 分钟时长=28320，改整小时相接验证 28800
-    - 验证: 全量 tests + jacoco + spotless 全绿
-    - 版本: 0.53.1 → 0.54.0（MINOR 新功能）
-    - 提交前双轴审查修复（Standards 3 + Spec 2）: ①README 声称并列共享排名但实现顺序 rank → 实现竞赛排名（同分同 rank，与 zrevrank 语义一致）+ 集成测试补并列 rank 断言 ②并发同用户 push 竞态（updateUserScore 读-算-写非原子，READ COMMITTED 下可能覆盖过期 score）→ 用户级 Redis 锁（leaderboard:lock:{userId} setIfAbsent + TTL 5s + 自旋 5×50ms + 超时 best-effort 重算）③测试内联 FQCN LinkedHashSet → import ④集成测试绕过 push 触发（只在 mock 层）→ 补真实 push→leaderboard E2E（SYNC key push 后 push 用户 READ key 查排行验证 score+currentUserRank）
-    - 状态: ✅ 实施+双轴审查修复完成，待提交
-- [2026-08-30] - 审计约束缺失枚举值修复（运行时日志暴露，v0.50.1）
-    - 日志: audit_logs 插入撞 chk_audit_resource_type 检查约束（SYNC_PULL/CODING_SESSION 被拒）；AuditEventListener 异步 + 吞异常（continuing without error propagation）→ 集成测试静默通过、运行时暴露
-    - 根因: init 迁移 chk_audit_resource_type 约束 8 值，ResourceType 枚举 10 值——CODING_SESSION（V 阶段加枚举漏同步约束）+ DEVICE（v0.48.0 加枚举漏同步约束），契约漂移两次
-    - 修复: init 迁移约束补 'CODING_SESSION' + 'DEVICE'（对齐枚举）；COMMENT 更新为"must match ResourceType enum"
-    - 防复发: ResourceTypeTest 新增 audit_constraint_covers_all_resource_types——读 init 迁移 SQL，断言 chk_audit_resource_type 覆盖全部枚举值（防止第三次漂移）
-    - 教训: 新增 ResourceType 枚举值必须同步 init 迁移 chk_audit_resource_type 约束 + ResourceTypeTest；审计异步吞异常掩盖了漂移（业务测试断言不到）
-    - 验证: 全量 1193 tests + jacoco + spotless 全绿
-    - 版本: 0.50.0 → 0.50.1（PATCH bug 修复）
-    - 状态: ✅ 实施+验证完成，待提交
-- [2026-08-29] - 设备吊销状态后端暴露（ctt-web 需求，v0.50.0）
-    - 需求: Web 前端吊销设备后列表无任何状态变化（无 revokedAt/status 字段），用户无法感知吊销已生效；方案 A（DeviceResponse 加 revokedAt）
-    - 实施: devices 表加 revoked_at 列（回填 init 迁移）+ Device 实体 revokedAt + revokeDevice 写吊销时间（撤销 refresh token 处）+ registerDevice upsert 清除（重新活跃）+ DeviceResponse 带出（@Schema nullable）
-    - 决策: 采方案 A（revokedAt 原始事实）非方案 B（status 枚举——设备无 expiresAt，status 仅 ACTIVE/REVOKED 两态，派生多余）；设备不做物理 delete 端点（与 API Key 的 revoke→delete 不同——设备被 coding_sessions/session_changes/sync_cursors/api_keys 引用，物理删除牵连引用且价值低，吊销+状态可见已满足）
-    - 测试: DeviceServiceTest 补 shouldSetRevokedAt_whenDeviceRevoked + shouldClearRevokedAt_whenDeviceReRegistered + 更新断言；DeviceRegistrationIntegrationTest 补 shouldExposeRevokedAt_afterRevocation（E2E 吊销后 GET 可见）；MockMvc stub 适配 9 字段
-    - 文档: README（revokedAt 语义）+ sync 文档响应示例
-    - 插件端联调反馈（Device Revoke 是否切断同步）: 核实插件端推断全部正确——sync 层不查 revoked_at、revoke 不吊销 key → revoke 后 pull/push 仍成功
-    - 补充实施: SyncPullService/SyncPushService 校验 findByIdAndUserId 后检查 getRevokedAt() != null → 抛 404 COMMON_002（revoke 真正切断同步；零新错误码，插件端已有 DEVICE_NOT_FOUND 映射）；不自动吊销 key（key 是用户资产，被拒后插件重新注册 POST /devices 清除 revoked_at 恢复同步）；SyncPullServiceTest/SyncPushServiceTest 补 revoked 用例 + README/sync 文档补 revoke 切断语义
-    - 验证: 全量 1192 tests + jacoco + spotless + LSP 全绿（一次 Testcontainers Redis 临时故障重跑后通过）
-    - 版本: 0.49.1 → 0.50.0（MINOR 新字段+行为）
-    - 状态: ✅ 实施+验证完成，待提交
-- [2026-08-29] - 依赖更新（dependencyUpdates 流程，v0.49.1）
-    - 策略（用户决策）: 依赖（含主版本）优先直接升级，唯一例外 Java/Kotlin 大版本跳跃需确认；编译/测试失败才回滚
-    - 升级: spotless 8.10.0→8.10.1、flyway 13.3.0→13.4.0、jacoco 0.8.14→0.8.15（build.gradle.kts toolVersion）、Gradle wrapper 9.7.0→9.7.1（wrapper 任务）
-    - 其余依赖已最新（Spring Boot 4.1.1、ben-manes 0.61.0、testcontainers 2.0.5 等）；无 Kotlin/JDK 大版本（项目 Java 25 + Kotlin 2.4.0）
-    - 验证: clean build + 全量 1189 tests + jacoco + spotless 全绿（Gradle 9.7.1 下）
-    - 版本: 0.49.0 → 0.49.1（PATCH 依赖升级）
-    - 状态: ✅ 实施+验证完成，待提交
-- [2026-08-29] - 暴露当前认证用户 id（插件账号隔离需求，无版本变更）
-    - 需求: 插件用 SYNC key 需拿服务端 userId（账号维度数据隔离）；报告方案 A（新 /auth/me）/B（DeviceResponse 加 userId）
-    - 核实: 报告"无当前用户端点"不准确——GET /api/v1/users/me 已存在（UserProfileResponse 含 id/email），走 CurrentUserProvider（已支持 ApiKeyPrincipal）、无 @RequiresApiKeyScope → SYNC key 已可用
-    - 决策: 方案 C（复用 /users/me）——拒绝方案 A（与现有端点重复，R8.5）与方案 B（空设备列表无值 + userId 语义非设备属性）
-    - 实施: 新建 UserProfileIntegrationTest（补 UserController /me 集成测试缺口）验证 SYNC key / JWT / 未认证三路径，SYNC key 返回 data.userId + data.email；sync/frontend-integration.md 加"获取当前用户"章节（SYNC key 调 /users/me 说明）
-    - 无 src/main 变更 → 版本保持 0.49.0（纯测试+文档，项目惯例不 bump）
-    - 验证: 全量 1189 tests 无回归 + jacoco + spotless + LSP 全绿
-    - 状态: ✅ 实施+验证完成，待反馈插件端
-- [2026-08-29] - SyncChangeDto 增加 sessionUuid（插件端需求，v0.49.0）
-    - 背景: 插件 C 阶段 pull 应用需以 sessionUuid（本地唯一键）定位/新建本地行；服务端 CodingSession.sessionUuid 已存但 DTO 未带出
-    - 实现: SyncChangeDto 加 sessionUuid（UUID，sessionId 后，@Schema 标注可空）；SyncPullService.toChangeDto 两处构造带出（session==null 物理清除分支传 null，正常分支传 session.getSessionUuid()）；db/push/游标/LWW 零改动
-    - 测试: SyncPullServiceTest session helper 改确定性 sessionUuid（id 派生）+ Pull 断言 sessionUuid + 新增 session 缺失场景（sessionUuid=null）；SyncIntegrationTest E2E pull 断言 changes[0].sessionUuid=push 的 sessionUuid1
-    - 文档: sync/frontend-integration.md changes 示例/字段表/UPSERT 定位说明（改以 sessionUuid 定位，删除"需维护映射"说明）+ 附录示例；README pull 协议字段列表补 sessionUuid
-    - 验证: 全量 1186 tests 无回归 + jacoco + spotless + LSP 全绿
-    - 版本: 0.48.0 → 0.49.0（MINOR 新响应字段，向后兼容）
-    - 状态: ✅ 实施+验证完成，待插件端真实验收
-- [2026-08-28] - 设备注册端点 POST /api/v1/devices（插件需求落地，v0.48.0）
-    - 背景: 插件端需求报告评审（think skill）——方案 A（key 创建带 deviceId）判定不可行（创建 key 需 JWT/WRITE，Web 端无插件 deviceId）；采纳方案 B（POST /devices 显式注册）
-    - 需求报告事实纠错: ①"设备随登录注册"错——devices 表零写入点（登录只写 refresh_tokens.device_id 无 FK 跟踪字段）②"ApiKey 无 deviceId 字段"错——实体已有 @ManyToOne Device + device_id 列（半成品，无 getter/setter 未使用）
-    - 实现: POST /api/v1/devices（SYNC scope API key 或 JWT）upsert 注册 + key↔device 绑定（补全 api_keys.device_id，ApiKey 补 getDevice/setDevice）+ 归属冲突 409 DEVICE_001（新错误码）+ 审计 DEVICE_LINKED（复用闲置枚举）+ ResourceType.DEVICE 新增 + GET /devices scope READ→SYNC（插件设备状态查询统一 SYNC 语义）+ 限流 USER 10/3600（对齐 createApiKey）
-    - 关键 JPA 修复（测试驱动发现）: Device 移除 @GeneratedValue（id 是客户端分配的 deviceId，非 DB 生成）+ @Version 初始化为 null（新建 isNew→persist；无 @Version 时 Spring Data 对非 null id 走 merge，Hibernate 对 DB 无行的 detached 实体抛 StaleObjectStateException；@GeneratedValue+非 null id 又触发"uninitialized version"拒绝）——三连坑后正解
-    - 迁移（回填策略，开发阶段）: devices version 列直接融入 V20260303210000__init_base_schema.sql（无独立迁移，用户清理 DB 重建）
-    - 测试: DeviceServiceTest 6 + DeviceControllerMockMvcTest 8 + DeviceRegistrationIntegrationTest 7 + ErrorCodeTest/ResourceTypeTest 更新；3 个 sync Repository 测试 fixture 补 setId（移除 @GeneratedValue 后必须手动赋值）
-    - 文档: sync/frontend-integration.md 设备注册章节 + 创建 key 示例改 ["SYNC"]；README Device Management 表 + DEVICE_001；handbook 审计教程示例修正（虚构 DEVICE_REGISTERED → 真实 DEVICE_LINKED）+ DEVICE_001；api-governance Tier 4（顺带修正 pull 方法 GET→POST）
-    - 双轴 code-review（Standards 0 硬违规 + 6 判断项；Spec FULLY IMPLEMENTED）后修复: ①currentApiKeyId() what-Javadoc 改行内 Why 注释 ②Swagger 错误示例统一完整 ErrorResponse shape（抽取 UNAUTHORIZED/SCOPE_DENIED/DEVICE_NOT_FOUND 常量消除重复）③401 描述补 API key 场景（AUTH_010）④README DEVICE_001 从 API Key 表移到 Device Management 错误码表 ⑤DeviceResponse.fromEntity 全路径类名改 import 短名（pre-existing 顺带修）；保留测试断言多 assertThat（与项目既有风格一致）
-    - 评审后修复（用户指出风险）: GET /devices scope 从单一 SYNC 改为 {READ, SYNC}——@RequiresApiKeyScope 支持多值"任一"语义（现有单值使用点全兼容，Aspect 审计参数多值 join）；保留 READ 读设备语义 + 插件 SYNC 可查；集成测试 READ key 403→200；AspectTest 补 AnyOf 嵌套类
-    - 验证: 全量 1185 tests 无回归（基线 1163+22）+ jacoco + spotless + LSP 全绿
-    - 版本: 0.47.0 → 0.48.0（MINOR 新端点）
-    - 状态: ✅ 实施+验证完成，待用户授权提交
-- [2026-08-26] - 编码会话同步 Phase W：插件端对接文档（纯文档，无代码）
-    - 背景: V 阶段协议已落地，需产出契约文档供 code-time-tracker 插件端并行对接
-    - W1（子 agent quick）: 新建 `dev-docs/sync/frontend-integration.md`（475 行中文）——流程总览/认证（API Key SYNC scope + JWT 绕过）/Pull 接口（请求响应示例+字段表+游标语义）/Push 接口（LWW 结果表+原子性）/错误码映射表（AUTH_010/011/012/020/021 + COMMON_002/003 + RATE_LIMIT_001）/限流重试策略（Retry-After header delta-seconds 优先 + body retryAfter ISO-8601 兜底 + jitter 退避）/对接流程建议/附录示例；DTO 字段与 @Schema 逐项核对一致
-    - W2: README Sync Engine 段落已在 V 阶段完成（提交 30b7500），主 agent 判断不重复执行
-    - W3（子 agent quick + 主 agent 修正）: handbook 补 `### Sync Audit Events` 独立表（SYNC_PULL/SYNC_PUSH，Resource Type CODING_SESSION，含 logSuccess/logFailure 细节）+ API Key Error Codes 表补 COMMON_002 行（原缺失）
-    - 主 agent 修正 1: 子 agent 初稿把 SYNC 审计事件放进 "API Key Audit Events" 表（带 Resource Type: API_KEY 注记，语义不符）→ 移出建独立 Sync Audit Events 表，对齐项目"每模块独立审计表"惯例（API Key/Password/Set Password 各有）
-    - 主 agent 修正 2: 双轴审查（Standards PASS + Spec PASS，6/6 DTO 与 @Schema 匹配零事实错误）后补 LWW 结果表缺行「删除不存在的会话（无操作）」——deleted-never-had 幂等场景在集成文档显式化（验收标准 1：插件端仅凭文档可对接）
-    - 审查发现既有问题（报告待用户确认）: dev-docs/apikey/frontend-integration.md 错误格式示例含 "success": false 字段，但 ErrorResponse record 无此字段（sync 文档已用正确 RFC 7807 格式）——apikey 文档过时，建议后续修复
-    - 验收: 插件端可仅凭文档对接；DTO 字段与 @Schema 一致（双轴审查逐项核对）
-    - 版本不变（纯文档不 bump，历史惯例一致）
-    - 状态: ✅ 完成+审查，待用户授权提交
-
-- [2026-08-25] - 编码会话同步 Phase V：双向同步协议 Pull/Push（sync/ 服务编排层）
-    - 背景: U 阶段 ConflictResolver 就绪，SyncController 仍为占位（返回 pull-ok/push-ok）；V 阶段落地真实协议
-    - 领域裁决（主 agent）: ①deviceId 来源——push 请求体显式携带，服务端 DeviceRepository.findByIdAndUserId BOLA 校验（不存在→404 COMMON_002，复用 DeviceService 同款文案）②pull 语义——请求带 deviceId+lastPulledChangeId，有效查询游标 = max(持久化水印, 客户端游标)（陈旧客户端无法回卷水印），advancePullWatermark 单调推进，无新增返回空+当前游标（幂等）③push 语义——批量逐条 ConflictResolver 三路路由，单事务原子性（部分应用永不发生），nextCursor = 用户最大 change_id ④审计——新增 AuditAction.SYNC_PULL/SYNC_PUSH + ResourceType.CODING_SESSION，成功/失败均落（失败取错误码名）⑤限流——@RateLimit(API, 120/60s) 复用 429 retryAfter 契约 ⑥错误码——零新增（404 复用 COMMON_002）
-    - 实现（子 agent quick，19min）: 6 DTO（SyncPullRequest 含 deviceId——契约偏差：spec DTO 描述漏 deviceId 但游标按 (user,device) 键必须带）+ SyncPullService/SyncPushService + SyncController 真实逻辑 + 枚举扩展 + CodingSessionRepository.findAllByIdIn（含软删，pull 路径送达 DELETE 事件）+ 测试（单测 10 + 集成 6 + MockMvc 6 + ResourceTypeTest/ApiKey 测试适配）
-    - 双缺陷审查修复（主 agent 发现 → 子 agent 延续会话修复，27min）:
-        1. **严重** push 用 findByUserIdAndSessionUuidAndIsDeletedFalse 查 live-only → 服务端软删会话+客户端推 live → createSession 撞 uk_coding_sessions_user_session_uuid 唯一约束永久失败 → 新增 findByUserIdAndSessionUuid（含软删）让 ConflictResolver 裁决（软删胜→KEEP_EXISTING no-op）
-        2. **中等** 客户端推 deleted=true 且服务端无此会话 → createSession 错建 live 行 → 短路 no-op（幂等）
-    - 验证: 全量 **1162 tests** / 0 failed（基线 1142+20）；spotless PASS；LSP clean；集成测试覆盖验收（push→pull 增量→再 pull 空、同 session 双推单行收敛、401/403/400）
-    - 版本: 0.46.0 → **0.47.0**（MINOR 新端点能力）
-    - 状态: ✅ 实施+审查+修复完成，待用户授权提交
-    - 双轴审查（子 agent quick ×2，独立）: Standards PASS（零硬违规，仅判断性小项：errorCodeName 5 行重复/toIncomingState setter 重复/测试 insertDevice 三文件重复——后者与 T 阶段"无共享 fixture"裁决一致不修）+ Spec PARTIAL（2 项）
-    - 审查发现并修复（主 agent 核实 → 子 agent quick 修复，4min28s）:
-        1. **严重** `advancePullWatermark` 是纯 UPDATE 且全仓库无任何 SyncCursor 行创建点（无 new/save/INSERT，表无默认行）→ fresh device 水印永不落库，"防回卷"保护失效 → 改为**原生 SQL 原子 upsert**（INSERT...ON CONFLICT (user_id,device_id) DO UPDATE + GREATEST 保单调，updated_at 显式设因 native SQL 绕过 @UpdateTimestamp）；适配 3 个既有 repository 测试（单调守卫断言行数 0→1）+ 新增 shouldCreateCursor_whenCursorDoesNotExist（补审查缺口）
-        2. **中等** device BOLA 404 仅 service 单元层覆盖 → 补 SyncIntegrationTest.shouldReturn404_whenDeviceNotOwned（pull+push 双端点 404 COMMON_002）
-        3. **低** toIncomingState 复用 applyIncomingFields（消除 6 行 setter 重复，行为不变）
-    - 修复后验证: 全量 **1163 tests** / 0 failed；jacoco 门禁 PASS（INSTRUCTION 93.5% / BRANCH 83.5%）；spotless PASS；LSP clean
-
-- [2026-08-25] - 编码会话同步 Phase U：LWW 冲突解析引擎（sync/service/）
-    - 背景: 多设备并发上报同一 session 需收敛为单一正确状态；server_version 是服务端分配水印（采纳后 +1），客户端可观测的是 client_version/client_modified_at
-    - 领域裁决（主 agent）: 比较优先级 ①删除优先（最强终态，both-deleted 落入版本规则）②server_version 高者胜（双方都持服务端版本的重放场景）③client_version 高者胜（一方无服务端版本即 serverVersion==0 的新提交）④clientModifiedAt 最新（需求"同版本取 happened_at 最新"的领域落地，CodingSession 无 happenedAt）
-    - 实现（子 agent quick）: `ConflictResolver` 纯领域组件（final class + 静态方法，无 Spring/DB 依赖，不改变体）+ 嵌套 `Decision` 枚举（APPLY_INCOMING/KEEP_EXISTING/APPLY_DELETE）；幂等 tie-break（完全相同状态→KEEP_EXISTING，重提即 no-op）；包位 sync/service/（项目无 domain/ 包惯例）
-    - 测试: ConflictResolverTest 16 用例（不同版本 8/同版本 2/删除竞争 5/纯函数不变性 1）；全量 1142（1126 基线+16）0 failed；jacoco/spotless/LSP 全绿
-    - 双轴审查（子 agent quick ×2）: Standards PASS（1 判断性：2 处行内 what-comment 冗余）+ Spec PASS 零发现
-    - 审查修复（主 agent）: 删除 ConflictResolver 内 2 处冗余行内注释（Rule 1/同删除标记复述——Javadoc <ol> 已完整表达规则，R9 禁 explain-what）
-    - 验证: 全量 1142 tests / 0 failed；jacoco/spotless/LSP 全绿
-    - 版本: 0.45.0 → **0.46.0**（MINOR 新组件）
-    - 状态: ✅ 实施+双轴审查+修复完成，待用户授权提交
-
-- [2026-08-25] - 编码会话同步 Phase T：数据模型与持久层（sync/ 包）
-    - 背景: sync/ 仅占位 SyncController；coding_sessions/session_changes/sync_cursors 三表已在 init migration 预置但无实体映射
-    - 关键判断（R8.5 以实际 DDL 为准，非 Notion 计划字面）: CodingSession 无 file_path/duration_seconds/device_id（表没有）；设备溯源用 updated_by_device_id；SessionChange.session_id 是 FK→coding_sessions.id（非 session_uuid）；op 有 CHECK(UPSERT/DELETE) 需 ChangeOp 枚举；SyncCursor 复合 PK 用 @IdClass
-    - 实施（子 agent quick，18min）: 3 实体 + ChangeOp 枚举 + SyncCursorId + 3 Repository + 14 测试文件；FK 问题（测试建表时 user_id/device_id 引用）已解决
-    - 设计要点: 软删 is_deleted 全查询默认过滤永不硬删；change_id 单调水印增量拉取按 user 隔离；advancePullWatermark @Modifying 原子语句并发安全单调守护（bulk JPQL 绕过 @UpdateTimestamp 显式设 updated_at）；标量 UUID 引用保持模块依赖轻量
-    - Repository Javadoc 逐方法标注索引支撑，诚实标注 updated_by_device_id 无专用索引（未来加 partial index）
-    - DTOs（T5）推迟 V 阶段: pull/push 协议语义未定，避免 Speculative Generality
-    - 双轴审查（子 agent quick ×2）: Standards PASS（3 judgement call）+ Spec SPEC-COMPLIANT 零发现
-    - 审查修复（主 agent 判断，非盲从）: (1) 补 SyncCursorTest 实体级单调守卫单测（3 用例，真实缺口）(2) CodingSession/SyncCursor Javadoc "cannot bypass" 措辞准确化（与 ApiKey 既有模式一致，澄清 setter 仅 JPA 水合）(3) 测试夹具重复不修（无共享 fixture 惯例，抽象反成 Speculative Generality）
-    - 验证: 全量 1126 tests / 0 failed（+3）；jacoco PASS；spotless PASS；LSP 0 errors
-    - 版本: 0.44.0 → **0.45.0**（MINOR 新数据模型层）
-    - 状态: ✅ 实施+双轴审查+修复完成，待用户授权提交
-
-- [2026-08-23] - 新增改密接口 POST /api/v1/users/me/password/change（前端需求）
-    - 背景: 前端 ctt-web 已按契约完成改密 UI（changePassword API + Set/Change 双模式对话框，1073/1073 单测通过），后端缺改密接口（/password/change 现落入静态资源返回 500 SYSTEM_001）
-    - 契约验证: 错误码 USER_014(401)/USER_015(409)/PASSWORD_SAME_AS_OLD(409)/COMMON_003(400) 全部已存在零新增；AuditAction.PASSWORD_CHANGED 已存在（119 行）直接复用；限流 USER 5/60 与 /set 一致
-    - 前端契约确认: ctt-web src/lib/api/user.ts changePassword({currentPassword, newPassword}) 双字段 base64 编码，字段名与需求一致，服务端不解码原样处理
-    - 业务顺序（严格）: findById→USER_004 → passwordHash==null→USER_015 → !matches(current,hash)→USER_014 → matches(new,hash)→PASSWORD_SAME_AS_OLD → encode+save+audit PASSWORD_CHANGED
-    - 实现（子 agent quick ×2 并行，不重叠）: 实现组 ChangePasswordRequest(DTO)+PasswordService.changePassword+PasswordController /change+5单测+4集成测；文档组 README Password Management 小节（含补 /set 端点行）+ handbook USER_014 行+Password Management 章节
-    - 双轴审查（子 agent quick ×2）: Standards PASS（2 judgement call）+ Spec 2 文档缺陷
-    - 审查修复（主 agent）: 5 处 — (1) handbook Step2 示例表 USER_014 行畸形（列序颠倒+缺列）修正为 4 列规范格式，USER_015 继承缺陷一并修（Added In 用 git log 查证 v0.32.0/v0.44.0）(2) README 错误码表补 USER_004 (3) handbook Password Management 错误表补 USER_004 (4) PasswordController 类 Javadoc 补 change 端点 (5) IntegrationTest 类 Javadoc 同步
-    - 验证: 全量测试 BUILD SUCCESSFUL + spotless PASS + LSP clean（修复后）
-    - 版本: 0.43.1 → **0.44.0**（MINOR 新端点）
-    - 状态: ✅ 实施+双轴审查+修复完成，待用户授权提交
-
-- [2026-08-21] - 修复 frontend-integration.md 列表响应字段名错误（apiKeys→keys）+ AUTH_002 补充 refresh 说明
-    - 背景: 文档示例 GET /api/v1/auth/api-keys 响应包裹字段写 "apiKeys"，但 ApiKeysResponse record 实际字段为 keys（@Schema + record 组件），新接入方按文档解析会得到 undefined；全仓库仅此一处
-    - 顺带: AUTH_002 前端处理建议补充"先 refresh token 静默续期，失败再跳登录页"
-    - 纯文档修复，无代码/契约变更；版本 0.43.0 → 0.43.1（PATCH）
-    - 状态: ✅ 完成，待提交推送
-
-- [2026-08-21] - 429 限流响应补充 retryAfter（body + header 双发，前端需求报告）
-    - 契约: 所有 429 响应 body 新增 `retryAfter`(ISO-8601 Instant) + `Retry-After` header(RFC 7231 delta-seconds)；对齐 AccountLockedException 既有范式，前端 getRetryAfterSeconds() 双源解析零改动
-    - 覆盖: 全部 13 个 @RateLimit 端点（RATE_LIMIT_001）+ API key 认证失败限流（filter 层直写响应，fallback 整窗）+ MAIL_004（retryAfter = 窗口内最早邮件 createdAt + window，精确非整窗）
-    - 实现: Lua 原子返回 {allowed, ttl}（一次往返无竞态）→ RateLimitResult record → checkLimit 替代 isAllowed；TooManyRequestsException 增加 retryAfter + 专用 handler（镜像 handleAccountLockedException）；MailOutboxRepository 新增 findEarliestDuplicateCreatedAt (MIN(createdAt))
-    - 子 agent（deep）5h 配额中断前完成大部分代码，主 agent 接管修复 4 个编译错误: (1) RateLimitResult.allowed() 与 record 组件访问器冲突 → 改名 permitted() (2) **ApiKeyAuthenticationFilter 也在调 isAllowed（agent 误判唯一调用方）→ 迁移 checkLimit + 实际 TTL/整窗 fallback** (3) filter 测试 2 处 mock 未迁移 (4) E2E 断言 API 误用（hasHeader/getResult → containsHeader 移除 + headers().hasHeaderSatisfying）
-    - 双轴审查（quick ×2）: Logic PASS（无高/中问题；2 个 LOW 信息性: header/body 亚秒偏差、并发竞态 retryAfter 略乐观）+ Style 3 minor 已修（Javadoc sliding→fixed、测试命名 shouldX_whenY、toErrorResponse 冗余 guard 移除对齐镜像）
-    - 验证: 全量测试 BUILD SUCCESSFUL + jacoco PASS + spotless PASS + LSP clean；E2E 真实 Redis 链路断言 Retry-After 正数 + body retryAfter 晚于 now
-    - 版本: 0.42.1 → **0.43.0**（MINOR 新增可选字段）
-    - 状态: ✅ 实施 + 双轴审查完成，本次提交
-
 ---
 
 > **归档**：更早的条目已按月归档至 `memory-bank/archive/activeContext-YYYY-MM.md`（R13 冷数据），本文件只保留最近 30 天热条目。
