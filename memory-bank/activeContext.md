@@ -1,4 +1,21 @@
 # Active Context
+- [2026-09-13] - 成就系统扩展 Batch 2（achievedAt 回推真实达成时刻，v0.69.0）
+    - 需求: 文档§5——`unlockedAt` 记录的是"首次被读取时刻"而非达成时刻（`@CreationTimestamp` + 懒评估），所有"何时解锁"类功能失真
+    - 关键判断: **不需要迁移**（`unlocked_at` 已是 NOT NULL，只需写入方传值）——R22 要求不改已应用迁移，此判断使本批零 schema 变更
+    - 回推设计: 新增 5 个精确原语于 `StatsCalculator`（纯计算，不依赖 achievement 包，避免 `stats.service → achievement` 循环依赖）：
+      · `totalSecondsAchievedAt` — 合并区间前缀和，命中区间内**精确跨阈时刻**（非区间边界）
+      · `maxDailySecondsAchievedAt` — 按日切片累计，返首个单日跨阈时刻
+      · `streakAchievedAt` — 按日戳首次活跃时刻，走 runs 找达标段末日
+      · `languageCountAchievedAt` — 按 start 排序，第 N 个新语言首现时刻
+      · `activeWindowDaysAchievedAt` — 复用 windowDays 归因，返达标窗口日 overlap start
+      · `perfectMonthPercentAchievedAt` — 达标天数 = ceil(targetPercent × 月长 / 100)，与 `bestPerfectMonthPercent` 同一口径
+    - 架构: `AchievementService` 引入私有 record `Measurement(progress, resolver)` —— **progress 与 achievedAt 同源同算**（单次 switch 同时产出两者，避免 Repeated Switch），resolver 以 target 为键（同家族多阶各有不同达成时刻）；实测 record 组件访问器与自定义方法同名会冲突（`achievedAt` → 改名组件为 `resolver` + 语义方法 `achievedAt(long)`）
+    - 写路径: `insertIfAbsent` 增第三参 `OffsetDateTime unlockedAt`；`UserAchievement` 去 `@CreationTimestamp`（防未来 JPA persist 路径覆盖）；并发败者改读回胜者写入的时刻（原实现返回 null）
+    - 防御: progress 达标但 resolver 返回 null 时**记录 warn 并回退观察时刻**——不静默丢解锁、不写错误时刻
+    - README: 补 `unlockedAt` 语义说明（R4）
+    - 测试: 计算器 +10（跨阈时刻在区间内/单日目标/连击断裂重开/语言第 N 个/窗口日/2 月 100%/90% 容错取整）；Service 改写 stake 为捕获真实传入值 + 新增 2 条（窗口小时接线、BURST 4h/8h 分档时刻）；集成测试补 `unlocked_at` 落库断言（08-30T10:00Z 而非查询时刻）
+    - 验证: 全量 **1364 tests / 0 failures**；jacoco INSTRUCTION 95.14% + BRANCH 84.37%；spotless PASS
+    - 状态: ✅ Batch 2 完成（Batch 3 = progress 高水位；Batch 4 = 周期成就）
 - [2026-09-11] - 成就系统扩展 Batch 1（type/tier 投影 + 阶梯扩容 + PERFECT_MONTH 连续化）
     - 需求来源: ctt-web 六类问题文档（成就终局/阶梯太短/步长失衡/PERFECT_MONTH 二值/unlockedAt 语义/progress 可倒退）。核实后**前端文档 3 处错误 + 2 处缺口**：①DAILY_BURST progress 已是秒（MAX_DAILY_SECONDS）不需改语义 ②阶梯提案丢了 3 个现存 code（LANGUAGES_10/EARLY_BIRD_30/NIGHT_OWL_30）会孤立已解锁记录 ③tier 非"枚举已持有"需推导；缺口：周期成就需 period_key 改唯一约束（前端的"高"成本实为 schema 变更）、46 阶会退化成 46 次全量扫描
     - 评审报告: `.omp/achievement-expansion-review.md`（267 行，已 gitignore）
