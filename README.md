@@ -459,7 +459,11 @@ the summary total; other distributions accumulate raw durations per session, mat
 StatisticsView semantics. Badges
 are unlocked lazily on query — 51 badges across seven families (streak 8, total duration 8, language
 count 9, early bird 8, night owl 8, daily burst 5, perfect month 5) — and unlock records are
-idempotent (unique constraint, one `ACHIEVEMENT_UNLOCKED` audit event per badge). Each badge carries
+idempotent (unique constraint, one `ACHIEVEMENT_UNLOCKED` audit event per badge). `unlockedAt` is
+the instant the badge was **earned**, back-inferred from the session history by the same
+computation that produced the progress (the third consecutive day, the moment a cumulative total
+crossed its threshold), not the moment the page was opened; evaluation is lazy, so stamping the
+observation time would misdate every badge a user collects before visiting. Each badge carries
 its family (`type`) and its 1-based rung within that family (`tier`), so a client groups badges into
 ladders without maintaining its own code-to-family table; thresholds step up per family so the gap
 between consecutive unlocks grows, and `PERFECT_MONTH` measures the best calendar month's coverage
