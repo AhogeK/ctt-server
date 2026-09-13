@@ -457,10 +457,16 @@ buckets follow the plugin's statistics (Night 00:00-05:59, Morning 06:00-11:59, 
 Evening 18:00-23:59) and slice bucket-spanning sessions at bucket boundaries, so its entries sum to
 the summary total; other distributions accumulate raw durations per session, matching the plugin
 StatisticsView semantics. Badges
-are unlocked lazily on query — 15 badges across streak / total duration / language count / time
-windows / daily burst / perfect month — and unlock records are idempotent (unique constraint, one
-`ACHIEVEMENT_UNLOCKED` audit event per badge). Achievements responses are cached in Redis for 60s
-and invalidated on push. All stats endpoints are rate-limited to 60 req/min (`RATE_LIMIT_001`).
+are unlocked lazily on query — 51 badges across seven families (streak 8, total duration 8, language
+count 9, early bird 8, night owl 8, daily burst 5, perfect month 5) — and unlock records are
+idempotent (unique constraint, one `ACHIEVEMENT_UNLOCKED` audit event per badge). Each badge carries
+its family (`type`) and its 1-based rung within that family (`tier`), so a client groups badges into
+ladders without maintaining its own code-to-family table; thresholds step up per family so the gap
+between consecutive unlocks grows, and `PERFECT_MONTH` measures the best calendar month's coverage
+as a percentage of that month's own length (`progress` 0-100, `unit` `percent`), so a fully coded
+28-day February scores 100 rather than being penalised for being short. Achievements responses are
+cached in Redis for 60s under a format-versioned key and invalidated on push. All stats endpoints
+are rate-limited to 60 req/min (`RATE_LIMIT_001`).
 
 **Materialization**: per-user per-UTC-day coding statistics are materialized in the
 `daily_stats` table and maintained incrementally on every push (only the touched UTC dates are
