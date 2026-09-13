@@ -3,6 +3,7 @@ package com.ahogek.cttserver.stats.achievement.enums;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -305,7 +306,123 @@ public enum Achievement {
             100,
             "percent",
             "Perfect Month",
-            "Code on every day of a calendar month");
+            "Code on every day of a calendar month"),
+
+    DAILY_TOTAL_1H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.DAY,
+            3_600,
+            "seconds",
+            "Productive Hour",
+            "Code for an hour today"),
+    DAILY_TOTAL_2H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.DAY,
+            7_200,
+            "seconds",
+            "Focused Today",
+            "Code for 2 hours today"),
+    DAILY_TOTAL_4H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.DAY,
+            14_400,
+            "seconds",
+            "Deep Day",
+            "Code for 4 hours today"),
+
+    WEEKLY_ACTIVE_3(
+            AchievementType.ACTIVE_DAYS,
+            AchievementWindow.WEEK,
+            3,
+            "days",
+            "Three-Day Week",
+            "Code on 3 days this week"),
+    WEEKLY_ACTIVE_5(
+            AchievementType.ACTIVE_DAYS,
+            AchievementWindow.WEEK,
+            5,
+            "days",
+            "Full Week",
+            "Code on 5 days this week"),
+    WEEKLY_ACTIVE_7(
+            AchievementType.ACTIVE_DAYS,
+            AchievementWindow.WEEK,
+            7,
+            "days",
+            "All Week",
+            "Code on all 7 days this week"),
+    WEEKLY_TOTAL_10H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.WEEK,
+            36_000,
+            "seconds",
+            "Solid Week",
+            "Code for 10 hours this week"),
+    WEEKLY_TOTAL_25H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.WEEK,
+            90_000,
+            "seconds",
+            "Heavy Week",
+            "Code for 25 hours this week"),
+
+    MONTHLY_ACTIVE_10(
+            AchievementType.ACTIVE_DAYS,
+            AchievementWindow.MONTH,
+            10,
+            "days",
+            "Half-Active Month",
+            "Code on 10 days this month"),
+    MONTHLY_ACTIVE_20(
+            AchievementType.ACTIVE_DAYS,
+            AchievementWindow.MONTH,
+            20,
+            "days",
+            "Active Month",
+            "Code on 20 days this month"),
+    MONTHLY_TOTAL_40H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.MONTH,
+            144_000,
+            "seconds",
+            "Forty-Hour Month",
+            "Code for 40 hours this month"),
+    MONTHLY_TOTAL_80H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.MONTH,
+            288_000,
+            "seconds",
+            "Eighty-Hour Month",
+            "Code for 80 hours this month"),
+
+    YEARLY_ACTIVE_100(
+            AchievementType.ACTIVE_DAYS,
+            AchievementWindow.YEAR,
+            100,
+            "days",
+            "Hundred-Day Year",
+            "Code on 100 days this year"),
+    YEARLY_ACTIVE_200(
+            AchievementType.ACTIVE_DAYS,
+            AchievementWindow.YEAR,
+            200,
+            "days",
+            "Two-Hundred-Day Year",
+            "Code on 200 days this year"),
+    YEARLY_TOTAL_500H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.YEAR,
+            1_800_000,
+            "seconds",
+            "Five-Hundred-Hour Year",
+            "Code for 500 hours this year"),
+    YEARLY_TOTAL_1000H(
+            AchievementType.TOTAL_SECONDS,
+            AchievementWindow.YEAR,
+            3_600_000,
+            "seconds",
+            "Thousand-Hour Year",
+            "Code for 1000 hours this year");
 
     /**
      * Tier ordinal within the badge's own ladder, 1-based.
@@ -317,6 +434,7 @@ public enum Achievement {
     private static final Map<Achievement, Integer> TIERS = buildTiers();
 
     private final AchievementType type;
+    private final AchievementWindow window;
     private final long target;
     private final String unit;
     private final String displayName;
@@ -328,20 +446,41 @@ public enum Achievement {
             String unit,
             String displayName,
             String description) {
+        this(type, AchievementWindow.LIFETIME, target, unit, displayName, description);
+    }
+
+    Achievement(
+            AchievementType type,
+            AchievementWindow window,
+            long target,
+            String unit,
+            String displayName,
+            String description) {
         this.type = type;
+        this.window = window;
         this.target = target;
         this.unit = unit;
         this.displayName = displayName;
         this.description = description;
     }
 
+    /**
+     * Builds the rung ordinals, one ladder per (family, window) pair.
+     *
+     * <p>Grouping by family and window together — not by family alone — is what keeps the ladders
+     * meaningful: a day's 2-hour target and the lifetime 10-hour target are different goals, and
+     * folding them into one sequence would number the rungs against unrelated thresholds.
+     */
     private static Map<Achievement, Integer> buildTiers() {
-        Map<AchievementType, List<Achievement>> byType = new EnumMap<>(AchievementType.class);
+        Map<LadderKey, List<Achievement>> byLadder = new LinkedHashMap<>();
         for (Achievement achievement : values()) {
-            byType.computeIfAbsent(achievement.type, _ -> new ArrayList<>()).add(achievement);
+            byLadder.computeIfAbsent(
+                            new LadderKey(achievement.type, achievement.window),
+                            _ -> new ArrayList<>())
+                    .add(achievement);
         }
         Map<Achievement, Integer> tiers = new EnumMap<>(Achievement.class);
-        for (List<Achievement> ladder : byType.values()) {
+        for (List<Achievement> ladder : byLadder.values()) {
             ladder.sort(Comparator.comparingLong(Achievement::target));
             for (int index = 0; index < ladder.size(); index++) {
                 tiers.put(ladder.get(index), index + 1);
@@ -350,8 +489,63 @@ public enum Achievement {
         return tiers;
     }
 
+    /**
+     * Identifies one ladder: a family measured over a particular window.
+     *
+     * <p>Public because it is the unit of both measurement and unlock identity: two badges sharing
+     * a type but differing in window are unrelated goals (today's 2 hours versus the lifetime
+     * total), so anything keyed by family alone must key by family and window instead.
+     *
+     * @param type the family
+     * @param window the measurement window
+     */
+    public record LadderKey(AchievementType type, AchievementWindow window) {
+
+        /**
+         * Returns every ladder, in the order the enum declares its members.
+         *
+         * @return the ladders, each appearing once
+         */
+        public static List<LadderKey> allInDeclarationOrder() {
+            Map<LadderKey, Boolean> ordered = new LinkedHashMap<>();
+            for (Achievement achievement : values()) {
+                ordered.putIfAbsent(
+                        new LadderKey(achievement.type(), achievement.window()), Boolean.TRUE);
+            }
+            return List.copyOf(ordered.keySet());
+        }
+    }
+
+    /**
+     * Resolves a stored achievement code back to its badge.
+     *
+     * <p>Returns {@code null} for a code this build does not know, which happens when an older
+     * release wrote a badge since renamed or removed; callers skip those rows rather than fail, so
+     * a stale row cannot break the whole list.
+     *
+     * @param code the achievement code
+     * @return the matching badge, or {@code null} when unknown
+     */
+    public static Achievement byCode(String code) {
+        for (Achievement achievement : values()) {
+            if (achievement.name().equals(code)) {
+                return achievement;
+            }
+        }
+        return null;
+    }
+
     public AchievementType type() {
         return type;
+    }
+
+    /**
+     * Returns the measurement window this badge is scoped to.
+     *
+     * @return the window, {@link AchievementWindow#LIFETIME} for perpetual badges
+     */
+    public AchievementWindow window() {
+        return window;
     }
 
     public long target() {
@@ -371,7 +565,7 @@ public enum Achievement {
     }
 
     /**
-     * Returns this badge's 1-based position in its own type's ladder, ordered by target ascending.
+     * Returns this badge's 1-based position in its own ladder, ordered by target ascending.
      *
      * <p>Lets a client group badges by {@link #type()} and render the rung number without shipping
      * its own code-to-ladder table.

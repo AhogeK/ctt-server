@@ -7,7 +7,8 @@ import com.ahogek.cttserver.stats.achievement.dto.AchievementResponse;
 import com.ahogek.cttserver.stats.achievement.entity.AchievementProgress;
 import com.ahogek.cttserver.stats.achievement.entity.UserAchievement;
 import com.ahogek.cttserver.stats.achievement.enums.Achievement;
-import com.ahogek.cttserver.stats.achievement.enums.AchievementType;
+import com.ahogek.cttserver.stats.achievement.enums.Achievement.LadderKey;
+import com.ahogek.cttserver.stats.achievement.enums.AchievementWindow;
 import com.ahogek.cttserver.stats.achievement.repository.AchievementProgressRepository;
 import com.ahogek.cttserver.stats.achievement.repository.UserAchievementRepository;
 import com.ahogek.cttserver.stats.service.StatsCalculator;
@@ -27,9 +28,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,7 +71,7 @@ public class AchievementService {
      * null}, {@code tier} {@code 0}) and the stale ladder would be served for the rest of the
      * entry's TTL. Bump the version whenever the shape changes — old keys then simply expire.
      */
-    private static final String CACHE_PREFIX = "achievements:cache:v2:";
+    private static final String CACHE_PREFIX = "achievements:cache:v3:";
 
     private static final Duration CACHE_TTL = Duration.ofSeconds(60);
 
@@ -177,40 +178,58 @@ public class AchievementService {
     private List<AchievementResponse> evaluate(UUID userId, ZoneOffset zone) {
         List<CodingSession> sessions =
                 codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId);
-        Map<String, Instant> unlockedAt = new HashMap<>();
+        LocalDate today = LocalDate.now(clock.withZone(zone));
+
+        // Unlocks are matched by code AND period: a lifetime badge has one row, a windowed badge
+        // has
+        // one per period it was earned in, and only the current period's row counts as unlocked.
+        // Keyed by code, not by ladder, so each rung reports the instant it was itself earned.
+        Map<String, Instant> unlockedByCode = new HashMap<>();
         for (UserAchievement unlock : userAchievementRepository.findByUserId(userId)) {
-            unlockedAt.put(unlock.getAchievementCode(), unlock.getUnlockedAt());
-        }
-        Map<AchievementType, Long> highWater = new EnumMap<>(AchievementType.class);
-        for (AchievementProgress mark : achievementProgressRepository.findByUserId(userId)) {
-            highWater.put(mark.getAchievementType(), mark.getProgress());
+            Achievement achievement = Achievement.byCode(unlock.getAchievementCode());
+            if (achievement == null
+                    || !achievement.window().periodKey(today).equals(unlock.getPeriodKey())) {
+                continue;
+            }
+            unlockedByCode.put(unlock.getAchievementCode(), unlock.getUnlockedAt());
         }
 
-        // One measurement per type, not per badge: a family with eight rungs would otherwise
-        // re-scan the whole session history eight times for the same number.
-        Map<AchievementType, Measurement> measurements = new EnumMap<>(AchievementType.class);
-        Map<AchievementType, Long> reportedProgress = new EnumMap<>(AchievementType.class);
-        for (AchievementType type : AchievementType.values()) {
-            Measurement measurement = measure(type, sessions, zone);
-            measurements.put(type, measurement);
-            long progress = Math.max(measurement.progress(), floorOf(type, unlockedAt));
-            long previous = highWater.getOrDefault(type, 0L);
-            if (progress > previous) {
-                // Stored so a later measurement cannot fall back below it when the sessions that
-                // produced it are soft-deleted.
-                achievementProgressRepository.raiseIfHigher(userId, type.name(), progress);
-            } else {
-                progress = previous;
+        Map<LadderKey, Long> highWater = new LinkedHashMap<>();
+        for (AchievementProgress mark : achievementProgressRepository.findByUserId(userId)) {
+            // Only lifetime ladders are ever stored, so a row names the family's perpetual ladder.
+            highWater.put(
+                    new LadderKey(mark.getAchievementType(), AchievementWindow.LIFETIME),
+                    mark.getProgress());
+        }
+
+        Map<LadderKey, Measurement> measurements = new LinkedHashMap<>();
+        Map<LadderKey, Long> reportedProgress = new LinkedHashMap<>();
+        for (LadderKey ladder : LadderKey.allInDeclarationOrder()) {
+            Measurement measurement = measure(ladder, sessions, zone, today);
+            measurements.put(ladder, measurement);
+            long progress = Math.max(measurement.progress(), floorOf(ladder, unlockedByCode));
+            if (ladder.window() == AchievementWindow.LIFETIME) {
+                // Lifetime progress accumulates over all history, so it must not fall back when
+                // the sessions behind it are deleted. Windowed progress is expected to reset each
+                // period, so a mark would defeat the point.
+                long previous = highWater.getOrDefault(ladder, 0L);
+                if (progress > previous) {
+                    achievementProgressRepository.raiseIfHigher(
+                            userId, ladder.type().name(), progress);
+                } else {
+                    progress = previous;
+                }
             }
-            reportedProgress.put(type, progress);
+            reportedProgress.put(ladder, progress);
         }
 
         List<AchievementResponse> result = new ArrayList<>();
         for (Achievement achievement : Achievement.values()) {
-            long progress = reportedProgress.get(achievement.type());
-            Measurement measurement = measurements.get(achievement.type());
-            boolean unlocked = unlockedAt.containsKey(achievement.name());
-            Instant timestamp = unlockedAt.get(achievement.name());
+            LadderKey ladder = new LadderKey(achievement.type(), achievement.window());
+            long progress = reportedProgress.get(ladder);
+            Measurement measurement = measurements.get(ladder);
+            boolean unlocked = unlockedByCode.containsKey(achievement.name());
+            Instant timestamp = unlockedByCode.get(achievement.name());
             if (!unlocked && progress >= achievement.target()) {
                 Instant achievedAt = measurement.achievedAt(achievement.target());
                 if (achievedAt == null) {
@@ -225,9 +244,13 @@ public class AchievementService {
                             userId);
                     achievedAt = Instant.now(clock);
                 }
+                String periodKey = achievement.window().periodKey(today);
                 int inserted =
                         userAchievementRepository.insertIfAbsent(
-                                userId, achievement.name(), achievedAt.atOffset(ZoneOffset.UTC));
+                                userId,
+                                achievement.name(),
+                                periodKey,
+                                achievedAt.atOffset(ZoneOffset.UTC));
                 if (inserted == 1) {
                     timestamp = achievedAt;
                     auditLogService.logSuccess(
@@ -238,7 +261,7 @@ public class AchievementService {
                     log.info("Achievement {} unlocked for user {}", achievement.name(), userId);
                 } else {
                     // a concurrent request won the insert; its instant is the recorded one
-                    timestamp = reloadedUnlockedAt(userId, achievement.name());
+                    timestamp = reloadedUnlockedAt(userId, achievement.name(), periodKey);
                 }
                 unlocked = true;
             }
@@ -253,49 +276,57 @@ public class AchievementService {
                             timestamp,
                             progress,
                             achievement.target(),
-                            achievement.unit()));
+                            achievement.unit(),
+                            achievement.window().name(),
+                            achievement.window().start(today),
+                            achievement.window().end(today)));
         }
         return result;
     }
 
     /**
-     * Returns the lowest value a family's progress can honestly report, given the badges already
-     * awarded for it.
+     * Returns the lowest value a ladder's progress can honestly report, given the badges already
+     * awarded for it in the current period.
      *
      * <p>A badge that was unlocked proves its target was once reached, so the highest awarded
-     * target in the family is a floor the current measurement must not undercut. This also
-     * back-fills families unlocked before high-water marks existed, which have no stored mark.
+     * target in the ladder is a floor the current measurement must not undercut. This also
+     * back-fills badges unlocked before high-water marks existed, which have no stored mark.
      *
-     * @param type the family
-     * @param unlockedAt the codes the user has unlocked
-     * @return the highest target already reached, or 0 when the family has no unlocked badge
+     * @param ladder the ladder
+     * @param unlockedByCode the badges the user has unlocked in the current period, by code
+     * @return the highest target already reached, or 0 when the ladder has no unlocked badge
      */
-    private static long floorOf(AchievementType type, Map<String, Instant> unlockedAt) {
+    private static long floorOf(LadderKey ladder, Map<String, Instant> unlockedByCode) {
         long floor = 0;
         for (Achievement achievement : Achievement.values()) {
-            if (achievement.type() == type && unlockedAt.containsKey(achievement.name())) {
+            if (achievement.type() == ladder.type()
+                    && achievement.window() == ladder.window()
+                    && unlockedByCode.containsKey(achievement.name())) {
                 floor = Math.max(floor, achievement.target());
             }
         }
         return floor;
     }
 
-    private Instant reloadedUnlockedAt(UUID userId, String achievementCode) {
+    private Instant reloadedUnlockedAt(UUID userId, String achievementCode, String periodKey) {
         return userAchievementRepository.findByUserId(userId).stream()
-                .filter(unlock -> unlock.getAchievementCode().equals(achievementCode))
+                .filter(
+                        unlock ->
+                                unlock.getAchievementCode().equals(achievementCode)
+                                        && unlock.getPeriodKey().equals(periodKey))
                 .map(UserAchievement::getUnlockedAt)
                 .findFirst()
                 .orElse(null);
     }
 
     /**
-     * A family's current progress together with a resolver for the instant a given target was met.
+     * A ladder's current progress together with a resolver for the instant a given target was met.
      *
      * <p>Both come from the same computation, so the reported instant always belongs to the data
-     * that produced the progress; the resolver is keyed by target because one family carries
+     * that produced the progress; the resolver is keyed by target because one ladder carries
      * several rungs and each was earned at a different moment.
      *
-     * @param progress the family's current measured value
+     * @param progress the ladder's current measured value
      * @param resolver maps a rung's target to the instant it was reached, or {@code null} when it
      *     was not
      */
@@ -306,56 +337,70 @@ public class AchievementService {
         }
     }
 
+    /**
+     * Measures one ladder over its own window.
+     *
+     * <p>Sessions are clipped to the ladder's period first, so a windowed badge counts only the
+     * coding done inside it: today's 2 hours, this week's 5 active days. Clip boundaries follow the
+     * caller's local calendar, matching every statistics endpoint.
+     */
     private Measurement measure(
-            AchievementType type, List<CodingSession> sessions, ZoneOffset zone) {
-        // The clock is projected into the caller's zone, not left in UTC: a "today" derived from
-        // UTC would make the streak and summary windows disagree with every statistics endpoint,
-        // which resolves today in the request's own zone.
-        LocalDate today = LocalDate.now(clock.withZone(zone));
-        return switch (type) {
+            LadderKey ladder, List<CodingSession> sessions, ZoneOffset zone, LocalDate today) {
+        List<CodingSession> windowed =
+                StatsCalculator.clipSessions(
+                        sessions, zone, ladder.window().start(today), ladder.window().end(today));
+        return switch (ladder.type()) {
             case STREAK -> {
-                long progress = StatsCalculator.streaks(sessions, zone, today).max();
+                long progress = StatsCalculator.streaks(windowed, zone, today).max();
                 yield new Measurement(
                         progress,
                         target ->
                                 StatsCalculator.streakAchievedAt(
-                                        sessions, zone, Math.toIntExact(target)));
+                                        windowed, zone, Math.toIntExact(target)));
             }
             case TOTAL_SECONDS -> {
-                long progress = StatsCalculator.summary(sessions, zone, today).total();
+                long progress = StatsCalculator.summary(windowed, zone, today).total();
                 yield new Measurement(
                         progress,
-                        target -> StatsCalculator.totalSecondsAchievedAt(sessions, zone, target));
+                        target -> StatsCalculator.totalSecondsAchievedAt(windowed, zone, target));
+            }
+            case ACTIVE_DAYS -> {
+                long progress = StatsCalculator.activeDayCount(windowed, zone);
+                yield new Measurement(
+                        progress,
+                        target ->
+                                StatsCalculator.activeDaysAchievedAt(
+                                        windowed, zone, Math.toIntExact(target)));
             }
             case LANGUAGE_COUNT -> {
                 long progress =
-                        StatsCalculator.accumulateBy(sessions, zone, CodingSession::getLanguage)
+                        StatsCalculator.accumulateBy(windowed, zone, CodingSession::getLanguage)
                                 .size();
                 yield new Measurement(
                         progress,
                         target ->
                                 StatsCalculator.languageCountAchievedAt(
-                                        sessions, zone, Math.toIntExact(target)));
+                                        windowed, zone, Math.toIntExact(target)));
             }
             case EARLY_BIRD_DAYS ->
                     windowDaysMeasurement(
-                            sessions, zone, EARLY_BIRD_START_HOUR, EARLY_BIRD_END_HOUR);
+                            windowed, zone, EARLY_BIRD_START_HOUR, EARLY_BIRD_END_HOUR);
             case NIGHT_OWL_DAYS ->
-                    windowDaysMeasurement(sessions, zone, NIGHT_OWL_START_HOUR, NIGHT_OWL_END_HOUR);
+                    windowDaysMeasurement(windowed, zone, NIGHT_OWL_START_HOUR, NIGHT_OWL_END_HOUR);
             case MAX_DAILY_SECONDS -> {
-                long progress = StatsCalculator.maxDailySeconds(sessions, zone);
+                long progress = StatsCalculator.maxDailySeconds(windowed, zone);
                 yield new Measurement(
                         progress,
                         target ->
-                                StatsCalculator.maxDailySecondsAchievedAt(sessions, zone, target));
+                                StatsCalculator.maxDailySecondsAchievedAt(windowed, zone, target));
             }
             case PERFECT_MONTH -> {
-                long progress = StatsCalculator.bestPerfectMonthPercent(sessions, zone);
+                long progress = StatsCalculator.bestPerfectMonthPercent(windowed, zone);
                 yield new Measurement(
                         progress,
                         target ->
                                 StatsCalculator.perfectMonthPercentAchievedAt(
-                                        sessions, zone, target));
+                                        windowed, zone, target));
             }
         };
     }

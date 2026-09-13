@@ -1005,6 +1005,46 @@ public final class StatsCalculator {
     }
 
     /**
+     * Returns the number of distinct days carrying a positive amount of coding time.
+     *
+     * <p>Counts the same day set as the heatmap, so a session crossing midnight contributes to both
+     * days and a zero-second overlap contributes to none.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @return the number of active days
+     */
+    public static int activeDayCount(List<CodingSession> sessions, ZoneOffset zone) {
+        return (int)
+                mergedSecondsByDay(sessions, zone).entrySet().stream()
+                        .filter(entry -> entry.getValue() > 0)
+                        .count();
+    }
+
+    /**
+     * Returns the earliest instant at which distinct active days reached a target.
+     *
+     * <p>Walks the days in order, so the reported instant is the moment the qualifying day became
+     * active — the same first-active moment {@link #streakAchievedAt} uses.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param targetDays required distinct day count
+     * @return the attaining instant, or {@code null} when the target is never reached
+     */
+    public static Instant activeDaysAchievedAt(
+            List<CodingSession> sessions, ZoneOffset zone, int targetDays) {
+        int seen = 0;
+        for (Map.Entry<LocalDate, OffsetDateTime> entry :
+                firstActiveMomentByDay(sessions, zone).entrySet()) {
+            if (++seen >= targetDays) {
+                return entry.getValue().toInstant();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Returns the earliest instant at which a calendar month's coverage reached a target
      * percentage.
      *

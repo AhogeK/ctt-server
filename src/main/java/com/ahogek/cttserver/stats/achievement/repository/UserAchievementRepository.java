@@ -34,28 +34,34 @@ public interface UserAchievementRepository extends JpaRepository<UserAchievement
     List<UserAchievement> findByUserId(UUID userId);
 
     /**
-     * Inserts an unlock record atomically, skipping when the pair already exists.
+     * Inserts an unlock record atomically, skipping when the user already holds it for that period.
      *
      * <p>{@code unlockedAt} is the instant the badge was earned, computed from the session history
      * by the caller; the database no longer stamps it, because a lazily evaluated unlock would
      * otherwise record the moment the user happened to open the page.
      *
+     * <p>{@code periodKey} makes a windowed badge re-earnable: the unique key includes it, so next
+     * period's attempt is a new row rather than a conflict. Lifetime badges always pass {@code
+     * LIFETIME} and therefore still yield at most one row.
+     *
      * @param userId the owning user
      * @param achievementCode the achievement to unlock
+     * @param periodKey the period the unlock belongs to
      * @param unlockedAt the instant the badge was earned
-     * @return 1 when newly inserted, 0 when already unlocked
+     * @return 1 when newly inserted, 0 when already unlocked for that period
      */
     @Modifying
     @Query(
             value =
                     """
-                    INSERT INTO user_achievements (user_id, achievement_code, unlocked_at)
-                    VALUES (:userId, :achievementCode, :unlockedAt)
-                    ON CONFLICT (user_id, achievement_code) DO NOTHING
+                    INSERT INTO user_achievements (user_id, achievement_code, period_key, unlocked_at)
+                    VALUES (:userId, :achievementCode, :periodKey, :unlockedAt)
+                    ON CONFLICT (user_id, achievement_code, period_key) DO NOTHING
                     """,
             nativeQuery = true)
     int insertIfAbsent(
             @Param("userId") UUID userId,
             @Param("achievementCode") String achievementCode,
+            @Param("periodKey") String periodKey,
             @Param("unlockedAt") OffsetDateTime unlockedAt);
 }

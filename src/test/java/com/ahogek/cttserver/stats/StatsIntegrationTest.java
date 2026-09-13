@@ -569,6 +569,67 @@ class StatsIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should award a windowed badge once per period, not once per user")
+        void shouldAwardWindowedBadge_perPeriod() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            UUID userId = UUID.fromString(auth[1]);
+            // The day window is the request's local "today" (timezoneOffset defaults to 0), so the
+            // session has to sit inside the current UTC day to be counted.
+            Instant dayStart =
+                    LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
+            insertSession(
+                    userId,
+                    dayStart.plus(Duration.ofHours(1)),
+                    dayStart.plus(Duration.ofHours(2)),
+                    "ctt-server",
+                    "Java");
+
+            var first =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+            assertThat(first).hasStatusOk();
+            assertThat(first)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='DAILY_TOTAL_1H')].unlocked")
+                    .isEqualTo(List.of(true));
+            assertThat(first)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='DAILY_TOTAL_1H')].window")
+                    .isEqualTo(List.of("DAY"));
+            // the daily rungs beyond the hour just coded must stay locked
+            assertThat(first)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='DAILY_TOTAL_4H')].unlocked")
+                    .isEqualTo(List.of(false));
+
+            // The row records the period it was earned in, so a second call in the same period
+            // must not insert again — the uniqueness now includes the period.
+            String storedPeriod =
+                    jdbcClient
+                            .sql(
+                                    "SELECT period_key FROM user_achievements WHERE user_id = ? AND achievement_code = 'DAILY_TOTAL_1H'")
+                            .param(userId)
+                            .query(String.class)
+                            .single();
+            assertThat(storedPeriod).isEqualTo(LocalDate.now(ZoneOffset.UTC).toString());
+
+            mvc.get()
+                    .uri("/api/v1/stats/achievements")
+                    .header("Authorization", "Bearer " + auth[0])
+                    .exchange();
+            Long rowCount =
+                    jdbcClient
+                            .sql(
+                                    "SELECT COUNT(*) FROM user_achievements WHERE user_id = ? AND achievement_code = 'DAILY_TOTAL_1H'")
+                            .param(userId)
+                            .query(Long.class)
+                            .single();
+            assertThat(rowCount).isEqualTo(1);
+        }
+
+        @Test
         @DisplayName("Should report all badges locked when there are no sessions")
         void shouldReturnAllLocked_whenNoSessions() throws Exception {
             String[] auth = registerVerifyAndLogin(uniqueEmail());

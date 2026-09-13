@@ -13,6 +13,8 @@ public enum AchievementType {
     TOTAL_SECONDS,
     /** Number of distinct programming languages used. */
     LANGUAGE_COUNT,
+    /** Distinct days carrying any coding time. */
+    ACTIVE_DAYS,
     /** Distinct days with coding inside the 06:00-09:00 window. */
     EARLY_BIRD_DAYS,
     /** Distinct days with coding inside the 22:00-05:00 window. */

@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.stats.achievement.dto;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -47,4 +48,19 @@ public record AchievementResponse(
                 Instant unlockedAt,
         @Schema(description = "Current progress value", example = "7") long progress,
         @Schema(description = "Threshold the badge unlocks at", example = "7") long target,
-        @Schema(description = "Unit of progress and target", example = "days") String unit) {}
+        @Schema(description = "Unit of progress and target", example = "days") String unit,
+        @Schema(
+                        description =
+                                "Measurement window; LIFETIME badges never reset, windowed badges do",
+                        example = "LIFETIME")
+                String window,
+        @Schema(
+                        description = "First local date of the current window; null for LIFETIME",
+                        nullable = true,
+                        example = "2026-09-07")
+                LocalDate windowStart,
+        @Schema(
+                        description = "Last local date of the current window; null for LIFETIME",
+                        nullable = true,
+                        example = "2026-09-13")
+                LocalDate windowEnd) {}

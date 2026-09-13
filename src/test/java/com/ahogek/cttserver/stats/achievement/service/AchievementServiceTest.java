@@ -7,6 +7,7 @@ import com.ahogek.cttserver.stats.achievement.dto.AchievementResponse;
 import com.ahogek.cttserver.stats.achievement.entity.AchievementProgress;
 import com.ahogek.cttserver.stats.achievement.entity.UserAchievement;
 import com.ahogek.cttserver.stats.achievement.enums.AchievementType;
+import com.ahogek.cttserver.stats.achievement.enums.AchievementWindow;
 import com.ahogek.cttserver.stats.achievement.repository.AchievementProgressRepository;
 import com.ahogek.cttserver.stats.achievement.repository.UserAchievementRepository;
 import com.ahogek.cttserver.sync.entity.CodingSession;
@@ -55,12 +56,13 @@ class AchievementServiceTest {
     private AuditLogService auditLogService;
     private AchievementService service;
     private final UUID userId = UUID.randomUUID();
-    private final Set<String> inserted = new HashSet<>();
+    private final Set<UnlockKey> inserted = new HashSet<>();
 
-    /**
-     * Instants the service passed to the write, keyed by code — mirrors what the row would hold.
-     */
-    private final Map<String, Instant> recordedInstants = new HashMap<>();
+    /** Instants the service passed to the write — mirrors what the row would hold. */
+    private final Map<UnlockKey, Instant> recordedInstants = new HashMap<>();
+
+    /** Identifies an unlock row: a badge within one period. */
+    private record UnlockKey(String code, String periodKey) {}
 
     /** High-water marks the service stored, keyed by family — mirrors what the row would hold. */
     private final Map<AchievementType, Long> storedMarks = new EnumMap<>(AchievementType.class);
@@ -119,28 +121,34 @@ class AchievementServiceTest {
                         _ ->
                                 inserted.stream()
                                         .map(
-                                                code -> {
+                                                key -> {
                                                     UserAchievement unlock =
-                                                            new UserAchievement(userId, code);
+                                                            new UserAchievement(
+                                                                    userId,
+                                                                    key.code(),
+                                                                    key.periodKey());
                                                     unlock.setUnlockedAt(
                                                             recordedInstants.getOrDefault(
-                                                                    code,
+                                                                    key,
                                                                     Instant.parse(
                                                                             "2026-08-31T00:00:00Z")));
                                                     return unlock;
                                                 })
                                         .toList());
-        when(userAchievementRepository.insertIfAbsent(eq(userId), any(), any()))
+        when(userAchievementRepository.insertIfAbsent(eq(userId), any(), any(), any()))
                 .thenAnswer(
                         inv -> {
-                            String code = inv.getArgument(1);
-                            if (!inserted.add(code)) {
+                            UnlockKey key =
+                                    new UnlockKey(
+                                            inv.getArgument(1).toString(),
+                                            inv.getArgument(2).toString());
+                            if (!inserted.add(key)) {
                                 return 0;
                             }
                             // Mirror the real write: the instant the caller computed is what the
                             // row ends up holding, and later reads hand it back verbatim.
                             recordedInstants.put(
-                                    code, ((OffsetDateTime) inv.getArgument(2)).toInstant());
+                                    key, ((OffsetDateTime) inv.getArgument(3)).toInstant());
                             return 1;
                         });
     }
@@ -200,8 +208,10 @@ class AchievementServiceTest {
             assertThat(streak30.unlocked()).isFalse();
             assertThat(streak30.progress()).isEqualTo(7);
             assertThat(streak30.tier()).isEqualTo(4);
-            verify(userAchievementRepository).insertIfAbsent(eq(userId), eq("STREAK_3"), any());
-            verify(userAchievementRepository).insertIfAbsent(eq(userId), eq("STREAK_7"), any());
+            verify(userAchievementRepository)
+                    .insertIfAbsent(eq(userId), eq("STREAK_3"), any(), any());
+            verify(userAchievementRepository)
+                    .insertIfAbsent(eq(userId), eq("STREAK_7"), any(), any());
             verify(auditLogService)
                     .logSuccess(
                             userId,
@@ -209,7 +219,7 @@ class AchievementServiceTest {
                             ResourceType.ACHIEVEMENT,
                             "STREAK_7");
             verify(userAchievementRepository, never())
-                    .insertIfAbsent(eq(userId), eq("STREAK_30"), any());
+                    .insertIfAbsent(eq(userId), eq("STREAK_30"), any(), any());
         }
 
         @Test
@@ -225,7 +235,7 @@ class AchievementServiceTest {
             assertThat(byCode(result, "STREAK_3").unlocked()).isFalse();
             assertThat(byCode(result, "TOTAL_10_HOURS").unlocked()).isFalse();
             assertThat(byCode(result, "DAILY_BURST").unlocked()).isFalse();
-            verify(userAchievementRepository, never()).insertIfAbsent(any(), any(), any());
+            verify(userAchievementRepository, never()).insertIfAbsent(any(), any(), any(), any());
             verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
         }
 
@@ -237,9 +247,12 @@ class AchievementServiceTest {
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(
                             List.of(session("2026-08-30T10:00:00", "2026-08-30T21:00:00", "Java")));
-            when(userAchievementRepository.insertIfAbsent(eq(userId), eq("TOTAL_10_HOURS"), any()))
+            when(userAchievementRepository.insertIfAbsent(
+                            eq(userId), eq("TOTAL_10_HOURS"), any(), any()))
                     .thenReturn(0);
-            UserAchievement wonByOtherRequest = new UserAchievement(userId, "TOTAL_10_HOURS");
+            UserAchievement wonByOtherRequest =
+                    new UserAchievement(
+                            userId, "TOTAL_10_HOURS", AchievementWindow.LIFETIME_PERIOD);
             wonByOtherRequest.setUnlockedAt(Instant.parse("2026-08-30T16:00:00Z"));
             when(userAchievementRepository.findByUserId(userId))
                     .thenReturn(List.of(wonByOtherRequest));
@@ -261,7 +274,9 @@ class AchievementServiceTest {
         @Test
         @DisplayName("shouldKeepExistingUnlockTimestamp_whenAlreadyUnlocked")
         void shouldKeepExistingUnlockTimestamp_whenAlreadyUnlocked() {
-            UserAchievement existing = new UserAchievement(userId, "TOTAL_10_HOURS");
+            UserAchievement existing =
+                    new UserAchievement(
+                            userId, "TOTAL_10_HOURS", AchievementWindow.LIFETIME_PERIOD);
             existing.setUnlockedAt(Instant.parse("2026-08-20T08:00:00Z"));
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(List.of());
@@ -272,7 +287,7 @@ class AchievementServiceTest {
             AchievementResponse total10 = byCode(result, "TOTAL_10_HOURS");
             assertThat(total10.unlocked()).isTrue();
             assertThat(total10.unlockedAt()).isEqualTo("2026-08-20T08:00:00Z");
-            verify(userAchievementRepository, never()).insertIfAbsent(any(), any(), any());
+            verify(userAchievementRepository, never()).insertIfAbsent(any(), any(), any(), any());
         }
 
         @Test
@@ -334,7 +349,8 @@ class AchievementServiceTest {
                                             "2026-08-30T12:00:00",
                                             "2026-08-30T13:00:00",
                                             "Kotlin")));
-            UserAchievement languages = new UserAchievement(userId, "LANGUAGES_5");
+            UserAchievement languages =
+                    new UserAchievement(userId, "LANGUAGES_5", AchievementWindow.LIFETIME_PERIOD);
             languages.setUnlockedAt(Instant.parse("2026-08-01T00:00:00Z"));
             when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of(languages));
 
@@ -352,7 +368,8 @@ class AchievementServiceTest {
             // is the proof that the value was once reached, so it seeds the floor.
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(List.of());
-            UserAchievement streak = new UserAchievement(userId, "STREAK_30");
+            UserAchievement streak =
+                    new UserAchievement(userId, "STREAK_30", AchievementWindow.LIFETIME_PERIOD);
             streak.setUnlockedAt(Instant.parse("2026-08-01T00:00:00Z"));
             when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of(streak));
 
@@ -376,6 +393,104 @@ class AchievementServiceTest {
             service.getAchievements(userId, ZONE);
 
             assertThat(storedMarks).containsEntry(AchievementType.LANGUAGE_COUNT, 3L);
+        }
+
+        @Test
+        @DisplayName("shouldCountOnlyTheCurrentWindow_whenDailyBadgeIsWindowed")
+        void shouldCountOnlyTheCurrentWindow_whenDailyBadgeIsWindowed() {
+            // A long session yesterday and one hour today: the daily badge measures today only,
+            // while the lifetime badge still sees everything.
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session("2026-08-30T09:00:00", "2026-08-30T18:00:00", "Java"),
+                                    session("2026-08-31T09:00:00", "2026-08-31T10:00:00", "Java")));
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            // FIXED_CLOCK is 2026-08-31T12:00Z, so the day window is 08-31.
+            assertThat(byCode(result, "DAILY_TOTAL_1H").progress()).isEqualTo(3_600);
+            assertThat(byCode(result, "DAILY_TOTAL_1H").window()).isEqualTo("DAY");
+            assertThat(byCode(result, "DAILY_TOTAL_1H").windowStart())
+                    .isEqualTo(java.time.LocalDate.of(2026, 8, 31));
+            assertThat(byCode(result, "DAILY_TOTAL_1H").unlocked()).isTrue();
+            // the 4h daily rung is out of reach today even though 9h was coded yesterday
+            assertThat(byCode(result, "DAILY_TOTAL_4H").unlocked()).isFalse();
+            // the lifetime ladder is unaffected by the window
+            assertThat(byCode(result, "TOTAL_10_HOURS").progress()).isEqualTo(36_000);
+        }
+
+        @Test
+        @DisplayName("shouldReportNoWindowBounds_forLifetimeBadges")
+        void shouldReportNoWindowBounds_forLifetimeBadges() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of());
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            AchievementResponse lifetime = byCode(result, "STREAK_3");
+            assertThat(lifetime.window()).isEqualTo("LIFETIME");
+            assertThat(lifetime.windowStart()).isNull();
+            assertThat(lifetime.windowEnd()).isNull();
+        }
+
+        @Test
+        @DisplayName("shouldNotTreatLastPeriodsUnlock_asCurrent_whenPeriodRolled")
+        void shouldNotTreatLastPeriodsUnlock_asCurrent_whenPeriodRolled() {
+            // The user earned the weekly badge last week; this week starts empty, so the badge must
+            // read locked again and its progress must start from zero rather than carrying over.
+            UserAchievement lastWeek = new UserAchievement(userId, "WEEKLY_ACTIVE_3", "2026-08-24");
+            lastWeek.setUnlockedAt(Instant.parse("2026-08-26T10:00:00Z"));
+            when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of(lastWeek));
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of());
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            AchievementResponse weekly = byCode(result, "WEEKLY_ACTIVE_3");
+            assertThat(weekly.unlocked()).isFalse();
+            assertThat(weekly.unlockedAt()).isNull();
+            assertThat(weekly.progress()).isZero();
+        }
+
+        @Test
+        @DisplayName("shouldKeepLastPeriodsUnlock_asHistory_whenANewPeriodIsEarned")
+        void shouldKeepLastPeriodsUnlock_asHistory_whenANewPeriodIsEarned() {
+            // The stored row from last week must not block this week's insert: the period key is
+            // part of the uniqueness, which is what makes the badge reachable again.
+            UserAchievement lastWeek = new UserAchievement(userId, "DAILY_TOTAL_1H", "2026-08-30");
+            lastWeek.setUnlockedAt(Instant.parse("2026-08-30T10:00:00Z"));
+            when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of(lastWeek));
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(session("2026-08-31T09:00:00", "2026-08-31T10:00:00", "Java")));
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            AchievementResponse daily = byCode(result, "DAILY_TOTAL_1H");
+            assertThat(daily.unlocked()).isTrue();
+            assertThat(daily.unlockedAt()).isEqualTo("2026-08-31T10:00:00Z");
+            // yesterday's row is untouched: a new period is a new row, not an update
+            verify(userAchievementRepository)
+                    .insertIfAbsent(eq(userId), eq("DAILY_TOTAL_1H"), eq("2026-08-31"), any());
+        }
+
+        @Test
+        @DisplayName("shouldNotHoldWindowedProgressAtTheHighWaterMark")
+        void shouldNotHoldWindowedProgressAtTheHighWaterMark() {
+            // A lifetime mark must never be applied to a windowed ladder, or a daily badge would
+            // stay permanently satisfied by the best day the user ever had.
+            storedMarks.put(AchievementType.TOTAL_SECONDS, 36_000L);
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(session("2026-08-31T09:00:00", "2026-08-31T09:30:00", "Java")));
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            assertThat(byCode(result, "DAILY_TOTAL_1H").progress()).isEqualTo(1_800);
+            assertThat(byCode(result, "DAILY_TOTAL_1H").unlocked()).isFalse();
+            // the lifetime ladder does inherit the stored mark
+            assertThat(byCode(result, "TOTAL_10_HOURS").progress()).isEqualTo(36_000);
         }
 
         @Test
