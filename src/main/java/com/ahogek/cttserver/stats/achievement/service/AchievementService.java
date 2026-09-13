@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,7 +58,17 @@ public class AchievementService {
     private static final int NIGHT_OWL_START_HOUR = 22;
     private static final int NIGHT_OWL_END_HOUR = 5;
 
-    private static final String CACHE_PREFIX = "achievements:cache:";
+    /**
+     * Cache key prefix, carrying a format version.
+     *
+     * <p>The cached value is the serialized {@link AchievementResponse} list, so a release that
+     * changes the response shape must not read entries written by the previous build: Jackson fills
+     * absent components with defaults rather than failing ({@code type} would come back {@code
+     * null}, {@code tier} {@code 0}) and the stale ladder would be served for the rest of the
+     * entry's TTL. Bump the version whenever the shape changes — old keys then simply expire.
+     */
+    private static final String CACHE_PREFIX = "achievements:cache:v2:";
+
     private static final Duration CACHE_TTL = Duration.ofSeconds(60);
 
     private final CodingSessionRepository codingSessionRepository;
@@ -163,9 +174,15 @@ public class AchievementService {
             unlockedAt.put(unlock.getAchievementCode(), unlock.getUnlockedAt());
         }
 
+        // One measurement per type, not per badge: a family with eight rungs would otherwise
+        // re-scan the whole session history eight times for the same number.
+        Map<AchievementType, Long> progressByType = new EnumMap<>(AchievementType.class);
+
         List<AchievementResponse> result = new ArrayList<>();
         for (Achievement achievement : Achievement.values()) {
-            long progress = progress(achievement.type(), sessions, zone);
+            long progress =
+                    progressByType.computeIfAbsent(
+                            achievement.type(), type -> progress(type, sessions, zone));
             boolean unlocked = unlockedAt.containsKey(achievement.name());
             Instant timestamp = unlockedAt.get(achievement.name());
             if (!unlocked && progress >= achievement.target()) {
@@ -195,6 +212,8 @@ public class AchievementService {
             result.add(
                     new AchievementResponse(
                             achievement.name(),
+                            achievement.type().name(),
+                            achievement.tier(),
                             achievement.displayName(),
                             achievement.description(),
                             unlocked,
@@ -207,10 +226,13 @@ public class AchievementService {
     }
 
     private long progress(AchievementType type, List<CodingSession> sessions, ZoneOffset zone) {
+        // The clock is projected into the caller's zone, not left in UTC: a "today" derived from
+        // UTC would make the streak and summary windows disagree with every statistics endpoint,
+        // which resolves today in the request's own zone.
+        LocalDate today = LocalDate.now(clock.withZone(zone));
         return switch (type) {
-            case STREAK -> StatsCalculator.streaks(sessions, zone, LocalDate.now(clock)).max();
-            case TOTAL_SECONDS ->
-                    StatsCalculator.summary(sessions, zone, LocalDate.now(clock)).total();
+            case STREAK -> StatsCalculator.streaks(sessions, zone, today).max();
+            case TOTAL_SECONDS -> StatsCalculator.summary(sessions, zone, today).total();
             case LANGUAGE_COUNT ->
                     StatsCalculator.accumulateBy(sessions, zone, CodingSession::getLanguage).size();
             case EARLY_BIRD_DAYS ->
@@ -220,7 +242,7 @@ public class AchievementService {
                     StatsCalculator.activeDaysInDailyWindow(
                             sessions, zone, NIGHT_OWL_START_HOUR, NIGHT_OWL_END_HOUR);
             case MAX_DAILY_SECONDS -> StatsCalculator.maxDailySeconds(sessions, zone);
-            case PERFECT_MONTH -> StatsCalculator.hasPerfectMonth(sessions, zone) ? 1 : 0;
+            case PERFECT_MONTH -> StatsCalculator.bestPerfectMonthPercent(sessions, zone);
         };
     }
 }

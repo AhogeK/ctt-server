@@ -719,30 +719,39 @@ public final class StatsCalculator {
     }
 
     /**
-     * Returns whether any full calendar month has coding on every single day.
+     * Returns the highest percentage of a calendar month's days that carry coding, across all
+     * months (0-100).
      *
-     * <p>A month is only considered perfect when the active-day count equals the month's total
-     * days, so an in-progress month never qualifies by itself.
+     * <p>Expressed as a fraction of the month's own length rather than a raw day count so that
+     * every month means the same thing: 28/28 in February and 31/31 in August are both 100, while
+     * 29/31 is 93 either way. A raw count would make the same number of days worth different
+     * percentages depending on which month it fell in.
+     *
+     * <p>An in-progress month is measured against its full length like any other, so its ratio
+     * rises as the month fills instead of resetting or sitting at 100 on day one.
+     *
+     * <p>A day counts as active when its overlap-collapsed duration is a positive number of
+     * seconds, matching the existence rule the heatmap and month list use.
      *
      * @param sessions live sessions
      * @param zone aggregation timezone
-     * @return {@code true} when at least one calendar month was coded on every day
+     * @return the best month's coverage as a whole percentage (0 when there are no sessions)
      */
-    public static boolean hasPerfectMonth(List<CodingSession> sessions, ZoneOffset zone) {
+    public static long bestPerfectMonthPercent(List<CodingSession> sessions, ZoneOffset zone) {
         Map<YearMonth, Set<LocalDate>> activeByMonth = new HashMap<>();
-        for (TimeInterval interval : toIntervals(sessions, zone)) {
-            Map<LocalDate, Duration> byDay = new HashMap<>();
-            splitIntervalByDay(interval, byDay);
-            for (LocalDate day : byDay.keySet()) {
-                activeByMonth.computeIfAbsent(YearMonth.from(day), _ -> new HashSet<>()).add(day);
+        for (Map.Entry<LocalDate, Long> entry : mergedSecondsByDay(sessions, zone).entrySet()) {
+            if (entry.getValue() > 0) {
+                activeByMonth
+                        .computeIfAbsent(YearMonth.from(entry.getKey()), _ -> new HashSet<>())
+                        .add(entry.getKey());
             }
         }
+        long best = 0;
         for (Map.Entry<YearMonth, Set<LocalDate>> entry : activeByMonth.entrySet()) {
-            if (entry.getValue().size() == entry.getKey().lengthOfMonth()) {
-                return true;
-            }
+            long percent = 100L * entry.getValue().size() / entry.getKey().lengthOfMonth();
+            best = Math.max(best, percent);
         }
-        return false;
+        return best;
     }
 
     /**

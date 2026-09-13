@@ -126,11 +126,16 @@ class AchievementServiceTest {
             assertThat(streak3.unlocked()).isTrue();
             assertThat(streak3.progress()).isEqualTo(7);
             assertThat(streak3.unlockedAt()).isEqualTo("2026-08-31T00:00:00Z");
+            assertThat(streak3.type()).isEqualTo("STREAK");
             AchievementResponse streak7 = byCode(result, "STREAK_7");
             assertThat(streak7.unlocked()).isTrue();
+            // Rungs are numbered by the ladder the client renders, so STREAK_7 is the 2nd of 8.
+            assertThat(streak7.tier()).isEqualTo(2);
+            assertThat(streak7.type()).isEqualTo("STREAK");
             AchievementResponse streak30 = byCode(result, "STREAK_30");
             assertThat(streak30.unlocked()).isFalse();
             assertThat(streak30.progress()).isEqualTo(7);
+            assertThat(streak30.tier()).isEqualTo(4);
             verify(userAchievementRepository).insertIfAbsent(userId, "STREAK_3");
             verify(userAchievementRepository).insertIfAbsent(userId, "STREAK_7");
             verify(auditLogService)
