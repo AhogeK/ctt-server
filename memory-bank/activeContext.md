@@ -1,4 +1,15 @@
 # Active Context
+- [2026-09-13] - 成就系统扩展 Batch 3（progress 高水位：单调不回退，v0.70.0）
+    - 需求: 文档§6——progress 从存活会话实时算，但会话可软删（`SyncPushService:174`），已解锁记录不撤销 → 界面出现"3/10 天却已发奖"的自相矛盾
+    - 设计判断: 高水位按**家族**存储而非按徽章——progress 是家族属性（8 个 STREAK 阶报同一个数），按 code 存会重复 8 份；与 `daily_stats`（纯派生）不同，**本表是系统 of record**（会话删掉后历史最大值不可重建），迁移注释已明示
+    - 迁移: `V20260913120000__create_achievement_progress.sql`（user_id + achievement_type 复合主键，R22 独立迁移）
+    - 仓储: `raiseIfHigher` 用 `INSERT ... ON CONFLICT DO UPDATE SET progress = GREATEST(...) WHERE progress < EXCLUDED.progress`——**单调性由 SQL 保证**（并发下收敛到较大值，测量值变小则不降）
+    - 服务: 每家族先算当前测量值，`progress = max(测量值, 已解锁徽章的最高 target)` 作下界 → 再与高水位比较并提升；**下界设计使「已发奖但数值更低」由构造消除**，且为高水位表引入前的存量解锁记录回填
+    - 测试（关键：避免 tautology）: 初版两条测试用 LANGUAGES_3 + 高水位 3 是**无效测试**（仅靠下界就能通过）→ 改为 LANGUAGES_8 进度 6/高水位 7，使断言只能由高水位满足；并做**红-绿验证**（临时禁用高水位逻辑 → 12 个用例失败 → 恢复后全绿），证明确实可失败
+    - 测试隔离: 集成测试 tearDown 补 `DELETE FROM achievement_progress`（虽 `ON DELETE CASCADE` 已覆盖，显式列出对齐可读性）
+    - README: 补 progress 单调性说明（R4）
+    - 验证: 全量 **1368 tests / 0 failures**；jacoco INSTRUCTION 94.94% + BRANCH 84.23%；spotless PASS
+    - 状态: ✅ Batch 3 完成（Batch 4 = 周期成就，需 period_key + 窗口概念，最后一批）
 - [2026-09-13] - 成就系统扩展 Batch 2（achievedAt 回推真实达成时刻，v0.69.0）
     - 需求: 文档§5——`unlockedAt` 记录的是"首次被读取时刻"而非达成时刻（`@CreationTimestamp` + 懒评估），所有"何时解锁"类功能失真
     - 关键判断: **不需要迁移**（`unlocked_at` 已是 NOT NULL，只需写入方传值）——R22 要求不改已应用迁移，此判断使本批零 schema 变更
