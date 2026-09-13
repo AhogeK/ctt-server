@@ -40,14 +40,18 @@ public class UserAchievement {
     @Column(name = "achievement_code", nullable = false, length = 50)
     private String achievementCode;
 
+    @Column(name = "period_key", nullable = false, length = 20)
+    private String periodKey;
+
     @Column(name = "unlocked_at", nullable = false, updatable = false)
     private Instant unlockedAt;
 
     protected UserAchievement() {}
 
-    public UserAchievement(UUID userId, String achievementCode) {
+    public UserAchievement(UUID userId, String achievementCode, String periodKey) {
         this.userId = userId;
         this.achievementCode = achievementCode;
+        this.periodKey = periodKey;
     }
 
     public Long getId() {
@@ -60,6 +64,15 @@ public class UserAchievement {
 
     public String getAchievementCode() {
         return achievementCode;
+    }
+
+    /**
+     * Returns the period this unlock belongs to.
+     *
+     * @return {@code LIFETIME} for perpetual badges, otherwise the period key
+     */
+    public String getPeriodKey() {
+        return periodKey;
     }
 
     public Instant getUnlockedAt() {

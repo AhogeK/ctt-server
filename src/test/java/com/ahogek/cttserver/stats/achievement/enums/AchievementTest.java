@@ -47,10 +47,13 @@ class AchievementTest {
                     "DAILY_BURST",
                     "PERFECT_MONTH");
 
-    /** Every constant of one family, in the ladder order the client renders. */
-    private static List<Achievement> ladderOf(AchievementType type) {
+    /** Every constant of one ladder (family + window), in the order the client renders. */
+    private static List<Achievement> ladderOf(Achievement.LadderKey ladder) {
         return Arrays.stream(Achievement.values())
-                .filter(achievement -> achievement.type() == type)
+                .filter(
+                        achievement ->
+                                achievement.type() == ladder.type()
+                                        && achievement.window() == ladder.window())
                 .sorted(Comparator.comparingInt(Achievement::tier))
                 .toList();
     }
@@ -74,12 +77,22 @@ class AchievementTest {
     class LadderTests {
 
         @Test
-        @DisplayName("shouldGiveEveryFamily_atLeastFiveRungs")
-        void shouldGiveEveryFamily_atLeastFiveRungs() {
-            // A one-rung family is won the moment it is understood, which is the gap this
-            // expansion closes; every family now has a ladder worth climbing.
-            for (AchievementType type : AchievementType.values()) {
-                assertThat(ladderOf(type)).as(type.name()).hasSizeGreaterThanOrEqualTo(5);
+        @DisplayName("shouldGiveEveryLifetimeLadder_atLeastFiveRungs")
+        void shouldGiveEveryLifetimeLadder_atLeastFiveRungs() {
+            // A one-rung ladder is won the moment it is understood, which is the gap the expansion
+            // closes. Only ladders that exist are checked: a family may be window-only (its rungs
+            // refresh every period, so a short ladder still has something to reach), and such a
+            // family legitimately has no perpetual ladder at all.
+            List<Achievement.LadderKey> lifetimeLadders =
+                    Achievement.LadderKey.allInDeclarationOrder().stream()
+                            .filter(ladder -> ladder.window() == AchievementWindow.LIFETIME)
+                            .toList();
+
+            assertThat(lifetimeLadders).isNotEmpty();
+            for (Achievement.LadderKey ladder : lifetimeLadders) {
+                assertThat(ladderOf(ladder))
+                        .as(ladder.type().name())
+                        .hasSizeGreaterThanOrEqualTo(5);
             }
         }
 
@@ -87,30 +100,50 @@ class AchievementTest {
         @DisplayName("shouldRaiseTargetsContiguously_whenOrderedByTier")
         void shouldRaiseTargetsContiguously_whenOrderedByTier() {
             // tiers are the client's ladder order, so walking them must both number 1..n without a
-            // gap and meet strictly increasing targets.
-            for (AchievementType type : AchievementType.values()) {
-                List<Achievement> ladder = ladderOf(type);
-                for (int index = 0; index < ladder.size(); index++) {
-                    assertThat(ladder.get(index).tier())
-                            .as("%s rung %d", type.name(), index + 1)
+            // gap and meet strictly increasing targets. Numbering is per (family, window), so a
+            // day's 2-hour goal must not be counted against the lifetime ladder's thresholds.
+            for (Achievement.LadderKey ladder : Achievement.LadderKey.allInDeclarationOrder()) {
+                List<Achievement> rungs = ladderOf(ladder);
+                for (int index = 0; index < rungs.size(); index++) {
+                    assertThat(rungs.get(index).tier())
+                            .as("%s/%s rung %d", ladder.type(), ladder.window(), index + 1)
                             .isEqualTo(index + 1);
                 }
-                assertThat(ladder.stream().map(Achievement::target).toList())
-                        .as(type.name())
+                assertThat(rungs.stream().map(Achievement::target).toList())
+                        .as("%s/%s", ladder.type(), ladder.window())
                         .isSorted()
                         .doesNotHaveDuplicates();
             }
         }
 
         @Test
-        @DisplayName("shouldKeepTargetBandsConsistent_whenTierIncreases")
-        void shouldKeepTargetBandsConsistent_whenTierIncreases() {
-            // Within one family the tiers partition the badges: every badge of a type has a tier,
-            // and summing the ladder sizes accounts for every constant.
+        @DisplayName("shouldPartitionEveryBadgeIntoExactlyOneLadder")
+        void shouldPartitionEveryBadgeIntoExactlyOneLadder() {
+            // The ladders together must account for every constant exactly once, or a badge would
+            // be unreachable from the client's grouping.
             int fromLadders =
-                    Arrays.stream(AchievementType.values()).mapToInt(t -> ladderOf(t).size()).sum();
+                    Achievement.LadderKey.allInDeclarationOrder().stream()
+                            .mapToInt(ladder -> ladderOf(ladder).size())
+                            .sum();
 
             assertThat(fromLadders).isEqualTo(Achievement.values().length);
+        }
+
+        @Test
+        @DisplayName("shouldKeepEveryLadderInsideOneWindow")
+        void shouldKeepEveryLadderInsideOneWindow() {
+            // A ladder spanning two windows would compare incomparable thresholds, so every rung in
+            // one ladder must share its window and unit.
+            for (Achievement.LadderKey ladder : Achievement.LadderKey.allInDeclarationOrder()) {
+                List<Achievement> rungs = ladderOf(ladder);
+                assertThat(rungs).as("%s/%s", ladder.type(), ladder.window()).isNotEmpty();
+                assertThat(rungs.stream().map(Achievement::window).distinct().toList())
+                        .as("%s/%s windows", ladder.type(), ladder.window())
+                        .hasSize(1);
+                assertThat(rungs.stream().map(Achievement::unit).distinct().toList())
+                        .as("%s/%s units", ladder.type(), ladder.window())
+                        .hasSize(1);
+            }
         }
     }
 }
