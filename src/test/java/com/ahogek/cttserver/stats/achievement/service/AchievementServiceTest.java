@@ -4,7 +4,10 @@ import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.stats.achievement.dto.AchievementResponse;
+import com.ahogek.cttserver.stats.achievement.entity.AchievementProgress;
 import com.ahogek.cttserver.stats.achievement.entity.UserAchievement;
+import com.ahogek.cttserver.stats.achievement.enums.AchievementType;
+import com.ahogek.cttserver.stats.achievement.repository.AchievementProgressRepository;
 import com.ahogek.cttserver.stats.achievement.repository.UserAchievementRepository;
 import com.ahogek.cttserver.sync.entity.CodingSession;
 import com.ahogek.cttserver.sync.repository.CodingSessionRepository;
@@ -20,6 +23,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,6 +51,7 @@ class AchievementServiceTest {
 
     private CodingSessionRepository codingSessionRepository;
     private UserAchievementRepository userAchievementRepository;
+    private AchievementProgressRepository achievementProgressRepository;
     private AuditLogService auditLogService;
     private AchievementService service;
     private final UUID userId = UUID.randomUUID();
@@ -57,19 +62,52 @@ class AchievementServiceTest {
      */
     private final Map<String, Instant> recordedInstants = new HashMap<>();
 
+    /** High-water marks the service stored, keyed by family — mirrors what the row would hold. */
+    private final Map<AchievementType, Long> storedMarks = new EnumMap<>(AchievementType.class);
+
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
         codingSessionRepository = mock(CodingSessionRepository.class);
         userAchievementRepository = mock(UserAchievementRepository.class);
+        achievementProgressRepository = mock(AchievementProgressRepository.class);
         auditLogService = mock(AuditLogService.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        storedMarks.clear();
+        when(achievementProgressRepository.findByUserId(userId))
+                .thenAnswer(
+                        _ ->
+                                storedMarks.entrySet().stream()
+                                        .map(
+                                                entry ->
+                                                        new AchievementProgress(
+                                                                userId,
+                                                                entry.getKey(),
+                                                                entry.getValue(),
+                                                                Instant.parse(
+                                                                        "2026-08-31T00:00:00Z")))
+                                        .toList());
+        when(achievementProgressRepository.raiseIfHigher(
+                        eq(userId), any(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(
+                        inv -> {
+                            AchievementType type =
+                                    AchievementType.valueOf(inv.getArgument(1).toString());
+                            long raised = inv.getArgument(2);
+                            long previous = storedMarks.getOrDefault(type, 0L);
+                            if (raised <= previous) {
+                                return 0;
+                            }
+                            storedMarks.put(type, raised);
+                            return 1;
+                        });
         service =
                 new AchievementService(
                         codingSessionRepository,
                         userAchievementRepository,
+                        achievementProgressRepository,
                         auditLogService,
                         FIXED_CLOCK,
                         redisTemplate,
@@ -279,6 +317,65 @@ class AchievementServiceTest {
                     .isEqualTo("2026-08-30T17:00:00Z");
             // the 10h rung is out of reach for a 9h day
             assertThat(byCode(result, "DAILY_BURST_10").unlocked()).isFalse();
+        }
+
+        @Test
+        @DisplayName("shouldNotRegressProgress_whenSessionsAreSoftDeleted")
+        void shouldNotRegressProgress_whenSessionsAreSoftDeleted() {
+            // Seven languages once used, two still live. The reported value must stay at seven:
+            // the awarded-badge floor alone would only hold it at five (the highest rung earned),
+            // so this only passes when the observed maximum is itself remembered.
+            storedMarks.put(AchievementType.LANGUAGE_COUNT, 7L);
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session("2026-08-30T10:00:00", "2026-08-30T11:00:00", "Java"),
+                                    session(
+                                            "2026-08-30T12:00:00",
+                                            "2026-08-30T13:00:00",
+                                            "Kotlin")));
+            UserAchievement languages = new UserAchievement(userId, "LANGUAGES_5");
+            languages.setUnlockedAt(Instant.parse("2026-08-01T00:00:00Z"));
+            when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of(languages));
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            assertThat(byCode(result, "LANGUAGES_5").progress()).isEqualTo(7);
+            assertThat(byCode(result, "LANGUAGES_8").progress()).isEqualTo(7);
+            assertThat(byCode(result, "LANGUAGES_8").unlocked()).isFalse();
+        }
+
+        @Test
+        @DisplayName("shouldFloorProgressAtAwardedTarget_whenNoMarkWasEverStored")
+        void shouldFloorProgressAtAwardedTarget_whenNoMarkWasEverStored() {
+            // Badges awarded before high-water marks existed have no stored row; their own target
+            // is the proof that the value was once reached, so it seeds the floor.
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of());
+            UserAchievement streak = new UserAchievement(userId, "STREAK_30");
+            streak.setUnlockedAt(Instant.parse("2026-08-01T00:00:00Z"));
+            when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of(streak));
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            assertThat(byCode(result, "STREAK_30").progress()).isEqualTo(30);
+            assertThat(byCode(result, "STREAK_100").progress()).isEqualTo(30);
+            assertThat(byCode(result, "STREAK_100").unlocked()).isFalse();
+        }
+
+        @Test
+        @DisplayName("shouldStoreTheRaisedMark_whenProgressExceedsIt")
+        void shouldStoreTheRaisedMark_whenProgressExceedsIt() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session("2026-08-30T10:00:00", "2026-08-30T11:00:00", "Java"),
+                                    session("2026-08-30T12:00:00", "2026-08-30T13:00:00", "Kotlin"),
+                                    session("2026-08-30T14:00:00", "2026-08-30T15:00:00", "Go")));
+
+            service.getAchievements(userId, ZONE);
+
+            assertThat(storedMarks).containsEntry(AchievementType.LANGUAGE_COUNT, 3L);
         }
 
         @Test

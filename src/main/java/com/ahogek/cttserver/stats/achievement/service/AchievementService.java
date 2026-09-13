@@ -4,9 +4,11 @@ import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.stats.achievement.dto.AchievementResponse;
+import com.ahogek.cttserver.stats.achievement.entity.AchievementProgress;
 import com.ahogek.cttserver.stats.achievement.entity.UserAchievement;
 import com.ahogek.cttserver.stats.achievement.enums.Achievement;
 import com.ahogek.cttserver.stats.achievement.enums.AchievementType;
+import com.ahogek.cttserver.stats.achievement.repository.AchievementProgressRepository;
 import com.ahogek.cttserver.stats.achievement.repository.UserAchievementRepository;
 import com.ahogek.cttserver.stats.service.StatsCalculator;
 import com.ahogek.cttserver.sync.entity.CodingSession;
@@ -74,6 +76,7 @@ public class AchievementService {
 
     private final CodingSessionRepository codingSessionRepository;
     private final UserAchievementRepository userAchievementRepository;
+    private final AchievementProgressRepository achievementProgressRepository;
     private final AuditLogService auditLogService;
     private final Clock clock;
     private final StringRedisTemplate redisTemplate;
@@ -83,12 +86,14 @@ public class AchievementService {
     public AchievementService(
             CodingSessionRepository codingSessionRepository,
             UserAchievementRepository userAchievementRepository,
+            AchievementProgressRepository achievementProgressRepository,
             AuditLogService auditLogService,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper) {
         this(
                 codingSessionRepository,
                 userAchievementRepository,
+                achievementProgressRepository,
                 auditLogService,
                 Clock.systemUTC(),
                 redisTemplate,
@@ -98,12 +103,14 @@ public class AchievementService {
     AchievementService(
             CodingSessionRepository codingSessionRepository,
             UserAchievementRepository userAchievementRepository,
+            AchievementProgressRepository achievementProgressRepository,
             AuditLogService auditLogService,
             Clock clock,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper) {
         this.codingSessionRepository = codingSessionRepository;
         this.userAchievementRepository = userAchievementRepository;
+        this.achievementProgressRepository = achievementProgressRepository;
         this.auditLogService = auditLogService;
         this.clock = clock;
         this.redisTemplate = redisTemplate;
@@ -174,25 +181,43 @@ public class AchievementService {
         for (UserAchievement unlock : userAchievementRepository.findByUserId(userId)) {
             unlockedAt.put(unlock.getAchievementCode(), unlock.getUnlockedAt());
         }
+        Map<AchievementType, Long> highWater = new EnumMap<>(AchievementType.class);
+        for (AchievementProgress mark : achievementProgressRepository.findByUserId(userId)) {
+            highWater.put(mark.getAchievementType(), mark.getProgress());
+        }
 
         // One measurement per type, not per badge: a family with eight rungs would otherwise
         // re-scan the whole session history eight times for the same number.
         Map<AchievementType, Measurement> measurements = new EnumMap<>(AchievementType.class);
+        Map<AchievementType, Long> reportedProgress = new EnumMap<>(AchievementType.class);
+        for (AchievementType type : AchievementType.values()) {
+            Measurement measurement = measure(type, sessions, zone);
+            measurements.put(type, measurement);
+            long progress = Math.max(measurement.progress(), floorOf(type, unlockedAt));
+            long previous = highWater.getOrDefault(type, 0L);
+            if (progress > previous) {
+                // Stored so a later measurement cannot fall back below it when the sessions that
+                // produced it are soft-deleted.
+                achievementProgressRepository.raiseIfHigher(userId, type.name(), progress);
+            } else {
+                progress = previous;
+            }
+            reportedProgress.put(type, progress);
+        }
 
         List<AchievementResponse> result = new ArrayList<>();
         for (Achievement achievement : Achievement.values()) {
-            Measurement measurement =
-                    measurements.computeIfAbsent(
-                            achievement.type(), type -> measure(type, sessions, zone));
-            long progress = measurement.progress();
+            long progress = reportedProgress.get(achievement.type());
+            Measurement measurement = measurements.get(achievement.type());
             boolean unlocked = unlockedAt.containsKey(achievement.name());
             Instant timestamp = unlockedAt.get(achievement.name());
             if (!unlocked && progress >= achievement.target()) {
                 Instant achievedAt = measurement.achievedAt(achievement.target());
                 if (achievedAt == null) {
                     // progress and the milestone instant come from the same computation, so this
-                    // only trips if the two ever disagree; record the unlock rather than lose it,
-                    // and leave a trail instead of silently writing a wrong instant.
+                    // only trips when a raised high-water mark outlives the sessions behind it;
+                    // record the unlock rather than lose it, and leave a trail instead of silently
+                    // writing a wrong instant.
                     log.warn(
                             "Achievement {} reached its target without a resolvable instant for user {};"
                                     + " recording the observation time",
@@ -231,6 +256,28 @@ public class AchievementService {
                             achievement.unit()));
         }
         return result;
+    }
+
+    /**
+     * Returns the lowest value a family's progress can honestly report, given the badges already
+     * awarded for it.
+     *
+     * <p>A badge that was unlocked proves its target was once reached, so the highest awarded
+     * target in the family is a floor the current measurement must not undercut. This also
+     * back-fills families unlocked before high-water marks existed, which have no stored mark.
+     *
+     * @param type the family
+     * @param unlockedAt the codes the user has unlocked
+     * @return the highest target already reached, or 0 when the family has no unlocked badge
+     */
+    private static long floorOf(AchievementType type, Map<String, Instant> unlockedAt) {
+        long floor = 0;
+        for (Achievement achievement : Achievement.values()) {
+            if (achievement.type() == type && unlockedAt.containsKey(achievement.name())) {
+                floor = Math.max(floor, achievement.target());
+            }
+        }
+        return floor;
     }
 
     private Instant reloadedUnlockedAt(UUID userId, String achievementCode) {
