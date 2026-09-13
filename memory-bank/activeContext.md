@@ -1,4 +1,18 @@
 # Active Context
+- [2026-09-13] - 成就系统扩展 Batch 4（周期成就，v0.71.0）—— 四批全部完成
+    - 需求: 文档§1——15 阶全终身，拿满即终局；期望新增窗口滚动的成就与终身并存
+    - 三个陷阱（事先识别并规避）: ①唯一约束是 `(user_id, code)`，周期成就再达成会被 `ON CONFLICT` 跳过 → 必须改三元组 ②高水位表键是 `achievement_type`，周期与终身共享 type 会互相污染 ③tier 按 type 分组，DAY 的 7200s 会与 LIFETIME 的 36000s 混成无意义阶梯
+    - 迁移: `V20260913130000__add_achievement_period_key.sql` —— 加 `period_key VARCHAR(20) NOT NULL DEFAULT 'LIFETIME'`（存量行自动落 LIFETIME = 旧行为不变）→ DROP 旧约束 → ADD `(user_id, achievement_code, period_key)` 唯一约束 + `(user_id, period_key)` 索引
+    - 新枚举 `AchievementWindow`: LIFETIME/DAY/WEEK/MONTH/YEAR，`start/end/periodKey`；周用 **ISO week-based year**（跨年的同一周保持同一 key），按调用方本地日历
+    - 新类型 `ACTIVE_DAYS`（文档"本周活跃 5 天"所需）+ 计算器 `activeDayCount` / `activeDaysAchievedAt`
+    - 枚举: 51 → **67 阶 / 14 阶梯**（51 终身 + 16 周期：daily 3 / weekly 5 / monthly 4 / yearly 4）；`tier` 改为按 **(type, window)** 分组（新增 public `LadderKey` record + `allInDeclarationOrder()` + `byCode()`）
+    - **高水位只对 LIFETIME 生效**——周期成就必须能重置，加 mark 会使其永久满足（有专门测试锁定此语义）
+    - 服务: `measure(LadderKey, ...)` 先 `clipSessions` 到窗口再算；解锁按 `(code, periodKey)` 匹配，仅**当前周期**的行算已解锁；`reloadedUnlockedAt` 加 periodKey
+    - DTO: 加 `window` / `windowStart` / `windowEnd`（LIFETIME 时后两者为 null）；缓存键 v2 → **v3**（响应形状变更）
+    - 修 bug（测试抓到）: LadderKey 重构时 `floorOf` 丢掉"仅看已解锁徽章"条件，变成取整条阶梯最大 target（返回 60/365 而非 7/30）——已被断言捕获并修复；同时发现解锁时刻原按阶梯折叠导致同阶梯各阶共享时间戳，改回按 code 键
+    - 测试: `AchievementWindowTest` 新增（周期边界/闰年 2 月/ISO 跨年周/相邻周期 key 必须不同/同周两天同 key）；Service 新增 5 条（窗口只算本期、LIFETIME 无边界、上期解锁不当作本期已解锁、跨期可再达成、周期不吃高水位）；`AchievementTest` 重写（多阶梯 + 分区完整性 + 阶梯内 window/unit 一致）；集成测试新增 1 条（period_key 落库、同周期不重复插入）
+    - 验证: 全量 **1383 tests / 0 failures**；jacoco INSTRUCTION 94.99% + BRANCH 84.11%；spotless PASS
+    - 状态: ✅ 四批（1 阶梯+type/tier、2 achievedAt、3 高水位、4 周期成就）全部实施完成
 - [2026-09-13] - 成就系统扩展 Batch 3（progress 高水位：单调不回退，v0.70.0）
     - 需求: 文档§6——progress 从存活会话实时算，但会话可软删（`SyncPushService:174`），已解锁记录不撤销 → 界面出现"3/10 天却已发奖"的自相矛盾
     - 设计判断: 高水位按**家族**存储而非按徽章——progress 是家族属性（8 个 STREAK 阶报同一个数），按 code 存会重复 8 份；与 `daily_stats`（纯派生）不同，**本表是系统 of record**（会话删掉后历史最大值不可重建），迁移注释已明示
