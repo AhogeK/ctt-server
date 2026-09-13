@@ -64,6 +64,7 @@ class StatsIntegrationTest {
         if (rateLimitKeys != null) {
             redisTemplate.delete(rateLimitKeys);
         }
+        jdbcClient.sql("DELETE FROM achievement_progress").update();
         jdbcClient.sql("DELETE FROM user_achievements").update();
         jdbcClient.sql("DELETE FROM coding_sessions").update();
         jdbcClient.sql("DELETE FROM devices").update();
@@ -512,6 +513,59 @@ class StatsIntegrationTest {
                             .query(Long.class)
                             .single();
             assertThat(auditCount).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should keep reported progress when the sessions behind it are deleted")
+        void shouldKeepProgress_whenSessionsAreSoftDeleted() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            UUID userId = UUID.fromString(auth[1]);
+            // Six languages, so the highest rung earned is LANGUAGES_5 while the observed maximum
+            // is six: after the deletions the awarded-badge floor alone would report five, so a
+            // reported six proves the observed maximum is remembered independently of the badges.
+            for (String language : List.of("Java", "Kotlin", "Go", "Rust", "Scala", "Ruby")) {
+                insertSession(
+                        userId,
+                        Instant.parse("2026-08-28T10:00:00Z").plus(Duration.ofHours(1)),
+                        Instant.parse("2026-08-28T11:00:00Z").plus(Duration.ofHours(1)),
+                        "ctt-server",
+                        language);
+            }
+
+            var before =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+            assertThat(before).hasStatusOk();
+            assertThat(before)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='LANGUAGES_8')].progress")
+                    .isEqualTo(List.of(6));
+
+            // Five of the six languages disappear with the rows that carried them.
+            jdbcClient
+                    .sql(
+                            "UPDATE coding_sessions SET is_deleted = true WHERE user_id = ? AND language <> 'Java'")
+                    .param(userId)
+                    .update();
+
+            var after =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+            assertThat(after).hasStatusOk();
+            // One language is live, yet the reported value stays at six: reporting one here while
+            // the awarded badge reads unlocked is the self-inconsistent state this guards against.
+            assertThat(after)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='LANGUAGES_8')].progress")
+                    .isEqualTo(List.of(6));
+            assertThat(after)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='LANGUAGES_5')].unlocked")
+                    .isEqualTo(List.of(true));
         }
 
         @Test
