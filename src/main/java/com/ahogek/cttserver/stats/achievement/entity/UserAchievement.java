@@ -7,8 +7,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import org.hibernate.annotations.CreationTimestamp;
-
 import java.time.Instant;
 import java.util.UUID;
 
@@ -18,6 +16,12 @@ import java.util.UUID;
  * <p>One row per unlocked achievement per user. The unique constraint on {@code (user_id,
  * achievement_code)} makes unlocks idempotent: lazy evaluation at query time can race and only one
  * record survives, so a badge is never double-awarded or double-audited.
+ *
+ * <p>{@code unlocked_at} is the instant the badge was <em>earned</em>, supplied by the writer from
+ * the session history — not the instant the unlock was recorded. Evaluation is lazy, so a user who
+ * reaches a target and opens the page weeks later must still see the day they reached it. It is
+ * therefore no longer stamped by {@code @CreationTimestamp}; the writing path passes the value
+ * computed from the same sessions that produced the progress.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-08-31
@@ -36,7 +40,6 @@ public class UserAchievement {
     @Column(name = "achievement_code", nullable = false, length = 50)
     private String achievementCode;
 
-    @CreationTimestamp
     @Column(name = "unlocked_at", nullable = false, updatable = false)
     private Instant unlockedAt;
 

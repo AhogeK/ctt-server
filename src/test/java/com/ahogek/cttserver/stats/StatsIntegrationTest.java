@@ -472,6 +472,18 @@ class StatsIntegrationTest {
                             .single();
             assertThat(unlockCount).isEqualTo(1);
 
+            // The stored instant is the moment the badge was earned (the third consecutive day
+            // starts 08-30T10:00Z), not the moment this request happened to evaluate it. Recording
+            // the latter would misdate every unlock a user collects before opening the page.
+            Instant storedUnlock =
+                    jdbcClient
+                            .sql(
+                                    "SELECT unlocked_at FROM user_achievements WHERE user_id = ? AND achievement_code = 'STREAK_3'")
+                            .param(userId)
+                            .query(Instant.class)
+                            .single();
+            assertThat(storedUnlock).isEqualTo(Instant.parse("2026-08-30T10:00:00Z"));
+
             var second =
                     mvc.get()
                             .uri("/api/v1/stats/achievements")

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.LongFunction;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -176,36 +177,43 @@ public class AchievementService {
 
         // One measurement per type, not per badge: a family with eight rungs would otherwise
         // re-scan the whole session history eight times for the same number.
-        Map<AchievementType, Long> progressByType = new EnumMap<>(AchievementType.class);
+        Map<AchievementType, Measurement> measurements = new EnumMap<>(AchievementType.class);
 
         List<AchievementResponse> result = new ArrayList<>();
         for (Achievement achievement : Achievement.values()) {
-            long progress =
-                    progressByType.computeIfAbsent(
-                            achievement.type(), type -> progress(type, sessions, zone));
+            Measurement measurement =
+                    measurements.computeIfAbsent(
+                            achievement.type(), type -> measure(type, sessions, zone));
+            long progress = measurement.progress();
             boolean unlocked = unlockedAt.containsKey(achievement.name());
             Instant timestamp = unlockedAt.get(achievement.name());
             if (!unlocked && progress >= achievement.target()) {
-                int inserted = userAchievementRepository.insertIfAbsent(userId, achievement.name());
+                Instant achievedAt = measurement.achievedAt(achievement.target());
+                if (achievedAt == null) {
+                    // progress and the milestone instant come from the same computation, so this
+                    // only trips if the two ever disagree; record the unlock rather than lose it,
+                    // and leave a trail instead of silently writing a wrong instant.
+                    log.warn(
+                            "Achievement {} reached its target without a resolvable instant for user {};"
+                                    + " recording the observation time",
+                            achievement.name(),
+                            userId);
+                    achievedAt = Instant.now(clock);
+                }
+                int inserted =
+                        userAchievementRepository.insertIfAbsent(
+                                userId, achievement.name(), achievedAt.atOffset(ZoneOffset.UTC));
                 if (inserted == 1) {
-                    // unlocked_at is set by the database (DEFAULT CURRENT_TIMESTAMP); re-read it so
-                    // this and later queries return the same value — the DB clock is authoritative
-                    // and the service clock may drift from it.
-                    timestamp =
-                            userAchievementRepository.findByUserId(userId).stream()
-                                    .filter(
-                                            unlock ->
-                                                    unlock.getAchievementCode()
-                                                            .equals(achievement.name()))
-                                    .map(UserAchievement::getUnlockedAt)
-                                    .findFirst()
-                                    .orElse(null);
+                    timestamp = achievedAt;
                     auditLogService.logSuccess(
                             userId,
                             AuditAction.ACHIEVEMENT_UNLOCKED,
                             ResourceType.ACHIEVEMENT,
                             achievement.name());
                     log.info("Achievement {} unlocked for user {}", achievement.name(), userId);
+                } else {
+                    // a concurrent request won the insert; its instant is the recorded one
+                    timestamp = reloadedUnlockedAt(userId, achievement.name());
                 }
                 unlocked = true;
             }
@@ -225,24 +233,93 @@ public class AchievementService {
         return result;
     }
 
-    private long progress(AchievementType type, List<CodingSession> sessions, ZoneOffset zone) {
+    private Instant reloadedUnlockedAt(UUID userId, String achievementCode) {
+        return userAchievementRepository.findByUserId(userId).stream()
+                .filter(unlock -> unlock.getAchievementCode().equals(achievementCode))
+                .map(UserAchievement::getUnlockedAt)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * A family's current progress together with a resolver for the instant a given target was met.
+     *
+     * <p>Both come from the same computation, so the reported instant always belongs to the data
+     * that produced the progress; the resolver is keyed by target because one family carries
+     * several rungs and each was earned at a different moment.
+     *
+     * @param progress the family's current measured value
+     * @param resolver maps a rung's target to the instant it was reached, or {@code null} when it
+     *     was not
+     */
+    private record Measurement(long progress, LongFunction<Instant> resolver) {
+
+        Instant achievedAt(long target) {
+            return resolver.apply(target);
+        }
+    }
+
+    private Measurement measure(
+            AchievementType type, List<CodingSession> sessions, ZoneOffset zone) {
         // The clock is projected into the caller's zone, not left in UTC: a "today" derived from
         // UTC would make the streak and summary windows disagree with every statistics endpoint,
         // which resolves today in the request's own zone.
         LocalDate today = LocalDate.now(clock.withZone(zone));
         return switch (type) {
-            case STREAK -> StatsCalculator.streaks(sessions, zone, today).max();
-            case TOTAL_SECONDS -> StatsCalculator.summary(sessions, zone, today).total();
-            case LANGUAGE_COUNT ->
-                    StatsCalculator.accumulateBy(sessions, zone, CodingSession::getLanguage).size();
+            case STREAK -> {
+                long progress = StatsCalculator.streaks(sessions, zone, today).max();
+                yield new Measurement(
+                        progress,
+                        target ->
+                                StatsCalculator.streakAchievedAt(
+                                        sessions, zone, Math.toIntExact(target)));
+            }
+            case TOTAL_SECONDS -> {
+                long progress = StatsCalculator.summary(sessions, zone, today).total();
+                yield new Measurement(
+                        progress,
+                        target -> StatsCalculator.totalSecondsAchievedAt(sessions, zone, target));
+            }
+            case LANGUAGE_COUNT -> {
+                long progress =
+                        StatsCalculator.accumulateBy(sessions, zone, CodingSession::getLanguage)
+                                .size();
+                yield new Measurement(
+                        progress,
+                        target ->
+                                StatsCalculator.languageCountAchievedAt(
+                                        sessions, zone, Math.toIntExact(target)));
+            }
             case EARLY_BIRD_DAYS ->
-                    StatsCalculator.activeDaysInDailyWindow(
+                    windowDaysMeasurement(
                             sessions, zone, EARLY_BIRD_START_HOUR, EARLY_BIRD_END_HOUR);
             case NIGHT_OWL_DAYS ->
-                    StatsCalculator.activeDaysInDailyWindow(
-                            sessions, zone, NIGHT_OWL_START_HOUR, NIGHT_OWL_END_HOUR);
-            case MAX_DAILY_SECONDS -> StatsCalculator.maxDailySeconds(sessions, zone);
-            case PERFECT_MONTH -> StatsCalculator.bestPerfectMonthPercent(sessions, zone);
+                    windowDaysMeasurement(sessions, zone, NIGHT_OWL_START_HOUR, NIGHT_OWL_END_HOUR);
+            case MAX_DAILY_SECONDS -> {
+                long progress = StatsCalculator.maxDailySeconds(sessions, zone);
+                yield new Measurement(
+                        progress,
+                        target ->
+                                StatsCalculator.maxDailySecondsAchievedAt(sessions, zone, target));
+            }
+            case PERFECT_MONTH -> {
+                long progress = StatsCalculator.bestPerfectMonthPercent(sessions, zone);
+                yield new Measurement(
+                        progress,
+                        target ->
+                                StatsCalculator.perfectMonthPercentAchievedAt(
+                                        sessions, zone, target));
+            }
         };
+    }
+
+    private Measurement windowDaysMeasurement(
+            List<CodingSession> sessions, ZoneOffset zone, int startHour, int endHour) {
+        long progress = StatsCalculator.activeDaysInDailyWindow(sessions, zone, startHour, endHour);
+        return new Measurement(
+                progress,
+                target ->
+                        StatsCalculator.activeWindowDaysAchievedAt(
+                                sessions, zone, startHour, endHour, Math.toIntExact(target)));
     }
 }

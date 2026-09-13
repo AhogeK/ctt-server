@@ -17,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -1273,6 +1274,257 @@ class StatsCalculatorTest {
         @DisplayName("shouldReportZero_whenNoSessions")
         void shouldReportZero_whenNoSessions() {
             assertThat(StatsCalculator.bestPerfectMonthPercent(List.of(), UTC)).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("achievedAt")
+    class AchievedAtTests {
+
+        @Test
+        @DisplayName("shouldReportCrossingInstant_insideTheIntervalThatReachesTheTarget")
+        void shouldReportCrossingInstant_whenTotalReachesTarget() {
+            // 10 hours spread over two days; the 10h mark falls 4h into the second 6h session.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T00:00:00"),
+                                    at("2026-08-30T06:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-31T00:00:00"),
+                                    at("2026-08-31T06:00:00"),
+                                    "a",
+                                    "Java"));
+
+            Instant achievedAt = StatsCalculator.totalSecondsAchievedAt(sessions, UTC, 36_000);
+
+            assertThat(achievedAt).isEqualTo(at("2026-08-31T04:00:00"));
+        }
+
+        @Test
+        @DisplayName("shouldReportNull_whenTargetNeverReached")
+        void shouldReportNull_whenTotalTargetNeverReached() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T00:00:00"),
+                                    at("2026-08-30T01:00:00"),
+                                    "a",
+                                    "Java"));
+
+            assertThat(StatsCalculator.totalSecondsAchievedAt(sessions, UTC, 36_000)).isNull();
+        }
+
+        @Test
+        @DisplayName("shouldReportFirstDaysStart_whenSingleDayReachesTarget")
+        void shouldReportFirstDayStart_whenDailyTargetReached() {
+            // The 4h mark of a 9h day.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T09:00:00"),
+                                    at("2026-08-30T18:00:00"),
+                                    "a",
+                                    "Java"));
+
+            Instant achievedAt = StatsCalculator.maxDailySecondsAchievedAt(sessions, UTC, 14_400);
+
+            assertThat(achievedAt).isEqualTo(at("2026-08-30T13:00:00"));
+        }
+
+        @Test
+        @DisplayName("shouldCountEachDaySeparately_whenDailyTargetNeverMet")
+        void shouldCountEachDaySeparately_whenDailyTargetNeverMet() {
+            // Two 3h days never reach a 4h single-day target even though the lifetime total does.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T00:00:00"),
+                                    at("2026-08-30T03:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-31T00:00:00"),
+                                    at("2026-08-31T03:00:00"),
+                                    "a",
+                                    "Java"));
+
+            assertThat(StatsCalculator.maxDailySecondsAchievedAt(sessions, UTC, 14_400)).isNull();
+        }
+
+        @Test
+        @DisplayName("shouldReportTheCompletingDay_whenRunReachesTarget")
+        void shouldReportTheCompletingDay_whenStreakReachesTarget() {
+            List<CodingSession> sessions =
+                    IntStream.rangeClosed(0, 4)
+                            .mapToObj(
+                                    day ->
+                                            session(
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format(
+                                                                            "%02d", 25 + day)
+                                                                    + "T10:00:00"),
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format(
+                                                                            "%02d", 25 + day)
+                                                                    + "T11:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .toList();
+
+            Instant achievedAt = StatsCalculator.streakAchievedAt(sessions, UTC, 3);
+
+            // the third consecutive day starts 2026-08-27
+            assertThat(achievedAt).isEqualTo(at("2026-08-27T10:00:00"));
+        }
+
+        @Test
+        @DisplayName("shouldStartANewRun_whenADayIsSkipped")
+        void shouldStartANewRun_whenADayIsSkipped() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-25T10:00:00"),
+                                    at("2026-08-25T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-26T10:00:00"),
+                                    at("2026-08-26T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            // 08-27 missing
+                            session(
+                                    at("2026-08-28T10:00:00"),
+                                    at("2026-08-28T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-29T10:00:00"),
+                                    at("2026-08-29T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "Java"));
+
+            Instant achievedAt = StatsCalculator.streakAchievedAt(sessions, UTC, 3);
+
+            assertThat(achievedAt).isEqualTo(at("2026-08-30T10:00:00"));
+        }
+
+        @Test
+        @DisplayName("shouldReportTheNewLanguagesSession_whenCountReachesTarget")
+        void shouldReportTheNewLanguagesSession_whenCountReachesTarget() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-30T12:00:00"),
+                                    at("2026-08-30T13:00:00"),
+                                    "a",
+                                    "Kotlin"),
+                            session(
+                                    at("2026-08-30T14:00:00"),
+                                    at("2026-08-30T15:00:00"),
+                                    "a",
+                                    "Go"));
+
+            Instant achievedAt = StatsCalculator.languageCountAchievedAt(sessions, UTC, 3);
+
+            assertThat(achievedAt).isEqualTo(at("2026-08-30T14:00:00"));
+        }
+
+        @Test
+        @DisplayName("shouldReportTheQualifyingWindowDay_whenWindowDaysReachTarget")
+        void shouldReportTheQualifyingWindowDay_whenWindowDaysReachTarget() {
+            // three nights inside the 22:00-05:00 window, one hour each
+            List<CodingSession> sessions =
+                    IntStream.rangeClosed(0, 2)
+                            .mapToObj(
+                                    day ->
+                                            session(
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format(
+                                                                            "%02d", 25 + day)
+                                                                    + "T23:00:00"),
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format(
+                                                                            "%02d", 26 + day)
+                                                                    + "T00:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .toList();
+
+            Instant achievedAt =
+                    StatsCalculator.activeWindowDaysAchievedAt(sessions, UTC, 22, 5, 3);
+
+            assertThat(achievedAt).isEqualTo(at("2026-08-27T23:00:00"));
+        }
+
+        @Test
+        @DisplayName("shouldUseTheMonthsOwnLength_whenFebruaryIsCovered")
+        void shouldUseTheMonthsOwnLength_whenFebruaryIsCovered() {
+            // 28 covered days is 100% of February but only ~90% of a 31-day month; the target is
+            // reached on the last day because the required count derives from the month's length.
+            List<CodingSession> sessions =
+                    IntStream.rangeClosed(1, 28)
+                            .mapToObj(
+                                    day ->
+                                            session(
+                                                    at(
+                                                            "2026-02-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T10:00:00"),
+                                                    at(
+                                                            "2026-02-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T11:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .toList();
+
+            Instant achievedAt = StatsCalculator.perfectMonthPercentAchievedAt(sessions, UTC, 100);
+
+            assertThat(achievedAt).isEqualTo(at("2026-02-28T10:00:00"));
+        }
+
+        @Test
+        @DisplayName("shouldTolerateTheRounding_whenPercentTargetIsBelow100")
+        void shouldTolerateTheRounding_whenPercentTargetIsBelow100() {
+            // 90% of 31 days is 27.9 -> 28 days required; the 28th day completes it.
+            List<CodingSession> sessions =
+                    IntStream.rangeClosed(1, 30)
+                            .mapToObj(
+                                    day ->
+                                            session(
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T10:00:00"),
+                                                    at(
+                                                            "2026-08-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T11:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .toList();
+
+            Instant achievedAt = StatsCalculator.perfectMonthPercentAchievedAt(sessions, UTC, 90);
+
+            assertThat(achievedAt).isEqualTo(at("2026-08-28T10:00:00"));
         }
     }
 }

@@ -5,6 +5,7 @@ import com.ahogek.cttserver.sync.entity.CodingSession;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
@@ -755,12 +756,13 @@ public final class StatsCalculator {
     }
 
     /**
-     * A day that overlaps a daily recurring window together with the overlap duration.
+     * A day that overlaps a daily recurring window together with the overlap's start and duration.
      *
      * @param day the window day
+     * @param start the moment the window overlap began
      * @param duration the coding duration inside the window on that day
      */
-    private record WindowDay(LocalDate day, Duration duration) {}
+    private record WindowDay(LocalDate day, OffsetDateTime start, Duration duration) {}
 
     /**
      * Intersects intervals with a daily recurring window, emitting one entry per window day that
@@ -795,7 +797,9 @@ public final class StatsCalculator {
                 OffsetDateTime overlapStart = max(interval.start(), windowStart);
                 OffsetDateTime overlapEnd = min(interval.end(), windowEnd);
                 if (overlapStart.isBefore(overlapEnd)) {
-                    result.add(new WindowDay(day, Duration.between(overlapStart, overlapEnd)));
+                    result.add(
+                            new WindowDay(
+                                    day, overlapStart, Duration.between(overlapStart, overlapEnd)));
                 }
                 if (!windowEnd.isBefore(interval.end())) {
                     break;
@@ -847,6 +851,211 @@ public final class StatsCalculator {
                 .distinct()
                 .sorted(Comparator.reverseOrder())
                 .toList();
+    }
+
+    /**
+     * Returns the earliest instant at which the merged coding duration reached a target.
+     *
+     * <p>Progress accumulates continuously while a session runs, so the crossing generally falls
+     * inside an interval rather than on a boundary: the interval that crosses contributes only the
+     * remainder the achievement still needed when it began. Progress counts whole seconds like
+     * {@link #summary}, so the crossing instant is where the raw duration reaches the target
+     * exactly — the same point at which the truncated total first reports the target.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param targetSeconds target duration in seconds
+     * @return the attaining instant, or {@code null} when the target is never reached
+     */
+    public static Instant totalSecondsAchievedAt(
+            List<CodingSession> sessions, ZoneOffset zone, long targetSeconds) {
+        Duration accumulated = Duration.ZERO;
+        for (TimeInterval interval : mergeOverlapping(toIntervals(sessions, zone))) {
+            Duration next = accumulated.plus(interval.duration());
+            if (next.toSeconds() >= targetSeconds) {
+                return interval.start()
+                        .plus(Duration.ofSeconds(targetSeconds).minus(accumulated))
+                        .toInstant();
+            }
+            accumulated = next;
+        }
+        return null;
+    }
+
+    /**
+     * Returns the earliest instant at which a single day's merged coding duration reached a target.
+     *
+     * <p>Each day accumulates on its own, and intervals are walked in chronological order, so the
+     * first crossing found is the earliest one across all days.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param targetSeconds target duration in seconds
+     * @return the attaining instant, or {@code null} when no day reaches the target
+     */
+    public static Instant maxDailySecondsAchievedAt(
+            List<CodingSession> sessions, ZoneOffset zone, long targetSeconds) {
+        Map<LocalDate, Duration> byDay = new HashMap<>();
+        for (TimeInterval interval : mergeOverlapping(toIntervals(sessions, zone))) {
+            OffsetDateTime cursor = interval.start();
+            while (cursor.isBefore(interval.end())) {
+                LocalDate day = cursor.toLocalDate();
+                OffsetDateTime dayEnd = day.plusDays(1).atStartOfDay().atOffset(cursor.getOffset());
+                OffsetDateTime sliceEnd = dayEnd.isBefore(interval.end()) ? dayEnd : interval.end();
+                Duration before = byDay.getOrDefault(day, Duration.ZERO);
+                Duration after = before.plus(Duration.between(cursor, sliceEnd));
+                if (after.toSeconds() >= targetSeconds) {
+                    return cursor.plus(Duration.ofSeconds(targetSeconds).minus(before)).toInstant();
+                }
+                byDay.put(day, after);
+                cursor = sliceEnd;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the earliest instant at which consecutive coding days reached a target.
+     *
+     * <p>Each day is stamped with the moment it became active — the session start that touched it,
+     * or local midnight when a session crossed into it — and the runs are walked in date order, so
+     * the reported instant is when the qualifying run's last day began.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param targetDays required run length in days
+     * @return the attaining instant, or {@code null} when no run reaches the target
+     */
+    public static Instant streakAchievedAt(
+            List<CodingSession> sessions, ZoneOffset zone, int targetDays) {
+        Map<LocalDate, OffsetDateTime> firstActiveAt = firstActiveMomentByDay(sessions, zone);
+        int run = 0;
+        LocalDate previous = null;
+        for (Map.Entry<LocalDate, OffsetDateTime> entry : firstActiveAt.entrySet()) {
+            run = (previous != null && entry.getKey().equals(previous.plusDays(1))) ? run + 1 : 1;
+            if (run >= targetDays) {
+                return entry.getValue().toInstant();
+            }
+            previous = entry.getKey();
+        }
+        return null;
+    }
+
+    /**
+     * Returns the earliest instant at which the number of distinct languages reached a target.
+     *
+     * <p>Sessions are walked in start order, so the instant is when the session carrying the
+     * qualifying language began.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param targetLanguages required distinct language count
+     * @return the attaining instant, or {@code null} when the target is never reached
+     */
+    public static Instant languageCountAchievedAt(
+            List<CodingSession> sessions, ZoneOffset zone, int targetLanguages) {
+        Set<String> seen = new HashSet<>();
+        List<CodingSession> ordered =
+                sessions.stream()
+                        .filter(session -> session.getStartTime().isBefore(session.getEndTime()))
+                        .sorted(Comparator.comparing(CodingSession::getStartTime))
+                        .toList();
+        for (CodingSession session : ordered) {
+            if (seen.add(session.getLanguage()) && seen.size() >= targetLanguages) {
+                return session.getStartTime();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the earliest instant at which distinct active days inside a daily recurring window
+     * reached a target.
+     *
+     * <p>Uses the same window-day attribution and counting rule as {@link
+     * #activeDaysInDailyWindow}, so the instant reported here is the overlap start that made the
+     * qualifying window day active.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param windowStartHour first hour of the window (inclusive, 0-23)
+     * @param windowEndHour hour just after the window ends (exclusive, 0-23; may be before {@code
+     *     windowStartHour} to cross midnight)
+     * @param targetDays required distinct window-day count
+     * @return the attaining instant, or {@code null} when the target is never reached
+     */
+    public static Instant activeWindowDaysAchievedAt(
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            int windowStartHour,
+            int windowEndHour,
+            int targetDays) {
+        Set<LocalDate> seen = new HashSet<>();
+        for (WindowDay windowDay :
+                windowDays(
+                        mergeOverlapping(toIntervals(sessions, zone)),
+                        zone,
+                        windowStartHour,
+                        windowEndHour)) {
+            if (seen.add(windowDay.day()) && seen.size() >= targetDays) {
+                return windowDay.start().toInstant();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the earliest instant at which a calendar month's coverage reached a target
+     * percentage.
+     *
+     * <p>Coverage is measured the way {@link #bestPerfectMonthPercent} reports it — active days
+     * over the month's own length — so the qualifying day count is the ceiling of {@code
+     * targetPercent} of that month's length, which is the day count at which the truncated
+     * percentage first reaches the target.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param targetPercent required coverage percentage (0-100)
+     * @return the attaining instant, or {@code null} when no month reaches the target
+     */
+    public static Instant perfectMonthPercentAchievedAt(
+            List<CodingSession> sessions, ZoneOffset zone, long targetPercent) {
+        Map<YearMonth, Integer> activeDaysByMonth = new HashMap<>();
+        for (Map.Entry<LocalDate, OffsetDateTime> entry :
+                firstActiveMomentByDay(sessions, zone).entrySet()) {
+            YearMonth month = YearMonth.from(entry.getKey());
+            int activeDays = activeDaysByMonth.merge(month, 1, Integer::sum);
+            long required = (targetPercent * month.lengthOfMonth() + 99) / 100;
+            if (activeDays >= required) {
+                return entry.getValue().toInstant();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Maps each coding day to the moment it became active, in date order.
+     *
+     * <p>A day becomes active when its first coding starts; when a session crosses midnight the day
+     * is active from its own start. Merging does not change which days are touched, so the merged
+     * intervals are enough to establish the first moment of every day.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @return active day to first coding moment, ascending by date
+     */
+    private static Map<LocalDate, OffsetDateTime> firstActiveMomentByDay(
+            List<CodingSession> sessions, ZoneOffset zone) {
+        Map<LocalDate, OffsetDateTime> firstActiveAt = new TreeMap<>();
+        for (TimeInterval interval : mergeOverlapping(toIntervals(sessions, zone))) {
+            OffsetDateTime cursor = interval.start();
+            while (cursor.isBefore(interval.end())) {
+                LocalDate day = cursor.toLocalDate();
+                firstActiveAt.putIfAbsent(day, cursor);
+                cursor = day.plusDays(1).atStartOfDay().atOffset(cursor.getOffset());
+            }
+        }
+        return firstActiveAt;
     }
 
     /**
