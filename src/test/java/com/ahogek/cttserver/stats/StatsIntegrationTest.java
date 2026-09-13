@@ -3,6 +3,7 @@ package com.ahogek.cttserver.stats;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
+import com.ahogek.cttserver.stats.achievement.enums.Achievement;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -481,6 +482,16 @@ class StatsIntegrationTest {
                     .bodyJson()
                     .extractingPath("$.data[?(@.code=='STREAK_3')].unlocked")
                     .isEqualTo(List.of(true));
+            // type/tier reach the client through the response, so a client can group badges by
+            // family without shipping its own code-to-ladder table.
+            assertThat(second)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='STREAK_7')].type")
+                    .isEqualTo(List.of("STREAK"));
+            assertThat(second)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='STREAK_7')].tier")
+                    .isEqualTo(List.of(2));
             Long auditCount =
                     jdbcClient
                             .sql(
@@ -503,7 +514,13 @@ class StatsIntegrationTest {
                             .exchange();
 
             assertThat(result).hasStatusOk();
-            assertThat(result).bodyJson().extractingPath("$.data").asArray().hasSize(15);
+            // Every declared badge must reach the client — a rung missing from the response would
+            // show as a shorter ladder rather than an error anywhere.
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data")
+                    .asArray()
+                    .hasSize(Achievement.values().length);
             assertThat(result)
                     .bodyJson()
                     .extractingPath("$.data[?(@.unlocked==true)]")

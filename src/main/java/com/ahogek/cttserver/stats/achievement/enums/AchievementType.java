@@ -19,6 +19,9 @@ public enum AchievementType {
     NIGHT_OWL_DAYS,
     /** Longest single-day merged coding duration (seconds). */
     MAX_DAILY_SECONDS,
-    /** Whether any calendar month was coded on every single day. */
+    /**
+     * Highest percentage of a calendar month's days that carry coding (0-100), measured against the
+     * month's own length so short and long months are comparable.
+     */
     PERFECT_MONTH
 }

@@ -1170,8 +1170,8 @@ class StatsCalculatorTest {
     class PerfectMonthTests {
 
         @Test
-        @DisplayName("shouldReturnTrue_whenOneMonthCodedEveryDay")
-        void shouldReturnTrue_whenOneMonthCodedEveryDay() {
+        @DisplayName("shouldReport100_whenOneMonthCodedEveryDay")
+        void shouldReport100_whenOneMonthCodedEveryDay() {
             // August 2026 has 31 days; code 1h every day
             List<CodingSession> sessions =
                     java.util.stream.IntStream.rangeClosed(1, 31)
@@ -1190,12 +1190,12 @@ class StatsCalculatorTest {
                                                     "Java"))
                             .toList();
 
-            assertThat(StatsCalculator.hasPerfectMonth(sessions, UTC)).isTrue();
+            assertThat(StatsCalculator.bestPerfectMonthPercent(sessions, UTC)).isEqualTo(100);
         }
 
         @Test
-        @DisplayName("shouldReturnFalse_whenOneDayMissing")
-        void shouldReturnFalse_whenOneDayMissing() {
+        @DisplayName("shouldReportFloorPercent_whenOneDayMissing")
+        void shouldReportFloorPercent_whenOneDayMissing() {
             List<CodingSession> sessions =
                     java.util.stream.IntStream.rangeClosed(1, 30)
                             .mapToObj(
@@ -1213,13 +1213,66 @@ class StatsCalculatorTest {
                                                     "Java"))
                             .toList();
 
-            assertThat(StatsCalculator.hasPerfectMonth(sessions, UTC)).isFalse();
+            // 30 of 31 days = 96.77% -> floored to 96, still past the 95 rung
+            assertThat(StatsCalculator.bestPerfectMonthPercent(sessions, UTC)).isEqualTo(96);
         }
 
         @Test
-        @DisplayName("shouldReturnFalse_whenNoSessions")
-        void shouldReturnFalse_whenNoSessions() {
-            assertThat(StatsCalculator.hasPerfectMonth(List.of(), UTC)).isFalse();
+        @DisplayName("shouldReport100_whenFebruaryIsFullyCovered")
+        void shouldReport100_whenFebruaryIsFullyCovered() {
+            // February 2026 has 28 days; a short month must not be penalised for being short
+            List<CodingSession> sessions =
+                    java.util.stream.IntStream.rangeClosed(1, 28)
+                            .mapToObj(
+                                    day ->
+                                            session(
+                                                    at(
+                                                            "2026-02-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T10:00:00"),
+                                                    at(
+                                                            "2026-02-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T11:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .toList();
+
+            assertThat(StatsCalculator.bestPerfectMonthPercent(sessions, UTC)).isEqualTo(100);
+        }
+
+        @Test
+        @DisplayName("shouldReportBestMonth_whenLaterMonthIsWorse")
+        void shouldReportBestMonth_whenLaterMonthIsWorse() {
+            List<CodingSession> sessions =
+                    java.util.stream.IntStream.rangeClosed(1, 28)
+                            .mapToObj(
+                                    day ->
+                                            session(
+                                                    at(
+                                                            "2026-02-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T10:00:00"),
+                                                    at(
+                                                            "2026-02-"
+                                                                    + String.format("%02d", day)
+                                                                    + "T11:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .collect(
+                                    java.util.stream.Collectors.toCollection(
+                                            java.util.ArrayList::new));
+            sessions.add(
+                    session(at("2026-03-01T10:00:00"), at("2026-03-01T11:00:00"), "a", "Java"));
+
+            // February 100% beats March's 1/31 = 3%
+            assertThat(StatsCalculator.bestPerfectMonthPercent(sessions, UTC)).isEqualTo(100);
+        }
+
+        @Test
+        @DisplayName("shouldReportZero_whenNoSessions")
+        void shouldReportZero_whenNoSessions() {
+            assertThat(StatsCalculator.bestPerfectMonthPercent(List.of(), UTC)).isZero();
         }
     }
 }
