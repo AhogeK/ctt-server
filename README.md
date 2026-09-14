@@ -477,7 +477,13 @@ family so the gap
 between consecutive unlocks grows, and `PERFECT_MONTH` measures the best calendar month's coverage
 as a percentage of that month's own length (`progress` 0-100, `unit` `percent`), so a fully coded
 28-day February scores 100 rather than being penalised for being short. Achievements responses are
-cached in Redis for 60s under a format-versioned key and invalidated on push. All stats endpoints
+cached in Redis for 60s under a format-versioned key and invalidated on push. Every badge also
+carries its period history: `totalUnlocks` is how many periods it has been attained in and
+`periodStreak` is how many periods in a row, ending with the current one. Those two are recomputed
+from the session history rather than counted from the unlock rows, because evaluation is lazy — a
+user who meets a weekly goal every week but only opens the page once would otherwise be told they
+attained it once; the stored rows are unioned in so a period whose sessions were later deleted still
+counts. A `LIFETIME` badge reports 0 or 1 and a streak of 0. All stats endpoints
 are rate-limited to 60 req/min (`RATE_LIMIT_001`).
 
 **Materialization**: per-user per-UTC-day coding statistics are materialized in the
