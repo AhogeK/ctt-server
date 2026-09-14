@@ -9,7 +9,8 @@ the materialized per-day rows those reads are served from.
 **In scope**: duration semantics, timezone bucketing, window clipping, bucket boundaries,
 denominators/averages, existence rules for option lists, materialization contract, plugin parity.
 
-**Out of scope**: leaderboard scoring (`leaderboard/` aggregates its own dimensions),
+**Out of scope**: leaderboard scoring and ranking (`leaderboard/` domain — it borrows this domain's
+calculators but owns its own dimensions and rank semantics),
 achievement definitions (thresholds live in `stats/achievement/` but read the same calculators),
 sync ingestion (`sync-protocol` domain).
 

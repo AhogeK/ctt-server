@@ -18,6 +18,7 @@ duplicate it — link instead.
 | Domain | Scope | Entry point |
 | --- | --- | --- |
 | [`stats-aggregation`](./stats-aggregation/meta.md) | `/api/v1/stats/**`: duration semantics (merge vs accumulate), timezone bucketing, window clipping, materialized daily rows, option lists (years/months/filters), plugin parity | `stats-aggregation/meta.md` |
+| [`leaderboard`](./leaderboard/meta.md) | `/api/v1/leaderboard`: rank semantics (competition ranking), dimension score units, dimension/period compatibility, Redis key bucketing & TTL, write-on-push recompute, response fields for placing a rank in context | `leaderboard/meta.md` |
 | [`sync-protocol`](./sync-protocol/meta.md) | `/api/v1/sync/**`: LWW conflict resolution, change log & cursors, paging, push atomicity, device registration, plugin-side contract | `sync-protocol/meta.md` |
 | [`api-contract`](./api-contract/meta.md) | Public API surface: response envelopes, error codes, scopes, rate limits, OpenAPI annotations, endpoint consistency | `api-contract/meta.md` |
 | [`auth-lifecycle`](./auth-lifecycle/meta.md) | Identity flows: JWT/API-key authentication, OAuth login & binding, email verification, password reset/change, terms acceptance, account lockout | `auth-lifecycle/meta.md` |
