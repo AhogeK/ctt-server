@@ -57,3 +57,18 @@ The plugin's own statistics define display semantics (bucket boundaries, which d
 When the plugin's math is wrong, the server keeps the correct semantics and the divergence becomes a
 plugin bug report — never a silent server-side regression to match a bug. Boundaries currently
 mirrored: Night 00:00–05:59, Morning 06:00–11:59, Daytime 12:00–17:59, Evening 18:00–23:59.
+
+## 9. A lazily-written row is not a history
+
+`user_achievements` rows are written by `evaluate`, which runs only when `GET /achievements` is
+called (`SyncPushService` evicts the cache, it does not evaluate). So the table records **the periods
+the user happened to open the page**, not the periods they attained — a weekly badge met every week
+and viewed once has exactly one row.
+
+Any "how many times / how many in a row" question must therefore be answered by **recomputing from
+`coding_sessions`**, not by counting rows. Union the stored rows in as well: a period whose sessions
+were later soft-deleted must still count, so an attained badge is never revoked (same monotonicity
+rule as `achievement_progress`).
+
+**Generalization**: before treating a derived table as a complete record, find what *writes* it and
+when. Lazy/on-demand writers produce gaps that look like data.
