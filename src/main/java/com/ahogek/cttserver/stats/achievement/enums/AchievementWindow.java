@@ -90,4 +90,25 @@ public enum AchievementWindow {
             case YEAR -> String.valueOf(today.getYear());
         };
     }
+
+    /**
+     * Returns a date inside the period immediately before the one containing the given date.
+     *
+     * <p>Counting consecutive periods walks backwards with this rather than subtracting a guessed
+     * length: weeks are stepped with {@code minusWeeks} so the ISO week-based year is handled by
+     * the calendar (a week straddling New Year is still one step), and months use {@code
+     * minusMonths} rather than 30 days so February is not skipped.
+     *
+     * @param reference a date inside a period
+     * @return a date inside the preceding period, or {@code null} for {@link #LIFETIME}
+     */
+    public LocalDate previousPeriod(LocalDate reference) {
+        return switch (this) {
+            case LIFETIME -> null;
+            case DAY -> reference.minusDays(1);
+            case WEEK -> reference.minusWeeks(1);
+            case MONTH -> reference.minusMonths(1);
+            case YEAR -> reference.minusYears(1);
+        };
+    }
 }

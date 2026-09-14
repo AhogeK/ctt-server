@@ -22,8 +22,10 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,6 +51,9 @@ class AchievementServiceTest {
     private static final Clock FIXED_CLOCK =
             Clock.fixed(Instant.parse("2026-08-31T12:00:00Z"), ZoneOffset.UTC);
     private static final ZoneOffset ZONE = ZoneOffset.UTC;
+
+    /** Monday of the ISO week containing FIXED_CLOCK (2026-08-31 is a Monday). */
+    private static final LocalDate WEEK_ANCHOR = LocalDate.of(2026, 8, 31);
 
     private CodingSessionRepository codingSessionRepository;
     private UserAchievementRepository userAchievementRepository;
@@ -491,6 +496,111 @@ class AchievementServiceTest {
             assertThat(byCode(result, "DAILY_TOTAL_1H").unlocked()).isFalse();
             // the lifetime ladder does inherit the stored mark
             assertThat(byCode(result, "TOTAL_10_HOURS").progress()).isEqualTo(36_000);
+        }
+
+        @Test
+        @DisplayName("shouldCountEveryAttainedPeriod_evenWhenTheTableHasNoRowsForThem")
+        void shouldCountEveryAttainedPeriod_evenWhenTheTableHasNoRowsForThem() {
+            // Four consecutive weeks each with 5+ active days, but the table holds only the current
+            // week's row: evaluation is lazy, so the user simply never opened the page during the
+            // other three. Counting stored rows would report 1 with a streak of 1.
+            // FIXED_CLOCK is 2026-08-31 (a Monday, ISO week 2026-W36).
+            List<CodingSession> sessions = new ArrayList<>();
+            for (int week = 0; week < 4; week++) {
+                for (int day = 0; day < 5; day++) {
+                    LocalDate date = WEEK_ANCHOR.minusWeeks(week).plusDays(day);
+                    sessions.add(session(date + "T10:00:00", date + "T11:00:00", "Java"));
+                }
+            }
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(sessions);
+            UserAchievement thisWeek = new UserAchievement(userId, "WEEKLY_ACTIVE_5", "2026-W36");
+            thisWeek.setUnlockedAt(Instant.parse("2026-08-31T10:00:00Z"));
+            when(userAchievementRepository.findByUserId(userId)).thenReturn(List.of(thisWeek));
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            AchievementResponse weekly = byCode(result, "WEEKLY_ACTIVE_5");
+            assertThat(weekly.unlocked()).isTrue();
+            assertThat(weekly.totalUnlocks()).isEqualTo(4);
+            assertThat(weekly.periodStreak()).isEqualTo(4);
+        }
+
+        @Test
+        @DisplayName("shouldReportZeroStreak_whenTheCurrentPeriodIsNotAttained")
+        void shouldReportZeroStreak_whenTheCurrentPeriodIsNotAttained() {
+            // Two weeks attained three and four weeks ago, nothing since. The run ended before the
+            // current period, so the streak reads 0 rather than borrowing an older one.
+            List<CodingSession> sessions = new ArrayList<>();
+            for (int week = 3; week <= 4; week++) {
+                for (int day = 0; day < 5; day++) {
+                    LocalDate date = WEEK_ANCHOR.minusWeeks(week).plusDays(day);
+                    sessions.add(session(date + "T10:00:00", date + "T11:00:00", "Java"));
+                }
+            }
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(sessions);
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            AchievementResponse weekly = byCode(result, "WEEKLY_ACTIVE_5");
+            assertThat(weekly.unlocked()).isFalse();
+            assertThat(weekly.periodStreak()).isZero();
+            assertThat(weekly.totalUnlocks()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("shouldStopTheStreak_atTheFirstUnattainedPeriod")
+        void shouldStopTheStreak_atTheFirstUnattainedPeriod() {
+            // This week and last week attained, the week before not: the run is 2 of 3 attained.
+            List<CodingSession> sessions = new ArrayList<>();
+            for (int week = 0; week <= 1; week++) {
+                for (int day = 0; day < 5; day++) {
+                    LocalDate date = WEEK_ANCHOR.minusWeeks(week).plusDays(day);
+                    sessions.add(session(date + "T10:00:00", date + "T11:00:00", "Java"));
+                }
+            }
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(sessions);
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            assertThat(byCode(result, "WEEKLY_ACTIVE_5").periodStreak()).isEqualTo(2);
+            assertThat(byCode(result, "WEEKLY_ACTIVE_5").totalUnlocks()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("shouldNotLowerTotalUnlocks_whenTheSessionsBehindItAreDeleted")
+        void shouldNotLowerTotalUnlocks_whenTheSessionsBehindItAreDeleted() {
+            // The week's sessions are gone, but the unlock rows it produced remain: an attained
+            // badge is never revoked, so the count must not fall with the sessions.
+            UserAchievement older = new UserAchievement(userId, "WEEKLY_ACTIVE_3", "2025-W02");
+            older.setUnlockedAt(Instant.parse("2025-01-08T10:00:00Z"));
+            UserAchievement current = new UserAchievement(userId, "WEEKLY_ACTIVE_3", "2026-W36");
+            current.setUnlockedAt(Instant.parse("2026-08-31T10:00:00Z"));
+            when(userAchievementRepository.findByUserId(userId))
+                    .thenReturn(List.of(older, current));
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of());
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            // both stored periods survive even though no session backs them any more
+            assertThat(byCode(result, "WEEKLY_ACTIVE_3").totalUnlocks()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("shouldReportSinglePeriod_forLifetimeBadges")
+        void shouldReportSinglePeriod_forLifetimeBadges() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of());
+
+            List<AchievementResponse> result = service.getAchievements(userId, ZONE);
+
+            AchievementResponse lifetime = byCode(result, "STREAK_3");
+            // a lifetime badge has one period, so the history fields carry no extra information
+            assertThat(lifetime.totalUnlocks()).isZero();
+            assertThat(lifetime.periodStreak()).isZero();
         }
 
         @Test

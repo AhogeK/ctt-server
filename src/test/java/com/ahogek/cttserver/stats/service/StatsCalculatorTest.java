@@ -17,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -1274,6 +1275,74 @@ class StatsCalculatorTest {
         @DisplayName("shouldReportZero_whenNoSessions")
         void shouldReportZero_whenNoSessions() {
             assertThat(StatsCalculator.bestPerfectMonthPercent(List.of(), UTC)).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("totalsByPeriod")
+    class TotalsByPeriodTests {
+
+        @Test
+        @DisplayName("shouldSplitByTheCallersKeyFunction_andCountActiveDaysSeparately")
+        void shouldSplitByTheCallersKeyFunction_andCountActiveDaysSeparately() {
+            // Two months: August has a 2h day and a 1h day, September one 3h day.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-10T10:00:00"),
+                                    at("2026-08-10T12:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-08-20T10:00:00"),
+                                    at("2026-08-20T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-05T10:00:00"),
+                                    at("2026-09-05T13:00:00"),
+                                    "a",
+                                    "Java"));
+
+            Map<String, StatsCalculator.PeriodTotals> byMonth =
+                    StatsCalculator.totalsByPeriod(
+                            sessions, UTC, day -> YearMonth.from(day).toString());
+
+            assertThat(byMonth).hasSize(2);
+            // seconds and active days are both per period: 3h over two days is not 3 days
+            assertThat(byMonth.get("2026-08").seconds()).isEqualTo(10_800);
+            assertThat(byMonth.get("2026-08").activeDays()).isEqualTo(2);
+            assertThat(byMonth.get("2026-09").seconds()).isEqualTo(10_800);
+            assertThat(byMonth.get("2026-09").activeDays()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("shouldAttributeBothDays_whenASessionCrossesMidnight")
+        void shouldAttributeBothDays_whenASessionCrossesMidnight() {
+            // 22:00 to 02:00 spans two local days, so both periods see time and one active day
+            // each.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T22:00:00"),
+                                    at("2026-08-31T02:00:00"),
+                                    "a",
+                                    "Java"));
+
+            Map<String, StatsCalculator.PeriodTotals> byDay =
+                    StatsCalculator.totalsByPeriod(sessions, UTC, LocalDate::toString);
+
+            assertThat(byDay.get("2026-08-30").seconds()).isEqualTo(7_200);
+            assertThat(byDay.get("2026-08-31").seconds()).isEqualTo(7_200);
+            assertThat(byDay.get("2026-08-30").activeDays()).isEqualTo(1);
+            assertThat(byDay.get("2026-08-31").activeDays()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("shouldReturnNothing_whenNoSessions")
+        void shouldReturnNothing_whenNoSessions() {
+            assertThat(StatsCalculator.totalsByPeriod(List.of(), UTC, LocalDate::toString))
+                    .isEmpty();
         }
     }
 

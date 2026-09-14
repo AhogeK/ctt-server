@@ -1005,6 +1005,63 @@ public final class StatsCalculator {
     }
 
     /**
+     * Coding time attributed to one period: merged seconds plus how many distinct days carried
+     * coding.
+     *
+     * @param seconds overlap-collapsed coding seconds inside the period
+     * @param activeDays number of distinct days inside the period with a positive amount of coding
+     */
+    public record PeriodTotals(long seconds, int activeDays) {}
+
+    /**
+     * Aggregates per-day coding totals into periods designated by the caller's key function.
+     *
+     * <p>Built on {@link #mergedSecondsByDay}, so a session crossing midnight contributes to both
+     * days and a zero-second overlap contributes to none — the same day set every other statistics
+     * dimension uses. Two numbers come out because the two windowed achievement families measure
+     * different things from the same days: total time sums the seconds, active days counts the
+     * days.
+     *
+     * <p>The key function is supplied by the caller rather than derived from a window here, which
+     * keeps this class free of achievement knowledge while still doing the work once: the caller
+     * passes its own period-key rule, so the grouping and the achievement's notion of a period
+     * cannot drift apart.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param periodKeyOf maps a local day to the key of the period containing it
+     * @return period key to totals, containing only periods that carry coding
+     */
+    public static Map<String, PeriodTotals> totalsByPeriod(
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            Function<LocalDate, String> periodKeyOf) {
+        Map<String, MutableTotals> accumulated = new HashMap<>();
+        for (Map.Entry<LocalDate, Long> day : mergedSecondsByDay(sessions, zone).entrySet()) {
+            if (day.getValue() <= 0) {
+                continue;
+            }
+            MutableTotals totals =
+                    accumulated.computeIfAbsent(
+                            periodKeyOf.apply(day.getKey()), _ -> new MutableTotals());
+            totals.seconds += day.getValue();
+            totals.activeDays++;
+        }
+        Map<String, PeriodTotals> byPeriod = new HashMap<>();
+        accumulated.forEach(
+                (key, totals) ->
+                        byPeriod.put(key, new PeriodTotals(totals.seconds, totals.activeDays)));
+        return byPeriod;
+    }
+
+    /** Accumulator for {@link #totalsByPeriod}; one instance per period, not per day. */
+    private static final class MutableTotals {
+
+        private long seconds;
+        private int activeDays;
+    }
+
+    /**
      * Returns the number of distinct days carrying a positive amount of coding time.
      *
      * <p>Counts the same day set as the heatmap, so a session crossing midnight contributes to both

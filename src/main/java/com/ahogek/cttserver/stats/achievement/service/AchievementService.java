@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -71,7 +72,7 @@ public class AchievementService {
      * null}, {@code tier} {@code 0}) and the stale ladder would be served for the rest of the
      * entry's TTL. Bump the version whenever the shape changes — old keys then simply expire.
      */
-    private static final String CACHE_PREFIX = "achievements:cache:v3:";
+    private static final String CACHE_PREFIX = "achievements:cache:v4:";
 
     private static final Duration CACHE_TTL = Duration.ofSeconds(60);
 
@@ -184,15 +185,25 @@ public class AchievementService {
         // has
         // one per period it was earned in, and only the current period's row counts as unlocked.
         // Keyed by code, not by ladder, so each rung reports the instant it was itself earned.
+        // The full set is kept, not just the current period's rows, because the historical periods
+        // feed the cumulative counts below.
         Map<String, Instant> unlockedByCode = new HashMap<>();
+        Map<String, Set<String>> storedPeriods = new HashMap<>();
         for (UserAchievement unlock : userAchievementRepository.findByUserId(userId)) {
             Achievement achievement = Achievement.byCode(unlock.getAchievementCode());
-            if (achievement == null
-                    || !achievement.window().periodKey(today).equals(unlock.getPeriodKey())) {
+            if (achievement == null) {
                 continue;
             }
-            unlockedByCode.put(unlock.getAchievementCode(), unlock.getUnlockedAt());
+            storedPeriods
+                    .computeIfAbsent(unlock.getAchievementCode(), _ -> new HashSet<>())
+                    .add(unlock.getPeriodKey());
+            if (achievement.window().periodKey(today).equals(unlock.getPeriodKey())) {
+                unlockedByCode.put(unlock.getAchievementCode(), unlock.getUnlockedAt());
+            }
         }
+
+        Map<AchievementWindow, Map<String, StatsCalculator.PeriodTotals>> totalsByWindow =
+                periodTotalsByWindow(sessions, zone);
 
         Map<LadderKey, Long> highWater = new LinkedHashMap<>();
         for (AchievementProgress mark : achievementProgressRepository.findByUserId(userId)) {
@@ -264,7 +275,15 @@ public class AchievementService {
                     timestamp = reloadedUnlockedAt(userId, achievement.name(), periodKey);
                 }
                 unlocked = true;
+                storedPeriods
+                        .computeIfAbsent(achievement.name(), _ -> new HashSet<>())
+                        .add(periodKey);
             }
+            Set<String> attained =
+                    attainedPeriods(
+                            achievement,
+                            totalsByWindow.get(achievement.window()),
+                            storedPeriods.getOrDefault(achievement.name(), Set.of()));
             result.add(
                     new AchievementResponse(
                             achievement.name(),
@@ -279,9 +298,102 @@ public class AchievementService {
                             achievement.unit(),
                             achievement.window().name(),
                             achievement.window().start(today),
-                            achievement.window().end(today)));
+                            achievement.window().end(today),
+                            achievement.window() == AchievementWindow.LIFETIME
+                                    ? (unlocked ? 1 : 0)
+                                    : attained.size(),
+                            achievement.window() == AchievementWindow.LIFETIME
+                                    ? 0
+                                    : consecutivePeriods(achievement.window(), today, attained)));
         }
         return result;
+    }
+
+    /**
+     * Aggregates the session history into per-period totals, one map per window.
+     *
+     * <p>Computed once per request rather than per badge: every windowed ladder of a family reads
+     * the same grouping, and rebuilding it per rung would scale the request cost with the ladder
+     * length.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @return window to (period key to totals)
+     */
+    private static Map<AchievementWindow, Map<String, StatsCalculator.PeriodTotals>>
+            periodTotalsByWindow(List<CodingSession> sessions, ZoneOffset zone) {
+        Map<AchievementWindow, Map<String, StatsCalculator.PeriodTotals>> byWindow =
+                new EnumMap<>(AchievementWindow.class);
+        for (AchievementWindow window : AchievementWindow.values()) {
+            if (window == AchievementWindow.LIFETIME) {
+                continue;
+            }
+            byWindow.put(window, StatsCalculator.totalsByPeriod(sessions, zone, window::periodKey));
+        }
+        return byWindow;
+    }
+
+    /**
+     * Returns the periods in which a badge's target was reached.
+     *
+     * <p>Recomputed from the session history rather than read back from {@code user_achievements},
+     * because those rows only exist for the periods a user happened to open the achievements page:
+     * evaluation is lazy, so trusting them would report "attained 3 times" to someone who in fact
+     * met the goal every week but did not visit. The stored rows are unioned in as well, so a
+     * period whose sessions were later deleted still counts — an attained badge is never revoked.
+     *
+     * @param achievement the badge
+     * @param totalsByPeriod the window's period totals, or {@code null} for a lifetime badge
+     * @param storedPeriods the periods recorded in the unlock table for this code
+     * @return the period keys in which the target was reached
+     */
+    private static Set<String> attainedPeriods(
+            Achievement achievement,
+            Map<String, StatsCalculator.PeriodTotals> totalsByPeriod,
+            Set<String> storedPeriods) {
+        if (achievement.window() == AchievementWindow.LIFETIME) {
+            return storedPeriods;
+        }
+        Set<String> attained = new HashSet<>(storedPeriods);
+        for (Map.Entry<String, StatsCalculator.PeriodTotals> period : totalsByPeriod.entrySet()) {
+            StatsCalculator.PeriodTotals totals = period.getValue();
+            long measured =
+                    switch (achievement.type()) {
+                        case TOTAL_SECONDS -> totals.seconds();
+                        case ACTIVE_DAYS -> totals.activeDays();
+                        // The two windowed ladder families are the only types measured per period;
+                        // a new windowed type must add its measure here.
+                        default -> 0L;
+                    };
+            if (measured >= achievement.target()) {
+                attained.add(period.getKey());
+            }
+        }
+        return attained;
+    }
+
+    /**
+     * Counts how many periods in a row the target was reached, ending with the current period.
+     *
+     * <p>Returns zero when the current period is not attained: the caller renders "N in a row"
+     * beside a window that is still open, and reporting a run that ended before it started would
+     * contradict the {@code unlocked} flag shown on the same card.
+     *
+     * @param window the badge's window
+     * @param today the caller's local date
+     * @param attained the periods in which the target was reached
+     * @return the number of consecutive attained periods ending now, zero when the current one is
+     *     not attained
+     */
+    private static int consecutivePeriods(
+            AchievementWindow window, LocalDate today, Set<String> attained) {
+        int streak = 0;
+        LocalDate cursor = today;
+        while (attained.contains(window.periodKey(cursor))) {
+            streak++;
+            cursor = window.previousPeriod(cursor);
+        }
+        return streak;
     }
 
     /**
