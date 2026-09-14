@@ -110,7 +110,9 @@ class LeaderboardServiceTest {
             service.updateUserScores(userId);
 
             ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-            verify(zsetOps, times(8)).add(keyCaptor.capture(), anyString(), anyDouble());
+            // 20 legal dimension/period pairs: TOTAL 4, STREAK 1, NIGHT_OWL 4, EARLY_BIRD 4,
+            // GROWTH 3 (no ALL), ACTIVE_DAYS 4.
+            verify(zsetOps, times(20)).add(keyCaptor.capture(), anyString(), anyDouble());
             assertThat(keyCaptor.getAllValues())
                     .containsExactlyInAnyOrder(
                             "leaderboard:total",
@@ -119,8 +121,20 @@ class LeaderboardServiceTest {
                             "leaderboard:total:year:2026-01-01",
                             "leaderboard:streak",
                             "leaderboard:night_owl",
+                            "leaderboard:night_owl:week:2026-08-31",
+                            "leaderboard:night_owl:month:2026-08-01",
+                            "leaderboard:night_owl:year:2026-01-01",
                             "leaderboard:early_bird",
-                            "leaderboard:growth:week:2026-08-31");
+                            "leaderboard:early_bird:week:2026-08-31",
+                            "leaderboard:early_bird:month:2026-08-01",
+                            "leaderboard:early_bird:year:2026-01-01",
+                            "leaderboard:active_days",
+                            "leaderboard:active_days:week:2026-08-31",
+                            "leaderboard:active_days:month:2026-08-01",
+                            "leaderboard:active_days:year:2026-01-01",
+                            "leaderboard:growth:week:2026-08-31",
+                            "leaderboard:growth:month:2026-08-01",
+                            "leaderboard:growth:year:2026-01-01");
         }
 
         @Test
@@ -214,8 +228,9 @@ class LeaderboardServiceTest {
 
             service.updateUserScores(userId);
 
-            // week x2 (total-week, growth-week), month, year
-            verify(redisTemplate, times(4)).expire(anyString(), any(Duration.class));
+            // 15 of the 20 legal pairs carry a period: TOTAL 3, NIGHT_OWL 3, EARLY_BIRD 3,
+            // ACTIVE_DAYS 3, GROWTH 3. The five ALL keys never expire.
+            verify(redisTemplate, times(15)).expire(anyString(), any(Duration.class));
         }
 
         @Test
@@ -254,7 +269,13 @@ class LeaderboardServiceTest {
             user.setDisplayName("Alice");
             when(userRepository.findAllById(List.of(userId, otherUserId)))
                     .thenReturn(List.of(user));
-            when(zsetOps.reverseRank("leaderboard:total", userId.toString())).thenReturn(0L);
+            // Two members: the leader has nobody above them, the second has one.
+            when(zsetOps.count("leaderboard:total", Math.nextUp(10800.0), Double.POSITIVE_INFINITY))
+                    .thenReturn(0L);
+            when(zsetOps.count("leaderboard:total", Math.nextUp(5400.0), Double.POSITIVE_INFINITY))
+                    .thenReturn(1L);
+            when(zsetOps.score("leaderboard:total", userId.toString())).thenReturn(10800.0);
+            when(zsetOps.size("leaderboard:total")).thenReturn(2L);
 
             LeaderboardResponse response =
                     service.getLeaderboard(
@@ -268,6 +289,63 @@ class LeaderboardServiceTest {
             assertThat(response.entries().get(1).userId()).isEqualTo(otherUserId);
             assertThat(response.entries().get(1).rank()).isEqualTo(2);
             assertThat(response.currentUserRank()).isEqualTo(1);
+            assertThat(response.totalParticipants()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("should share a rank between tied scores and resume after the gap")
+        void shouldShareRank_whenScoresTie() {
+            // 90 is held by two members, so they share rank 2 and the next distinct score is 4.
+            ZSetOperations.TypedTuple<String> first =
+                    ZSetOperations.TypedTuple.of(userId.toString(), 100.0);
+            ZSetOperations.TypedTuple<String> tiedA =
+                    ZSetOperations.TypedTuple.of(otherUserId.toString(), 90.0);
+            ZSetOperations.TypedTuple<String> tiedB =
+                    ZSetOperations.TypedTuple.of(UUID.randomUUID().toString(), 90.0);
+            ZSetOperations.TypedTuple<String> fourth =
+                    ZSetOperations.TypedTuple.of(UUID.randomUUID().toString(), 80.0);
+            Set<ZSetOperations.TypedTuple<String>> tuples = new LinkedHashSet<>();
+            tuples.add(first);
+            tuples.add(tiedA);
+            tuples.add(tiedB);
+            tuples.add(fourth);
+            when(zsetOps.reverseRangeWithScores("leaderboard:total", 0, 19)).thenReturn(tuples);
+            when(userRepository.findAllById(any())).thenReturn(List.of());
+            when(zsetOps.count("leaderboard:total", Math.nextUp(100.0), Double.POSITIVE_INFINITY))
+                    .thenReturn(0L);
+            when(zsetOps.score("leaderboard:total", userId.toString())).thenReturn(100.0);
+            when(zsetOps.size("leaderboard:total")).thenReturn(4L);
+
+            LeaderboardResponse response =
+                    service.getLeaderboard(
+                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, 20, 0, userId);
+
+            assertThat(response.entries()).extracting("rank").containsExactly(1L, 2L, 2L, 4L);
+        }
+
+        @Test
+        @DisplayName("should report the global rank of the page's first member after paging")
+        void shouldReportGlobalRank_whenPageStartsMidRanking() {
+            // Page 2 of a ranking whose top two members are tied: the page opens at absolute
+            // position 3 with a score of 90, so its members keep the rank 2 they hold globally.
+            ZSetOperations.TypedTuple<String> tied =
+                    ZSetOperations.TypedTuple.of(otherUserId.toString(), 90.0);
+            when(zsetOps.reverseRangeWithScores("leaderboard:total", 2, 3))
+                    .thenReturn(Set.of(tied));
+            when(userRepository.findAllById(List.of(otherUserId))).thenReturn(List.of());
+            when(zsetOps.count("leaderboard:total", Math.nextUp(90.0), Double.POSITIVE_INFINITY))
+                    .thenReturn(1L);
+            when(zsetOps.score("leaderboard:total", userId.toString())).thenReturn(null);
+            when(zsetOps.size("leaderboard:total")).thenReturn(4L);
+
+            LeaderboardResponse response =
+                    service.getLeaderboard(
+                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, 2, 2, userId);
+
+            // offset+1 would have said 3; the correct competition rank is 2.
+            assertThat(response.entries()).hasSize(1);
+            assertThat(response.entries().getFirst().rank()).isEqualTo(2);
+            assertThat(response.totalParticipants()).isEqualTo(4);
         }
 
         @Test
@@ -275,8 +353,6 @@ class LeaderboardServiceTest {
         void shouldReadPeriodKey_whenPeriodRequested() {
             when(zsetOps.reverseRangeWithScores("leaderboard:total:week:2026-08-31", 0, 19))
                     .thenReturn(Set.of());
-            when(zsetOps.reverseRank("leaderboard:total:week:2026-08-31", userId.toString()))
-                    .thenReturn(null);
 
             service.getLeaderboard(
                     LeaderboardDimension.TOTAL, LeaderboardPeriod.WEEK, 20, 0, userId);
@@ -288,7 +364,8 @@ class LeaderboardServiceTest {
         @DisplayName("should report null current rank when the user is not ranked")
         void shouldReturnNullRank_whenUserNotRanked() {
             when(zsetOps.reverseRangeWithScores("leaderboard:total", 0, 19)).thenReturn(Set.of());
-            when(zsetOps.reverseRank("leaderboard:total", userId.toString())).thenReturn(null);
+            // unranked: no score of their own in this ZSet
+            when(zsetOps.score("leaderboard:total", userId.toString())).thenReturn(null);
 
             LeaderboardResponse response =
                     service.getLeaderboard(
@@ -296,6 +373,7 @@ class LeaderboardServiceTest {
 
             assertThat(response.entries()).isEmpty();
             assertThat(response.currentUserRank()).isNull();
+            assertThat(response.totalParticipants()).isZero();
         }
 
         @Test
@@ -306,7 +384,14 @@ class LeaderboardServiceTest {
             when(zsetOps.reverseRangeWithScores("leaderboard:streak", 5, 14))
                     .thenReturn(Set.of(first));
             when(userRepository.findAllById(List.of(userId))).thenReturn(List.of());
-            when(zsetOps.reverseRank("leaderboard:streak", userId.toString())).thenReturn(6L);
+            // The caller sits at position 6 with a score of 100, and exactly 5 members score higher
+            // than them — their competition rank is therefore 6, matching their page position.
+            when(zsetOps.score("leaderboard:streak", userId.toString())).thenReturn(100.0);
+            when(zsetOps.count("leaderboard:streak", 100.0, Double.POSITIVE_INFINITY))
+                    .thenReturn(0L);
+            when(zsetOps.count("leaderboard:streak", Math.nextUp(100.0), Double.POSITIVE_INFINITY))
+                    .thenReturn(5L);
+            when(zsetOps.size("leaderboard:streak")).thenReturn(11L);
 
             LeaderboardResponse response =
                     service.getLeaderboard(
@@ -315,7 +400,8 @@ class LeaderboardServiceTest {
             assertThat(response.entries()).hasSize(1);
             assertThat(response.entries().getFirst().displayName()).isNull();
             assertThat(response.entries().getFirst().rank()).isEqualTo(6);
-            assertThat(response.currentUserRank()).isEqualTo(7);
+            assertThat(response.currentUserRank()).isEqualTo(6);
+            assertThat(response.totalParticipants()).isEqualTo(11);
         }
 
         @Test

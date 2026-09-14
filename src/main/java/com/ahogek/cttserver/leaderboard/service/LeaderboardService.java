@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -132,12 +131,23 @@ public class LeaderboardService {
     /**
      * Returns one page of the leaderboard with the calling user's rank.
      *
+     * <p>Ranks use standard competition ranking: equal scores share a position, and the next
+     * distinct score resumes after the gap (1, 2, 2, 4). The page's first rank therefore cannot be
+     * derived from {@code offset} — a page starting mid-tie must report the same position its
+     * members hold globally — so it is resolved with one {@code ZCOUNT} for the number of strictly
+     * higher scores, and subsequent distinct scores are numbered by their absolute position.
+     *
+     * <p>The caller's own rank is resolved by the same rule rather than by Redis's physical
+     * position, because {@code reverseRank} breaks ties by member order: the two would otherwise
+     * disagree inside a single response whenever the caller is tied.
+     *
      * @param dimension the ranking dimension
      * @param period the time window
      * @param limit page size
      * @param offset zero-based start index
      * @param currentUserId the calling user
-     * @return the ranked page and the caller's rank (or {@code null} when not ranked)
+     * @return the ranked page, the caller's rank (or {@code null} when not ranked) and the ranking
+     *     size
      * @throws ValidationException when the dimension does not support the period
      */
     @Transactional(readOnly = true)
@@ -154,63 +164,116 @@ public class LeaderboardService {
         }
         LocalDate today = LocalDate.now(clock);
         String key = key(dimension, period, today);
+        ZSetOperations<String, String> zSet = redisTemplate.opsForZSet();
         Set<ZSetOperations.TypedTuple<String>> tuples =
-                redisTemplate
-                        .opsForZSet()
-                        .reverseRangeWithScores(key, offset, (long) offset + limit - 1);
+                zSet.reverseRangeWithScores(key, offset, (long) offset + limit - 1);
 
-        List<LeaderboardEntryDto> entries = new ArrayList<>();
-        if (tuples != null && !tuples.isEmpty()) {
-            // A ZSet member always carries a value and score, but the API annotates both as
-            // nullable; skip malformed entries defensively.
-            List<ZSetOperations.TypedTuple<String>> valid =
-                    tuples.stream()
-                            .filter(t -> t.getValue() != null && t.getScore() != null)
-                            .toList();
-            List<UUID> userIds =
-                    valid.stream()
-                            .map(t -> UUID.fromString(Objects.requireNonNull(t.getValue())))
-                            .toList();
-            Map<UUID, User> users =
-                    userRepository.findAllById(userIds).stream()
-                            .collect(Collectors.toMap(User::getId, Function.identity()));
-            long rank = (long) offset + 1;
-            double previousScore = Double.NaN;
-            long skippedTies = 0;
-            for (ZSetOperations.TypedTuple<String> tuple : valid) {
-                double score = Objects.requireNonNull(tuple.getScore());
-                if (score != previousScore) {
-                    rank += skippedTies;
-                    skippedTies = 0;
-                    previousScore = score;
-                }
-                UUID userId = UUID.fromString(Objects.requireNonNull(tuple.getValue()));
-                User user = users.get(userId);
-                entries.add(
-                        new LeaderboardEntryDto(
-                                userId,
-                                user != null ? user.getDisplayName() : null,
-                                (long) score,
-                                rank));
-                skippedTies++;
-            }
+        List<LeaderboardEntryDto> entries = buildEntries(tuples, key, offset);
+        Long currentUserRank = rankOf(zSet, key, currentUserId);
+        Long total = zSet.size(key);
+        return new LeaderboardResponse(
+                entries, currentUserRank, total != null ? total : entries.size());
+    }
+
+    /**
+     * Maps one page of ZSet members to ranked entries.
+     *
+     * @param tuples the page's members with scores, score-descending
+     * @param key the ranking key, used to resolve where the page starts
+     * @param offset the page's zero-based start index
+     * @return the ranked entries
+     */
+    private List<LeaderboardEntryDto> buildEntries(
+            Set<ZSetOperations.TypedTuple<String>> tuples, String key, int offset) {
+        if (tuples == null || tuples.isEmpty()) {
+            return List.of();
+        }
+        // A ZSet member always carries a value and score, but the API annotates both as nullable;
+        // skip malformed entries defensively.
+        List<ZSetOperations.TypedTuple<String>> valid =
+                tuples.stream()
+                        .filter(tuple -> tuple.getValue() != null && tuple.getScore() != null)
+                        .toList();
+        if (valid.isEmpty()) {
+            return List.of();
         }
 
-        Long rawRank = redisTemplate.opsForZSet().reverseRank(key, currentUserId.toString());
-        Long currentUserRank = rawRank != null ? rawRank + 1 : null;
-        return new LeaderboardResponse(entries, currentUserRank);
+        List<UUID> userIds =
+                valid.stream()
+                        .map(tuple -> UUID.fromString(Objects.requireNonNull(tuple.getValue())))
+                        .toList();
+        Map<UUID, User> users =
+                userRepository.findAllById(userIds).stream()
+                        .collect(Collectors.toMap(User::getId, Function.identity()));
+
+        List<LeaderboardEntryDto> entries = new ArrayList<>(valid.size());
+        boolean firstOfPage = true;
+        long rank = 0;
+        double previousScore = Double.NaN;
+        for (int index = 0; index < valid.size(); index++) {
+            ZSetOperations.TypedTuple<String> tuple = valid.get(index);
+            double score = Objects.requireNonNull(tuple.getScore());
+            if (firstOfPage) {
+                rank = rankFor(score, key);
+                firstOfPage = false;
+            } else if (score != previousScore) {
+                rank = offset + (long) index + 1;
+            }
+            previousScore = score;
+            UUID userId = UUID.fromString(Objects.requireNonNull(tuple.getValue()));
+            User user = users.get(userId);
+            entries.add(
+                    new LeaderboardEntryDto(
+                            userId,
+                            user != null ? user.getDisplayName() : null,
+                            (long) score,
+                            rank));
+        }
+        return entries;
+    }
+
+    /**
+     * Resolves the competition rank of a score: one more than the number of strictly higher scores.
+     *
+     * @param score the score to place
+     * @param key the ranking key
+     * @return the 1-based rank that score holds
+     */
+    private long rankFor(double score, String key) {
+        // The exclusive lower bound is the next representable double above the score, so equally
+        // scored members are excluded from the count and share the resulting rank.
+        Long higher =
+                redisTemplate.opsForZSet().count(key, Math.nextUp(score), Double.POSITIVE_INFINITY);
+        return (higher != null ? higher : 0L) + 1;
+    }
+
+    /**
+     * Resolves the caller's competition rank, or {@code null} when they have no score.
+     *
+     * @param zSet the ZSet operations handle
+     * @param key the ranking key
+     * @param userId the calling user
+     * @return the 1-based rank, or {@code null} when unranked
+     */
+    private Long rankOf(ZSetOperations<String, String> zSet, String key, UUID userId) {
+        Double score = zSet.score(key, userId.toString());
+        if (score == null) {
+            return null;
+        }
+        return rankFor(score, key);
     }
 
     private void recomputeAndWriteAll(UUID userId) {
         List<CodingSession> sessions =
                 codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId);
         LocalDate today = LocalDate.now(clock);
+        SessionViews views = buildViews(sessions, today);
         for (LeaderboardDimension dimension : LeaderboardDimension.values()) {
             for (LeaderboardPeriod period : LeaderboardPeriod.values()) {
                 if (!dimension.supports(period)) {
                     continue;
                 }
-                long score = computeScore(sessions, dimension, period, today);
+                long score = computeScore(views, dimension, period);
                 String key = key(dimension, period, today);
                 redisTemplate.opsForZSet().add(key, userId.toString(), score);
                 Duration ttl = ttlFor(period);
@@ -221,77 +284,144 @@ public class LeaderboardService {
         }
     }
 
+    /**
+     * Computes one score from precomputed session views.
+     *
+     * <p>The interval list and the per-day totals are built once per recompute and shared across
+     * every dimension/period pair: they are the expensive part (interval merge and day splitting
+     * are {@code O(n log n)}), and rebuilding them per pair would make the cost scale with the
+     * number of keys rather than with the user's history.
+     *
+     * @param views the shared session views
+     * @param dimension the ranking dimension
+     * @param period the time window
+     * @return the score
+     */
     private long computeScore(
-            List<CodingSession> sessions,
-            LeaderboardDimension dimension,
-            LeaderboardPeriod period,
-            LocalDate today) {
+            SessionViews views, LeaderboardDimension dimension, LeaderboardPeriod period) {
         ZoneOffset utc = ZoneOffset.UTC;
+        LocalDate today = views.today();
         return switch (dimension) {
             case TOTAL -> {
-                List<StatsCalculator.TimeInterval> intervals =
-                        StatsCalculator.toIntervals(sessions, utc);
-                yield switch (period) {
-                    case ALL -> StatsCalculator.summary(sessions, utc, today).total();
-                    case WEEK ->
-                            StatsCalculator.mergedDurationSeconds(
-                                    intervals,
-                                    weekStart(today).atStartOfDay().atOffset(utc),
-                                    weekStart(today).plusWeeks(1).atStartOfDay().atOffset(utc));
-                    case MONTH ->
-                            StatsCalculator.mergedDurationSeconds(
-                                    intervals,
-                                    today.withDayOfMonth(1).atStartOfDay().atOffset(utc),
-                                    today.withDayOfMonth(1)
-                                            .plusMonths(1)
-                                            .atStartOfDay()
-                                            .atOffset(utc));
-                    case YEAR ->
-                            StatsCalculator.mergedDurationSeconds(
-                                    intervals,
-                                    today.withDayOfYear(1).atStartOfDay().atOffset(utc),
-                                    today.withDayOfYear(1)
-                                            .plusYears(1)
-                                            .atStartOfDay()
-                                            .atOffset(utc));
-                };
+                if (period == LeaderboardPeriod.ALL) {
+                    yield views.lifetimeSeconds();
+                }
+                yield periodsSeconds(views.intervals(), period, today, 0);
             }
-            case STREAK -> StatsCalculator.streaks(sessions, utc, today).max();
+            case ACTIVE_DAYS -> activeDaysIn(views, period, today);
+            case STREAK -> StatsCalculator.streaks(views.sessions(), utc, today).max();
             case NIGHT_OWL, EARLY_BIRD ->
                     StatsCalculator.mergedDurationInDailyWindow(
-                            sessions,
+                            views.sessions(),
                             utc,
                             dimension.windowStartHour(),
                             dimension.windowEndHour(),
-                            OffsetDateTime.MIN,
-                            today.plusDays(1).atStartOfDay().atOffset(utc));
-            case GROWTH -> {
-                List<StatsCalculator.TimeInterval> intervals =
-                        StatsCalculator.toIntervals(sessions, utc);
-                OffsetDateTime weekStart = weekStart(today).atStartOfDay().atOffset(utc);
-                long thisWeek =
-                        StatsCalculator.mergedDurationSeconds(
-                                intervals, weekStart, weekStart.plusWeeks(1));
-                long lastWeek =
-                        StatsCalculator.mergedDurationSeconds(
-                                intervals, weekStart.minusWeeks(1), weekStart);
-                yield thisWeek - lastWeek;
-            }
+                            periodStartOrMin(period, today),
+                            periodEndOrMax(period, today));
+            case GROWTH ->
+                    periodsSeconds(views.intervals(), period, today, 0)
+                            - periodsSeconds(views.intervals(), period, today, 1);
         };
     }
 
-    private static LocalDate weekStart(LocalDate date) {
-        return date.with(DayOfWeek.MONDAY);
+    /**
+     * Merged coding seconds inside a period an offset of periods away from the current one.
+     *
+     * @param intervals the user's intervals
+     * @param period the window
+     * @param today the reference date
+     * @param periodsBack how many periods to shift back ({@code 0} is the current one)
+     * @return merged seconds in that window
+     */
+    private static long periodsSeconds(
+            List<StatsCalculator.TimeInterval> intervals,
+            LeaderboardPeriod period,
+            LocalDate today,
+            int periodsBack) {
+        LocalDate start = period.start(today);
+        LocalDate end = period.endExclusive(today);
+        if (start == null || end == null) {
+            return 0;
+        }
+        LocalDate windowStart = shift(start, period, -periodsBack);
+        LocalDate windowEnd = shift(end, period, -periodsBack);
+        return StatsCalculator.mergedDurationSeconds(
+                intervals,
+                windowStart.atStartOfDay().atOffset(ZoneOffset.UTC),
+                windowEnd.atStartOfDay().atOffset(ZoneOffset.UTC));
+    }
+
+    /** Number of distinct coding days inside the current period. */
+    private static long activeDaysIn(
+            SessionViews views, LeaderboardPeriod period, LocalDate today) {
+        LocalDate start = period.start(today);
+        LocalDate end = period.endExclusive(today);
+        if (start == null || end == null) {
+            return views.secondsByDay().size();
+        }
+        return views.secondsByDay().entrySet().stream()
+                .filter(
+                        entry ->
+                                entry.getValue() > 0
+                                        && !entry.getKey().isBefore(start)
+                                        && entry.getKey().isBefore(end))
+                .count();
+    }
+
+    /** Shifts a date by a whole number of periods (positive forward, negative back). */
+    private static LocalDate shift(LocalDate date, LeaderboardPeriod period, int periods) {
+        return switch (period) {
+            case ALL -> date;
+            case WEEK -> date.plusWeeks(periods);
+            case MONTH -> date.plusMonths(periods);
+            case YEAR -> date.plusYears(periods);
+        };
+    }
+
+    private static OffsetDateTime periodStartOrMin(LeaderboardPeriod period, LocalDate today) {
+        LocalDate start = period.start(today);
+        return start != null ? start.atStartOfDay().atOffset(ZoneOffset.UTC) : OffsetDateTime.MIN;
+    }
+
+    private static OffsetDateTime periodEndOrMax(LeaderboardPeriod period, LocalDate today) {
+        LocalDate end = period.endExclusive(today);
+        return end != null ? end.atStartOfDay().atOffset(ZoneOffset.UTC) : OffsetDateTime.MAX;
+    }
+
+    /**
+     * Session views built once per recompute and shared by every dimension.
+     *
+     * @param sessions the user's live sessions
+     * @param intervals the merged-capable intervals in UTC
+     * @param secondsByDay overlap-collapsed seconds per UTC day
+     * @param lifetimeSeconds merged lifetime total (the {@code TOTAL}/{@code ALL} score)
+     * @param today the reference date
+     */
+    private record SessionViews(
+            List<CodingSession> sessions,
+            List<StatsCalculator.TimeInterval> intervals,
+            Map<LocalDate, Long> secondsByDay,
+            long lifetimeSeconds,
+            LocalDate today) {}
+
+    private SessionViews buildViews(List<CodingSession> sessions, LocalDate today) {
+        ZoneOffset utc = ZoneOffset.UTC;
+        List<StatsCalculator.TimeInterval> intervals = StatsCalculator.toIntervals(sessions, utc);
+        long total =
+                StatsCalculator.mergeOverlapping(intervals).stream()
+                        .map(StatsCalculator.TimeInterval::duration)
+                        .reduce(Duration.ZERO, Duration::plus)
+                        .toSeconds();
+        return new SessionViews(
+                sessions,
+                intervals,
+                StatsCalculator.mergedSecondsByDay(sessions, utc),
+                total,
+                today);
     }
 
     private String key(LeaderboardDimension dimension, LeaderboardPeriod period, LocalDate today) {
-        String base = KEY_PREFIX + dimension.name().toLowerCase();
-        return switch (period) {
-            case ALL -> base;
-            case WEEK -> base + ":week:" + weekStart(today);
-            case MONTH -> base + ":month:" + today.withDayOfMonth(1);
-            case YEAR -> base + ":year:" + today.withDayOfYear(1);
-        };
+        return KEY_PREFIX + dimension.name().toLowerCase() + period.keySuffix(today);
     }
 
     private static Duration ttlFor(LeaderboardPeriod period) {
