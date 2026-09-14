@@ -24,6 +24,15 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param target the threshold the badge unlocks at
  * @param unit the unit of {@code progress} and {@code target} (seconds / days / languages /
  *     percent)
+ * @param window the measurement window: {@code LIFETIME}, {@code DAY}, {@code WEEK}, {@code MONTH}
+ *     or {@code YEAR}
+ * @param windowStart first local date of the current window, or {@code null} for {@code LIFETIME}
+ * @param windowEnd last local date of the current window, or {@code null} for {@code LIFETIME}
+ * @param totalUnlocks how many periods this badge has been attained in, including the current one
+ *     when unlocked; always 0 or 1 for a {@code LIFETIME} badge, which has a single period
+ * @param periodStreak how many consecutive periods ending with the current one the badge has been
+ *     attained in; 0 when the current period is not attained, and always 0 for a {@code LIFETIME}
+ *     badge
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-08-31
  */
@@ -63,4 +72,17 @@ public record AchievementResponse(
                         description = "Last local date of the current window; null for LIFETIME",
                         nullable = true,
                         example = "2026-09-13")
-                LocalDate windowEnd) {}
+                LocalDate windowEnd,
+        @Schema(
+                        description =
+                                "How many periods this badge has been attained in, including the"
+                                        + " current one when unlocked (0 or 1 for LIFETIME badges)",
+                        example = "12")
+                int totalUnlocks,
+        @Schema(
+                        description =
+                                "How many consecutive periods ending with the current one it has been"
+                                        + " attained in; 0 when the current period is not attained"
+                                        + " and always 0 for LIFETIME badges",
+                        example = "5")
+                int periodStreak) {}

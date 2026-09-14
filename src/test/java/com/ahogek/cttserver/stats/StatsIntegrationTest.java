@@ -17,6 +17,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.sql.Timestamp;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -627,6 +628,77 @@ class StatsIntegrationTest {
                             .query(Long.class)
                             .single();
             assertThat(rowCount).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should report period history from sessions, not only from stored unlocks")
+        void shouldReportPeriodHistory_whenOnlySomePeriodsWereEvaluated() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            UUID userId = UUID.fromString(auth[1]);
+            // Three consecutive weeks with 3 active days each, so WEEKLY_ACTIVE_3 is attained in
+            // all
+            // three. No unlock row exists for any of them: the achievements page was never opened,
+            // and evaluation only runs on that GET.
+            LocalDate thisMonday = LocalDate.now(ZoneOffset.UTC).with(DayOfWeek.MONDAY);
+            for (int week = 0; week < 3; week++) {
+                for (int day = 0; day < 3; day++) {
+                    Instant start =
+                            thisMonday
+                                    .minusWeeks(week)
+                                    .plusDays(day)
+                                    .atStartOfDay()
+                                    .toInstant(ZoneOffset.UTC)
+                                    .plus(Duration.ofHours(10));
+                    insertSession(
+                            userId, start, start.plus(Duration.ofHours(1)), "ctt-server", "Java");
+                }
+            }
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            // The badge is reached this week, and the two earlier weeks count as attained history
+            // even though no row records them.
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='WEEKLY_ACTIVE_3')].totalUnlocks")
+                    .isEqualTo(List.of(3));
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='WEEKLY_ACTIVE_3')].periodStreak")
+                    .isEqualTo(List.of(3));
+        }
+
+        @Test
+        @DisplayName("Should carry history fields on every badge, including locked ones")
+        void shouldCarryHistoryFields_onEveryBadge() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/achievements")
+                            .header("Authorization", "Bearer " + auth[0])
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            // The fields are primitives, so they survive the non_null serialization even at zero:
+            // a client reading them must never see a missing key.
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='STREAK_3')].totalUnlocks")
+                    .isEqualTo(List.of(0));
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='STREAK_3')].periodStreak")
+                    .isEqualTo(List.of(0));
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data[?(@.code=='WEEKLY_ACTIVE_5')].totalUnlocks")
+                    .isEqualTo(List.of(0));
         }
 
         @Test

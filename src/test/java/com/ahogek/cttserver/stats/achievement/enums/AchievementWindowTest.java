@@ -127,4 +127,58 @@ class AchievementWindowTest {
                     .isEqualTo("2026-W01");
         }
     }
+
+    @Nested
+    @DisplayName("previous period")
+    class PreviousPeriodTests {
+
+        @Test
+        @DisplayName("shouldReturnNoPreviousPeriod_forLifetime")
+        void shouldReturnNoPreviousPeriod_forLifetime() {
+            assertThat(AchievementWindow.LIFETIME.previousPeriod(LocalDate.of(2026, 9, 13)))
+                    .isNull();
+        }
+
+        @Test
+        @DisplayName("shouldLandInThePrecedingPeriod_forEachWindow")
+        void shouldLandInThePrecedingPeriod_forEachWindow() {
+            LocalDate friday = LocalDate.of(2026, 9, 11);
+
+            assertThat(
+                            AchievementWindow.DAY.periodKey(
+                                    AchievementWindow.DAY.previousPeriod(friday)))
+                    .isEqualTo("2026-09-10");
+            assertThat(
+                            AchievementWindow.WEEK.periodKey(
+                                    AchievementWindow.WEEK.previousPeriod(friday)))
+                    .isEqualTo("2026-W36");
+            assertThat(
+                            AchievementWindow.MONTH.periodKey(
+                                    AchievementWindow.MONTH.previousPeriod(friday)))
+                    .isEqualTo("2026-08");
+            assertThat(
+                            AchievementWindow.YEAR.periodKey(
+                                    AchievementWindow.YEAR.previousPeriod(friday)))
+                    .isEqualTo("2025");
+        }
+
+        @Test
+        @DisplayName("shouldStepMonthsByTheCalendar_notByThirtyDays")
+        void shouldStepMonthsByTheCalendar_notByThirtyDays() {
+            // Stepping back from March 1 with a 30-day subtraction would land in January for a
+            // 31-day month; the calendar step must land in February regardless of month length.
+            assertThat(AchievementWindow.MONTH.previousPeriod(LocalDate.of(2026, 3, 31)))
+                    .isEqualTo(LocalDate.of(2026, 2, 28));
+        }
+
+        @Test
+        @DisplayName("shouldStepWeeksAcrossTheYearBoundary_asOnePeriod")
+        void shouldStepWeeksAcrossTheYearBoundary_asOnePeriod() {
+            // 2026-01-01 falls in ISO week 2026-W01; the week before it is 2025-W52, and the step
+            // must land there rather than in a week of the wrong year.
+            LocalDate previous = AchievementWindow.WEEK.previousPeriod(LocalDate.of(2026, 1, 1));
+
+            assertThat(AchievementWindow.WEEK.periodKey(previous)).isEqualTo("2025-W52");
+        }
+    }
 }
