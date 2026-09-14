@@ -113,14 +113,19 @@ public class LeaderboardController {
             summary = "Global leaderboard",
             description =
                     "Returns the global ranking for a dimension and time window (lifetime, or the"
-                            + " current week / month / year), with the calling user's rank."
+                            + " current week / month / year), with the calling user's rank and the"
+                            + " size of the ranking."
                             + " Dimensions: TOTAL (merged coding seconds), STREAK (longest"
                             + " consecutive coding-day streak), NIGHT_OWL (merged 22:00-05:00"
-                            + " duration), EARLY_BIRD (merged 06:00-09:00 duration) and GROWTH"
-                            + " (week-over-week net growth seconds). The period defaults to ALL,"
-                            + " except for GROWTH which defaults to WEEK. Periods are supported by"
-                            + " dimension: TOTAL accepts ALL/WEEK/MONTH/YEAR;"
-                            + " STREAK/NIGHT_OWL/EARLY_BIRD accept ALL; GROWTH accepts WEEK.")
+                            + " duration), EARLY_BIRD (merged 06:00-09:00 duration), GROWTH (net"
+                            + " growth against the immediately preceding period, may be negative)"
+                            + " and ACTIVE_DAYS (distinct coding days)."
+                            + " The period defaults to ALL, except for GROWTH which defaults to"
+                            + " WEEK. Periods are supported by dimension: TOTAL, NIGHT_OWL,"
+                            + " EARLY_BIRD and ACTIVE_DAYS accept ALL/WEEK/MONTH/YEAR; STREAK"
+                            + " accepts ALL only (its periods are shorter than the runs it"
+                            + " rewards); GROWTH accepts WEEK/MONTH/YEAR but not ALL (an"
+                            + " unbounded history has nothing to grow from).")
     @ApiResponses(
             value = {
                 @ApiResponse(
@@ -188,13 +193,9 @@ public class LeaderboardController {
             @RequestParam(name = "limit", defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(name = "offset", defaultValue = "0") @Min(0) int offset) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
-        LeaderboardPeriod effectivePeriod = period;
-        if (effectivePeriod == null) {
-            effectivePeriod =
-                    dimension == LeaderboardDimension.GROWTH
-                            ? LeaderboardPeriod.WEEK
-                            : LeaderboardPeriod.ALL;
-        }
+        // The dimension owns both the legal period set and the default, so an omitted period can
+        // never select one the same dimension would reject.
+        LeaderboardPeriod effectivePeriod = period != null ? period : dimension.defaultPeriod();
         LeaderboardResponse response =
                 leaderboardService.getLeaderboard(
                         dimension, effectivePeriod, limit, offset, currentUser.id());

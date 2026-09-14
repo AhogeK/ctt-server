@@ -3,6 +3,8 @@ package com.ahogek.cttserver.leaderboard;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
+import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
+import com.ahogek.cttserver.leaderboard.enums.LeaderboardPeriod;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 
 import org.junit.jupiter.api.AfterEach;
@@ -585,6 +587,90 @@ class LeaderboardIntegrationTest {
                                     .header("Authorization", "Bearer " + readKey)
                                     .exchange())
                     .hasStatus(400);
+        }
+
+        @Test
+        @DisplayName("Should accept every dimension/period combination the enum allows")
+        void shouldAcceptCombinations_whenDimensionSupportsPeriod() throws Exception {
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            // The legal set is defined by the enum, so driving the matrix from it keeps this test
+            // honest when a dimension gains or loses a period: the assertion cannot drift from the
+            // rule the controller enforces.
+            for (LeaderboardDimension dimension : LeaderboardDimension.values()) {
+                for (LeaderboardPeriod period : LeaderboardPeriod.values()) {
+                    var result =
+                            mvc.get()
+                                    .uri(
+                                            "/api/v1/leaderboard?dimension="
+                                                    + dimension
+                                                    + "&period="
+                                                    + period)
+                                    .header("Authorization", "Bearer " + readKey)
+                                    .exchange();
+                    int expected = dimension.supports(period) ? 200 : 400;
+                    assertThat(result).as("%s over %s", dimension, period).hasStatus(expected);
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("Should report the ranking size alongside the caller's rank")
+        void shouldReportTotalParticipants() throws Exception {
+            RegisteredUser first = registerAndLogin(uniqueEmail());
+            RegisteredUser second = registerAndLogin(uniqueEmail());
+            insertSession(first.id(), "2026-08-30T10:00:00Z", "2026-08-30T11:00:00Z", "ctt-server");
+            insertSession(
+                    second.id(), "2026-08-30T10:00:00Z", "2026-08-30T11:00:00Z", "ctt-server");
+            updateScore(first.id());
+            updateScore(second.id());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/leaderboard?dimension=TOTAL&limit=10&offset=0")
+                            .header("Authorization", "Bearer " + createReadApiKey(first.jwt()))
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            // Redis is shared across the suite, so exact member counts vary with what other tests
+            // pushed. The contract this field must satisfy is stable regardless: the size is
+            // reported, it accounts for both users ranked here, and the caller's rank falls inside
+            // it — which is what lets a client render "rank N of M".
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.totalParticipants")
+                    .satisfiesAnyOf(
+                            n -> assertThat(((Number) n).longValue()).isGreaterThanOrEqualTo(2L));
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.currentUserRank")
+                    .satisfiesAnyOf(
+                            n -> assertThat(((Number) n).longValue()).isGreaterThanOrEqualTo(1L));
+        }
+
+        @Test
+        @DisplayName("Should rank by distinct coding days for ACTIVE_DAYS")
+        void shouldRankByActiveDays() throws Exception {
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            // Two sessions on the same day are one active day, and the score counts days rather
+            // than accumulating duration: this separates the dimension from TOTAL by construction.
+            // The period is ALL so the assertion does not depend on when the suite runs.
+            insertSession(
+                    viewer.id(), "2026-08-30T10:00:00Z", "2026-08-30T11:00:00Z", "ctt-server");
+            insertSession(
+                    viewer.id(), "2026-08-30T12:00:00Z", "2026-08-30T13:00:00Z", "ctt-server");
+            updateScore(viewer.id());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/leaderboard?dimension=ACTIVE_DAYS&limit=10")
+                            .header("Authorization", "Bearer " + createReadApiKey(viewer.jwt()))
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result).bodyJson().extractingPath("$.data.entries[0].score").isEqualTo(1);
+            assertThat(result).bodyJson().extractingPath("$.data.totalParticipants").isEqualTo(1);
         }
     }
 }

@@ -25,8 +25,10 @@ public enum LeaderboardDimension {
     NIGHT_OWL(22, 5),
     /** Merged coding duration inside the early-bird window 06:00-09:00 (UTC). */
     EARLY_BIRD(6, 9),
-    /** Week-over-week net growth in seconds (this week minus last week). */
-    GROWTH(null, null);
+    /** Net growth against the immediately preceding period, in seconds (may be negative). */
+    GROWTH(null, null),
+    /** Number of distinct days carrying coding time — consistency rather than volume. */
+    ACTIVE_DAYS(null, null);
 
     private final Integer windowStartHour;
     private final Integer windowEndHour;
@@ -66,15 +68,43 @@ public enum LeaderboardDimension {
     /**
      * Returns whether the dimension can be ranked within the given period.
      *
+     * <p>{@link #ALL} is legal for every dimension. The period windows differ in what a ranked
+     * number means for them:
+     *
+     * <ul>
+     *   <li>{@link #TOTAL}, {@link #NIGHT_OWL}, {@link #EARLY_BIRD} and {@link #ACTIVE_DAYS} are
+     *       measurements inside the window, so every period is meaningful — "who coded most this
+     *       week" and "who was the night owl this month" are the same question over different
+     *       spans.
+     *   <li>{@link #STREAK} is a run length, and the periods are all shorter than the runs it
+     *       rewards, so it is only ranked over all time.
+     *   <li>{@link #GROWTH} compares a period against the one before it, which an unbounded history
+     *       cannot do; {@link LeaderboardPeriod#WEEK} remains the default for callers that omit it.
+     * </ul>
+     *
      * @param period the requested time window
      * @return {@code true} for a legal dimension/period combination
      */
     public boolean supports(LeaderboardPeriod period) {
         return switch (this) {
-            case TOTAL -> true;
+            case TOTAL, NIGHT_OWL, EARLY_BIRD, ACTIVE_DAYS -> true;
             case STREAK -> period == LeaderboardPeriod.ALL;
-            case NIGHT_OWL, EARLY_BIRD -> period == LeaderboardPeriod.ALL;
-            case GROWTH -> period == LeaderboardPeriod.WEEK;
+            case GROWTH -> period != LeaderboardPeriod.ALL;
         };
+    }
+
+    /**
+     * Returns the period to use when a caller omits one.
+     *
+     * <p>Lives here rather than in the controller so the legal set and the default are decided in
+     * one place: a dimension whose default were absent from {@link #supports} would reject its own
+     * default. Every dimension defaults to {@link LeaderboardPeriod#ALL} except {@link #GROWTH},
+     * which cannot rank an unbounded history and therefore falls back to the shortest window it
+     * supports.
+     *
+     * @return the default period, always legal for this dimension
+     */
+    public LeaderboardPeriod defaultPeriod() {
+        return this == GROWTH ? LeaderboardPeriod.WEEK : LeaderboardPeriod.ALL;
     }
 }
