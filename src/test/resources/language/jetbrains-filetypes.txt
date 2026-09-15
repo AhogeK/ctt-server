@@ -1,0 +1,157 @@
+# Every fileType name declared by the six JetBrains IDEs installed on the development
+# machine (XML-declared registrations; programmatically registered ones such as JAVA are
+# covered by the observed-value test instead).
+# Purpose: if the vocabulary stops classifying a value an IDE can emit, this list fails.
+# NOTE: this list is a LOWER BOUND. Names computed in bytecode (e.g.
+# IgnoreFileType.getName() returns getID() + " file" -> "GitIgnore file") never
+# appear in XML, so they are absent here; the observed-value test covers them.
+.env file
+ARCHIVE
+AUTO_DETECTED
+Angular Metadata JSON
+Angular17Html
+Angular17Svg
+Angular181Html
+Angular181Svg
+Angular20Html
+Angular20Svg
+Angular2Html
+Angular2Svg
+Assembly file
+C/C++
+C/C++ Header
+CMakeCache.txt
+CMakeLists.txt
+CSS
+CSV/TSV
+CassandraQL
+Chameleon
+ChildProcessDebugging
+Cookie storage file
+Cucumber
+Cython
+DGM
+DTD
+Data File
+DataViewer
+Database Element
+Dictionary
+Docker Compose Configuration
+EJS
+Eclipse
+EditorConfig
+FTL
+Flow
+GDBCommands
+GitLabCiExpression
+GithubExpression
+Gradle
+Gradle Declarative Configuration Language
+Groovy
+H2 Database
+HPROF
+HTML
+HTTP Request
+Handlebars/Mustache
+Helm JSON template
+Helm TEXT template
+Helm YAML template
+Helmfile
+HiveQL
+IDEA_MODULE
+IDEA_PROJECT
+IDEA_WORKSPACE
+Image
+Ini
+JFR
+JPA QL
+JQL
+JSHint
+JSON
+JSON-lines
+JSON5
+JSX
+JaCoCoCoverageReport
+Jade
+JavaScript
+JavaScript Testing Snapshot
+JavaeeFacet
+Jinja2
+Jupyter
+KJSM
+KNM
+Kconfig
+Kotlin
+Kotlin/Native Def
+Kubernetes Yaml
+LLDBCommands
+Less
+LinkerScript
+Locale
+Makefile
+Manifest
+Markdown
+MavenConfig
+Mermaid
+Micronaut-MongoDB-JSON
+Native
+Natjmc
+Natstepfilter
+Natvis
+PATCH
+PLAIN_TEXT
+PersistenceUnit
+Properties
+PyTyped
+Python
+PythonStub
+QmlType
+Qt UI file
+Qute
+RNG Compact
+ReST
+Redis
+RegExp
+Requirements.txt
+ResourceBundle
+Rust
+SARIF
+SCSS
+SPI
+SQL
+SQLite Database
+SVG
+Sass
+SourceMap
+Spring Boot Imports
+Spring-MongoDB-JSON
+TOML
+ThinClientFileType
+TypeScript
+TypeScript JSX
+UML
+UNKNOWN
+VTL
+Vue.js
+Werf YAML template
+XHTML
+XML
+XPath
+XPath2
+YAML
+bun.lock
+bun.lockb
+gdsl
+kotlin_builtins
+kotlin_module
+logback
+meson.build
+protobuf
+prototext
+qrc
+script-definition-marker
+spring.binders
+spring.factories
+textmate
+tsconfig
+yarn.lock
