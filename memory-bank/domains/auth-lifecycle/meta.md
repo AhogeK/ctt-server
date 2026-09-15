@@ -38,3 +38,13 @@ payload semantics, login metadata, lockout thresholds, the audit events each flo
 | **Hybrid unlock** | Lazy check plus an hourly sweep for accounts nobody retries |
 | **Terms version** | Version string carried in the JWT; a stale version gates protected endpoints |
 | **Login metadata** | `lastLoginAt` / `lastLoginIp`, updated on every successful login |
+
+## Verification baseline
+
+| | |
+| --- | --- |
+| Checked against source | 2026-09-11 · v0.67.0 (domain written from source) |
+| Coverage | Built from the auth/OAuth/user packages and their error codes at that revision; not re-verified since |
+| Known drift | Not checked — verify the flow you are about to rely on |
+
+Treat unverified parts as a lead to check, not as a fact.

@@ -12,6 +12,9 @@
 | `SYSTEM_` | 5 | Unexpected server failures |
 | `RATE_LIMIT_` | 3 | Throttling |
 | `LEADERBOARD_` | 2 | Ranking |
+| `DEVICE_` | 1 | Device registration conflicts |
+
+Counts verified against `ErrorCode` on 2026-09-15 (v0.73.0).
 
 ## Frequently used codes
 

@@ -39,3 +39,13 @@ filter-chain wiring (cross-cutting, `systemPatterns.md`), DB schema.
 | **Declarative governance** | `@RateLimit` / `@Idempotent` annotations resolved through SpEL |
 | **Sibling endpoint** | Same shape and parameters as another endpoint (e.g. the stats reads) |
 | **Trace id** | Correlation id echoed in error bodies for support |
+
+## Verification baseline
+
+| | |
+| --- | --- |
+| Checked against source | 2026-09-11 · v0.67.0 (domain written from source) |
+| Coverage | Built from `ErrorCode`, the global handler, the response envelopes and the controllers at that revision; not re-verified since |
+| Known drift | `ErrorCode` families re-counted 2026-09-15: the `DEVICE_` family was missing from `references.md` and has been added. Re-count after any change to `ErrorCode` |
+
+Treat unverified parts as a lead to check, not as a fact.

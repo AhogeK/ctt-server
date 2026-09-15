@@ -42,3 +42,13 @@ sync ingestion (`sync-protocol` domain).
 | **Active day** | A local day with at least one second of coding (the average denominator) |
 | **Materialized day** | A `daily_stats` row: per-user per-UTC-day merged seconds, incrementally maintained on push |
 | **Zone** | The caller's `timezoneOffset` (minutes east of UTC, −720..720); all bucketing happens after shifting sessions into it |
+
+## Verification baseline
+
+| | |
+| --- | --- |
+| Checked against source | 2026-09-11 · v0.67.0 (domain written from source) |
+| Coverage | Built from the `stats` package, calculator and service at that revision; not fully re-verified since |
+| Known drift | Calculator methods re-read 2026-09-15 (`accumulateBy`, `mergedSecondsByDay`, `bestPerfectMonthPercent`, `languageCountAchievedAt`); the rest of the domain is unverified against HEAD |
+
+Treat unverified parts as a lead to check, not as a fact.

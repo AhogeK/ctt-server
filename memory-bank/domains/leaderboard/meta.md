@@ -49,3 +49,13 @@ calculators), sync ingestion (`sync-protocol`).
 leaderboard measures *many users* and then **orders** them — ranking, tie handling, key bucketing
 by period, and the write-on-push path are judgements the stats domain explicitly excludes. The two
 share the calculators and nothing else.
+
+## Verification baseline
+
+| | |
+| --- | --- |
+| Checked against source | 2026-09-15 · v0.73.0 |
+| Coverage | Full domain: `service/LeaderboardService`, `controller/LeaderboardController`, `enums/LeaderboardDimension`, `enums/LeaderboardPeriod`, `dto/LeaderboardResponse` read end to end |
+| Known drift | None — this domain was written in the change that produced v0.73.0 |
+
+Re-check the specific file you are about to rely on if the code has moved since this date.

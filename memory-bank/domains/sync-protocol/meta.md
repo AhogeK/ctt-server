@@ -39,3 +39,13 @@ once the data lands (`stats-aggregation`), plugin-side storage (`../code-time-tr
 | **Last-writing device** | The device of the most recent accepted mutation |
 | **Soft delete** | `is_deleted = true` with `deleted_at`; rows are never physically removed by sync |
 | **BOLA** | Broken object-level authorization: another user's device/key must not be reachable |
+
+## Verification baseline
+
+| | |
+| --- | --- |
+| Checked against source | 2026-09-11 · v0.67.0 (domain written from source) |
+| Coverage | Built from the `sync` package and its repositories at that revision; not re-verified since |
+| Known drift | Not checked — verify the endpoint or rule you are about to rely on |
+
+Treat unverified parts as a lead to check, not as a fact.
