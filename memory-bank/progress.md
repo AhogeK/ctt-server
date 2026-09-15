@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.74.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.74.1`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth）、审计与限流 |
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.74.1` | 2026-09-16 | fix(stats): normalize languages before aggregating |
 | `0.74.0` | 2026-09-16 | feat(language): add the cross-IDE language vocabulary and normalizer |
 | `0.73.0` | 2026-09-15 | feat(leaderboard): correct rank computation and widen dimension coverage |
 | `0.72.0` | 2026-09-14 | feat(stats): report achievement period history from the session data |

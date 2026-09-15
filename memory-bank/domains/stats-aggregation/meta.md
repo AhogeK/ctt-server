@@ -49,6 +49,6 @@ sync ingestion (`sync-protocol` domain).
 | --- | --- |
 | Checked against source | 2026-09-11 · v0.67.0 (domain written from source) |
 | Coverage | Built from the `stats` package, calculator and service at that revision; not fully re-verified since |
-| Known drift | Calculator methods re-read 2026-09-15 (`accumulateBy`, `mergedSecondsByDay`, `bestPerfectMonthPercent`, `languageCountAchievedAt`); the rest of the domain is unverified against HEAD |
+| Known drift | Calculator methods re-read 2026-09-15/16 (`accumulateBy`, `mergedSecondsByDay`, `bestPerfectMonthPercent`, `languageDistribution`, `languageCountAchievedAt`); the rest of the domain is unverified against HEAD |
 
 Treat unverified parts as a lead to check, not as a fact.

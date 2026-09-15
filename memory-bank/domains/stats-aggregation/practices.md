@@ -50,6 +50,25 @@ nothing there.
 **and** bootstrapped. Everything else aggregates live. Option lists should call the same gate so
 years/months read from the same source as the heatmap they feed.
 
+## Language grouping goes through one entry point
+
+Never group sessions by `CodingSession::getLanguage` directly. The value is whatever the IDE
+reported, and the IDEs disagree with each other and with themselves: `JAVA` and `java` are one
+language, and JetBrains' `GitIgnore file` is VS Code's `ignore`. Grouping by the raw value splits a
+language across buckets in every consumer at once.
+
+Use `StatsCalculator.languageDistribution(sessions, zone, vocabulary)`; for a distinct count use its
+size, and for the moment a count was reached use `languageCountAchievedAt(..., vocabulary, target)`.
+Normalization happens inside those, so a caller cannot forget it.
+
+The stored value stays raw on purpose. The canonical name is derived, and storing a derivation means
+resynchronizing it whenever the vocabulary changes — while recomputing here costs one map lookup per
+session. It would also touch `ConflictResolver`, whose content identity compares the language field,
+turning every re-push into a modification and defeating the idempotent no-op path.
+
+Unrecognized values are preserved and reported rather than folded into a catch-all, so a genuinely
+new language stays visible instead of disappearing into a bucket nobody inspects.
+
 ## Test recipe for precision and windows
 
 1. A session with a **fractional** start (`.plusNanos(...)`) so truncation is exercised.

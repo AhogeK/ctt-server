@@ -1,12 +1,11 @@
 # Active Context
-- [2026-09-16] - 跨端语言词表（批次 1/3：词表与归一化器，v0.74.0）
-    - 裁决: 规范层=**GitHub Linguist**（自带 `type`，把"Markdown 算不算语言"变成查表事实）；归一化在**服务端**；**存双列**——硬约束: `ConflictResolver.sameContent` 判据含 `language`，覆写成规范名会使幂等 no-op 退化为 LWW；未知值保留不丢弃（JetBrains 侧为开放集合，本机 58 插件可注册 fileType）
-    - 本批（**纯新增，未接调用方，行为中立**）: `language/` 包 + `resources/language/vocabulary.json`（92 规范 / 74 别名 / 76 非语言）+ 34 测试 + 两侧 IDE 词表夹具（150 + 75 条）
-    - **测试抓到 4 个真问题**: ①夹具非全集——部分 fileType 名在**字节码里算出**（`IgnoreFileType.getName()` = `getID()+" file"`），XML 扫描系统性看不到，已注明为下界并由"真实观测值"测试兜底 ②生成器做了 `" file"` 模糊剥离而运行时没有 → 改**显式别名** ③`languages()` 用原样名回查小写索引表 → 全 null ④两个构造器致 Spring 找不到默认构造器 → 注入构造器加 `@Autowired`（不跑集成测试发现不了，会导致全部集成测试挂）
-    - 词表自检: 生成时逐一校验别名目标存在，抓出 `DTD`/`Kconfig`/`XPath` **不在 Linguist** → 作本地扩展；`prototext` 修正为 `Protocol Buffer Text Format`
-    - 验证: 全量 **1436 tests / 0 failures**；jacoco 门槛通过；spotless PASS
-    - 状态: 批次 1 已提交（dab953b + 版本 2998ec8）；批次 2/3 = 迁移双列 + 写读路径接入
-
+- [2026-09-16] - 跨端语言词表（v0.74.0 词表 + v0.74.1 接入，两批完成）
+    - 裁决: 规范层=**GitHub Linguist**（自带 `type`，把"Markdown 算不算语言"变成查表事实）；归一化在**服务端**；**不存规范名**——2026-09-16 修正原"双列"判断: 规范名是派生值，存它要随词表变化持续同步，且会迫使改动 `ConflictResolver`（其内容判等含 `language`，覆写后幂等 no-op 退化为 LWW）；未知值保留不丢弃（JetBrains 侧为开放集合，本机 58 插件可注册 fileType）
+    - 批次 1（纯新增 v0.74.0）: `language/` 包 + `vocabulary.json`（92 规范 / 74 别名 / 76 非语言）+ 34 测试 + 两侧 IDE 词表夹具。生成时逐一校验别名目标存在，抓出 `DTD`/`Kconfig`/`XPath` **不在 Linguist** → 本地扩展
+    - 批次 2（v0.74.1）: 语言分组**收敛到唯一入口** `StatsCalculator.languageDistribution`——原本 3 处各自分组（分布 / 成就进度 / 达成时刻），"三处分散"正是第四处会忘记规范化的情形；词表作参数传入以保持纯计算；未映射值有界登记（500）+ 每值告警一次，**不做端点**（词表全局而其他读均按用户，暴露会跨用户泄露原始值）
+    - **测试抓到 4 个真问题**: ①夹具非全集——部分 fileType 名在**字节码里算出**（`IgnoreFileType.getName()`=`getID()+" file"`），XML 扫描系统性看不到 ②生成器做了 `" file"` 模糊剥离而运行时没有 → 改显式别名 ③`languages()` 用原样名回查小写索引 → 全 null ④两个构造器致 Spring 找不到默认构造器（不跑集成测试发现不了，会导致全部集成测试挂）
+    - 红-绿: 分组换回原样值 → 4 个新测试全失败 → 恢复全绿。验证: 全量 **1441 tests / 0 failures**；jacoco 门槛通过；spotless PASS
+    - 状态: 两批已提交推送；**`ConflictResolver`/push/pull 零改动**（按修正后 D3 不再是风险面）。批次 3（词表端点）按需再定
 - [2026-09-15] - 知识库治理：progress 归档重写 + AGENTS.md 去重与矛盾修复
     - 触发: 用户授权由我裁决此前两项（AGENTS.md 400 行 / progress.md 578 行超限）。**progress.md 578 → 81 行**: 核实发现该文件自 v0.49.0 后停更，其「未完成」清单把早已交付的同步引擎（CodingSession/SyncCursor/SyncPull/Push/ConflictResolver）与排行榜列为**未开始** —— 过期清单比没有清单更危险。处置: 逐条历史整体归档 `archive/progress-completed.md`（逐字保留 + 记明归档原因）；热文件改为**版本里程碑账本**（42 条），版本+日期取自 `gradle/libs.versions.toml` 变更历史、主线交付取自提交历史，**不手工维护**；「尚未落地」只列已核实缺失项（压测/错误监控/CI）
     - 账本口径回源校验: 首版用提交信息推导出现 **off-by-one**（0.73.0 落到相邻版本）；实测三项提交的"其后第一个 bump"确定归属规则（badge system→0.56.0 / ZSet ranking→0.54.0 / period rankings→0.55.0），修正后 **8 项已知事实交叉校验全通过**
