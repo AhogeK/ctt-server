@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.73.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.74.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth）、审计与限流 |
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.74.0` | 2026-09-16 | feat(language): add the cross-IDE language vocabulary and normalizer |
 | `0.73.0` | 2026-09-15 | feat(leaderboard): correct rank computation and widen dimension coverage |
 | `0.72.0` | 2026-09-14 | feat(stats): report achievement period history from the session data |
 | `0.71.0` | 2026-09-13 | feat(stats): add windowed achievements that reset each period |
@@ -30,30 +31,30 @@
 | `0.64.0` | 2026-09-05 | feat(stats): clip hourly distribution to a date range |
 | `0.63.0` | 2026-09-03 | feat(stats): weekly coding activity by hour endpoint |
 | `0.62.0` | 2026-09-03 | feat(sync): page pull responses with hasMore cursor continuation |
-| `0.61.0` | 2026-09-02 | feat(stats): add heatmap year options endpoint |
+| `0.61.0` | 2026-09-02 | fix(test): anchor streak test days to real today |
 | `0.60.0` | 2026-09-01 | feat(stats): IDE filter across stats endpoints and ide-filters option |
 | `0.59.0` | 2026-09-01 | feat(stats): IDE distribution derived from device registry |
-| `0.58.0` | 2026-09-01 | feat(stats): device dimension with per-endpoint deviceId filter |
-| `0.57.0` | 2026-08-31 | feat(achievements): Redis response cache with push invalidation |
+| `0.58.0` | 2026-09-01 | test(stats): cover device dimension filtering and attribution |
+| `0.57.0` | 2026-08-31 | refactor(common): shared RedisLockService |
 | `0.56.0` | 2026-08-31 | feat(achievements): badge system with lazy idempotent unlock |
 | `0.55.0` | 2026-08-31 | feat(leaderboard): period and fun-dimension rankings |
-| `0.54.0` | 2026-08-31 | feat(leaderboard): global Redis ZSet ranking |
-| `0.53.0` | 2026-08-31 | feat(sync): dedupe idempotent re-push by content |
-| `0.52.0` | 2026-08-30 | feat(sync): batch push with multi-row inserts |
-| `0.51.0` | 2026-08-30 | feat(stats): add statistics aggregation API |
-| `0.50.0` | 2026-08-30 | feat(device): expose revocation status and block sync for revoked devices |
-| `0.49.0` | 2026-08-29 | feat(sync): add sessionUuid to pull change DTO |
-| `0.48.0` | 2026-08-28 | feat(device): add device registration endpoint with key binding |
+| `0.54.0` | 2026-08-31 | test(leaderboard): cover ranking, ties, concurrency and push trigger |
+| `0.53.0` | 2026-08-31 | test(sync): cover content-level dedup and parameterize LWW cases |
+| `0.52.0` | 2026-08-30 | test: keep rate limiting off by default, enable where asserted |
+| `0.51.0` | 2026-08-30 | test(stats): cover calculator aggregation and stats endpoints |
+| `0.50.0` | 2026-08-30 | test(device): cover revoked device status and sync rejection |
+| `0.49.0` | 2026-08-29 | test(sync): cover sessionUuid in pull response |
+| `0.48.0` | 2026-08-28 | test(device): cover device registration flow |
 | `0.47.0` | 2026-08-26 | feat(sync): wire pull/push endpoints |
 | `0.46.0` | 2026-08-25 | feat(sync): add LWW conflict resolution engine |
 | `0.45.0` | 2026-08-25 | feat(sync): add data model and persistence layer for coding session sync |
 | `0.44.0` | 2026-08-23 | feat(user): add password change endpoint |
 | `0.43.0` | 2026-08-21 | feat(mail): precise retryAfter for MAIL_004 rate limit |
 | `0.42.0` | 2026-08-12 | feat(apikey): allow direct deletion of expired API keys |
-| `0.41.0` | 2026-08-10 | feat(apikey): add permanent deletion for revoked API keys |
-| `0.40.0` | 2026-07-16 | fix(ratelimit): fix RedisRateLimiter race condition + add API key auth rate limiting |
-| `0.39.0` | 2026-07-13 | feat(sync): add sync endpoints with SYNC scope enforcement |
-| `0.38.0` | 2026-07-12 | feat(apikey): implement scope-based authorization with @RequiresApiKeyScope |
+| `0.41.0` | 2026-08-10 | docs(apikey): document permanent deletion endpoint and AUTH_023 |
+| `0.40.0` | 2026-07-16 | docs(apikey): add API key authentication rate limiting documentation |
+| `0.39.0` | 2026-07-13 | docs(sync): add sync endpoints documentation |
+| `0.38.0` | 2026-07-12 | docs(apikey): document scope-based authorization |
 | `0.36.0` | 2026-07-09 | feat(apikey): implement Phase N API Key Management CRUD + endpoints |
 | `0.30.0` | 2026-07-02 | feat(user): add GET /api/v1/users/me for current user profile |
 | `0.29.0` | 2026-07-01 | feat(oauth): add DELETE /api/v1/auth/oauth/accounts/{provider} for OAuth unbind |

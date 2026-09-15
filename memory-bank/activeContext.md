@@ -1,36 +1,37 @@
 # Active Context
+- [2026-09-16] - 跨端语言词表（批次 1/3：词表与归一化器，v0.74.0）
+    - 裁决: 规范层=**GitHub Linguist**（自带 `type`，把"Markdown 算不算语言"变成查表事实）；归一化在**服务端**；**存双列**——硬约束: `ConflictResolver.sameContent` 判据含 `language`，覆写成规范名会使幂等 no-op 退化为 LWW；未知值保留不丢弃（JetBrains 侧为开放集合，本机 58 插件可注册 fileType）
+    - 本批（**纯新增，未接调用方，行为中立**）: `language/` 包 + `resources/language/vocabulary.json`（92 规范 / 74 别名 / 76 非语言）+ 34 测试 + 两侧 IDE 词表夹具（150 + 75 条）
+    - **测试抓到 4 个真问题**: ①夹具非全集——部分 fileType 名在**字节码里算出**（`IgnoreFileType.getName()` = `getID()+" file"`），XML 扫描系统性看不到，已注明为下界并由"真实观测值"测试兜底 ②生成器做了 `" file"` 模糊剥离而运行时没有 → 改**显式别名** ③`languages()` 用原样名回查小写索引表 → 全 null ④两个构造器致 Spring 找不到默认构造器 → 注入构造器加 `@Autowired`（不跑集成测试发现不了，会导致全部集成测试挂）
+    - 词表自检: 生成时逐一校验别名目标存在，抓出 `DTD`/`Kconfig`/`XPath` **不在 Linguist** → 作本地扩展；`prototext` 修正为 `Protocol Buffer Text Format`
+    - 验证: 全量 **1436 tests / 0 failures**；jacoco 门槛通过；spotless PASS
+    - 状态: 批次 1 已提交（dab953b + 版本 2998ec8）；批次 2/3 = 迁移双列 + 写读路径接入
+
 - [2026-09-15] - 知识库治理：progress 归档重写 + AGENTS.md 去重与矛盾修复
-    - 触发: 用户授权由我裁决此前提出的两项（AGENTS.md 400 行 / progress.md 578 行超限）
-    - **progress.md 578 → 81 行**: 核实发现该文件自 v0.49.0 后停更，其「未完成」清单把早已交付的同步引擎（CodingSession/SyncCursor/SyncPull/Push/ConflictResolver）与排行榜列为**未开始** —— 过期清单比没有清单更危险。处置: 逐条历史整体归档 `archive/progress-completed.md`（逐字保留 + 记明归档原因）；热文件改为**版本里程碑账本**（42 条），版本+日期取自 `gradle/libs.versions.toml` 变更历史、主线交付取自提交历史，**不手工维护**；「尚未落地」只列已核实缺失项（压测/错误监控/CI）
+    - 触发: 用户授权由我裁决此前两项（AGENTS.md 400 行 / progress.md 578 行超限）。**progress.md 578 → 81 行**: 核实发现该文件自 v0.49.0 后停更，其「未完成」清单把早已交付的同步引擎（CodingSession/SyncCursor/SyncPull/Push/ConflictResolver）与排行榜列为**未开始** —— 过期清单比没有清单更危险。处置: 逐条历史整体归档 `archive/progress-completed.md`（逐字保留 + 记明归档原因）；热文件改为**版本里程碑账本**（42 条），版本+日期取自 `gradle/libs.versions.toml` 变更历史、主线交付取自提交历史，**不手工维护**；「尚未落地」只列已核实缺失项（压测/错误监控/CI）
     - 账本口径回源校验: 首版用提交信息推导出现 **off-by-one**（0.73.0 落到相邻版本）；实测三项提交的"其后第一个 bump"确定归属规则（badge system→0.56.0 / ZSet ranking→0.54.0 / period rankings→0.55.0），修正后 **8 项已知事实交叉校验全通过**
-    - R13 补 progress 归档口径 + **职责边界**（版本交付进 progress，逐条变更进 activeContext）
-    - AGENTS.md 去重: **R23 整体并入 R6**（删 33 行，内容零丢失——保留为「什么不算授权」9 行表 + 「授权作用域闭合」小节）；R6.5 的 master 合并条款改指 R17（权威在彼）
+    - AGENTS.md: R13 补 progress 归档口径 + **职责边界**（版本交付进 progress，逐条变更进 activeContext）；**R23 整体并入 R6**（删 33 行，内容零丢失，保留为「什么不算授权」9 行表 + 「授权作用域闭合」小节）；R6.5 的 master 合并条款改指 R17
     - **修复两处真实矛盾**（文章所警示的"互相矛盾的知识"）: ①R5「记忆与业务代码同 commit」↔ R6.5「AI 内容独立提交」直接冲突 → R5 改为「同步更新、独立提交」并指向 R6.5 ②R16 要求写入 `.agents/skills/` ↔ R24「禁止改动 .agents/skills/」冲突 → R16 补前置条件「必须先询问用户并获同意」
-    - 如实修正自身估算: 此前称 AGENTS.md 可瘦身 60-80 行，实测去重仅**净减 6 行**（400→394）——规则几乎全是承重条款，真正缺陷是**同主题分散 + 相互矛盾**而非长度
-    - 验证: 链接 0 断链；领域文件 ≤200 行；R23 关键条款（授权作用域闭合/反面案例/前瞻动词不携带提交授权）全部留存
+    - 验证: 链接 0 断链；领域文件 ≤200 行；R23 关键条款（授权作用域闭合/反面案例/前瞻动词不携带提交授权）全部留存。自估修正: 此前称可瘦身 60-80 行，实测仅**净减 6 行**（400→394）——规则几乎全是承重条款，真正缺陷是**同主题分散+相互矛盾**而非长度
     - 状态: ✅ 实施完成，待授权提交
 
 - [2026-09-15] - 领域知识库建设优化（对齐《技术方案设计 Agent》源文方法论）
     - 触发: 用户提供此前遗漏的源文章（技术方案设计 Agent / 知识库体系建设），要求据此优化 memory-bank 建设与 R25
     - 吸收并落地（原文要点 → 本仓库）: ①「知识正确性需要维护机制，不是一次性生成」→ R25 新增维护机制（增量触发 + 校准触发；**高风险知识语义确认归人**，自动化只负责发现变化/生成候选/阻止遗漏，禁止代码一变就自动覆盖）②「不同事实回不同来源」→ R25 新增回源条款 + 两条禁止推定（代码实现了≠它是正确业务规则；旧文档写过≠可忽略代码已变）③「每条知识看到来源与最后确认时间」→ 5 个领域 meta.md 全部新增 **Verification baseline**（核对日期 · 版本 · 覆盖范围 · 已知漂移）④「渐进式披露」→ R25 明确阅读路径（meta 判归属 → scenarios/principles 定判断 → practices 拿做法 → references 查事实 → 回源核对），声明"一次读完整个领域树是反模式"⑤「固定结构=知识覆盖约束」→ 五件套定义为「**至少**要理解哪些方面」，缺件=缺失而非不需要 ⑥「骨架优先于检索，RAG 只做补证」→ 明确检索定位 + 补证结论须回写领域文件
     - 操作规程落位（遵循原文「短小入口文件 + 结构化文档承载事实」，防 AGENTS.md 膨胀）: 漂移处置三情形、索引校验、**已定取舍表**（与代码同仓 / Markdown 而非 YAML / 每事实一个家 / 结构优先于检索）全部进 `domains/README.md`；R25 只留可裁决约束 + 指针
-    - **校准实做（新规则首次运行即发现真实漂移）**: 核对 api-contract → `ErrorCode` 家族计数缺 `DEVICE_`(1) → 已补 `references.md` 并标注核对日期；`meta.md` 记录该漂移
-    - 纠正上一轮误报: 我此前报告「4 条断链」是**自身校验脚本路径解析 bug**（`../docs/x` 被错拼为 `memory-bank/docs/x`），实际 **0 断链**
-    - 提出待用户决策（未实施）: ①`AGENTS.md` 已 400 行，与原文「入口文件应短小、知识进结构化文档」相悖，存在 R6/R23、R6.5/R17 重复，可瘦身 ②`progress.md` 578 行，超出「记忆文件 ≤200 行」约束（R13 规定已完成项归档）
-    - 验证: 链接完整性 14 条 0 断链；领域文件全部 ≤200 行；新增条款无占位
-    - 状态: ✅ 实施完成，待授权提交
+    - **校准实做（新规则首次运行即发现真实漂移）**: 核对 api-contract → `ErrorCode` 家族计数缺 `DEVICE_`(1) → 已补。纠正上一轮误报: 此前报告「4 条断链」是**自身脚本路径解析 bug**（`../docs/x` 被错拼为 `memory-bank/docs/x`），实际 **0 断链**
+    - 验证: 链接 14 条 0 断链；领域文件全部 ≤200 行；新增条款无占位
+    - 状态: ✅ 实施完成，待授权提交（当时提出的两项待裁决已由用户授权处理，见上一条）
 
 - [2026-09-15] - 排行榜名次语义修复 + 维度/周期扩展（v0.73.0）
     - 需求: 审查排行榜后端设计——"维度是否足够好、能否让前端有更好的操控空间"，抛开前端已有实现独立思考
     - **实测复现的缺陷 1（翻页名次错位）**: `getLeaderboard` 用 `long rank = (long) offset + 1;` 作起始名次=绝对位置。分数 `[100,90,90,80]`、`offset=2` 时返回 `rank=3,4`，正确应为 `2,4`（页首落入并列段中途；并列段越宽偏差越大，`[100,90,90,90,80]`@`offset=3` 旧算法给 `4,5` 正确为 `2,5`）
     - **缺陷 2（同一响应两套口径）**: `entries[].rank` 用页内并列算法，`currentUserRank` 用 `reverseRank+1`（物理位置，按 member 字典序打破并列）→ 同一用户可同时得 `rank=2` 与 `currentUserRank=4`，响应自相矛盾
-    - 缺陷 3: 无总人数（前端无法渲染"第 N/共 M"，只能从末页是否满页反推）｜缺陷 4: 同分顺序按 member（UUID）字典序——**稳定但无意义**（我一度断言"重推后跳变"，已自我修正）｜缺陷 5: 无 ZREM 清理，但无用户注销端点故当前不可达｜缺陷 6: 锁释放用 `redisTemplate.delete` 绕过 `RedisLockService.release` 封装（功能等价，本批不改）
-    - 统一口径: **竞技排名**（并列同名次、下一名次跳过空位 1,2,2,4）。`entries[].rank` 与 `currentUserRank` 同源。页首名次用 `ZCOUNT(nextUp(topScore), +inf) + 1` 而非 `offset+1`——offset 落入并列段中途时会给出错误名次；分页每页仅一次 `ZCOUNT`（Redis O(log n)）。`currentUserRank` 改用 `score()` + 同源算法，弃用 `reverseRank`
+    - 缺陷 3-6: 无总人数（无法渲染"第 N/共 M"）｜同分顺序按 member 字典序——**稳定但无意义**（我一度断言"重推后跳变"，已自我修正）｜无 ZREM 清理（无注销端点故不可达）｜锁释放绕过 `RedisLockService.release` 封装（功能等价，本批不改）。统一口径: **竞技排名**（并列同名次、下一名次跳过空位 1,2,2,4）。`entries[].rank` 与 `currentUserRank` 同源。页首名次用 `ZCOUNT(nextUp(topScore), +inf) + 1` 而非 `offset+1`——offset 落入并列段中途时会给出错误名次；分页每页仅一次 `ZCOUNT`（Redis O(log n)）。`currentUserRank` 改用 `score()` + 同源算法，弃用 `reverseRank`
     - 维度扩展: 新增 **`ACTIVE_DAYS`**（活跃天数）——既有维度全是累计量（时长/天数）对老用户天然有利，此维度衡量一致性而非产量，对坚持但时长不高者公平。`NIGHT_OWL`/`EARLY_BIRD` 打开全周期（`mergedDurationInDailyWindow` 早已接受 periodStart/periodEnd，此前传 MIN~明天全时段，属"能力已有却未开放"）。`GROWTH` 泛化到任意非 ALL 周期（`periodsSeconds(...,0) - periodsSeconds(...,1)` 天然支持，无理由锁死 WEEK）。`STREAK` 保持仅 ALL（周期窗口比它奖励的连续段还短，无意义）
     - 组合数: 6 维度 × 4 周期 = **20 合法**（原 8），**15 个带 TTL**（原 4）。分布 TOTAL 4 / STREAK 1 / NIGHT_OWL 4 / EARLY_BIRD 4 / GROWTH 3 / ACTIVE_DAYS 4
     - 契约: `LeaderboardResponse` 加第三组件 `long totalParticipants`（primitive 非 `Long`——`non_null` 下包装类型为 0 时键缺席，前端需处理两态）；新增 `LeaderboardDimension.defaultPeriod()`（合法集与默认值同处决策，避免默认值被自身 `supports` 拒绝）
-    - 性能: `SessionViews` 预算共享（intervals + secondsByDay + lifetimeSeconds）——`computeScore` 原每次 `toIntervals`（O(n log n)），20 组合会重复；现每次 recompute 建一次
-    - key 兼容: `LeaderboardPeriod.keySuffix()` 对 ALL 返回空串，保持既有 key `leaderboard:total` 逐字节不变（避免孤立已写入分数）
+    - 性能: `SessionViews` 预算共享（intervals + secondsByDay + lifetimeSeconds）——原每次 `toIntervals`（O(n log n)）会被 20 组合重复；现每次 recompute 建一次。key 兼容: `keySuffix()` 对 ALL 返回空串，保持 `leaderboard:total` 逐字节不变（避免孤立已写入分数）
     - **红-绿验证**: 把页首名次改回 `offset+1` → 新测试 `shouldReportGlobalRank_whenPageStartsMidRanking` 失败 → 恢复全绿（证明测试能抓住原 bug）
     - 测试: Service 改写 4（key 数 8→20、TTL 4→15、null rank、missing user）+ 新增 2（并列 `containsExactly(1,2,2,4)`、翻页页首）；集成 +3（全矩阵 24 组合由枚举驱动断言 200/400、totalParticipants、ACTIVE_DAYS 计日非计时）+ 修正 1（集成用真实时钟，测试数据须避开周期窗口以使断言与运行日无关）
     - 未做（判定为设计权衡非缺陷）: tie-breaker（需把达成时间编码进 score，使 score 不再是可读真实值，收益不抵代价）；ZREM 清理（无注销端点，不可达）；锁释放统一（一致性瑕疵，功能等价）
