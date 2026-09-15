@@ -4,6 +4,7 @@ import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
+import com.ahogek.cttserver.language.LanguageVocabulary;
 import com.ahogek.cttserver.stats.dto.DistributionResponse;
 import com.ahogek.cttserver.stats.dto.HeatmapResponse;
 import com.ahogek.cttserver.stats.dto.HourlyDistributionResponse;
@@ -29,6 +30,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -49,6 +52,10 @@ class StatsServiceTest {
     private final UUID userId = UUID.randomUUID();
     private final UUID deviceId = UUID.randomUUID();
 
+    /** The real vocabulary resource: the tests exercise the table that ships, not a stub. */
+    private static final LanguageVocabulary LANGUAGE_VOCABULARY =
+            new LanguageVocabulary(new ObjectMapper());
+
     @BeforeEach
     void setUp() {
         codingSessionRepository = mock(CodingSessionRepository.class);
@@ -60,7 +67,8 @@ class StatsServiceTest {
                         codingSessionRepository,
                         dailyStatsRepository,
                         dailyStatsMaterializer,
-                        deviceRepository);
+                        deviceRepository,
+                        LANGUAGE_VOCABULARY);
     }
 
     private static DailyStats day(String date, long seconds) {

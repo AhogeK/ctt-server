@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.stats.service;
 
+import com.ahogek.cttserver.language.LanguageVocabulary;
 import com.ahogek.cttserver.stats.enums.TimeOfDay;
 import com.ahogek.cttserver.sync.entity.CodingSession;
 
@@ -372,6 +373,25 @@ public final class StatsCalculator {
             previous = date;
         }
         return new Streaks(current, max);
+    }
+
+    /**
+     * Accumulates session durations by canonical language.
+     *
+     * <p>This exists instead of letting each caller pass {@code CodingSession::getLanguage} so that
+     * normalization cannot be forgotten: the two IDEs spell a language differently and disagree on
+     * casing, and grouping by the raw value splits one language across several buckets. Every
+     * language aggregation goes through here.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param vocabulary the canonical vocabulary to group by
+     * @return entries ordered by duration descending, keyed by canonical language name
+     */
+    public static List<DistributionEntry> languageDistribution(
+            List<CodingSession> sessions, ZoneOffset zone, LanguageVocabulary vocabulary) {
+        return accumulateBy(
+                sessions, zone, session -> vocabulary.normalize(session.getLanguage()).name());
     }
 
     /**
@@ -945,15 +965,21 @@ public final class StatsCalculator {
      * Returns the earliest instant at which the number of distinct languages reached a target.
      *
      * <p>Sessions are walked in start order, so the instant is when the session carrying the
-     * qualifying language began.
+     * qualifying language began. Languages are compared after normalization, so two spellings of
+     * one language count once — otherwise the target would be reached by casing rather than by
+     * writing another language.
      *
      * @param sessions live sessions
      * @param zone aggregation timezone
+     * @param vocabulary the canonical vocabulary to count distinct languages by
      * @param targetLanguages required distinct language count
      * @return the attaining instant, or {@code null} when the target is never reached
      */
     public static Instant languageCountAchievedAt(
-            List<CodingSession> sessions, ZoneOffset zone, int targetLanguages) {
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            LanguageVocabulary vocabulary,
+            int targetLanguages) {
         Set<String> seen = new HashSet<>();
         List<CodingSession> ordered =
                 sessions.stream()
@@ -961,7 +987,8 @@ public final class StatsCalculator {
                         .sorted(Comparator.comparing(CodingSession::getStartTime))
                         .toList();
         for (CodingSession session : ordered) {
-            if (seen.add(session.getLanguage()) && seen.size() >= targetLanguages) {
+            String language = vocabulary.normalize(session.getLanguage()).name();
+            if (seen.add(language) && seen.size() >= targetLanguages) {
                 return session.getStartTime();
             }
         }

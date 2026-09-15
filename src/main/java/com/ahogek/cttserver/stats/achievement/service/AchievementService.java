@@ -3,6 +3,7 @@ package com.ahogek.cttserver.stats.achievement.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.language.LanguageVocabulary;
 import com.ahogek.cttserver.stats.achievement.dto.AchievementResponse;
 import com.ahogek.cttserver.stats.achievement.entity.AchievementProgress;
 import com.ahogek.cttserver.stats.achievement.entity.UserAchievement;
@@ -83,6 +84,7 @@ public class AchievementService {
     private final Clock clock;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final LanguageVocabulary languageVocabulary;
 
     @Autowired
     public AchievementService(
@@ -91,7 +93,8 @@ public class AchievementService {
             AchievementProgressRepository achievementProgressRepository,
             AuditLogService auditLogService,
             StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            LanguageVocabulary languageVocabulary) {
         this(
                 codingSessionRepository,
                 userAchievementRepository,
@@ -99,7 +102,8 @@ public class AchievementService {
                 auditLogService,
                 Clock.systemUTC(),
                 redisTemplate,
-                objectMapper);
+                objectMapper,
+                languageVocabulary);
     }
 
     AchievementService(
@@ -109,13 +113,15 @@ public class AchievementService {
             AuditLogService auditLogService,
             Clock clock,
             StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            LanguageVocabulary languageVocabulary) {
         this.codingSessionRepository = codingSessionRepository;
         this.userAchievementRepository = userAchievementRepository;
         this.achievementProgressRepository = achievementProgressRepository;
         this.auditLogService = auditLogService;
         this.clock = clock;
         this.redisTemplate = redisTemplate;
+        this.languageVocabulary = languageVocabulary;
         this.objectMapper = objectMapper;
     }
 
@@ -485,14 +491,19 @@ public class AchievementService {
                                         windowed, zone, Math.toIntExact(target)));
             }
             case LANGUAGE_COUNT -> {
+                // Distinct languages after normalization: two spellings of one language are one
+                // language, so the count cannot be inflated by casing alone.
                 long progress =
-                        StatsCalculator.accumulateBy(windowed, zone, CodingSession::getLanguage)
+                        StatsCalculator.languageDistribution(windowed, zone, languageVocabulary)
                                 .size();
                 yield new Measurement(
                         progress,
                         target ->
                                 StatsCalculator.languageCountAchievedAt(
-                                        windowed, zone, Math.toIntExact(target)));
+                                        windowed,
+                                        zone,
+                                        languageVocabulary,
+                                        Math.toIntExact(target)));
             }
             case EARLY_BIRD_DAYS ->
                     windowDaysMeasurement(

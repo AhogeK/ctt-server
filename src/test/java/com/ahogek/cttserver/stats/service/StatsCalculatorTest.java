@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.stats.service;
 
+import com.ahogek.cttserver.language.LanguageVocabulary;
 import com.ahogek.cttserver.stats.service.StatsCalculator.DailyPoint;
 import com.ahogek.cttserver.stats.service.StatsCalculator.DistributionEntry;
 import com.ahogek.cttserver.stats.service.StatsCalculator.HourlyPoint;
@@ -20,11 +21,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 @DisplayName("StatsCalculator")
 class StatsCalculatorTest {
+
+    private static final LanguageVocabulary VOCABULARY = new LanguageVocabulary(new ObjectMapper());
 
     private static final ZoneOffset UTC = ZoneOffset.UTC;
     private static final ZoneOffset UTC_PLUS_8 = ZoneOffset.ofHours(8);
@@ -260,6 +265,131 @@ class StatsCalculatorTest {
     @Nested
     @DisplayName("distribution")
     class DistributionTests {
+
+        @Test
+        @DisplayName("shouldMergeSpellingsOfOneLanguage_whenGroupingByLanguage")
+        void shouldMergeSpellingsOfOneLanguage_whenGroupingByLanguage() {
+            // The defect this exists for: the IDEs disagree on casing and naming, and grouping by
+            // the raw value would report one language as several buckets.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "JAVA"),
+                            session(
+                                    at("2026-08-30T11:00:00"),
+                                    at("2026-08-30T12:00:00"),
+                                    "a",
+                                    "java"),
+                            session(
+                                    at("2026-08-30T12:00:00"),
+                                    at("2026-08-30T13:00:00"),
+                                    "a",
+                                    "Java"));
+
+            List<DistributionEntry> entries =
+                    StatsCalculator.languageDistribution(sessions, UTC, VOCABULARY);
+
+            assertThat(entries).hasSize(1);
+            assertThat(entries.getFirst().name()).isEqualTo("Java");
+            assertThat(entries.getFirst().seconds()).isEqualTo(3 * 3600);
+        }
+
+        @Test
+        @DisplayName("shouldApplyCanonicalNames_whenIdeNamesDifferFromThem")
+        void shouldApplyCanonicalNames_whenIdeNamesDifferFromThem() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "GitIgnore file"),
+                            session(
+                                    at("2026-08-30T11:00:00"),
+                                    at("2026-08-30T12:00:00"),
+                                    "a",
+                                    "Properties"));
+
+            assertThat(StatsCalculator.languageDistribution(sessions, UTC, VOCABULARY))
+                    .extracting(DistributionEntry::name)
+                    .containsExactly("Ignore List", "Java Properties");
+        }
+
+        @Test
+        @DisplayName("shouldKeepDistinctLanguagesApart_whenGroupingByLanguage")
+        void shouldKeepDistinctLanguagesApart_whenGroupingByLanguage() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "Kotlin"),
+                            session(
+                                    at("2026-08-30T11:00:00"),
+                                    at("2026-08-30T12:00:00"),
+                                    "a",
+                                    "Java"));
+
+            assertThat(StatsCalculator.languageDistribution(sessions, UTC, VOCABULARY))
+                    .extracting(DistributionEntry::name)
+                    .containsExactlyInAnyOrder("Kotlin", "Java");
+        }
+
+        @Test
+        @DisplayName("shouldGroupIdeInternalsTogether_whenTheyAreNotLanguages")
+        void shouldGroupIdeInternalsTogether_whenTheyAreNotLanguages() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "textmate"),
+                            session(
+                                    at("2026-08-30T11:00:00"),
+                                    at("2026-08-30T12:00:00"),
+                                    "a",
+                                    "ARCHIVE"));
+
+            assertThat(StatsCalculator.languageDistribution(sessions, UTC, VOCABULARY))
+                    .singleElement()
+                    .satisfies(
+                            entry -> {
+                                assertThat(entry.name()).isEqualTo("Other");
+                                assertThat(entry.seconds()).isEqualTo(2 * 3600);
+                            });
+        }
+
+        @Test
+        @DisplayName("shouldCountOneLanguageOnce_whenSpellingsDiffer")
+        void shouldCountOneLanguageOnce_whenSpellingsDiffer() {
+            // Walking in start order, the second spelling of Java must not satisfy the target: the
+            // count is of languages, not of strings.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-08-30T10:00:00"),
+                                    at("2026-08-30T11:00:00"),
+                                    "a",
+                                    "JAVA"),
+                            session(
+                                    at("2026-08-30T11:00:00"),
+                                    at("2026-08-30T12:00:00"),
+                                    "a",
+                                    "java"),
+                            session(
+                                    at("2026-08-30T12:00:00"),
+                                    at("2026-08-30T13:00:00"),
+                                    "a",
+                                    "Kotlin"));
+
+            assertThat(StatsCalculator.languageCountAchievedAt(sessions, UTC, VOCABULARY, 2))
+                    .isEqualTo(at("2026-08-30T12:00:00"));
+        }
 
         @Test
         @DisplayName("shouldUsePluginBoundaries_whenBucketing")
@@ -1509,7 +1639,8 @@ class StatsCalculatorTest {
                                     "a",
                                     "Go"));
 
-            Instant achievedAt = StatsCalculator.languageCountAchievedAt(sessions, UTC, 3);
+            Instant achievedAt =
+                    StatsCalculator.languageCountAchievedAt(sessions, UTC, VOCABULARY, 3);
 
             assertThat(achievedAt).isEqualTo(at("2026-08-30T14:00:00"));
         }
