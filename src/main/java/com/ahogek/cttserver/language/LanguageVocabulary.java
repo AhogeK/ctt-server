@@ -58,6 +58,14 @@ public class LanguageVocabulary {
      */
     private static final int UNMAPPED_LIMIT = 500;
 
+    /**
+     * Longest value treated as a reportable language identifier.
+     *
+     * <p>Matches the column the value is read from, with headroom for values that arrive before
+     * they are stored.
+     */
+    private static final int REPORTABLE_MAX_LENGTH = 64;
+
     /** Canonical target for values the vocabulary recognizes as non-languages. */
     public static final CanonicalLanguage OTHER =
             new CanonicalLanguage("Other", LanguageType.OTHER, true);
@@ -145,6 +153,24 @@ public class LanguageVocabulary {
     }
 
     /**
+     * Whether an unrecognized value is worth reporting.
+     *
+     * <p>The value is client-supplied and reaches the log, so it is filtered first: a control
+     * character would let a crafted value forge log lines, and unbounded junk would crowd genuine
+     * gaps out of the bounded set. Real language identifiers are short printable strings, so no
+     * genuine gap is lost — and the value is still returned unrecognized either way, because only
+     * the report is filtered, not the result.
+     *
+     * @param raw the unrecognized value
+     * @return {@code true} when the value is a plausible language identifier
+     */
+    private static boolean isReportable(String raw) {
+        return !raw.isEmpty()
+                && raw.length() <= REPORTABLE_MAX_LENGTH
+                && raw.chars().noneMatch(Character::isISOControl);
+    }
+
+    /**
      * Returns the raw values seen but not classified, for extending the vocabulary.
      *
      * <p>Deliberately not exposed over HTTP: the set is global while every other read is scoped to
@@ -158,7 +184,7 @@ public class LanguageVocabulary {
     }
 
     private void recordUnmapped(String raw) {
-        if (unmapped.size() >= UNMAPPED_LIMIT || !unmapped.add(raw)) {
+        if (!isReportable(raw) || unmapped.size() >= UNMAPPED_LIMIT || !unmapped.add(raw)) {
             return;
         }
         // Once per distinct value: an unrecognized language keeps appearing in every aggregation,
