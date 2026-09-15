@@ -105,6 +105,35 @@ class LanguageVocabularyTest {
         }
 
         @Test
+        @DisplayName("should not report a value that could forge a log line")
+        void shouldNotReport_whenValueCarriesControlCharacters() {
+            // The value is client-supplied and used to be logged verbatim, so a newline would let a
+            // crafted language name append a line of its own to the server log.
+            String forged = "Zig\nWARN  forged line";
+
+            assertThat(VOCABULARY.normalize(forged).name()).isEqualTo(forged);
+            assertThat(VOCABULARY.unmappedValues()).doesNotContain(forged);
+        }
+
+        @Test
+        @DisplayName("should not report an implausibly long value")
+        void shouldNotReport_whenValueIsTooLong() {
+            String oversized = "Z".repeat(200);
+
+            assertThat(VOCABULARY.normalize(oversized).recognized()).isFalse();
+            assertThat(VOCABULARY.unmappedValues()).doesNotContain(oversized);
+        }
+
+        @Test
+        @DisplayName("should report a plausible unknown value")
+        void shouldReport_whenValueLooksLikeALanguage() {
+            VOCABULARY.normalize("Zig");
+            VOCABULARY.normalize("Nim");
+
+            assertThat(VOCABULARY.unmappedValues()).contains("Zig", "Nim");
+        }
+
+        @Test
         @DisplayName("should tolerate blank input")
         void shouldNotFail_whenValueIsBlank() {
             assertThat(VOCABULARY.normalize(null).recognized()).isFalse();
