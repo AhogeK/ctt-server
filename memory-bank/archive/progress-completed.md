@@ -1,0 +1,584 @@
+> 冷数据归档（R13）。仅供回溯，不再更新。
+> 来源：progress.md 于 2026-09-15 整体归档（原 578 行，逐字保留）。
+> 原因：该文件自 v0.49.0（2026-08-29）后停止维护，其「未完成」清单把早已交付的
+> 同步引擎与排行榜列为未开始，已构成误导；热文件改为版本里程碑账本。
+
+# 项目进度
+
+## 已完成 ✅
+
+- [x] 暴露当前认证用户 id（插件账号隔离需求）
+    - 复用现有 GET /api/v1/users/me（SYNC key 已可用，无 scope 限制）；拒绝报告方案 A（重复端点）/B（语义不准）
+    - UserProfileIntegrationTest 3 用例（SYNC key/JWT/401）+ sync 文档"获取当前用户"章节
+    - 无 main 变更，版本保持 0.49.0；全量 1189 tests 无回归
+
+- [x] SyncChangeDto 增加 sessionUuid（插件端需求，v0.49.0）
+    - DTO + SyncPullService 带出 sessionUuid（物理清除 DELETE 为 null）；测试/文档同步；向后兼容
+    - 全量 1186 tests 无回归；版本 0.48.0 → 0.49.0
+    - 待插件端真实验收
+
+- [x] 设备注册端点 POST /api/v1/devices（插件需求，v0.48.0）
+    - 方案 B（POST /devices 显式注册 + key↔device 绑定 + SYNC scope 统一）；方案 A 判定不可行（Web 端创建 key 无插件 deviceId）
+    - 实现: DeviceService.registerDevice（upsert+绑定+审计）+ DeviceController POST/GET scope 调整 + RegisterDeviceRequest + DEVICE_001 + ResourceType.DEVICE + ApiKey accessors
+    - 关键修复: Device 移除 @GeneratedValue + @Version(null 初始化)；version 列回填进 init 迁移（修复 save() 对客户端 id 走 merge 的 StaleObjectStateException）
+    - 测试: 新增 3 文件 21 用例 + 3 个 sync Repository fixture 补 setId；全量 1185 tests 无回归
+    - 文档: sync 文档设备注册章节/README/handbook/api-governance 同步
+    - 版本: 0.47.0 → 0.48.0；待提交
+
+- [x] 编码会话同步 Phase W：插件端对接文档（v0.47.0，纯文档）
+    - dev-docs/sync/frontend-integration.md 新建（474 行契约文档：认证/Pull/Push/错误码/游标/限流重试）
+    - handbook 补 Sync Audit Events 独立表 + COMMON_002 错误码；README 已在 V 阶段完成
+    - DTO 字段与 @Schema 逐项核对一致；主 agent 修正审计表归属（独立表而非 API Key 表）
+    - 版本不变（纯文档）；待提交
+
+- [x] 编码会话同步 Phase V：双向同步协议 Pull/Push（v0.47.0）
+    - SyncPullService（游标增量+单调推进+幂等，BOLA 校验）+ SyncPushService（批量 LWW 三路路由+单事务原子性）+ 6 DTO + SyncController 真实逻辑
+    - 审计 SYNC_PULL/SYNC_PUSH + ResourceType.CODING_SESSION；限流 @RateLimit(API, 120/60s)
+    - 主 agent 审查发现并修复 2 缺陷: ①push 查含软删会话（避免唯一约束冲突）②deleted 会话创建短路（幂等 no-op）
+    - 双轴审查（Standards PASS + Spec PARTIAL）后修复: ①advancePullWatermark 改原生 SQL upsert（fresh device 水印落库缺口）②补 BOLA 404 集成层测试 ③toIncomingState 消除 setter 重复
+    - 验证: 全量 1163 tests 无回归 + jacoco（93.5%/83.5%）+ spotless + LSP 全绿
+    - 版本: 0.46.0 → 0.47.0；待提交
+
+- [x] 编码会话同步 Phase U：LWW 冲突解析引擎（v0.46.0）
+    - ConflictResolver 纯领域组件 + Decision 枚举；删除优先→server_version→client_version→clientModifiedAt 四层优先级；幂等 tie-break
+    - 16 测试覆盖三组验收边界 + 纯函数不变性；全量 1142 tests 无回归
+    - 版本: 0.45.0 → 0.46.0；待提交
+
+- [x] 编码会话同步 Phase T：数据模型与持久层（v0.45.0）
+    - 3 实体（CodingSession/SessionChange/SyncCursor）+ ChangeOp 枚举 + SyncCursorId 复合主键 + 3 Repository
+    - 以实际 DDL 为准（非 Notion 计划字面）；软删全查询过滤；change_id 单调水印；advancePullWatermark 并发安全
+    - 双轴审查: Standards PASS + Spec COMPLIANT；修复 Javadoc 措辞 + 补 SyncCursorTest 单调守卫单测
+    - 验证: 全量 1126 tests + jacoco + spotless 全绿
+    - 版本: 0.44.0 → 0.45.0；DTOs 推迟 V 阶段
+    - 待提交: 用户处理 commit/push
+
+- [x] 新增改密接口 POST /api/v1/users/me/password/change（前端需求，v0.44.0）
+    - 契约: currentPassword(401 USER_014) + newPassword(@StrongPassword) + 新旧相同(409 PASSWORD_SAME_AS_OLD) + 无密码防御(409 USER_015)；审计复用 PASSWORD_CHANGED
+    - 错误码/审计枚举零新增（全复用）；前端 ctt-web 已按契约完成，上线零改动
+    - 实现: ChangePasswordRequest + PasswordService.changePassword + PasswordController /change + 限流 USER 5/60
+    - 双轴审查（子 agent ×2）: Standards PASS + Spec 实现忠实，2 处文档缺陷已修（handbook USER_014 行畸形+USER_004 缺失表行，Javadoc 过期同步）
+    - 验证: 全量测试 + jacoco + spotless + LSP 全绿；版本 0.43.1 → 0.44.0
+    - 待提交: 用户处理 commit/push
+
+- [x] 修复 frontend-integration.md 列表字段名错误（apiKeys→keys，v0.43.1）
+    - ApiKeysResponse record 实际字段 `keys`，文档误写 `apiKeys`；全仓库仅此一处
+    - AUTH_002 补充 refresh token 静默续期说明
+    - 纯文档 PATCH
+
+- [x] 429 限流响应补充 retryAfter（body + Retry-After header，v0.43.0）
+    - 覆盖: 全部 @RateLimit 端点 + API key 认证失败限流 + MAIL_004（精确 = 最早邮件 + window）
+    - 实现: Lua 原子 {allowed,ttl} → RateLimitResult → checkLimit；TooManyRequestsException retryAfter + 专用 handler；MIN(createdAt) 查询
+    - 主 agent 接管修复子 agent 4 编译错误（record 访问器冲突 / filter 调用方遗漏 / 测试未迁移 / E2E API 误用）
+    - 双轴审查: Logic PASS + Style 3 minor 已修；全量测试 + jacoco + spotless + LSP 全绿
+    - 版本: 0.42.1 → 0.43.0（MINOR）；待用户处理 commit/push
+
+- [x] 拆分 AUTH_014 双语义：新增 AUTH_024（API Key 上限专属，v0.42.1）
+    - AUTH_024("Maximum active API keys reached", 409) 不含硬编码数字
+    - ApiKeyServiceImpl 上限分支改抛 AUTH_024；GlobalExceptionHandler token 约束场景保留 AUTH_014
+    - 测试/文档/Javadoc/Controller example 全量同步（10 文件）
+    - 独立复核: AUTH_014 仅剩 token 语义 3 处；全量 1059 tests / 0 failed
+    - 版本: 0.42.0 → 0.42.1（PATCH）
+    - 待提交: 用户处理 commit/push；前端后跟映射（api-error.ts 等）
+
+- [x] Ubuntu collation version mismatch 排障（非代码，REFRESH 已修复）
+- [x] API Key 删除接口放开 EXPIRED 直接删除（前端需求，v0.42.0）
+    - 校验条件改 isActive() 单条件：ACTIVE→409 / EXPIRED→204 / REVOKED→204
+    - AUTH_023 message 更新为 "Active API keys must be revoked before they can be deleted"
+    - 测试: 单测更名+新增 EXPIRED 成功用例；集成 EXPIRED 409→204 改造；全量 1059 tests / 0 failed
+    - 双轴审查修复: @ExampleObject name + 集成 ACTIVE 用例命名对齐 "still-active" 语义
+    - 文档: README / developer-handbook / frontend-integration.md 同步
+    - 版本: 0.41.1 → 0.42.0（MINOR）
+    - 待提交: 用户处理 commit/push
+
+- [x] 修复 CSP header hCaptcha 域名带引号导致失效（前端 Bug 报告）
+    - 根因: CSP host-source 错误加引号（CSP3 仅关键字可引）→ 浏览器忽略 → hCaptcha 内联脚本被拦截
+    - 修复: SecurityConfig.java + SecurityConfigHeadersTest.java（回归守卫）+ security-architecture.md，3 文件 12 行仅去引号
+    - 验证: 全量 1058 tests / 0 failed; spotlessCheck PASS; jacoco PASS
+    - 版本: 0.41.0 → 0.41.1（PATCH）
+    - 待提交: 用户处理 commit/push（真实浏览器验证由前端确认）
+
+- [x] Phase T: API Key 物理删除功能（v0.41.0）
+    - 新端点 DELETE /api/v1/auth/api-keys/{id}/delete：仅 REVOKED 可删（ACTIVE/EXPIRED→409 AUTH_023 新错误码）
+    - BOLA 401 AUTH_010（不存在/他人/已删除，与 revoke 一致）；审计 API_KEY_DELETED
+    - audit_logs 无 FK 引用 api_keys，物理删除无约束冲突
+    - 测试: 单测 4 + MockMvc 4 + E2E 4 + ErrorCodeTest；全量 1057 tests / 0 failed
+    - 文档: README / developer-handbook / frontend-integration.md 已同步
+    - 版本: 0.40.3 → 0.41.0（MINOR 新功能）
+    - 待提交: 用户处理 commit/push
+
+- [x] Phase T 双轴 Code Review 修复（子 agent ×2）
+    - api-governance.md 补新端点（Tier 2）
+    - 新增 EXPIRED→409 E2E（时间旅行）+ audit_logs 落库断言 + tearDown 清审计
+    - 全量 1058 tests / 0 failed；spotless PASS；jacoco PASS
+    - 版本 0.41.0 不变，待提交
+
+- [x] 补充 API Key E2E 测试（409 20-key 上限 + 429 创建限流）
+    - LimitExceededTests: 真实创建 20 key → 第 21 个 409 AUTH_014（创建限流 key 分段清理防 429 遮蔽）
+    - CreateRateLimitTests: 第 11 次创建 → 429 RATE_LIMIT_001
+    - 修复登录限流跨类干扰: @AfterEach 清理 rate_limit:ip:AuthController.login:*（IP 维度共享计数）
+    - 验证: 全量 1045 tests / 0 failed; spotlessCheck PASS; jacoco PASS
+    - 纯测试变更，版本保持 0.40.2，待用户授权提交
+
+- [x] keyPrefix 一致性修复（带 cttak_ marker，与文档契约对齐）
+    - 决策: 改代码（三处文档口径一致 + 业界惯例 + R8.5），DB VARCHAR(32) 无需 ALTER
+    - 修复: extractPrefix 固定切片 `substring(0, KEY_PREFIX_LENGTH=14)`；ApiKeyHasher 新增 VISIBLE_PREFIX_CHARS/KEY_PREFIX_LENGTH 常量
+    - 顺带修复 indexOf 隐藏 bug: prefix 含 `_`（Base64 字母表含分隔符）时提前截断 → 固定切片 + 边界测试锁定
+    - 回填策略: 开发阶段融合进 init 迁移（V20260303210000 末尾防御性 UPDATE），无独立迁移文件；用户已清理本地 DB
+    - 子任务 token 中断，主 agent 接管完成（修正 Javadoc 字符数/测试命名/硬编码）
+    - 验证: 全量 1043 tests / 0 failed; spotlessCheck PASS; jacoco PASS
+    - 版本: 0.40.2（与 createdAt 修复合并，未提交）
+
+- [x] 修复 POST 创建 API Key 响应缺失 createdAt 字段（前端 Bug 报告，高严重级别）
+    - 根因: `save()` 未 flush → `@CreationTimestamp` 未填充 → 全局 Jackson non_null 省略字段
+    - 修复: `save()` → `saveAndFlush()`（ApiKeyServiceImpl.java:90，一行，与 MailOutboxProcessor 模式一致）
+    - 回归测试: ApiKeyIntegrationTest 两个创建 helper 新增 createdAt 非空断言 + ApiKeyServiceImplTest 3 处 mock 适配
+    - 验证: `*ApiKey*` 99 tests / 0 failed; spotlessCheck PASS; LSP clean
+    - 同类扫描: 全库 0 个同类 latent bug（OAuth registerNewUser 结构最接近但 LoginResponse 不读 createdAt）
+    - 版本: 0.40.1 → 0.40.2 (PATCH)
+    - 待提交: 用户处理 commit/push
+
+- [x] Phase R: API Key 集成测试 + Phase N/O 隐藏 bug 修复
+    - 创建 ApiKeyIntegrationTest（6 个 E2E 场景）：happy_path/revoke/expire(2 方法)/scope_deny/bola/rate_limit
+    - 修复 Phase N 隐藏 bug：ApiKey entity scopes 字段 `@Convert(String) + jsonb column` 在 Hibernate 7 下失败 → `@JdbcTypeCode(SqlTypes.JSON)`
+    - 修复 Phase O 隐藏 bug ×3：
+      1. SecurityConfig filter order（API key filter 排在 JWT filter 后）→ 改为 `addFilterBefore(apiKeyFilter, BearerTokenAuthenticationFilter.class)`
+      2. JWT 过滤器对 cttak_* token 双重处理 → 新增 `ApiKeyAwareBearerTokenResolver` 在 cttak_* prefix 时返回 null
+      3. `SpringSecurityCurrentUserProvider` 不识别 `ApiKeyPrincipal` → 重构 `ApiKeyPrincipal` 嵌入 `CurrentUser`（含 userId/email/status/authorities）
+    - 测试适配：`ApiKeyScopeAspectTest` 改用新 `ApiKeyPrincipal(TEST_USER, KEY_ID, scopes)` 构造器
+    - 验证：`./gradlew test --tests "*ApiKeyIntegration*"` + 全项目 `./gradlew test` (1049 tests, 100% pass) —— 全绿
+    - 顺带收益：Phase P `ApiKeyScopeIntegrationTest` 现在也 PASS（此前被 bug 阻塞）
+    - 版本: 0.40.0 → 0.40.1 (PATCH: bug fixes)
+    - 限制：`ApiKeyScopeConverter` 类保留但 unused（删除成本 > 收益，超出本任务范围）
+
+- [x] Phase S: 文档 + API Key 前端集成指南
+    - S.1~S.3/S.5 已在 Phase N/O/P/Q/R 累积完成，无需额外修改
+    - 创建 `dev-docs/apikey/frontend-integration.md`（S.4 唯一缺失交付物）
+    - 状态: ✅ 全部完成
+
+- [x] Phase R 审查修复 (review fixes from 5 BG agents)
+    - **code-reviewer (project skill)** + 4 个 review agents 并发审查
+    - **3 CRITICAL**:
+      1. `ApiKeyAwareBearerTokenResolver` 硬编码 `"Bearer "` → 改用 `SecurityProperties.apiKey().headerPrefix()`
+      2. 硬编码 `"cttak_"` → `import static ApiKeyHasher.KEY_PREFIX_MARKER`
+      3. 死代码 `ApiKeyScopeConverter` + 测试删除；`ApiKey.java:24` Javadoc 修正
+    - **3 MAJOR**:
+      1. `ApiKeyIntegrationTest.java:44` docstring 401 → 403
+      2. `ApiKeyPrincipal.from` Javadoc 改为准确描述
+      3. `ApiKeyAwareBearerTokenResolver` 提升为 SecurityConfig `@Bean`
+    - **Scope blast**: 4 patterns 扫描 0 个同类 latent bug elsewhere
+    - 测试 gap 记录（informational, 不在本任务范围）：idempotency, GET BOLA, per-user limit, last_used_at, audit log, malformed header, empty scopes
+    - Docs: developer-handbook.md 新增"API Key Filter Order and Token Resolution"小节；README.md 认证流程 + Error Codes 表更新
+    - 重新验证: `./gradlew test` —— 1041 tests (删除 ApiKeyScopeConverterTest -8), 0 failed
+    - 覆盖率: INSTRUCTION 93.5% / BRANCH 83.5%
+    - 状态: ✅ blocker 全部修复
+
+- [x] Phase Q: API Key 认证限流实现
+    - 增强 ApiKeyAuthenticationFilter：Per-IP 限流 + Retry-After header
+    - 复用 RedisRateLimiter 实现固定窗口限流（10次失败/60秒）
+    - SecurityProperties.ApiKeyProperties 新增限流配置
+    - 更新 developer-handbook.md 限流文档
+    - 修复 4 个测试文件适配新参数
+    - 版本: 0.39.0 → 0.40.0 (MINOR: auth rate limiting)
+    - 状态: ✅ 已完成
+
+- [x] Phase P 补充：同步端点 + MockMvc 测试 + 集成测试
+    - 创建 SyncController (sync/controller/) 最小端点：POST /pull, POST /push
+    - 应用 @RequiresApiKeyScope(ApiKeyScope.SYNC) scope 校验
+    - 创建 SyncControllerMockMvcTest：10 个测试验证 403 AUTH_020 格式、JWT 绕过、ADMIN 超越
+    - 创建 ApiKeyScopeIntegrationTest：完整 Spring 上下文 scope 执行验证
+    - 更新 README.md + developer-handbook.md 同步端点文档
+    - 版本: 0.38.0 → 0.39.0 (MINOR: sync endpoints + tests)
+    - 验证: `./gradlew test --tests "*SyncControllerMockMvcTest"` — PASS
+    - 状态: ✅ 已完成
+
+- [x] Phase P: Scopes 权限系统实现完成
+    - 实现: @RequiresApiKeyScope 自定义注解 + ApiKeyScopeAspect AOP 切面
+    - 集成: SecurityConfig 启用 @EnableMethodSecurity
+    - 逻辑: JWT 用户自动绕过 scope 检查, API Key 用户检查 required scope, ADMIN scope 超越所有
+    - 应用: ApiKeyController (POST/DELETE=WRITE, GET=READ) + DeviceController (GET=READ, DELETE=WRITE)
+    - 审计: AuditAction 新增 API_KEY_SCOPE_DENIED
+    - 测试: ApiKeyScopeAspectTest (5 tests: 有scope/无scope+ADMIN绕过/JWT绕过/无认证)
+    - 文档: README.md + developer-handbook.md 同步更新
+    - 验证: `./gradlew test --tests "*ApiKeyScopeAspectTest"` — PASS; `./gradlew compileJava` — PASS
+    - 版本: 0.37.1 → 0.38.0 (MINOR: scope enforcement)
+    - 状态: ✅ 已完成
+
+- [x] Phase O: API Key 认证管线实现完成（含最终审查修复）
+    - 实现: ApiKeyPrincipal, ApiKeyProperties, ApiKeyAuthenticationFilter, ApiKeySecurityConfig
+    - 集成: SecurityConfig 注入 ApiKeyAuthenticationFilter (在 JWT 过滤器之前)
+    - 扩展: ApiKeyService 接口新增 validateAndTouch 方法, ApiKeyServiceImpl 实现
+    - 测试: ApiKeyAuthenticationFilterTest (6 tests) + ApiKeyServiceImplTest.ValidateAndTouchTests (5+4 tests)
+    - 配置: application.yaml 新增 ctt.security.api-key 配置
+    - 最终审查修复: M1(UserStatus参数化测试) + M2(状态→错误码映射) + L1(API_KEY_USED审计) + N1(FQN→短类名) + N2(测试命名)
+    - 验证: `./gradlew test` — BUILD SUCCESSFUL; `./gradlew spotlessCheck` — PASS
+    - 版本: 0.36.0 → 0.37.0 (MINOR: Auth pipeline + review fixes)
+    - 状态: ✅ 已完成
+
+- [x] Phase N: API Key 核心生命周期 CRUD + Code Review 修复全部完成
+    - 实现: Entity/Repository/Converter/Hasher/DTOs/Service/Controller
+    - Code Review 修复: C-1 文档同步 + H-1~H-4 + M-1~M-4 + L-1~L-3 (共 16 项)
+    - 测试: 新增 5 个单元测试文件 (ApiKeyStatusTest, ApiKeyScopeConverterTest, ApiKeyQueryServiceImplTest, ApiKeyResponseTest, ApiKeyTest)
+    - 文档: README.md + developer-handbook.md + api-governance.md 同步更新
+    - 验证: `./gradlew test` — BUILD SUCCESSFUL; `./gradlew spotlessCheck` — PASS
+    - 版本: 0.35.0 → 0.36.0 (MINOR: Service implementations + review fixes)
+    - 状态: ✅ 已完成
+
+- [x] Notion "API Key 管理" 区块风格优化（对齐 OAuth 区块）
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+    - 变更: 新增 "实施快照"、合并 "架构/技术栈"、扩充 `ApiKeyHasher` 描述、所有阶段状态更新为 "⬜ 待开始"
+    - 参考: `.sisyphus/plans/2026-07-07-api-key-management.md`
+    - 状态: ✅ 已完成
+
+- [x] Notion API Key 管理总交付清单「核心产出」列优化
+    - 页面: "🖥️ ctt-server 开发计划" (ID: 320f5477-6e22-8123-a8d6-d91fddb9445c)
+    - 问题: 「核心产出」列仅为类名/文件名罗列，与 OAuth 区块的详细描述风格不一致
+    - 修复: 6 行全部重写为详细的中文功能描述（参考 Notion MCP 文档使用 update_content 精确匹配）
+    - 示例: "Entity/Repository/Service/Controller/CRUD" → "ApiKeyScope/ApiKeyStatus 枚举定义 + ApiKey JPA Entity + ApiKeyRepository (4 个查询方法) + ApiKeyHasher (SHA-256 + SecureRandom) + ..."
+    - 确认: "API Key 管理总交付清单" 标题全页仅出现 1 次，无重复
+    - 状态: ✅ 已完成
+
+- [x] API Key 管理实施计划设计完成
+    - 文件: .sisyphus/plans/2026-07-07-api-key-management.md
+    - 6 阶段计划: N (核心 CRUD) / O (认证管线) / P (Scopes) / Q (审计+安全) / R (集成测试) / S (文档)
+    - Notion 页面 320f5477-6e22-8123-a8d6-d91fddb9445c 已发布
+    - 状态: 📝 设计完成，待用户批准进入实施
+
+- [x] UserProfileResponse 新增 hasPassword 字段（前端 Set/Change Password 按钮文案支撑）
+    - 新增: UserProfileResponse record 添加 `hasPassword` boolean 字段
+    - 实现: fromEntity() 基于 `user.getPasswordHash() != null` 计算（OAuth 用户无密码返回 false）
+    - 测试: UserProfileServiceTest 新增 1 个测试 + 更新 1 个测试断言
+    - 测试: UserControllerMockMvcTest 更新 fullProfile()/unverifiedProfile() 构造函数 + hasPassword 断言
+    - 验证: ./gradlew test — PASS
+    - 版本: 0.33.1 → 0.34.0 (MINOR: 新字段)
+
+- [x] Resend Verification 端点 + 代码质量修复
+    - 新增: POST /api/v1/users/me/email/resend-verification（重发验证邮件，60秒/次限流）
+    - 新增: AuditAction.EMAIL_CHANGE_RESENT 审计动作
+    - 重构: EmailChangeService 提取 USER_NOT_FOUND 常量
+    - 修复: EmailChangeServiceTest Instant.now() 警告
+    - 测试: 3 单元测试 + 3 集成测试
+    - 验证: 912+ tests PASS
+    - 版本: 0.31.1 → 0.31.2 (PATCH)
+
+- [x] Email Change Feature（企业级邮箱管理架构）
+    - 前端方案评估 → 后端实施计划 → 12 个任务全部完成
+    - 架构: 复用 email_verification_tokens 表（purpose=CHANGE_EMAIL），新增 old_email/status/attempts
+    - 新增: EmailChangeService / EmailChangeController / 3 DTOs / 2 邮件模板 / 1 Migration
+    - 修改: EmailVerificationToken / EmailVerificationTokenRepository / ErrorCode / AuditAction / MailOutboxService / CttMailProperties / UserProfileResponse / UserProfileService / User
+    - 测试: EmailChangeServiceTest (19) + EmailChangeIntegrationTest (13) + 修复预存编译错误
+    - 验证: ./gradlew build — 912 tests PASS, 0 failures
+    - API: POST/DELETE /users/me/email/change-request, POST /change-confirm, GET /status
+    - 审查修复: 删除重复 ErrorCode USER_012 → 复用 USER_001
+    - 版本: 0.30.1 → 0.31.1 (MINOR: 新功能 + PATCH: 去重修复)
+
+- [x] lastLoginAt / lastLoginIp 登录元数据补全（修复 /api/v1/users/me 响应缺失 lastLoginAt）
+    - 根因: User 实体字段存在但登录流程从未设置
+    - 修复: UserLoginService.login() 设置 lastLoginAt + lastLoginIp
+    - 修复: OAuthLoginOrRegisterService.handleExistingBinding() 设置 lastLoginAt
+    - 修复: OAuthLoginOrRegisterService.registerNewUser() 设置 lastLoginAt
+    - 修复: User.java 补充 setLastLoginAt setter
+    - 防复发: systemPatterns.md 新增登录元数据模式 + developer-handbook.md 新增检查清单
+    - 全量测试 874/874 PASS
+    - 版本: 0.30.0 → 0.30.1 (PATCH: bug fix)
+
+- [x] OAuth User Profile Endpoint (PR-C, GET /api/v1/users/me, ctt-web AppHeader dropdown 支撑)
+    - 新增 UserProfileResponse record (7 字段 DTO) + UserProfileService (read-only) + UserController (@GetMapping /me)
+    - 安全: 不暴露 passwordHash/lastLoginIp/version 等敏感字段
+    - 设计: emailVerified 派生自 User.emailVerifiedAt != null
+    - 设计: avatar 不存储 (前端用 id hash 生成)
+    - Swagger: 完整注解 (bearerAuth, 200/401 examples, @Tag)
+    - 9 个新测试 (UserProfileServiceTest 4 + UserControllerMockMvcTest 5)
+    - 文档: README.md API 端点表 + Avatar 字段说明; .gitignore 添加 .sisyphus/
+    - 限制: 缺 IntegrationTest (与 PR-A/B 对称)
+    - 限制: docs/developer-handbook.md 缺 GET /users/me 条目
+    - 全量测试 874/874 PASS
+    - 版本: 0.29.0 → 0.30.0 (MINOR: 新 endpoint)
+
+- [x] OAuth UNBIND 流程（PR-B 解除已绑定 GitHub + last-login-method 防御）
+    - 新增 OAuthLoginOrRegisterService.unbindFromExistingUser — 校验 + last-method 守卫 + delete + 审计；**session 不变** (Session invariant 显式声明)
+    - 新增 UserOAuthAccountRepository.countByUserId — last-method 守卫
+    - 新增 OAuthAccountController.unbindAccount @DeleteMapping + handlePathVariableConversion
+    - 修改 ErrorCode AUTH_017 (404 资源未找到) + AUTH_018 (409 冲突)
+    - 修改 ErrorCodeTest 同步 HTTP 状态码
+    - 13 个新测试（OAuthAccountControllerMockMvcTest 11 + OAuthLoginOrRegisterServiceTest 5 + ErrorCodeTest 更新），去重 1 个
+    - OAuth 模块 96/96 PASS；全量 865/865 PASS（之前 852）
+    - 文档: dev-docs/oauth/frontend-integration.md UNBIND 流程章节 + error code 映射；README OAuth 端点表新增 DELETE
+    - 限制: 缺 OAuthUnbindIntegrationTest（与 BIND 对称，可未来补）
+    - 限制: docs/developer-handbook.md 缺 AUTH_017/018 条目
+    - 版本: 0.28.0 → 0.29.0 (MINOR: 新 UNBIND endpoint)
+
+- [x] OAuth BIND 流程（修复已登录用户绑定 GitHub 时被强制登出 bug）
+    - 新增 OAuthStatePayload.Action.BIND + currentUserId + redirectUrl 字段；canonical constructor 双向校验
+    - 新增 OAuthLoginOrRegisterService.attachToExistingUser — 校验 + 冲突检查 + 插入 + 审计；**不发 token** (Session invariant 3 处显式声明)
+    - 修改 OAuthCallbackController.authorize 接受 ?action=login|bind；callback 分支处理 BIND
+    - 修改 OAuthCallbackController callback 加 state UUID 格式校验（defense-in-depth）
+    - 修改 OAuthCallbackController.handleOAuthBusinessException 用 HandlerMethod 区分 authorize (JSON 401) vs callback (302)
+    - 修改 OAuthAccountBinding.fromEntity 加 providerLogin 三级兜底 (trim + email local-part + providerUserId)
+    - 修改 GlobalExceptionHandler uk_user_oauth_* 错误码从 USER_001 改为 AUTH_016
+    - 22 个新测试（OAuthStatePayloadTest 9 + OAuthStateServiceTest round-trip 2 + OAuthLoginOrRegisterServiceTest 6 + OAuthCallbackController MockMvc 14 + OAuthAccountQueryServiceTest fallback 5）
+    - OAuth 模块 97/97 PASS；全量 852/852 PASS（之前 819）
+    - 文档: dev-docs/oauth/frontend-integration.md BIND 流程 + error code 映射表；README OAuth 端点表更新
+    - 规则: AGENTS.md R8.5 新增 OAuthStatePayload.Action 枚举使用约定（独立 AI commit）
+    - 版本: 0.27.0 → 0.28.0 (MINOR: 新 BIND 流程 + BUG 修复)
+
+- [x] OAuth 绑定状态查询 API (ctt-web /settings/profile 改造支撑)
+    - 新增 OAuthAccountsResponse + OAuthAccountBinding records
+    - 新增 OAuthAccountController (GET /api/v1/auth/oauth/accounts)
+    - 新增 OAuthAccountControllerMockMvcTest (4 个测试: 空列表/字段映射/敏感字段不泄露/未鉴权 401)
+    - 注入 CurrentUserProvider + UserOAuthAccountRepository (与 OAuthCallbackController 解耦)
+    - 响应不含 accessToken/refreshToken/providerUserId (doesNotHavePath 断言验证)
+    - @SecurityRequirement(bearerAuth) 标记鉴权要求
+    - 版本: 0.26.2 → 0.27.0 (MINOR: 新查询端点)
+
+- [x] OAuth 开发文档移至 dev-docs 目录
+    - 移动 3 个 OAuth 文档到 dev-docs/oauth/
+    - 修复相对链接（../../docs/ 前缀）
+    - 版本: 0.26.1 → 0.26.2
+
+- [x] OAuth 测试增强 + 文档审查
+    - OAuthCallbackControllerMockMvcTest: 7 个 MockMvc HTTP 测试 (authorize/callback/redirect/错误路径)
+    - ArgumentCaptor 断言深化: accessToken 存储、providerLogin 标记、status/displayName 验证
+    - 3 个 OAuth 文档审查通过 (oauth-manual-test / github-app-setup / frontend-integration)
+    - 814 全量测试通过
+    - 版本: 0.26.0
+
+- [x] hCaptcha 后端集成
+    - HcaptchaProperties (@ConfigurationProperties, ctt.security.hcaptcha)
+    - CaptchaService (RestClient + 5s timeout + 优雅降级)
+    - ErrorCode SECURITY_006/007
+    - DTO 新增 captchaToken (LoginRequest, UserRegisterRequest, ForgotPasswordRequest)
+    - AuthController 首行验证 + ConfigController 暴露 captchaSiteKey
+    - 7 个单元测试 + yaml 配置 (dev/local 用官方测试密钥)
+    - 版本: 0.25.2 → 待 bump
+
+- [x] TermsCheckFilter 修复 + OAuthCallbackController 修复
+    - 根因: authentication.getCredentials() 返回 null，filter 放行
+    - 修复: 改为从 Authorization 请求头提取 JWT
+    - 修复: OAuth 重定向补充 termsExpired 参数
+    - 文档: 新增前端集成指南
+    - 版本: 0.25.1 → 0.25.2
+
+- [x] Terms Acceptance 功能完成（测试 + 文档 + 版本号）
+    - 测试覆盖: 8个测试验证 termsVersion claim + registerUser terms fields + assertTermsVersionValid
+    - 文档完善: README + developer-handbook + api-governance
+    - 版本号: 0.25.1-SNAPSHOT → 0.25.1
+    - 审查: code-reviewer 通过，全量测试通过
+
+- [x] 密码字符白名单 REGEX_PASSWORD_CHARS 补充约束
+    - 新增 REGEX_PASSWORD_CHARS = "^[!-~]+$"（所有可打印 ASCII 非空格字符）
+    - 新增 MSG_PASSWORD_CHARS 错误消息
+    - StrongPassword.java 新增 @Pattern 约束
+    - ValidationConstantsTest 新增 2 个测试：validPasswordCharsProvider (3 种合法字符) + rejects_invalid_chars (6 种: 空格/制表/拉丁扩展/中文/emoji)
+    - 审查: code-reviewer 通过，全量测试通过，覆盖率通过
+    - 版本: 0.24.1-SNAPSHOT → 0.24.2-SNAPSHOT (PATCH: 约束行为细化)
+
+- [x] 密码校验规则 NIST SP 800-63B 对齐 + ParameterizedTest 合并
+    - 移除复杂度正则 REGEX_PASSWORD，改为纯长度校验 (PASSWORD_MIN_LENGTH=8 / PASSWORD_MAX_LENGTH=64)
+    - StrongPassword @Pattern → @Size + @NotBlank 组合，无自定义 validator
+    - 3 个 DTO @Schema(password) description 同步更新
+    - 测试: UserRegisterRequestTest 合并为 ParameterizedTest + 边界值(64字符)、null密码覆盖
+    - 审查: 3 concurrent review agents + 测试覆盖验证，全量测试通过
+    - 版本: 0.23.2-SNAPSHOT → 0.24.1-SNAPSHOT
+
+- [x] EmptyResponse 新增 idempotentSkip 字段（TDD 流程）
+    - 背景: Idempotent Skip 静默响应问题，需要让 API 返回可区分响应
+    - 新增: EmptyResponse 第 4 个 record 组件 `Boolean idempotentSkip`
+    - 新增: factory 方法 `ok(boolean)` 和 `ok(String, boolean)`
+    - 测试: EmptyResponseTest 新增 5 个测试（shouldX_whenY 模式）
+    - 版本: 0.22.1-SNAPSHOT → 0.23.0-SNAPSHOT (MINOR: 新功能)
+
+- [x] 登录失败修复 + 约束感知错误处理
+    - 删除 refresh_tokens.device_id FK 约束（WEB 登录不依赖 devices 表）— 已内联到 init schema
+    - 新增 AUTH_014 错误码（Token creation failed）
+    - GlobalExceptionHandler 解析 PostgreSQL 约束名返回精准错误码
+    - 测试：3 个约束解析测试 + IDE 警告修复
+    - 版本: 0.21.1-SNAPSHOT → 0.21.2-SNAPSHOT
+
+- [x] OAuthCallbackController 实现 + 审查修复
+    - OAuth 回调入口：authorize + callback 双端点
+    - authorize: 生成 CSRF state，返回 GitHub 授权 URL（JSON `{authUrl: "..."}`）
+    - callback: 校验 state → 验证 action == LOGIN → 换 token → 取用户信息 → 登录/注册 → 302 重定向
+    - 失败处理: @ExceptionHandler(BusinessException + Exception) 统一 302 到前端错误页
+    - 错误处理: GitHub 拒绝授权 (?error=access_denied) → 302 到错误页
+    - 限流: authorize 端点 IP 级别 30/hour，callback 端点 60/hour
+    - 安全: @PublicApi 标注两个端点，state CSRF 保护 + action 验证
+    - 配置: SecurityProperties.OAuthProperties 新增 frontendUrl 字段
+    - 测试: OAuthCallbackControllerTest (9 annotation tests, pure unit)
+    - 版本: 0.20.0-SNAPSHOT → 0.21.0-SNAPSHOT
+
+- [x] OAuthLoginOrRegisterService 实现
+    - OAuth 登录/注册核心服务：身份协调器
+    - 3 个分支：已有绑定/邮箱合并/新用户注册
+    - 13 个单元测试覆盖完整流程 + 状态校验
+    - 版本: 0.19.0-SNAPSHOT → 0.20.0-SNAPSHOT
+
+- [x] GitHub OAuth 客户端基础设施
+    - GitHubOAuthClient (RestClient): code→token 交换、用户信息获取、邮箱回退逻辑
+    - GitHubTokenResponse / GitHubUserInfo / GitHubEmail 响应模型
+    - BadGatewayException (502) 异常类型
+    - SecurityProperties.OAuthProperties 扩展 GitHubProperties
+    - 9 个单元测试覆盖正常链路、邮箱回退、异常映射
+    - OAuthStateService 单元测试 (10 tests)
+    - 版本: 0.18.4-SNAPSHOT → 0.19.0-SNAPSHOT
+
+- [x] 清理 ProbeController 及全部引用
+    - 删除 probe/ 包（仅含 ProbeController.java），无生产代码引用
+    - GlobalExceptionHandlerTest 从 @WebMvcTest 迁移为纯 JUnit 5 直接 handler 调用
+    - api-governance.md 探针引用更新为 Actuator 原生端点
+    - 版本: 0.15.16 → 0.15.17-SNAPSHOT
+
+- [x] AGENTS.md 项目记忆配置
+- [x] 开发者手册 (docs/developer-handbook.md)
+- [x] 版本升级: 0.0.1-SNAPSHOT → 0.1.0-SNAPSHOT
+- [x] memory-bank/ 目录结构
+- [x] Flyway 数据库迁移脚本
+- [x] 代码规范：CONVENTIONS.md、.editorconfig、.gitmessage
+- [x] 构建工具：Spotless + JaCoCo
+- [x] 包结构拆分 (common, auth, user, device, audit, mail)
+- [x] 统一响应模型 (ApiResponse, ErrorResponse, PagedResponse, EmptyResponse)
+- [x] 审计事件模型与安全事件模型 (强类型枚举 + 五元组)
+- [x] 测试基线脚手架 (BaseControllerSliceTest, BaseRepositoryTest, BaseIntegrationTest)
+- [x] 邮件基础设施 Phase A (GreenMail 内嵌 SMTP)
+- [x] 邮件基础设施 Phase B (Mail Outbox 事务性邮件队列 + 测试基础设施)
+- [x] 邮件基础设施 Phase C (MailOutboxService 写入侧服务 + 10 tests)
+- [x] 邮件基础设施 Phase D (MailOutboxPoller + MailOutboxProcessor + 调度投递)
+- [x] 邮件基础设施 Phase E (ExponentialBackoffRetryStrategy + Jitter + Monte Carlo 测试)
+- [x] 测试覆盖率提升 (指令 87%→92%, 分支 76%→84%)
+- [x] MailOutboxProcessor Detached Entity 修复 (REQUIRES_NEW 事务隔离)
+- [x] JPA Auditing 配置独立化 (解决切片测试冲突)
+- [x] 审计资源类型扩展 (MAIL_OUTBOX 数据库约束)
+- [x] MailOutboxService 集成测试 (4 个测试用例全部通过)
+- [x] AGENTS.md R8 变更溯源原则 (防止 AI 揣测行为)
+- [x] AGENTS.md R9 代码规范执行 (中文注释/测试名清理)
+- [x] EmailVerificationToken Entity 字段补全 (email, purpose, sentAt, requestIp, userAgent)
+- [x] EmailVerificationTokenRepository 方法扩展 (findByUserIdAndPurpose, existsBy...)
+- [x] TokenUtils 重构消除重复代码
+- [x] EmailVerificationService 集成 UserValidator
+- [x] 邮件验证文档更新 (README.md, developer-handbook.md)
+- [x] JWT 认证基础设施 Phase A (依赖 + TokenUtils 扩展)
+- [x] JWT 认证基础设施 Phase B (JwtEncoder/JwtDecoder Bean 注册)
+- [x] JWT 认证基础设施 Phase C (JwtTokenProvider 签发服务)
+- [x] JWT 认证基础设施 Phase D (UserLoginService 登录服务)
+- [x] 分支同步：develop → master (依赖版本更新 - ben-manes 插件 + jacoco 配置)
+- [x] 登录接口实现 (POST /api/v1/auth/login - @PublicApi, @RateLimit)
+- [x] JWT 认证失败统一响应 (JwtAuthenticationEntryPoint + 5 原子提交)
+- [x] LoginAttemptService 门面提取
+    - 解耦失败计数逻辑，统一异常处理 (AUTH_004)
+    - 消除 UserValidator 中的重复检查
+    - 客户端 IP 从 RequestContext 获取 (审计日志完善)
+    - 15个单元测试 + 集成测试覆盖完整锁流程
+- [x] LoginAttemptCleanupScheduler 定时清理任务
+    - 定期清理过期 login_attempts 记录，防止表无限增长
+    - 可配置 retention-duration (默认 30 天) 和 cleanup-interval (默认 1 小时)
+- [x] Login lockout 集成到 UserLoginService + 事务传播修复
+    - REQUIRES_NEW 传播确保失败记录不被外层事务回滚
+    - checkLockStatus 返回刷新后的 User 实体
+    - PasswordResetService 密码重置后自动解锁账户
+- [x] 批量自动解锁定时任务 (AccountUnlockScheduler)
+    - 在 LoginAttemptCleanupScheduler 中追加 unlockExpiredAccounts()
+    - 遍历 LOCKED 用户，滑动窗口内无尝试 → reactivate()
+    - 混合模式：登录时懒解锁（精准）+ 定时扫表（数据底座整洁）
+- [x] 账号锁定/解锁审计事件 (ACCOUNT_LOCKED / ACCOUNT_UNLOCKED)
+    - 登录失败超阈值时落 ACCOUNT_LOCKED 审计
+    - 3 条解锁路径均落 ACCOUNT_UNLOCKED 审计（懒解锁/密码重置/定时扫表）
+    - 清理 recordSuccess() 中冗余的 reactivate（调用方已处理）
+    - 39 个测试通过，覆盖全部审计调用点
+- [x] 锁定登录响应包含 retryAfter 时间戳
+    - 新增 AccountLockedException 携带 retryAfter 字段
+    - ErrorResponse 新增 retryAfter 字段，GlobalExceptionHandler 设置 Retry-After HTTP Header
+    - LockoutStrategyPort.getRetryAfter() 基于最早尝试时间 + lockDuration 计算
+    - 前端可渲染倒计时 UI，网关层可通过 Retry-After header 拦截高频重试
+- [x] 认证闭环 E2E 集成测试 (RegistrationAndVerificationIntegrationTest)
+    - 完整注册 → GreenMail/Mailpit 收邮件 → 提取 token → 验证 → users.status = ACTIVE
+    - 重复注册同邮箱 → 409 USER_001
+    - Token 过期 → 401 MAIL_005 → 重发验证 → 旧 token 失效新 token 可用
+    - 注册输入验证：无效邮箱/弱密码/空邮箱 → 400 COMMON_003
+    - 6 个测试全部通过，覆盖注册验证完整生命周期 + 边界验证
+    - 审查修复：移除冗余断言、增强 token 不等式 DB 验证
+- [x] LogoutController NPE Bug 修复
+    - 根因: @AuthenticationPrincipal Jwt jwt 为 null（JwtToCurrentUserConverter 将 principal 转为 CurrentUser）
+    - 修复: 改为 @AuthenticationPrincipal CurrentUser currentUser
+    - 同步更新 LogoutControllerTest 使用 authentication(createAuth()) 替代 jwt()
+    - 审查修复：合并分裂注释、修正全路径类名为 import
+- [x] 登录与令牌 E2E 集成测试 (LoginAndTokenIntegrationTest)
+    - 正常登录 → 获取双 Token → 用 Access Token 访问受保护接口 200
+    - 错误密码 5 次 → 第 6 次触发锁定 (403 AUTH_004 + retryAfter) → DB 状态 LOCKED
+    - 刷新令牌轮换 → 重放旧 Token → 403 AUTH_009 → 验证事务回滚行为
+    - 3 个测试全部通过，覆盖登录、暴破防护、令牌重用检测
+    - 技术要点: MockMvc 提取响应体 + MockMvcTester 断言受保护接口
+    - 技术要点: UserRepository.saveAndFlush() 替代 TestEntityManager 避免事务问题
+    - 修复全路径类名 → import（LogoutControllerTest 反射调用）
+    - 修复版本号为 PATCH bump（0.15.0 → 0.15.1-SNAPSHOT）
+    - 新增 developer-handbook.md Logout Behavior 章节
+    - 新增注册输入验证测试（3 个用例）
+- [x] 密码重置 E2E 集成测试 (PasswordResetIntegrationTest)
+    - 完整密码重置链路: 登录 → 请求重置 → mail_outbox 提取 token → 确认重置 → 验证 session 全部吊销 → 新密码登录
+    - Token 过期时间旅行测试: JdbcClient 修改 expires_at → 401 AUTH_002
+    - 2 个测试全部通过，覆盖密码重置完整生命周期 + 过期边界
+    - 手动 QA: Swagger UI 全链路 18 个测试用例 100/100 通过
+    - 技术要点: mail_outbox 表查询 + 正则提取 token, JdbcClient 时间旅行
+- [x] 登出与会话吊销 E2E 集成测试 (LogoutIntegrationTest)
+    - Single Session Logout (7 测试): 正常登出、幂等登出、空白/null token 验证、BOLA 防护、不存在 token 幂等、过期 token 幂等、审计日志验证
+    - Global Logout / Kill Switch (2 测试): 多设备全量吊销、无活跃 token 幂等
+    - Unauthenticated Access (2 测试): 无 JWT 返回 401
+    - 11 个测试全部通过，覆盖登出完整生命周期 + 安全边界 + 审计追踪
+    - 手动 QA: 注册→验证→登录→单设备登出→全设备登出 全链路验证通过
+    - 审查修复: 4 agent 并行审查，修复 P0/P1/P2 全部发现
+    - 文档: LogoutRequest.java 补充 Swagger @Schema 注解 + ValidationConstants, developer-handbook.md 更新测试覆盖表
+    - 修复: LogoutController @ApiResponse 错误代码, countActiveTokensForUser 语义匹配
+- [x] LoginAndTokenIntegrationTest 补充 Refresh Token 重放 E2E 断言
+    - 原有测试只验证 DB 状态，缺少实际重放 rt1 → 403 AUTH_009 的 E2E 断言
+    - 新增 4 步断言链：重放返回 403 → rt1 revoked → rt2 active → rt2 可刷新
+    - 揭示架构事实：revokeAllUserTokens 因事务回滚无效，rt2 仍可继续使用
+- [x] Docker Compose PostgreSQL 18+ 兼容性修复
+    - volume 挂载点从 /var/lib/postgresql/data 改为 /var/lib/postgresql
+    - 支持 PostgreSQL 18+ Docker 镜像的 pg_ctlcluster 管理和 pg_upgrade
+- [x] application-local.yaml.template mail 配置环境变量化
+    - mail.host/mail.port 改为 \${MAIL_SMTP_HOST:localhost}/\${MAIL_SMTP_PORT:1025}
+- [x] Docker 化部署：Dockerfile + docker-compose 集成 app 服务
+    - 多阶段构建: eclipse-temurin:25-jdk (build) → 25-jre-noble (runtime)
+    - app 服务含 healthcheck、depends_on、环境变量自动注入
+    - 所有外部端口可配置 (POSTGRES, REDIS, MAIL_SMTP, MAIL_UI, APP)
+    - Dockerfile APP_PORT 动态化: 默认 8080，.env 注入覆盖，ARG + ENV + EXPOSE 联动
+    - Dockerfile BuildKit 缓存: --mount=type=cache,target=/root/.gradle 加速构建
+    - docker-compose.yaml: image: ctt-server-test, container_name 动态化
+- [x] Jenkins CI/CD 测试流水线
+    - Jenkinsfile: checkout → configure → infra up → deploy → health check
+    - APP_PORT 8004，docker compose 自动构建部署
+    - CONTAINER_NAME=ctt-server-test 动态容器名，Health Check 联动
+
+## 进行中 🔄
+
+Week 1 基础设施搭建 - 进度: 100% ✅
+- [x] Spring Boot 项目结构
+- [x] Redis 缓存配置
+- [x] JWT 认证实现
+- [x] API Key 管理 (Phase N 全部完成 ✅)
+- [x] 账号锁定策略（含 login_attempts 表 + 定时清理 + 批量解锁）
+
+## 开发计划 (8周)
+
+### Week 1-2: 基础设施与认证 ✅ 完成
+- [x] 配置 Redis 缓存
+- [x] 实现 JWT 用户认证
+- [x] 实现 API Key 管理
+- [x] 账号防暴破体系（配置 → 防腐层 → 懒解锁 → 隐私日志 → 定时清理）
+
+### Week 3-4: 双向同步引擎
+- [ ] CodingSession 数据模型
+- [ ] SyncCursor 设备同步状态
+- [ ] SyncPullService / SyncPushService
+- [ ] ConflictResolver (LWW)
+
+### Week 5-6: 插件端集成
+- [ ] 升级 SQLite 表结构
+- [ ] 同步调度逻辑
+
+### Week 7: 统计与排行榜
+- [ ] 多维时序聚合查询
+- [ ] Redis ZSet 排行榜
+
+### Week 8: 测试与上线
+- [ ] 压力测试
+- [ ] Sentry 监控
+- [ ] 部署配置
