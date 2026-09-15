@@ -274,6 +274,31 @@ class StatsServiceTest {
         }
 
         @Test
+        @DisplayName("distributionShouldMergeSpellings_whenTypeLanguages")
+        void distributionShouldMergeSpellings_whenTypeLanguages() {
+            // Pins the wiring, not just the calculator: a service that grouped by the raw field
+            // would compile and read correctly, and only this assertion would notice.
+            CodingSession javaUpper = session("2026-08-25T10:00:00", "2026-08-25T11:00:00");
+            javaUpper.setLanguage("JAVA");
+            CodingSession javaLower = session("2026-08-25T11:00:00", "2026-08-25T12:00:00");
+            javaLower.setLanguage("java");
+            CodingSession kotlin = session("2026-08-25T12:00:00", "2026-08-25T13:00:00");
+            kotlin.setLanguage("Kotlin");
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(javaUpper, javaLower, kotlin));
+
+            DistributionResponse response =
+                    service.distribution(
+                            userId, ZoneOffset.UTC, DistributionType.LANGUAGES, null, null, null);
+
+            assertThat(response.entries()).hasSize(2);
+            assertThat(response.entries().get(0).name()).isEqualTo("Java");
+            assertThat(response.entries().get(0).seconds()).isEqualTo(7200);
+            assertThat(response.entries().get(1).name()).isEqualTo("Kotlin");
+            assertThat(response.entries().get(1).seconds()).isEqualTo(3600);
+        }
+
+        @Test
         @DisplayName("distributionShouldBucketByIdeName_whenTypeIdes")
         void distributionShouldBucketByIdeName_whenTypeIdes() {
             CodingSession fromIdea = session("2026-08-30T10:00:00", "2026-08-30T12:00:00");
