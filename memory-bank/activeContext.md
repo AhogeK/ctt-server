@@ -4,7 +4,7 @@
     - 批次 1（纯新增 v0.74.0）: `language/` 包 + `vocabulary.json`（92 规范 / 74 别名 / 76 非语言）+ 34 测试 + 两侧 IDE 词表夹具。生成时逐一校验别名目标存在，抓出 `DTD`/`Kconfig`/`XPath` **不在 Linguist** → 本地扩展
     - 批次 2（v0.74.1）: 语言分组**收敛到唯一入口** `StatsCalculator.languageDistribution`——原本 3 处各自分组（分布 / 成就进度 / 达成时刻），"三处分散"正是第四处会忘记规范化的情形；词表作参数传入以保持纯计算；未映射值有界登记（500）+ 每值告警一次，**不做端点**（词表全局而其他读均按用户，暴露会跨用户泄露原始值）
     - **测试抓到 4 个真问题**: ①夹具非全集——部分 fileType 名在**字节码里算出**（`IgnoreFileType.getName()`=`getID()+" file"`），XML 扫描系统性看不到 ②生成器做了 `" file"` 模糊剥离而运行时没有 → 改显式别名 ③`languages()` 用原样名回查小写索引 → 全 null ④两个构造器致 Spring 找不到默认构造器（不跑集成测试发现不了，会导致全部集成测试挂）
-    - 红-绿: 分组换回原样值 → 4 个新测试全失败 → 恢复全绿。验证: 全量 **1441 tests / 0 failures**；jacoco 门槛通过；spotless PASS
+    - 红-绿: 分组换回原样值 → 4 个新测试全失败 → 恢复全绿；接线另加服务级守卫（`JAVA`+`java` 必须合桶），改回原样分组同样失败。验证: 全量 **1441 tests / 0 failures**；jacoco 门槛通过；spotless PASS
     - 状态: 两批已提交推送；**`ConflictResolver`/push/pull 零改动**（按修正后 D3 不再是风险面）。批次 3（词表端点）按需再定
 - [2026-09-15] - 知识库治理：progress 归档重写 + AGENTS.md 去重与矛盾修复
     - 触发: 用户授权由我裁决此前两项（AGENTS.md 400 行 / progress.md 578 行超限）。**progress.md 578 → 81 行**: 核实发现该文件自 v0.49.0 后停更，其「未完成」清单把早已交付的同步引擎（CodingSession/SyncCursor/SyncPull/Push/ConflictResolver）与排行榜列为**未开始** —— 过期清单比没有清单更危险。处置: 逐条历史整体归档 `archive/progress-completed.md`（逐字保留 + 记明归档原因）；热文件改为**版本里程碑账本**（42 条），版本+日期取自 `gradle/libs.versions.toml` 变更历史、主线交付取自提交历史，**不手工维护**；「尚未落地」只列已核实缺失项（压测/错误监控/CI）
