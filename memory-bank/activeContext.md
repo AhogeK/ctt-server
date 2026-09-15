@@ -1,7 +1,7 @@
 # Active Context
 - [2026-09-16] - 跨端语言词表（v0.74.0 词表 + v0.74.1 接入，两批完成）
     - 裁决: 规范层=**GitHub Linguist**（自带 `type`，把"Markdown 算不算语言"变成查表事实）；归一化在**服务端**；**不存规范名**——2026-09-16 修正原"双列"判断: 规范名是派生值，存它要随词表变化持续同步，且会迫使改动 `ConflictResolver`（其内容判等含 `language`，覆写后幂等 no-op 退化为 LWW）；未知值保留不丢弃（JetBrains 侧为开放集合，本机 58 插件可注册 fileType）
-    - 批次 1（纯新增 v0.74.0）: `language/` 包 + `vocabulary.json`（92 规范 / 74 别名 / 76 非语言）+ 34 测试 + 两侧 IDE 词表夹具。生成时逐一校验别名目标存在，抓出 `DTD`/`Kconfig`/`XPath` **不在 Linguist** → 本地扩展
+    - 批次 1（纯新增 v0.74.0）: `language/` 包 + `vocabulary.json`（92 规范 / 75 别名 / 76 非语言）+ 34 测试 + 两侧 IDE 词表夹具。生成时逐一校验别名目标存在，抓出 `DTD`/`Kconfig`/`XPath` **不在 Linguist** → 本地扩展
     - 批次 2（v0.74.1）: 语言分组**收敛到唯一入口** `StatsCalculator.languageDistribution`——原本 3 处各自分组（分布 / 成就进度 / 达成时刻），"三处分散"正是第四处会忘记规范化的情形；词表作参数传入以保持纯计算；未映射值有界登记（500）+ 每值告警一次，**不做端点**（词表全局而其他读均按用户，暴露会跨用户泄露原始值）
     - **测试抓到 4 个真问题**: ①夹具非全集——部分 fileType 名在**字节码里算出**（`IgnoreFileType.getName()`=`getID()+" file"`），XML 扫描系统性看不到 ②生成器做了 `" file"` 模糊剥离而运行时没有 → 改显式别名 ③`languages()` 用原样名回查小写索引 → 全 null ④两个构造器致 Spring 找不到默认构造器（不跑集成测试发现不了，会导致全部集成测试挂）
     - 红-绿: 分组换回原样值 → 4 个新测试全失败 → 恢复全绿；接线另加服务级守卫（`JAVA`+`java` 必须合桶），改回原样分组同样失败。验证: 全量 **1441 tests / 0 failures**；jacoco 门槛通过；spotless PASS

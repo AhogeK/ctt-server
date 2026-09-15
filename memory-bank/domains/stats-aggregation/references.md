@@ -69,3 +69,24 @@ No stats-specific config keys: bucket boundaries and window semantics are code c
 | Time-of-day boundaries + slicing helper | `stats/enums/TimeOfDay.java` |
 | Distribution dimensions | `stats/enums/DistributionType.java` |
 | Session queries | `sync/repository/CodingSessionRepository.java` |
+
+## Language vocabulary contract
+
+| | |
+| --- | --- |
+| File | `src/main/resources/language/vocabulary.json` |
+| Shape | `version` · `canonical` (name → Linguist category) · `aliases` (raw lowercase → canonical) · `nonLanguages` (raw lowercase) |
+| Consumers | Server read paths (`StatsCalculator.languageDistribution`) and **copies vendored by both IDE plugins** for their local statistics views |
+
+**The file is a published contract, not an internal table.** Both plugins hold a byte-identical
+copy and have no way to notice the server's copy changing, so:
+
+- **Every change to the file bumps `version`.** A new alias, a new canonical name or a new
+  non-language entry is a change; a whitespace-only edit is not.
+- **Announce it when the version changes** — state the old and new version and what was added, so
+  the plugin maintainers can refresh, re-check the checksum and re-run their vocabulary tests.
+- Verify a vendored copy by checksum (`shasum -a 256`) rather than by reading the JSON.
+
+Drift is graceful rather than fatal: a stale copy keeps working and keeps storing raw values, but a
+newly added alias will not merge in the plugin's local view until the copy is refreshed — the local
+view and the web view disagree until then. The server is unaffected because it reads its own file.
