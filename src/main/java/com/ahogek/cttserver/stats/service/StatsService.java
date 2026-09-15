@@ -5,6 +5,7 @@ import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
+import com.ahogek.cttserver.language.LanguageVocabulary;
 import com.ahogek.cttserver.stats.dto.DailyStatPoint;
 import com.ahogek.cttserver.stats.dto.DistributionEntryDto;
 import com.ahogek.cttserver.stats.dto.DistributionResponse;
@@ -57,16 +58,19 @@ public class StatsService {
     private final DailyStatsRepository dailyStatsRepository;
     private final DailyStatsMaterializer dailyStatsMaterializer;
     private final DeviceRepository deviceRepository;
+    private final LanguageVocabulary languageVocabulary;
 
     public StatsService(
             CodingSessionRepository codingSessionRepository,
             DailyStatsRepository dailyStatsRepository,
             DailyStatsMaterializer dailyStatsMaterializer,
-            DeviceRepository deviceRepository) {
+            DeviceRepository deviceRepository,
+            LanguageVocabulary languageVocabulary) {
         this.codingSessionRepository = codingSessionRepository;
         this.dailyStatsRepository = dailyStatsRepository;
         this.dailyStatsMaterializer = dailyStatsMaterializer;
         this.deviceRepository = deviceRepository;
+        this.languageVocabulary = languageVocabulary;
     }
 
     /**
@@ -259,8 +263,8 @@ public class StatsService {
         List<StatsCalculator.DistributionEntry> entries =
                 switch (type) {
                     case LANGUAGES ->
-                            StatsCalculator.accumulateBy(
-                                    sessions, zone, CodingSession::getLanguage);
+                            StatsCalculator.languageDistribution(
+                                    sessions, zone, languageVocabulary);
                     case PROJECTS ->
                             StatsCalculator.accumulateBy(
                                     sessions, zone, CodingSession::getProjectName);

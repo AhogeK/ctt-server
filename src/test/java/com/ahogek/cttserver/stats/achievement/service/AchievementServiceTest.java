@@ -3,6 +3,7 @@ package com.ahogek.cttserver.stats.achievement.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.language.LanguageVocabulary;
 import com.ahogek.cttserver.stats.achievement.dto.AchievementResponse;
 import com.ahogek.cttserver.stats.achievement.entity.AchievementProgress;
 import com.ahogek.cttserver.stats.achievement.entity.UserAchievement;
@@ -118,7 +119,8 @@ class AchievementServiceTest {
                         auditLogService,
                         FIXED_CLOCK,
                         redisTemplate,
-                        new ObjectMapper());
+                        new ObjectMapper(),
+                        new LanguageVocabulary(new ObjectMapper()));
         inserted.clear();
         recordedInstants.clear();
         when(userAchievementRepository.findByUserId(userId))

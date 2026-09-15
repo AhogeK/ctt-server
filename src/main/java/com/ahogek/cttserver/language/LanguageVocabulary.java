@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -47,6 +48,16 @@ public class LanguageVocabulary {
 
     private static final String RESOURCE = "language/vocabulary.json";
 
+    /**
+     * How many unrecognized values are remembered for reporting.
+     *
+     * <p>The vocabulary is fed by client-supplied data, so the set is bounded: a client pushing
+     * arbitrary language strings must not be able to grow server memory. The cap is far above the
+     * number of values an IDE realistically emits, so reaching it means something is wrong rather
+     * than that the vocabulary is merely incomplete.
+     */
+    private static final int UNMAPPED_LIMIT = 500;
+
     /** Canonical target for values the vocabulary recognizes as non-languages. */
     public static final CanonicalLanguage OTHER =
             new CanonicalLanguage("Other", LanguageType.OTHER, true);
@@ -58,6 +69,8 @@ public class LanguageVocabulary {
     private final Set<String> nonLanguages;
 
     private final List<CanonicalLanguage> languages;
+
+    private final Set<String> unmapped = ConcurrentHashMap.newKeySet();
 
     @Autowired
     public LanguageVocabulary(ObjectMapper objectMapper) {
@@ -124,7 +137,38 @@ public class LanguageVocabulary {
             return OTHER;
         }
         CanonicalLanguage known = byToken.get(token);
-        return known != null ? known : new CanonicalLanguage(raw, LanguageType.OTHER, false);
+        if (known != null) {
+            return known;
+        }
+        recordUnmapped(raw);
+        return new CanonicalLanguage(raw, LanguageType.OTHER, false);
+    }
+
+    /**
+     * Returns the raw values seen but not classified, for extending the vocabulary.
+     *
+     * <p>Deliberately not exposed over HTTP: the set is global while every other read is scoped to
+     * one user, so publishing it would show one user's raw values to another. Maintenance reads it
+     * from the log instead.
+     *
+     * @return an immutable snapshot of the unrecognized values seen so far
+     */
+    public Set<String> unmappedValues() {
+        return Set.copyOf(unmapped);
+    }
+
+    private void recordUnmapped(String raw) {
+        if (unmapped.size() >= UNMAPPED_LIMIT || !unmapped.add(raw)) {
+            return;
+        }
+        // Once per distinct value: an unrecognized language keeps appearing in every aggregation,
+        // and repeating the line would bury the signal it exists to provide.
+        log.atWarn()
+                .log(
+                        "Unrecognized language '{}' is not in vocabulary v{}; it is preserved as-is and"
+                                + " should be classified",
+                        raw,
+                        version);
     }
 
     /**
