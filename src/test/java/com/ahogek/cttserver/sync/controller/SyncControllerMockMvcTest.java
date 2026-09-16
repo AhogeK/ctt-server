@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
@@ -147,6 +148,113 @@ class SyncControllerMockMvcTest {
     @Nested
     @DisplayName("POST /api/v1/sync/push")
     class PushTests {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should enforce the constraints declared on a pushed session")
+        void shouldReturn400_whenSessionViolatesItsOwnConstraints() {
+            // Guards the cascade: the element type's constraints only run when the collection is
+            // annotated @Valid, and without it every annotation on SyncSessionDto is decorative.
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(
+                                            """
+                                            {
+                                              "deviceId": "%s",
+                                              "sessions": [
+                                                {
+                                                  "sessionUuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                                                  "projectName": "ctt-server",
+                                                  "language": "",
+                                                  "startTime": "2026-08-25T09:00:00Z",
+                                                  "endTime": "2026-08-25T10:00:00Z",
+                                                  "clientModifiedAt": "2026-08-25T10:00:00Z",
+                                                  "clientVersion": 2,
+                                                  "deleted": false
+                                                }
+                                              ]
+                                            }
+                                            """
+                                                    .formatted(DEVICE_ID))
+                                    .exchange())
+                    .hasStatus(400);
+
+            verifyNoInteractions(syncPushService);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should reject an oversized language before it reaches the batched insert")
+        void shouldReturn400_whenLanguageExceedsColumnWidth() {
+            // Without the bound this passes validation and fails inside the multi-row INSERT, which
+            // rejects the whole batch: the client gets a server error for a value only one session
+            // carries, and every retry reproduces it.
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(
+                                            """
+                                            {
+                                              "deviceId": "%s",
+                                              "sessions": [
+                                                {
+                                                  "sessionUuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                                                  "projectName": "ctt-server",
+                                                  "language": "%s",
+                                                  "startTime": "2026-08-25T09:00:00Z",
+                                                  "endTime": "2026-08-25T10:00:00Z",
+                                                  "clientModifiedAt": "2026-08-25T10:00:00Z",
+                                                  "clientVersion": 2,
+                                                  "deleted": false
+                                                }
+                                              ]
+                                            }
+                                            """
+                                                    .formatted(DEVICE_ID, "L".repeat(51)))
+                                    .exchange())
+                    .hasStatus(400);
+
+            verifyNoInteractions(syncPushService);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should reject an oversized project name before it reaches the batched insert")
+        void shouldReturn400_whenProjectNameExceedsColumnWidth() {
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(
+                                            """
+                                            {
+                                              "deviceId": "%s",
+                                              "sessions": [
+                                                {
+                                                  "sessionUuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                                                  "projectName": "%s",
+                                                  "language": "Java",
+                                                  "startTime": "2026-08-25T09:00:00Z",
+                                                  "endTime": "2026-08-25T10:00:00Z",
+                                                  "clientModifiedAt": "2026-08-25T10:00:00Z",
+                                                  "clientVersion": 2,
+                                                  "deleted": false
+                                                }
+                                              ]
+                                            }
+                                            """
+                                                    .formatted(DEVICE_ID, "P".repeat(256)))
+                                    .exchange())
+                    .hasStatus(400);
+
+            verifyNoInteractions(syncPushService);
+        }
 
         @Test
         @WithMockUser

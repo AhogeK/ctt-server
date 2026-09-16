@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.sync.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
@@ -17,4 +18,5 @@ public record SyncPushRequest(
                 UUID deviceId,
         @Schema(description = "Session states to push; processed atomically as one batch")
                 @NotEmpty(message = "sessions must not be empty")
+                @Valid
                 List<SyncSessionDto> sessions) {}

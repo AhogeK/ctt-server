@@ -3,12 +3,21 @@ package com.ahogek.cttserver.sync.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * A coding session state submitted by the client for push.
+ *
+ * <p>The two string fields carry a length bound matching the column they are stored in. Without it
+ * an oversized value passes validation and fails inside the batched insert, and because the batch
+ * is one multi-row statement the whole push is rejected rather than the offending session — the
+ * client sees a server error it cannot act on, and retrying reproduces it.
+ */
 @Schema(description = "A coding session state submitted by the client for push")
 public record SyncSessionDto(
         @Schema(
@@ -18,9 +27,11 @@ public record SyncSessionDto(
                 UUID sessionUuid,
         @Schema(description = "Project or repository name", example = "ctt-server")
                 @NotBlank(message = "projectName is required")
+                @Size(max = 255, message = "projectName must not exceed 255 characters")
                 String projectName,
         @Schema(description = "Primary programming language", example = "Java")
                 @NotBlank(message = "language is required")
+                @Size(max = 50, message = "language must not exceed 50 characters")
                 String language,
         @Schema(description = "Session start time", example = "2026-08-25T09:00:00Z")
                 @NotNull(message = "startTime is required")
