@@ -529,8 +529,27 @@ page. Tied members have no defined order between them.
 
 `STREAK` is lifetime-only because every period window is shorter than the runs it rewards, and
 `GROWTH` excludes `ALL` because an unbounded history has no preceding period to compare against.
+`LANGUAGE` is the only partitioned dimension: there is no single "language" board, so a request must
+name one (`dimension=LANGUAGE&language=Java`), and the parameter is required there and rejected for
+every other dimension rather than silently ignored. The score is merged duration in that language, so
+two overlapping sessions in it count once, and a user with no sessions in a language is simply absent
+from its board. Boards exist only for languages the vocabulary recognizes and does not classify as
+`Other`, which keeps the key space bounded by the vocabulary rather than by whatever strings clients
+submit — an unrecognized value is still stored and reported for classification, it simply has no board
+until classified. `GET /api/v1/leaderboard/languages` lists the boards that exist, each with its
+category.
+
 `ACTIVE_DAYS` measures consistency rather than volume, so it stays reachable for users with
 limited hours.
+
+**Language vocabulary**: sessions carry whatever identifier the originating IDE reports — JetBrains a
+file type name (`JAVA`, `GitIgnore file`), VS Code a language id (`typescript`, `shellscript`) — and
+the two disagree on naming and casing. Language statistics therefore normalize every raw value to a
+canonical name before grouping, following GitHub Linguist, so one language occupies one bucket across
+clients. The stored value is left as the client sent it: the canonical name is derived when it is
+read, which keeps the raw fact recoverable and the mapping fixable without a migration. A value the
+vocabulary does not recognize is preserved rather than folded into an "Other" bucket, and reported, so
+a genuinely new language surfaces instead of disappearing.
 
 ### Public Configuration
 
