@@ -597,22 +597,76 @@ class LeaderboardIntegrationTest {
 
             // The legal set is defined by the enum, so driving the matrix from it keeps this test
             // honest when a dimension gains or loses a period: the assertion cannot drift from the
-            // rule the controller enforces.
+            // rule the controller enforces. A partitioned dimension also needs its language, and
+            // whether it needs one is asked of the enum rather than hardcoded here.
             for (LeaderboardDimension dimension : LeaderboardDimension.values()) {
                 for (LeaderboardPeriod period : LeaderboardPeriod.values()) {
+                    String language = dimension.requiresLanguage() ? "&language=Java" : "";
                     var result =
                             mvc.get()
                                     .uri(
                                             "/api/v1/leaderboard?dimension="
                                                     + dimension
                                                     + "&period="
-                                                    + period)
+                                                    + period
+                                                    + language)
                                     .header("Authorization", "Bearer " + readKey)
                                     .exchange();
                     int expected = dimension.supports(period) ? 200 : 400;
                     assertThat(result).as("%s over %s", dimension, period).hasStatus(expected);
                 }
             }
+        }
+
+        @Test
+        @DisplayName(
+                "Should reject a partitioned dimension without a language, and a language without one")
+        void shouldRejectLanguageArgument_whenMisapplied() throws Exception {
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            // Missing where required
+            assertThat(
+                            mvc.get()
+                                    .uri("/api/v1/leaderboard?dimension=LANGUAGE&period=ALL")
+                                    .header("Authorization", "Bearer " + readKey)
+                                    .exchange())
+                    .hasStatus(400);
+            // Supplied where it means nothing
+            assertThat(
+                            mvc.get()
+                                    .uri(
+                                            "/api/v1/leaderboard?dimension=TOTAL&period=ALL&language=Java")
+                                    .header("Authorization", "Bearer " + readKey)
+                                    .exchange())
+                    .hasStatus(400);
+            // Not a language the vocabulary recognizes
+            assertThat(
+                            mvc.get()
+                                    .uri(
+                                            "/api/v1/leaderboard?dimension=LANGUAGE&period=ALL&language="
+                                                    + "NotALanguage")
+                                    .header("Authorization", "Bearer " + readKey)
+                                    .exchange())
+                    .hasStatus(400);
+        }
+
+        @Test
+        @DisplayName("Should list the language boards that exist")
+        void shouldListLanguageBoards() throws Exception {
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/leaderboard/languages")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            // Shape assertion only: which boards exist depends on what other tests have pushed,
+            // and an empty list is legal before anyone is ranked.
+            assertThat(result).bodyJson().extractingPath("$.data.languages").isNotNull();
         }
 
         @Test

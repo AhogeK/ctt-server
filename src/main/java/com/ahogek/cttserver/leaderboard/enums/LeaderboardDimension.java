@@ -28,7 +28,20 @@ public enum LeaderboardDimension {
     /** Net growth against the immediately preceding period, in seconds (may be negative). */
     GROWTH(null, null),
     /** Number of distinct days carrying coding time — consistency rather than volume. */
-    ACTIVE_DAYS(null, null);
+    ACTIVE_DAYS(null, null),
+    /**
+     * Ranking inside a single language: one board per language, selected by the caller.
+     *
+     * <p>This is the only partitioned dimension — there is no single "language" board, so the
+     * request must name one. Its score is the merged duration in that language, so two overlapping
+     * sessions in the same language count once.
+     *
+     * <p>Boards exist only for languages the vocabulary recognizes and does not classify as {@code
+     * Other}. That keeps the key space bounded by the vocabulary rather than by whatever strings
+     * clients submit: an unrecognized value is still stored and reported so it can be classified,
+     * but it does not create a board until it is.
+     */
+    LANGUAGE(null, null);
 
     private final Integer windowStartHour;
     private final Integer windowEndHour;
@@ -87,7 +100,7 @@ public enum LeaderboardDimension {
      */
     public boolean supports(LeaderboardPeriod period) {
         return switch (this) {
-            case TOTAL, NIGHT_OWL, EARLY_BIRD, ACTIVE_DAYS -> true;
+            case TOTAL, NIGHT_OWL, EARLY_BIRD, ACTIVE_DAYS, LANGUAGE -> true;
             case STREAK -> period == LeaderboardPeriod.ALL;
             case GROWTH -> period != LeaderboardPeriod.ALL;
         };
@@ -106,5 +119,17 @@ public enum LeaderboardDimension {
      */
     public LeaderboardPeriod defaultPeriod() {
         return this == GROWTH ? LeaderboardPeriod.WEEK : LeaderboardPeriod.ALL;
+    }
+
+    /**
+     * Returns whether this dimension needs a language to be named.
+     *
+     * <p>Checked by the controller rather than assumed, so a caller that forgets the parameter
+     * fails with a validation error instead of silently reading a board nobody writes.
+     *
+     * @return {@code true} for {@link #LANGUAGE}
+     */
+    public boolean requiresLanguage() {
+        return this == LANGUAGE;
     }
 }

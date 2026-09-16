@@ -8,6 +8,7 @@ import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
+import com.ahogek.cttserver.leaderboard.dto.LanguageBoardsResponse;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardResponse;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardPeriod;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -119,10 +121,13 @@ public class LeaderboardController {
                             + " consecutive coding-day streak), NIGHT_OWL (merged 22:00-05:00"
                             + " duration), EARLY_BIRD (merged 06:00-09:00 duration), GROWTH (net"
                             + " growth against the immediately preceding period, may be negative)"
-                            + " and ACTIVE_DAYS (distinct coding days)."
+                            + ", ACTIVE_DAYS (distinct coding days) and LANGUAGE (merged duration"
+                            + " in one language, one board per language — pass `language`, and list"
+                            + " the available boards via GET /api/v1/leaderboard/languages)."
                             + " The period defaults to ALL, except for GROWTH which defaults to"
                             + " WEEK. Periods are supported by dimension: TOTAL, NIGHT_OWL,"
-                            + " EARLY_BIRD and ACTIVE_DAYS accept ALL/WEEK/MONTH/YEAR; STREAK"
+                            + " EARLY_BIRD, ACTIVE_DAYS and LANGUAGE accept ALL/WEEK/MONTH/YEAR;"
+                            + " STREAK"
                             + " accepts ALL only (its periods are shorter than the runs it"
                             + " rewards); GROWTH accepts WEEK/MONTH/YEAR but not ALL (an"
                             + " unbounded history has nothing to grow from).")
@@ -190,6 +195,13 @@ public class LeaderboardController {
     public ResponseEntity<RestApiResponse<LeaderboardResponse>> leaderboard(
             @RequestParam("dimension") LeaderboardDimension dimension,
             @RequestParam(name = "period", required = false) LeaderboardPeriod period,
+            @RequestParam(name = "language", required = false)
+                    @Parameter(
+                            description =
+                                    "Canonical language, required for dimension=LANGUAGE and rejected"
+                                            + " for the others; see GET /api/v1/leaderboard/languages",
+                            example = "Java")
+                    String language,
             @RequestParam(name = "limit", defaultValue = "20") @Min(1) @Max(100) int limit,
             @RequestParam(name = "offset", defaultValue = "0") @Min(0) int offset) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -198,7 +210,51 @@ public class LeaderboardController {
         LeaderboardPeriod effectivePeriod = period != null ? period : dimension.defaultPeriod();
         LeaderboardResponse response =
                 leaderboardService.getLeaderboard(
-                        dimension, effectivePeriod, limit, offset, currentUser.id());
+                        dimension, effectivePeriod, language, limit, offset, currentUser.id());
         return ResponseEntity.ok(RestApiResponse.ok(response));
+    }
+
+    @Operation(
+            summary = "Languages that have a leaderboard",
+            description =
+                    "Returns the canonical languages with at least one ranked member, so a client can"
+                            + " offer a selector for dimension=LANGUAGE without guessing which boards"
+                            + " exist or probing empty ones. A language is added when a user is ranked"
+                            + " in it and never removed; a board may therefore be empty for a period."
+                            + " `type` is the Linguist category, so a client can group or filter"
+                            + " (for example to show programming languages separately from formats).")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Language boards retrieved",
+                        content =
+                                @Content(
+                                        schema =
+                                                @Schema(
+                                                        implementation =
+                                                                LanguageBoardsResponse.class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Authentication required",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "Unauthenticated",
+                                                        value =
+                                                                "{\"code\":\"AUTH_010\","
+                                                                        + "\"message\":\"API key"
+                                                                        + " invalid\","
+                                                                        + "\"httpStatus\":401}"))),
+            })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
+    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @GetMapping("/languages")
+    public ResponseEntity<RestApiResponse<LanguageBoardsResponse>> languages() {
+        return ResponseEntity.ok(
+                RestApiResponse.ok(
+                        new LanguageBoardsResponse(leaderboardService.languageBoards())));
     }
 }
