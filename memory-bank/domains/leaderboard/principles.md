@@ -43,14 +43,30 @@ The judgements behind the matrix:
   already accepted `periodStart`/`periodEnd` — the old code passed `MIN`..tomorrow and called it
   `ALL`. Widening those windows was exposing existing capability, not building new math.
 
-## 4. Score units differ per dimension; never assume seconds
+## 4. A partitioned dimension has no single board
+
+`LANGUAGE` is the one dimension with no board of its own: it is one board per language, chosen by the
+caller. Two consequences follow, and both are deliberate.
+
+The key space is bounded by the **vocabulary**, not by client input. Only languages the vocabulary
+recognizes and does not classify as `Other` get a board; an unrecognized value is stored, counted in
+the distribution and reported for classification, but has no board until someone classifies it.
+Without that rule the board count would grow with whatever strings clients submit — the property
+that makes a per-language key worth having is the same one that forces the bound.
+
+A language argument is validated rather than ignored: a required parameter that is missing, or an
+optional one supplied to a dimension that has no use for it, is a `400`. Silently ignoring it would
+answer a different question than the caller asked, and silently defaulting it would read a board
+nobody writes.
+
+## 5. Score units differ per dimension; never assume seconds
 
 `TOTAL`, `NIGHT_OWL`, `EARLY_BIRD` yield seconds. `ACTIVE_DAYS` yields a **count of distinct days**.
 `STREAK` yields a **count of consecutive days**. `GROWTH` yields a **signed seconds delta** and may
 be negative. A client rendering "score" without knowing the dimension will mislabel it; the
 dimension is the unit.
 
-## 5. Ties have no defined order — and that is a decision, not an oversight
+## 6. Ties have no defined order — and that is a decision, not an oversight
 
 Equal scores are ordered by Redis member id (a UUID), so the order is **stable but meaningless**: it
 does not change between requests, and it does not mean anything either.
@@ -60,7 +76,7 @@ achievement time into the score itself, making the stored value no longer the re
 the dimension promises. The cost outweighs the benefit, so tied entries are documented as unordered
 rather than given a ranking they cannot support.
 
-## 6. Recompute on push, and write every legal key
+## 7. Recompute on push, and write every legal key
 
 A user's scores are recomputed from the database after a successful session push, so a new session
 appears in the ranking without a full rebuild. The recompute covers **every legal (dimension,
@@ -71,14 +87,14 @@ Because the same session views feed every pair, the expensive work (interval mer
 built once per recompute and shared. Cost then scales with the user's history, not with the number
 of keys.
 
-## 7. Key naming must not orphan existing data
+## 8. Key naming must not orphan existing data
 
 `ALL` appends an empty key suffix, so `leaderboard:total` stays byte-identical to the key already
 written by earlier versions. Introduced suffixed keys (`:week:<date>`) are new, but no existing
 member is left behind in a key the service no longer reads. Redis persists across deployments, so
 key changes are data migrations whether or not they are treated as such.
 
-## 8. A size is not inferable from a page
+## 9. A size is not inferable from a page
 
 `totalParticipants` (ZCARD) is reported because a client cannot derive the ranking size from the
 entries: a full page means "there may be more", and a short page means "this is the end" only for

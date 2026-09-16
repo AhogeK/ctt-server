@@ -1,7 +1,15 @@
 # Active Context
+- [2026-09-16] - 按语言分桶的榜单（`dimension=LANGUAGE`，v0.75.0）
+    - **我的一次判断固化（须记下）**: 最初你把语言诉求说清时，我用「键空间随客户端字符串无界增长」**否掉了按语言分桶**并写成"明确不做"。但**词表做完后该前提已失效**（值收敛到 92 个规范名 + 未识别值可标记）——我用自己刚建的东西废掉了自己的理由却没回头推翻结论。你指出后才改正
+    - 实现: `LANGUAGE` 为**唯一分区维度**（无单一榜单，必须点名语言）；`language` 参数在分区维度必填、在其他维度**带即 400**（不静默忽略）；分数=该语言**合并时长**（同语言重叠只算一次）；`SessionViews` 预计算每语言 intervals；只为**用户实际用过的语言**建键
+    - **键空间怎么封住**: 只为词表 `recognized && type != OTHER` 的语言建榜；未识别值照旧存储/计入分布/上报待分类，但**分类前不建榜**——`recognized` 标记正是为此
+    - 新端点 `GET /api/v1/leaderboard/languages`：**真实存在**的榜单（写分时 `SADD` 索引，不是拿词表倒推——那会给出大量空榜）+ 各自 `type`
+    - **测试抓到的真 bug**: `periodsSeconds` 对 `ALL` 返回 0（它只处理有界周期）→ **终身语言榜会全是 0 分**；修正为 ALL 走合并总时长，并抽出 `mergedSeconds` 消重复；红-绿验证过
+    - **我的一次提交信息与 diff 不符（已纠正）**: `docs` 提交声称写了分区说明段，实际 `replace` 因锚点（更早被回滚的段落）不存在而**静默失败**，只落了两行；且 README 的语言词表段也在早前回滚中丢失未恢复。用后续 commit 补齐，并把教训写回提交信息：**脚本替换必须对每个锚点断言，提交信息必须对着 diff 核**（两者我都没做，是"行数看着太少"才发现的）
+    - 验证: 全量 **1451 tests / 0 failures**；jacoco 门槛通过；spotless PASS
+    - 状态: ✅ 实施完成，待授权提交
 - [2026-09-16] - 修复 sync push 的入参校验（级联缺口 + 列宽约束，待提交）
-    - 发现路径: 处理语言词表纠出一个未被报告边界约束的 `language`，而推送是**单条多行 INSERT** → 一个超长值让**整批失败**（客户端拿到无法处理的错误且重试必复现）
-    - **修的时候发现更严重的**: `SyncPushRequest.sessions` 只有 `@NotEmpty`、**缺 `@Valid`** → Jakarta 不级联进集合元素，**`SyncSessionDto` 整套约束（`@NotNull`/`@NotBlank`/`@PositiveOrZero`）从未生效**
+    - 发现路径: 处理语言词表纠出一个未被报告边界约束的 `language`，而推送是**单条多行 INSERT** → 一个超长值让**整批失败**。**修的时候发现更严重的**: `SyncPushRequest.sessions` 只有 `@NotEmpty`、**缺 `@Valid`** → Jakarta 不级联进集合元素，**`SyncSessionDto` 整套约束（`@NotNull`/`@NotBlank`/`@PositiveOrZero`）从未生效**
     - 证实: 三个用例（空 language / 超长 language / 超长 projectName 均应 400）修复前**全失败**（返 500），加 `@Valid` + `@Size` 后全绿
     - 同类排查: 遍历全部 `@RequestBody` 类型，仅 `CreateApiKeyRequest.scopes` 亦为集合但元素是枚举（无嵌套约束），其余无嵌套字段 → **缺口只此一处**，非局部补丁。全量 **1448/0**，开启校验未击穿任何既有测试。领域沉淀: `domains/api-contract/practices.md`「元素类型上的约束只在集合标注 `@Valid` 时才生效」
 - [2026-09-16] - 跨端语言词表（v0.74.0 词表 + v0.74.1 接入，两批完成）
@@ -162,8 +170,7 @@
     - 踩坑: ①需求验收示例自相矛盾（说按逐小时切片却断言"两条 points"——10:30-12:15 实为 3 格 1800+3600+900=6300，测试按算法口径写）②集成测试 origin_device_id FK 违约——裸 UUID 不在 devices 表，须先 POST /devices 注册（registerDevice helper 已有，新测试直接调用）③Edit 工具损坏第 5/6 次（import 重复/RecentSessionResponse 被吞/README 段落错位）→ python 行级修复
     - 验证: 全量 1317/0（+10）+ jacoco 门禁 + spotless 全绿
     - 双轴审查修复（reviewer x2 并行）: ①P1 真实 bug——单边界窗口（只给 start 或只给 end）裁剪时 new TimeInterval 在 filter 前构造，会话整体在窗外（start>=end）抛 IAE→400 COMMON_001（TimeInterval 紧凑构造器拒绝 start>=end），修复=先判 start.isBefore(end) 再构造、空则丢弃 + 回归测试锁定（shouldClipSingleBound_whenOnlyStartGiven）②README /stats/recent 行被编辑连带删除（端点仍存活）→ 恢复 ③WeekHourDistributionResponse 字段补 @Schema example（R9）④判断性保留: 逐小时切片循环与 hourlyDistribution 重复（Fowler Duplicated Code，可提取共享 helper）——两热力图锁步演进风险记录，暂不重构（改动面/收益比不划算，留待第三个同形状出现）
-    - 审查后验证: 全量 1318/0 + jacoco + spotless 全绿
-    - 用户裁决+修正: 重叠会话语义——需求"对齐插件端 DailyHourDataProvider"字面落地为原始累加，但用户判定"累加就是 bug，很明显的逻辑错误"（并行窗口双计）。修正=切片前先 mergeOverlapping（并集=最早 start 到最晚 end，一行复用既有 helper），跨日/跨小时截断语义不变；新增 calculator 重叠合并测试（10:00-11:00 + 10:30-10:45 → hour10 计 3600s 非 3900s）。已出插件端 bug 报告：插件 getDailyHourDistribution/fetchDailyHourlyData 无 merge，同样双计
+    - 审查后验证: 全量 1318/0 + jacoco + spotless 全绿。用户裁决+修正: 重叠会话语义——需求"对齐插件端 DailyHourDataProvider"字面落地为原始累加，但用户判定"累加就是 bug，很明显的逻辑错误"（并行窗口双计）。修正=切片前先 mergeOverlapping（并集=最早 start 到最晚 end，一行复用既有 helper），跨日/跨小时截断语义不变；新增 calculator 重叠合并测试（10:00-11:00 + 10:30-10:45 → hour10 计 3600s 非 3900s）。已出插件端 bug 报告：插件 getDailyHourDistribution/fetchDailyHourlyData 无 merge，同样双计
     - 审查后验证: 全量 1319/0 + jacoco + spotless 全绿
     - 状态: ✅ 实施+双轴审查+修复完成，待提交授权
 
@@ -172,28 +179,21 @@
     - 设计决策: ①服务端截断而非客户端循环（客户端对无 LIMIT 响应循环无意义）②fetch LIMIT+1 模式——取 batchSize+1 条判定 hasMore 后裁剪，单查询同时回答"本页"与"是否还有"，无需 count 二次查询 ③batch 可配置（新 SyncProperties record，@ConfigurationProperties ctt.sync.pull-batch-size 默认 1000，对齐 SecurityProperties/CttMailProperties 模式；集成测试 @TestPropertySource 注 5 真实 HTTP 分页验证）④兼容性三方组合全验证：新服务端+旧插件（旧端拿前 N 条推进游标下次续拉，不丢只慢）✓ 旧服务端+新插件（hasMore 缺失=false 退化一次性）✓
     - 实现: SessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc 重载加 Limit 参数（Spring Data 3.2+ 原生支持）+ SyncPullService 双构造器（@Autowired 5 参注入 SyncProperties / package-private 6 参 int 供测试，对齐 LeaderboardService Clock 先例）+ doPull fetch+1 裁剪 + SyncPullResponse 加 hasMore 字段（@Schema 带循环语义说明）
     - 测试: SyncPullServiceTest +2（超批次截断 hasMore=true 游标=本页末/尾页 hasMore=false）+ 既有 4 处 stub 迁移三参 Limit 变体（eq(cursor),eq(userId),any()）+ SyncPullPagingIntegrationTest 新建（batch=5 推 12 会话 → 3 页拉完 hasMore 终止/无重复/升序/游标单调到 pushCursor）+ SyncControllerMockMvcTest 构造器适配
-    - 踩坑: ①Edit 工具三次损坏文件（repository 吞签名行、service 重复 import/吞 }、测试文本块重复行）→ python 行级修复+重读验证（既有记录第 4 次）②application.yaml sync: 块先插错到 security: 内部（cors/oauth 之间）→ python 重定位到 ctt: 直接子节点 mail: 前 ③UserRegisterRequest 第 4 字段是 termsVersion 非 clientVersion、LoginRequest 必填 deviceId 非 deviceName——新建集成测试直接复用 SyncIntegrationTest 的 DTO 构造器模式更稳
-    - 文档: dev-docs/sync/frontend-integration.md（响应示例 hasMore + 字段表 + 游标语义两条：分页循环/旧客户端兼容）+ README Sync Engine pull 段
-    - 插件端（未实施，用户专人负责）: SyncPullResponse 加 hasMore 字段 + SyncCoordinator 两处 pull 改循环（apply→持久化游标→while hasMore）+ SessionRepository.upsertSyncedSessions 批量化（JDBC batch 单事务，applier 逐条 upsert 每行一次事务 fsync 是分钟级瓶颈）+ applier 失败改抛出（吞异常+游标推进=丢行，批量原子性+游标未推进=零丢失）；已交付交接报告
-    - 状态: ✅ 实施+全量 1307/0 + jacoco 门禁 + spotless 全绿，待提交授权
+    - 踩坑: ①Edit 工具三次损坏文件（repository 吞签名行、service 重复 import/吞 }、测试文本块重复行）→ python 行级修复+重读验证（既有记录第 4 次）②application.yaml sync: 块先插错到 security: 内部（cors/oauth 之间）→ python 重定位到 ctt: 直接子节点 mail: 前 ③UserRegisterRequest 第 4 字段是 termsVersion 非 clientVersion、LoginRequest 必填 deviceId 非 deviceName——新建集成测试直接复用 SyncIntegrationTest 的 DTO 构造器模式更稳。文档: dev-docs/sync/frontend-integration.md（响应示例 hasMore + 字段表 + 游标语义两条：分页循环/旧客户端兼容）+ README Sync Engine pull 段
+    - 插件端（未实施，用户专人负责）: SyncPullResponse 加 hasMore 字段 + SyncCoordinator 两处 pull 改循环（apply→持久化游标→while hasMore）+ SessionRepository.upsertSyncedSessions 批量化（JDBC batch 单事务，applier 逐条 upsert 每行一次事务 fsync 是分钟级瓶颈）+ applier 失败改抛出（吞异常+游标推进=丢行，批量原子性+游标未推进=零丢失）；已交付交接报告。状态: ✅ 实施+全量 1307/0 + jacoco 门禁 + spotless 全绿，待提交授权
 - [2026-09-01] - 热力图年份列表端点（GET /heatmap-years，v0.61.0）
     - 需求: ctt-web 提案——Dashboard 热力图"按年查看"需要年份下拉选项；前端无法自推导（拉全量热力图不现实），需轻量端点
     - 设计决策: 数据源=coding_sessions 而非 daily_stats 物化表（物化惰性自举，冷启动用户物化表空但 sessions 有历史；idx_sessions_user_time (user_id, start_time, end_time) 部分索引直接支撑 distinct year 查询）；有效性规则沿用 StatsCalculator 的 start_time < end_time（零时长会话不计入年份），保证年份列表与聚合口径不分裂；倒序返回
-    - 实现: CodingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse（原生 @Query EXTRACT(YEAR) + 非删除 + start<end）+ StatsService.heatmapYears（descending）+ StatsController GET /heatmap-years（READ + 60/60，对齐 ide-filters 模式）
-    - 测试: StatsServiceTest +2（降序/空）+ StatsIntegrationTest +1（真实 push 2026+2025 两会话 → [2026,2025]）
+    - 实现: CodingSessionRepository.findDistinctYearsByUserIdAndIsDeletedFalse（原生 @Query EXTRACT(YEAR) + 非删除 + start<end）+ StatsService.heatmapYears（descending）+ StatsController GET /heatmap-years（READ + 60/60，对齐 ide-filters 模式）。测试: StatsServiceTest +2（降序/空）+ StatsIntegrationTest +1（真实 push 2026+2025 两会话 → [2026,2025]）
     - 踩坑: Controller 端点插入位置再次触发 @Operation 重复注解（anchor 匹配到 recent 的 @GetMapping 前，新端点 @Operation 叠在 recent 的 @Operation 后）——同 ide-filters 先例，脚本移除块后插到 recent 方法之后修复；第三次同类教训，考虑后续插入端点先定位方法尾
-    - 提交: ✅ 2026-09-02 原子提交完成（feat 2ba33cb → fix(test) 2b71510 → docs 01fce54 → bump 0.61.0 → memory）
-    - 补充: 提交前全量验证发现既有日期敏感测试失效——streaksShouldReadActiveDays_whenUtcAndBootstrapped 用固定日期 2026-08-29..31，currentStreak 要求最新活跃日是今天/昨天，2026-09-02 起 current=0（git stash 验证 HEAD 也失败，非本次回归）；修复=按同文件 summary 测试惯例锚定 LocalDate.now() 三连天，修复后 StatsServiceTest+StatsIntegrationTest 全绿
+    - 提交: ✅ 2026-09-02 原子提交完成（feat 2ba33cb → fix(test) 2b71510 → docs 01fce54 → bump 0.61.0 → memory）。补充: 提交前全量验证发现既有日期敏感测试失效——streaksShouldReadActiveDays_whenUtcAndBootstrapped 用固定日期 2026-08-29..31，currentStreak 要求最新活跃日是今天/昨天，2026-09-02 起 current=0（git stash 验证 HEAD 也失败，非本次回归）；修复=按同文件 summary 测试惯例锚定 LocalDate.now() 三连天，修复后 StatsServiceTest+StatsIntegrationTest 全绿
 - [2026-09-01] - 统计 IDE 过滤实施（ideName 参数 + ide-filters 端点，v0.60.0）
     - 需求: ctt-web 提案——统计接口支持 IDE 维度过滤（方案 1+2，方案 3 协议扩展明确拒绝）；评估确认 Unknown IDE 在任何过滤下排除、按注册表精确匹配、ideName 未匹配任何设备 404、与 deviceId 同传 400
     - 设计: SessionFilter record（deviceId/ideName 二选一，互斥抛 ValidationException COMMON_003——项目惯例对齐 LeaderboardService）收敛过滤器参数消除 Data Clumps；canUseMaterializedDays 泛化（过滤请求回退实时聚合）；sessionsOfIde 按注册表 ide_name 精确匹配解析设备集 → 新增 repository IN 查询；ideFilters() 返回 distinct 非空 ide_name 排序（revoked 设备保留、Unknown 桶永不列出）
-    - 实现: StatsService 6 方法签名 UUID deviceId → SessionFilter + ideFilters() + Controller 6 端点加 ideName @Parameter + 新 GET /ide-filters + CodingSessionRepository.findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse
-    - 测试: StatsServiceTest +4（IDE 过滤匹配/无匹配 404/ideFilters distinct 排序）+ 集成 +1（ide-filters 列表/ideName 过滤合并语义/未知 404/双参数 400）+ 既有物化 summary 测试日期缺陷修复（今天周二撞"今天=周一"假设——用 LocalDate.now() 锚定数据 + 周期断言改不变量范围 [1800,12600]，DEBUG 排查确认 stub 命中但 thisMonth 跨月截断）
-    - 踩坑: ①Controller ide-filters 插入错位致 @Operation 重复注解（两次脚本重排块位置）②SessionFilter 嵌套类型 import 需全限定 StatsService.SessionFilter ③物化 summary 测试在非周一跑红是既有时间假设缺陷（git stash 验证 HEAD 也失败，非本次回归）④集成断言重叠会话合并=3600 非 7200（pushSession 固定同一 1h 窗口）
-    - 状态: ✅ 实施+全量 1301/0 + spotless 全绿，待提交授权
+    - 实现: StatsService 6 方法签名 UUID deviceId → SessionFilter + ideFilters() + Controller 6 端点加 ideName @Parameter + 新 GET /ide-filters + CodingSessionRepository.findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse。测试: StatsServiceTest +4（IDE 过滤匹配/无匹配 404/ideFilters distinct 排序）+ 集成 +1（ide-filters 列表/ideName 过滤合并语义/未知 404/双参数 400）+ 既有物化 summary 测试日期缺陷修复（今天周二撞"今天=周一"假设——用 LocalDate.now() 锚定数据 + 周期断言改不变量范围 [1800,12600]，DEBUG 排查确认 stub 命中但 thisMonth 跨月截断）
+    - 踩坑: ①Controller ide-filters 插入错位致 @Operation 重复注解（两次脚本重排块位置）②SessionFilter 嵌套类型 import 需全限定 StatsService.SessionFilter ③物化 summary 测试在非周一跑红是既有时间假设缺陷（git stash 验证 HEAD 也失败，非本次回归）④集成断言重叠会话合并=3600 非 7200（pushSession 固定同一 1h 窗口）。状态: ✅ 实施+全量 1301/0 + spotless 全绿，待提交授权
 - [2026-09-01] - 用户纠正：未授权提交（R23 固化）+ memory-bank 冷热分层（R13 重写）
-    - 纠正: 修复审查发现后自行 commit+push（把「需要修」当成了提交授权）——R6 授权边界误判，已固化 R23「修复≠提交」：修复完成报告后必须停，等当次交互的明确提交指令；本次 7edf735/c066f54 不回滚，下不为例
-    - 冷热分层: memory-bank/archive/ 按月分片归档冷数据（修剪=归档而非删除）；activeContext.md 1598→243 行（27 热条目 + 归档指针），150 冷条目入 5 个月度 shard（2026-03..07），完整性校验通过（1622 = 1598 + 6 shard 头）；R13 重写为归档制（禁止直接删除、shard 只写不改、完整性校验步骤）
+    - 纠正: 修复审查发现后自行 commit+push（把「需要修」当成了提交授权）——R6 授权边界误判，已固化 R23「修复≠提交」：修复完成报告后必须停，等当次交互的明确提交指令；本次 7edf735/c066f54 不回滚，下不为例。冷热分层: memory-bank/archive/ 按月分片归档冷数据（修剪=归档而非删除）；activeContext.md 1598→243 行（27 热条目 + 归档指针），150 冷条目入 5 个月度 shard（2026-03..07），完整性校验通过（1622 = 1598 + 6 shard 头）；R13 重写为归档制（禁止直接删除、shard 只写不改、完整性校验步骤）
 ---
 
 > **归档**：更早的条目已按月归档至 `memory-bank/archive/activeContext-YYYY-MM.md`（R13 冷数据），本文件只保留最近 30 天热条目。

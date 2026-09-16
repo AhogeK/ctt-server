@@ -48,8 +48,11 @@
 | `EARLY_BIRD` | Merged duration inside 06:00–09:00 | seconds | ✓ | ✓ | ✓ | ✓ | `ALL` |
 | `GROWTH` | Current period minus immediately preceding period | signed seconds | — | ✓ | ✓ | ✓ | `WEEK` |
 | `ACTIVE_DAYS` | Distinct coding days | days | ✓ | ✓ | ✓ | ✓ | `ALL` |
+| `LANGUAGE` | Merged duration in one language | seconds | ✓ | ✓ | ✓ | ✓ | `ALL` |
 
-20 legal pairs of 24 possible; 15 carry a TTL (every pair except the five `ALL` keys).
+20 legal pairs of 24 possible for the non-partitioned dimensions; 15 carry a TTL (every pair
+except the five `ALL` keys). `LANGUAGE` is partitioned: one board per language a user has used, so
+its key count grows with the caller's languages rather than being fixed.
 
 ## Redis keys
 

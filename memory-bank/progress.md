@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.75.0` | 2026-09-17 | feat(leaderboard): rank inside a single language |
 | `0.74.4` | 2026-09-16 | fix(sync): enforce the constraints declared on pushed sessions |
 | `0.74.3` | 2026-09-16 | fix(language): filter untrusted values before reporting them |
 | `0.74.2` | 2026-09-16 | test(stats): pin the language wiring so raw grouping cannot return |
