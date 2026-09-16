@@ -2,6 +2,7 @@ package com.ahogek.cttserver.leaderboard.service;
 
 import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.common.lock.RedisLockService;
+import com.ahogek.cttserver.language.LanguageVocabulary;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardResponse;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardPeriod;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -28,14 +30,19 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,6 +57,7 @@ class LeaderboardServiceTest {
     private StringRedisTemplate redisTemplate;
     private RedisLockService redisLock;
     private ZSetOperations<String, String> zsetOps;
+    private SetOperations<String, String> setOps;
     private ValueOperations<String, String> valueOps;
     private CodingSessionRepository codingSessionRepository;
     private UserRepository userRepository;
@@ -62,6 +70,7 @@ class LeaderboardServiceTest {
     @SuppressWarnings("unchecked")
     void setUp() {
         redisTemplate = mock(StringRedisTemplate.class);
+        setOps = mock(SetOperations.class);
         redisLock = mock(RedisLockService.class);
         when(redisLock.tryAcquire(anyString(), any(Duration.class))).thenReturn(true);
         zsetOps = mock(ZSetOperations.class);
@@ -69,6 +78,7 @@ class LeaderboardServiceTest {
         codingSessionRepository = mock(CodingSessionRepository.class);
         userRepository = mock(UserRepository.class);
         when(redisTemplate.opsForZSet()).thenReturn(zsetOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(true);
         service =
@@ -77,7 +87,8 @@ class LeaderboardServiceTest {
                         redisLock,
                         codingSessionRepository,
                         userRepository,
-                        FIXED_CLOCK);
+                        FIXED_CLOCK,
+                        new LanguageVocabulary(new ObjectMapper()));
     }
 
     private CodingSession session(Instant start, Instant end) {
@@ -86,6 +97,12 @@ class LeaderboardServiceTest {
         session.setEndTime(end);
         session.setProjectName("p");
         session.setLanguage("l");
+        return session;
+    }
+
+    private CodingSession session(Instant start, Instant end, String language) {
+        CodingSession session = session(start, end);
+        session.setLanguage(language);
         return session;
     }
 
@@ -154,6 +171,35 @@ class LeaderboardServiceTest {
             verify(zsetOps).add("leaderboard:total:week:2026-08-31", userId.toString(), 3600.0);
             verify(zsetOps).add("leaderboard:total:month:2026-08-01", userId.toString(), 3600.0);
             verify(zsetOps).add("leaderboard:total:year:2026-01-01", userId.toString(), 7200.0);
+        }
+
+        @Test
+        @DisplayName("should write one board per language and merge spellings")
+        void shouldWriteLanguageBoards_whenSpellingsDiffer() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(at("2026-08-30T10:00:00"), at("2026-08-30T11:00:00"), "JAVA"),
+                            session(at("2026-08-30T11:00:00"), at("2026-08-30T12:00:00"), "java"),
+                            session(at("2026-08-30T12:00:00"), at("2026-08-30T13:00:00"), "Kotlin"),
+                            session(
+                                    at("2026-08-30T13:00:00"),
+                                    at("2026-08-30T14:00:00"),
+                                    "textmate"));
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(sessions);
+
+            service.updateUserScores(userId);
+
+            // Two spellings of Java are one language, so both sessions land on a single board.
+            verify(zsetOps).add("leaderboard:language:Java", userId.toString(), 7200.0);
+            verify(zsetOps).add("leaderboard:language:Kotlin", userId.toString(), 3600.0);
+            // The IDE internal is not a language and must not create a board.
+            verify(zsetOps, never())
+                    .add(eq("leaderboard:language:Other"), anyString(), anyDouble());
+            // Both real languages are offered in the selector.
+            verify(setOps, atLeastOnce()).add("leaderboard:languages", "Java");
+            verify(setOps, atLeastOnce()).add("leaderboard:languages", "Kotlin");
+            verify(setOps, never()).add("leaderboard:languages", "Other");
         }
 
         @Test
@@ -279,7 +325,7 @@ class LeaderboardServiceTest {
 
             LeaderboardResponse response =
                     service.getLeaderboard(
-                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, 20, 0, userId);
+                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, null, 20, 0, userId);
 
             assertThat(response.entries()).hasSize(2);
             assertThat(response.entries().getFirst().userId()).isEqualTo(userId);
@@ -318,7 +364,7 @@ class LeaderboardServiceTest {
 
             LeaderboardResponse response =
                     service.getLeaderboard(
-                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, 20, 0, userId);
+                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, null, 20, 0, userId);
 
             assertThat(response.entries()).extracting("rank").containsExactly(1L, 2L, 2L, 4L);
         }
@@ -340,7 +386,7 @@ class LeaderboardServiceTest {
 
             LeaderboardResponse response =
                     service.getLeaderboard(
-                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, 2, 2, userId);
+                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, null, 2, 2, userId);
 
             // offset+1 would have said 3; the correct competition rank is 2.
             assertThat(response.entries()).hasSize(1);
@@ -355,7 +401,7 @@ class LeaderboardServiceTest {
                     .thenReturn(Set.of());
 
             service.getLeaderboard(
-                    LeaderboardDimension.TOTAL, LeaderboardPeriod.WEEK, 20, 0, userId);
+                    LeaderboardDimension.TOTAL, LeaderboardPeriod.WEEK, null, 20, 0, userId);
 
             verify(zsetOps).reverseRangeWithScores("leaderboard:total:week:2026-08-31", 0, 19);
         }
@@ -369,7 +415,7 @@ class LeaderboardServiceTest {
 
             LeaderboardResponse response =
                     service.getLeaderboard(
-                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, 20, 0, userId);
+                            LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, null, 20, 0, userId);
 
             assertThat(response.entries()).isEmpty();
             assertThat(response.currentUserRank()).isNull();
@@ -395,7 +441,12 @@ class LeaderboardServiceTest {
 
             LeaderboardResponse response =
                     service.getLeaderboard(
-                            LeaderboardDimension.STREAK, LeaderboardPeriod.ALL, 10, 5, userId);
+                            LeaderboardDimension.STREAK,
+                            LeaderboardPeriod.ALL,
+                            null,
+                            10,
+                            5,
+                            userId);
 
             assertThat(response.entries()).hasSize(1);
             assertThat(response.entries().getFirst().displayName()).isNull();
@@ -411,7 +462,7 @@ class LeaderboardServiceTest {
             when(zsetOps.reverseRank("leaderboard:total", userId.toString())).thenReturn(null);
 
             service.getLeaderboard(
-                    LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, 10, 20, userId);
+                    LeaderboardDimension.TOTAL, LeaderboardPeriod.ALL, null, 10, 20, userId);
 
             verify(zsetOps).reverseRangeWithScores("leaderboard:total", 20, 29);
         }
@@ -424,6 +475,7 @@ class LeaderboardServiceTest {
                                     service.getLeaderboard(
                                             LeaderboardDimension.STREAK,
                                             LeaderboardPeriod.WEEK,
+                                            null,
                                             20,
                                             0,
                                             userId))
@@ -433,6 +485,7 @@ class LeaderboardServiceTest {
                                     service.getLeaderboard(
                                             LeaderboardDimension.GROWTH,
                                             LeaderboardPeriod.ALL,
+                                            null,
                                             20,
                                             0,
                                             userId))

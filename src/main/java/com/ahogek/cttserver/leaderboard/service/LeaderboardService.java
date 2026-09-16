@@ -3,6 +3,10 @@ package com.ahogek.cttserver.leaderboard.service;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.common.lock.RedisLockService;
+import com.ahogek.cttserver.language.CanonicalLanguage;
+import com.ahogek.cttserver.language.LanguageType;
+import com.ahogek.cttserver.language.LanguageVocabulary;
+import com.ahogek.cttserver.leaderboard.dto.LanguageBoardDto;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardEntryDto;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardResponse;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
@@ -27,6 +31,8 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +69,15 @@ public class LeaderboardService {
     private static final Logger log = LoggerFactory.getLogger(LeaderboardService.class);
 
     private static final String KEY_PREFIX = "leaderboard:";
+
+    /**
+     * Set of languages that have a board, so a client can offer a selector without guessing.
+     *
+     * <p>A SET rather than a scan: enumerating ZSet keys by pattern is O(total keys), and the index
+     * is written alongside the scores it describes.
+     */
+    private static final String LANGUAGE_BOARDS_KEY = KEY_PREFIX + "languages";
+
     private static final String LOCK_PREFIX = "leaderboard:lock:";
     private static final Duration LOCK_TTL = Duration.ofSeconds(5);
 
@@ -71,14 +86,22 @@ public class LeaderboardService {
     private final CodingSessionRepository codingSessionRepository;
     private final UserRepository userRepository;
     private final Clock clock;
+    private final LanguageVocabulary languageVocabulary;
 
     @Autowired
     public LeaderboardService(
             StringRedisTemplate redisTemplate,
             RedisLockService redisLock,
             CodingSessionRepository codingSessionRepository,
-            UserRepository userRepository) {
-        this(redisTemplate, redisLock, codingSessionRepository, userRepository, Clock.systemUTC());
+            UserRepository userRepository,
+            LanguageVocabulary languageVocabulary) {
+        this(
+                redisTemplate,
+                redisLock,
+                codingSessionRepository,
+                userRepository,
+                Clock.systemUTC(),
+                languageVocabulary);
     }
 
     LeaderboardService(
@@ -86,12 +109,14 @@ public class LeaderboardService {
             RedisLockService redisLock,
             CodingSessionRepository codingSessionRepository,
             UserRepository userRepository,
-            Clock clock) {
+            Clock clock,
+            LanguageVocabulary languageVocabulary) {
         this.redisTemplate = redisTemplate;
         this.redisLock = redisLock;
         this.codingSessionRepository = codingSessionRepository;
         this.userRepository = userRepository;
         this.clock = clock;
+        this.languageVocabulary = languageVocabulary;
     }
 
     /**
@@ -143,17 +168,22 @@ public class LeaderboardService {
      *
      * @param dimension the ranking dimension
      * @param period the time window
+     * @param language the canonical language, required for {@link LeaderboardDimension#LANGUAGE}
+     *     and rejected for the others
      * @param limit page size
      * @param offset zero-based start index
      * @param currentUserId the calling user
      * @return the ranked page, the caller's rank (or {@code null} when not ranked) and the ranking
      *     size
-     * @throws ValidationException when the dimension does not support the period
+     * @throws ValidationException when the dimension does not support the period, when a
+     *     partitioned dimension is requested without a language, or when the named language is not
+     *     one the vocabulary recognizes
      */
     @Transactional(readOnly = true)
     public LeaderboardResponse getLeaderboard(
             LeaderboardDimension dimension,
             LeaderboardPeriod period,
+            String language,
             int limit,
             int offset,
             UUID currentUserId) {
@@ -162,8 +192,9 @@ public class LeaderboardService {
                     ErrorCode.COMMON_003,
                     "Dimension " + dimension + " does not support period " + period);
         }
+        String board = resolveBoard(dimension, language);
         LocalDate today = LocalDate.now(clock);
-        String key = key(dimension, period, today);
+        String key = key(dimension, period, today, board);
         ZSetOperations<String, String> zSet = redisTemplate.opsForZSet();
         Set<ZSetOperations.TypedTuple<String>> tuples =
                 zSet.reverseRangeWithScores(key, offset, (long) offset + limit - 1);
@@ -173,6 +204,67 @@ public class LeaderboardService {
         Long total = zSet.size(key);
         return new LeaderboardResponse(
                 entries, currentUserRank, total != null ? total : entries.size());
+    }
+
+    /**
+     * Returns the languages that have a board, so a client can offer a selector.
+     *
+     * <p>Read from the index written alongside the scores rather than from the vocabulary: every
+     * canonical language could be listed, but most would be empty boards nobody can be ranked on,
+     * and a selector full of them is worse than one that reflects actual activity. The vocabulary
+     * supplies the category, since the index stores only the name.
+     *
+     * <p>A language stays listed once added, even if its current-period board is empty — a board
+     * that disappears when a period rolls over would move the selector under the user.
+     *
+     * @return the boards, ordered by name
+     */
+    @Transactional(readOnly = true)
+    public List<LanguageBoardDto> languageBoards() {
+        Set<String> names = redisTemplate.opsForSet().members(LANGUAGE_BOARDS_KEY);
+        if (names == null || names.isEmpty()) {
+            return List.of();
+        }
+        return names.stream()
+                .map(languageVocabulary::normalize)
+                .filter(CanonicalLanguage::recognized)
+                .sorted(Comparator.comparing(CanonicalLanguage::name))
+                .map(LanguageBoardDto::from)
+                .toList();
+    }
+
+    /**
+     * Validates the language argument and returns the board name, or {@code null} for dimensions
+     * that are not partitioned.
+     *
+     * <p>A language the vocabulary classifies as {@code Other} has no board by construction, so it
+     * is rejected here rather than answered with an empty ranking — an empty page for a language
+     * that cannot have one is a different statement from "nobody is ranked yet".
+     *
+     * @param dimension the requested dimension
+     * @param language the requested language, possibly absent
+     * @return the canonical language name, or {@code null} when the dimension needs none
+     * @throws ValidationException when the parameter is missing, unexpected, or unknown
+     */
+    private String resolveBoard(LeaderboardDimension dimension, String language) {
+        boolean provided = language != null && !language.isBlank();
+        if (!dimension.requiresLanguage()) {
+            if (provided) {
+                throw new ValidationException(
+                        ErrorCode.COMMON_003,
+                        "Dimension " + dimension + " is not per-language; omit language");
+            }
+            return null;
+        }
+        if (!provided) {
+            throw new ValidationException(
+                    ErrorCode.COMMON_003, "Dimension " + dimension + " requires a language");
+        }
+        CanonicalLanguage canonical = languageVocabulary.normalize(language);
+        if (!canonical.recognized() || canonical.type() == LanguageType.OTHER) {
+            throw new ValidationException(ErrorCode.COMMON_003, "Unknown language: " + language);
+        }
+        return canonical.name();
     }
 
     /**
@@ -273,14 +365,33 @@ public class LeaderboardService {
                 if (!dimension.supports(period)) {
                     continue;
                 }
-                long score = computeScore(views, dimension, period);
-                String key = key(dimension, period, today);
-                redisTemplate.opsForZSet().add(key, userId.toString(), score);
-                Duration ttl = ttlFor(period);
-                if (ttl != null) {
-                    redisTemplate.expire(key, ttl);
+                if (dimension.requiresLanguage()) {
+                    // One board per language the user actually used; a user with no sessions in a
+                    // language is simply absent from its board.
+                    for (String language : views.intervalsByLanguage().keySet()) {
+                        writeScore(
+                                key(dimension, period, today, language),
+                                userId,
+                                computeScore(views, dimension, period, language),
+                                period);
+                        redisTemplate.opsForSet().add(LANGUAGE_BOARDS_KEY, language);
+                    }
+                } else {
+                    writeScore(
+                            key(dimension, period, today, null),
+                            userId,
+                            computeScore(views, dimension, period, null),
+                            period);
                 }
             }
+        }
+    }
+
+    private void writeScore(String key, UUID userId, long score, LeaderboardPeriod period) {
+        redisTemplate.opsForZSet().add(key, userId.toString(), score);
+        Duration ttl = ttlFor(period);
+        if (ttl != null) {
+            redisTemplate.expire(key, ttl);
         }
     }
 
@@ -298,7 +409,10 @@ public class LeaderboardService {
      * @return the score
      */
     private long computeScore(
-            SessionViews views, LeaderboardDimension dimension, LeaderboardPeriod period) {
+            SessionViews views,
+            LeaderboardDimension dimension,
+            LeaderboardPeriod period,
+            String language) {
         ZoneOffset utc = ZoneOffset.UTC;
         LocalDate today = views.today();
         return switch (dimension) {
@@ -309,6 +423,7 @@ public class LeaderboardService {
                 yield periodsSeconds(views.intervals(), period, today, 0);
             }
             case ACTIVE_DAYS -> activeDaysIn(views, period, today);
+            case LANGUAGE -> languageSeconds(views, language, period);
             case STREAK -> StatsCalculator.streaks(views.sessions(), utc, today).max();
             case NIGHT_OWL, EARLY_BIRD ->
                     StatsCalculator.mergedDurationInDailyWindow(
@@ -349,6 +464,45 @@ public class LeaderboardService {
                 intervals,
                 windowStart.atStartOfDay().atOffset(ZoneOffset.UTC),
                 windowEnd.atStartOfDay().atOffset(ZoneOffset.UTC));
+    }
+
+    /**
+     * Merged seconds the user spent in one language inside a period.
+     *
+     * <p>Merged rather than summed so two overlapping sessions in the same language count once —
+     * the rule every duration dimension uses. A language the user has no sessions in scores zero,
+     * which for a board simply means they do not appear on it.
+     *
+     * @param views the shared session views
+     * @param language the canonical language name
+     * @param period the time window
+     * @return merged seconds in that language
+     */
+    private long languageSeconds(SessionViews views, String language, LeaderboardPeriod period) {
+        List<StatsCalculator.TimeInterval> intervals =
+                views.intervalsByLanguage().get(language == null ? "" : language);
+        if (intervals == null || intervals.isEmpty()) {
+            return 0;
+        }
+        // ALL has no bounds, and the bounded helper answers zero for it — so the lifetime board
+        // needs the merged total directly rather than a window that does not exist.
+        if (period == LeaderboardPeriod.ALL) {
+            return mergedSeconds(intervals);
+        }
+        return periodsSeconds(intervals, period, views.today(), 0);
+    }
+
+    /**
+     * Overlap-collapsed total of a set of intervals.
+     *
+     * @param intervals the intervals
+     * @return the merged duration in seconds
+     */
+    private static long mergedSeconds(List<StatsCalculator.TimeInterval> intervals) {
+        return StatsCalculator.mergeOverlapping(intervals).stream()
+                .map(StatsCalculator.TimeInterval::duration)
+                .reduce(Duration.ZERO, Duration::plus)
+                .toSeconds();
     }
 
     /** Number of distinct coding days inside the current period. */
@@ -400,6 +554,7 @@ public class LeaderboardService {
     private record SessionViews(
             List<CodingSession> sessions,
             List<StatsCalculator.TimeInterval> intervals,
+            Map<String, List<StatsCalculator.TimeInterval>> intervalsByLanguage,
             Map<LocalDate, Long> secondsByDay,
             long lifetimeSeconds,
             LocalDate today) {}
@@ -407,21 +562,59 @@ public class LeaderboardService {
     private SessionViews buildViews(List<CodingSession> sessions, LocalDate today) {
         ZoneOffset utc = ZoneOffset.UTC;
         List<StatsCalculator.TimeInterval> intervals = StatsCalculator.toIntervals(sessions, utc);
-        long total =
-                StatsCalculator.mergeOverlapping(intervals).stream()
-                        .map(StatsCalculator.TimeInterval::duration)
-                        .reduce(Duration.ZERO, Duration::plus)
-                        .toSeconds();
+        long total = mergedSeconds(intervals);
         return new SessionViews(
                 sessions,
                 intervals,
+                intervalsByCanonicalLanguage(sessions, utc),
                 StatsCalculator.mergedSecondsByDay(sessions, utc),
                 total,
                 today);
     }
 
-    private String key(LeaderboardDimension dimension, LeaderboardPeriod period, LocalDate today) {
-        return KEY_PREFIX + dimension.name().toLowerCase() + period.keySuffix(today);
+    /**
+     * Groups sessions by canonical language and converts each group to intervals.
+     *
+     * <p>Only languages the vocabulary recognizes and does not classify as {@code Other} appear:
+     * that is what keeps the board key space bounded by the vocabulary instead of by whatever
+     * strings clients submit. An unrecognized value is still stored, still counted in the
+     * distribution, and still reported for classification — it simply has no board until someone
+     * classifies it.
+     *
+     * <p>Built once per recompute and shared, like the other views: the work is the same as one
+     * pass over the sessions because the groups partition them.
+     *
+     * @param sessions live sessions
+     * @param utc the aggregation zone
+     * @return canonical language name to that language's intervals
+     */
+    private Map<String, List<StatsCalculator.TimeInterval>> intervalsByCanonicalLanguage(
+            List<CodingSession> sessions, ZoneOffset utc) {
+        Map<String, List<CodingSession>> grouped = new LinkedHashMap<>();
+        for (CodingSession session : sessions) {
+            CanonicalLanguage language = languageVocabulary.normalize(session.getLanguage());
+            if (!language.recognized() || language.type() == LanguageType.OTHER) {
+                continue;
+            }
+            grouped.computeIfAbsent(language.name(), _ -> new ArrayList<>()).add(session);
+        }
+        Map<String, List<StatsCalculator.TimeInterval>> byLanguage = new LinkedHashMap<>();
+        grouped.forEach(
+                (language, ofLanguage) ->
+                        byLanguage.put(language, StatsCalculator.toIntervals(ofLanguage, utc)));
+        return byLanguage;
+    }
+
+    private String key(
+            LeaderboardDimension dimension,
+            LeaderboardPeriod period,
+            LocalDate today,
+            String language) {
+        String base = KEY_PREFIX + dimension.name().toLowerCase();
+        if (language != null) {
+            base = base + ":" + language;
+        }
+        return base + period.keySuffix(today);
     }
 
     private static Duration ttlFor(LeaderboardPeriod period) {
