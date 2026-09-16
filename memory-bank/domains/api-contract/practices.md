@@ -50,6 +50,24 @@ JSON — the constants are the single source for the envelope shape.
 - Ownership checks throw `NotFoundException(COMMON_002, "...")` — see principle 3.
 - Never `return null` for an empty collection; return an empty list so clients can iterate blindly.
 
+### A constraint on an element type only runs when the collection is `@Valid`
+
+`@NotEmpty List<ItemDto>` validates the list; it does **not** descend into `ItemDto`. Every
+constraint declared on the element type — `@NotNull`, `@NotBlank`, `@Size`, `@PositiveOrZero` — is
+inert until the field also carries `@Valid`. The annotations still read correctly, the OpenAPI schema
+still advertises them, and nothing fails; the request simply arrives with an unvalidated body.
+
+Easy to introduce because the two annotations sit on adjacent lines and only one of them is about the
+collection. When a request DTO holds a list or a nested object, put `@Valid` on it and then assert
+it — a test that posts a body violating the element's own constraint and expects `400` is the only
+thing separating "declared" from "enforced".
+
+The cost of missing it is not a rejected request but a **downstream failure**: in the push path an
+unvalidated field reached a multi-row `INSERT`, where a value exceeding the column width failed the
+entire statement — one bad session rejected the whole batch, with an error the client could not act
+on and reproduced on every retry. Bound request strings to the width of the column they are stored
+in, so the failure is a `400` at the boundary instead of a rejected batch deeper in.
+
 ## Test recipe
 
 1. Happy path asserting the wrapped envelope (`$.success`, `$.data...`).
