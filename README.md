@@ -500,7 +500,7 @@ to two local days while living on a single UTC day.
 | `/api/v1/leaderboard` | GET | Global ranking by coding duration / streak / night-owl / early-bird / growth / active-days dimensions, over a lifetime or current period, with the calling user's rank and the size of the ranking | READ |
 
 **Parameters**: `dimension` (`TOTAL` | `STREAK` | `NIGHT_OWL` | `EARLY_BIRD` | `GROWTH` |
-`ACTIVE_DAYS`), `period` (`ALL` | `WEEK` | `MONTH` | `YEAR`, defaults to the dimension's default:
+`ACTIVE_DAYS` | `LANGUAGE`), `period` (`ALL` | `WEEK` | `MONTH` | `YEAR`, defaults to the dimension's default:
 `ALL` for every dimension except `GROWTH`, which defaults to `WEEK`), `limit` (default 20, max
 100), `offset` (zero-based). Rankings are backed by Redis ZSets; a user's scores are recomputed
 from the database after each successful push, so the ranking reflects new sessions immediately
@@ -525,6 +525,7 @@ page. Tied members have no defined order between them.
 | `EARLY_BIRD` | `ALL`/`WEEK`/`MONTH`/`YEAR` | Merged 06:00-09:00 window duration (UTC) |
 | `GROWTH` | `WEEK`/`MONTH`/`YEAR` | Net growth against the immediately preceding period (can be negative) |
 | `ACTIVE_DAYS` | `ALL`/`WEEK`/`MONTH`/`YEAR` | Number of distinct coding days |
+| `LANGUAGE` | `ALL`/`WEEK`/`MONTH`/`YEAR` | Merged duration in **one** language, selected by the required `language` parameter |
 
 `STREAK` is lifetime-only because every period window is shorter than the runs it rewards, and
 `GROWTH` excludes `ALL` because an unbounded history has no preceding period to compare against.
