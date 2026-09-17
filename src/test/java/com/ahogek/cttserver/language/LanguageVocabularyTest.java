@@ -95,11 +95,11 @@ class LanguageVocabularyTest {
         @Test
         @DisplayName("should preserve an unknown value instead of hiding it")
         void shouldPreserveRaw_whenValueIsUnknown() {
-            CanonicalLanguage result = VOCABULARY.normalize("Zig");
+            CanonicalLanguage result = VOCABULARY.normalize("ZigZag9000");
 
             // Preserving the raw name keeps a genuinely new language visible; folding it into Other
             // would bury it in a bucket nobody inspects.
-            assertThat(result.name()).isEqualTo("Zig");
+            assertThat(result.name()).isEqualTo("ZigZag9000");
             assertThat(result.recognized()).isFalse();
             assertThat(result.type()).isEqualTo(LanguageType.OTHER);
         }
@@ -109,7 +109,7 @@ class LanguageVocabularyTest {
         void shouldNotReport_whenValueCarriesControlCharacters() {
             // The value is client-supplied and used to be logged verbatim, so a newline would let a
             // crafted language name append a line of its own to the server log.
-            String forged = "Zig\nWARN  forged line";
+            String forged = "QuuxLang\nWARN  forged line";
 
             assertThat(VOCABULARY.normalize(forged).name()).isEqualTo(forged);
             assertThat(VOCABULARY.unmappedValues()).doesNotContain(forged);
@@ -127,10 +127,10 @@ class LanguageVocabularyTest {
         @Test
         @DisplayName("should report a plausible unknown value")
         void shouldReport_whenValueLooksLikeALanguage() {
-            VOCABULARY.normalize("Zig");
-            VOCABULARY.normalize("Nim");
+            VOCABULARY.normalize("ZigZag9000");
+            VOCABULARY.normalize("QuuxLang");
 
-            assertThat(VOCABULARY.unmappedValues()).contains("Zig", "Nim");
+            assertThat(VOCABULARY.unmappedValues()).contains("ZigZag9000", "QuuxLang");
         }
 
         @Test
