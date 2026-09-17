@@ -504,7 +504,10 @@ to two local days while living on a single UTC day.
 `ALL` for every dimension except `GROWTH`, which defaults to `WEEK`), `limit` (default 20, max
 100), `offset` (zero-based). Rankings are backed by Redis ZSets; a user's scores are recomputed
 from the database after each successful push, so the ranking reflects new sessions immediately
-without a full rebuild. Period keys are bucketed by their period start (ISO Monday for weeks) and
+without a full rebuild. When the scoring rule itself changes, a one-off backfill recomputes every
+user's scores shortly after startup: its marker key encodes both the rule and the vocabulary
+version, so a rule change forces exactly one recompute, and a run interrupted by a restart simply
+retries on the next start. Period keys are bucketed by their period start (ISO Monday for weeks) and
 expire once the period closes (`ALL` never expires). An unsupported dimension/period combination
 returns 400 `COMMON_003`. Endpoint is rate-limited to 60 req/min (`RATE_LIMIT_001`).
 
@@ -536,8 +539,10 @@ two overlapping sessions in it count once, and a user with no sessions in a lang
 from its board. Boards exist only for languages the vocabulary recognizes and does not classify as
 `Other`, which keeps the key space bounded by the vocabulary rather than by whatever strings clients
 submit — an unrecognized value is still stored and reported for classification, it simply has no board
-until classified. `GET /api/v1/leaderboard/languages` lists the boards that exist, each with its
-category.
+until classified. `GET /api/v1/leaderboard/languages` lists every language a caller can rank inside — the whole
+vocabulary, not only the boards that happen to hold scores, because which boards exist is a property
+of the vocabulary while membership is a property of activity. Each entry carries its category and a
+`hasMembers` flag, so a client can lead with populated boards without the server counting each one.
 
 `ACTIVE_DAYS` measures consistency rather than volume, so it stays reachable for users with
 limited hours.
