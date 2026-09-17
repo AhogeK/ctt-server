@@ -539,10 +539,14 @@ two overlapping sessions in it count once, and a user with no sessions in a lang
 from its board. Boards exist only for languages the vocabulary recognizes and does not classify as
 `Other`, which keeps the key space bounded by the vocabulary rather than by whatever strings clients
 submit — an unrecognized value is still stored and reported for classification, it simply has no board
-until classified. `GET /api/v1/leaderboard/languages` lists every language a caller can rank inside — the whole
-vocabulary, not only the boards that happen to hold scores, because which boards exist is a property
-of the vocabulary while membership is a property of activity. Each entry carries its category and a
-`hasMembers` flag, so a client can lead with populated boards without the server counting each one.
+until classified. `GET /api/v1/leaderboard/languages` lists the boards a caller can rank inside — the
+languages that hold someone, so that a selector built from it cannot offer a board that answers with
+an empty page. `includeEmpty=true` returns the whole vocabulary instead, for a client that wants to
+browse which boards exist at all; every entry carries its category, and a `hasMembers` flag in that
+form. A language appears in the directory when someone is first ranked in it, and leaves when its last
+member stops coding in it — which also happens to the score: a user whose last session in a language
+is deleted (or whose session changes language) is removed from that board on the next recompute
+rather than staying ranked at the score they had.
 
 `ACTIVE_DAYS` measures consistency rather than volume, so it stays reachable for users with
 limited hours.
