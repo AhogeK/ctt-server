@@ -59,18 +59,27 @@ optional one supplied to a dimension that has no use for it, is a `400`. Silentl
 answer a different question than the caller asked, and silently defaulting it would read a board
 nobody writes.
 
-## 5. A catalogue is a vocabulary fact; membership is an activity fact
+## 5. A catalogue answers whichever question its caller asked
 
-The language directory lists every language the vocabulary knows, and reports separately whether a
-board has members. Deriving the list from activity instead was a real defect: the index is written
-when a user's scores are recomputed, so a board for a language nobody had pushed since the dimension
-existed answered `200` while the directory did not offer it. The endpoint could tell "unknown
-language" from "no members" and the catalogue could not, which made the two disagree about one
-question.
+`GET /leaderboard/languages` offers both readings, because both are legitimate: the boards that hold
+someone (the default) and every language the vocabulary knows (`includeEmpty=true`).
 
-The same rule generalizes: anything that enumerates what a client may ask for is bounded by the
-vocabulary, and anything that describes current usage is separate and optional. Mixing them produces
-a list that is neither complete nor a faithful activity report.
+The default is the smaller list because the endpoint's consumer is a selector. The vocabulary is
+large and the set of languages anyone has pushed is small, so a list of the vocabulary buries the
+boards that can be opened under hundreds that answer with an empty page. The larger list stays
+available because "which boards exist at all" is a different and also valid question, and every entry
+carries `hasMembers` when it is asked.
+
+The defect this replaced was **not** that the list came from activity — it was that the index it came
+from was neither complete nor accurate. It was written only when a user pushed, so a language nobody
+had pushed since the dimension shipped was missing while its board answered `200`; and it was never
+pruned, so a language whose last member had gone was still offered. The index is now maintained at
+both ends for that reason: a language enters when someone is ranked in it and leaves when its last
+member stops coding in it.
+
+Nothing is lost by defaulting to the smaller list, because an empty board and a language outside the
+vocabulary were never the same statement — the board endpoint already separates them on its own (an
+empty page against a `400`).
 
 ## 6. Score units differ per dimension; never assume seconds
 
@@ -127,3 +136,25 @@ key changes are data migrations whether or not they are treated as such.
 entries: a full page means "there may be more", and a short page means "this is the end" only for
 that key. "Rank N of M" requires M explicitly. It is a primitive `long`, because the response
 configuration drops null fields and a wrapper type would omit the key exactly when the value is 0.
+
+## 12. A ranking holds who is ranked now
+
+`LANGUAGE` is the only conditional dimension: every other dimension writes a score for a user whether
+or not they have time in the window, while a language board is written only while the user still has
+sessions in it. A recompute that writes the current set and nothing else therefore leaves the
+previous set behind — a user whose last session in a language is deleted stays ranked in it, at the
+score it had, and nothing removes them: the service issued no `ZREM`.
+
+The recompute now records the languages it ranked the user in and drops the difference on the next
+run. The record is a string per user rather than a set, because "ranked in nothing" is a state worth
+recording: it is what keeps a user with no rankable language from re-deriving that fact on every
+push. A user has no record on their first recompute, so the board index answers for them instead —
+which is also what makes the fix clean up entries that predate it, one user at a time, as they next
+push.
+
+The index is maintained in the same step: a language leaves it when its last member does, so the
+catalogue describes the boards that exist rather than the boards that ever did.
+
+The deletion is not the only path here, which is why the fix sits in the recompute rather than at the
+deletion: a session whose language changes strands the old language's score just as completely, and
+the recompute is the one place that sees the user's data as it is now.

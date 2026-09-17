@@ -52,7 +52,8 @@
 
 20 legal pairs of 24 possible for the non-partitioned dimensions; 15 carry a TTL (every pair
 except the five `ALL` keys). `LANGUAGE` is partitioned: one board per language a user has used, so
-its key count grows with the caller's languages rather than being fixed.
+its key count grows with the caller's languages rather than being fixed — and shrinks again when they
+stop using one.
 
 ## Redis keys
 
@@ -62,10 +63,14 @@ its key count grows with the caller's languages rather than being fixed.
 | `leaderboard:<dimension>:week:<ISO Monday>` | `leaderboard:total:week:2026-08-31` |
 | `leaderboard:<dimension>:month:<1st>` | `leaderboard:total:month:2026-08-01` |
 | `leaderboard:<dimension>:year:<Jan 1>` | `leaderboard:total:year:2026-01-01` |
+| `leaderboard:language:<name>[<period suffix>]` | `leaderboard:language:Java:week:2026-08-31` |
 | `leaderboard:lock:<userId>` | per-user recompute lock |
+| `leaderboard:languages` | SET: languages that currently have a board |
+| `leaderboard:user:languages:<userId>` | STRING: the languages that user is ranked in, `\n`-joined |
 
 ZSet member = user UUID, score = the measured value. `ALL` keys never expire; period keys expire via
-`ttlFor(period)`.
+`ttlFor(period)`. The last two are bookkeeping rather than rankings: the index answers the directory,
+the per-user string tells the next recompute which boards to remove the user from.
 
 ## Redis operations used
 
@@ -75,7 +80,10 @@ ZSet member = user UUID, score = the measured value. `ALL` keys never expire; pe
 | `opsForZSet().reverseRangeWithScores(key, offset, offset + limit - 1)` | one page, high score first |
 | `opsForZSet().count(key, min, max)` (`ZCOUNT`) | `rankFor` — count of strictly better scores |
 | `opsForZSet().score(key, member)` (`ZSCORE`) | the caller's own score, for `currentUserRank` |
-| `opsForZSet().size(key)` (`ZCARD`) | `totalParticipants` |
+| `opsForZSet().size(key)` (`ZCARD`) | `totalParticipants`, and whether a board emptied |
+| `opsForZSet().remove(key, member)` (`ZREM`) | drop a user from a board their data no longer covers |
+| `opsForSet().add/remove("leaderboard:languages", …)` | keep the index at both ends |
+| `opsForValue().get/set("leaderboard:user:languages:<id>")` | what the last recompute ranked the user in |
 
 `reverseRank` exists in the API but is deliberately unused — it ranks by physical position with
 member-id tie-breaking, which disagrees with competition ranking.
@@ -86,6 +94,7 @@ member-id tie-breaking, which disagrees with competition ranking.
 | --- | --- |
 | "Rank 12 of 340" | `currentUserRank` + `totalParticipants` |
 | Percentile | `(totalParticipants - currentUserRank) / totalParticipants` |
+| Language selector | `/leaderboard/languages` (boards that hold someone); add `includeEmpty=true` to browse the vocabulary |
 | Period leaderboard tabs | Same endpoint, `period=WEEK\|MONTH\|YEAR`; `STREAK` is `ALL`-only, `GROWTH` has no `ALL` |
 | Consistency-flavored board | `ACTIVE_DAYS` (favors regular users over high-volume ones) |
 | Detect end of list | Fewer than `limit` entries returned for a stable key (there is no `hasMore` field) |

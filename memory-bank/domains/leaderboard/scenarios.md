@@ -37,7 +37,9 @@ Trigger → judgement → action.
 | A session is pushed | The ranking must reflect it without a rebuild | `recomputeAndWriteAll` runs on push, covering every legal pair |
 | Multiple keys need the same underlying data | Rebuilding per pair repeats the expensive work | Build `SessionViews` once per recompute (intervals, per-day seconds, lifetime total) and share it |
 | A key's window closes | It must not accumulate stale members forever | `ttlFor(period)` expires period keys; `ALL` never expires |
-| A user's account is deleted | Their entry should leave the ranking | Currently unreachable — no account-deletion endpoint exists. Revisit if one is added (ZREM) |
+| A user stops coding in a language (their session is deleted, or its language changes) | `LANGUAGE` is the only conditional dimension — the board was written, so it must be unwritten | The recompute removes the difference against `leaderboard:user:languages:<id>`, and the index drops the language if no board holds anyone. Do not fix this at the deletion site: a changed language strands the old board just as completely, and the recompute is the one place that sees the data as it is now |
+| A language's board shows a member who no longer codes in it | `expected: 0L but was: 1L` is the symptom | That is the strand above; `shouldDropUserFromLanguageBoard_whenTheirLastSessionIsDeleted` pins it end to end |
+| A user's account is deleted | Their entry should leave the ranking | Still unreachable — no account-deletion endpoint exists. `ZREM` now exists for the language case, so the mechanism is in place if one is added |
 
 ## Perceiving a bug from the outside
 
