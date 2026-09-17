@@ -171,6 +171,45 @@ public class LeaderboardService {
     }
 
     /**
+     * Removes a user from every board they can appear on, for good.
+     *
+     * <p>A recompute cannot do this: it writes what the user's sessions say today, and a deleted
+     * account has none — so without this the name stays ranked on every board it ever reached, and
+     * keeps counting towards {@code totalParticipants}. Deletion is the one lifecycle event the
+     * recompute path cannot express, because there is nothing left to recompute from.
+     *
+     * <p>Failures are logged and swallowed, like {@link #updateUserScores}: the account is already
+     * deleted by the time this runs, and failing the request would report a deletion that did
+     * happen as one that did not. A swallowed failure leaves a stale entry, which is visible and
+     * fixable; a thrown one would leave the caller believing the opposite of the truth.
+     *
+     * @param userId the deleted user
+     */
+    public void removeUserFromRankings(UUID userId) {
+        try {
+            LocalDate today = LocalDate.now(clock);
+            for (LeaderboardDimension dimension : LeaderboardDimension.values()) {
+                for (LeaderboardPeriod period : LeaderboardPeriod.values()) {
+                    if (!dimension.supports(period) || dimension.requiresLanguage()) {
+                        continue;
+                    }
+                    redisTemplate
+                            .opsForZSet()
+                            .remove(key(dimension, period, today, null), userId.toString());
+                }
+            }
+            // Language boards are the conditional ones, so they are discovered rather than
+            // enumerated: the index is a superset of the boards that can hold this user.
+            for (String language : languagesRankedButUnused(userId, Set.of(), today)) {
+                removeLanguageBoards(userId, language, today);
+            }
+            redisTemplate.delete(userLanguagesKey(userId));
+        } catch (Exception e) {
+            log.error("Failed to remove user {} from the leaderboards", userId, e);
+        }
+    }
+
+    /**
      * Returns one page of the leaderboard with the calling user's rank.
      *
      * <p>Ranks use standard competition ranking: equal scores share a position, and the next
