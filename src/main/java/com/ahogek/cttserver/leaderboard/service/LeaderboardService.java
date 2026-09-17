@@ -31,7 +31,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -207,29 +206,31 @@ public class LeaderboardService {
     }
 
     /**
-     * Returns the languages that have a board, so a client can offer a selector.
+     * Returns every language a caller can rank inside, so a client can offer a selector.
      *
-     * <p>Read from the index written alongside the scores rather than from the vocabulary: every
-     * canonical language could be listed, but most would be empty boards nobody can be ranked on,
-     * and a selector full of them is worse than one that reflects actual activity. The vocabulary
-     * supplies the category, since the index stores only the name.
+     * <p>The list is the vocabulary, not the set of boards that happen to hold scores. Which boards
+     * exist is a property of the vocabulary: a language is rankable the moment it is recognized,
+     * and it is recognized whether or not anyone has pushed since the dimension was added. Deriving
+     * the list from activity instead produced a directory that omitted legitimate languages — a
+     * board for a language nobody had pushed yet answered `200`, while the directory did not offer
+     * it — so the two disagreed about the same question.
      *
-     * <p>A language stays listed once added, even if its current-period board is empty — a board
-     * that disappears when a period rolls over would move the selector under the user.
+     * <p>{@code hasMembers} carries the activity fact separately, where it belongs: the set of
+     * languages with scores is still maintained, but as a hint for ordering rather than as a filter
+     * over what exists. One set read answers it for every entry, so a client can sort populated
+     * boards first without the server issuing a count per board.
      *
-     * @return the boards, ordered by name
+     * @return every canonical language, ordered by name
      */
     @Transactional(readOnly = true)
     public List<LanguageBoardDto> languageBoards() {
-        Set<String> names = redisTemplate.opsForSet().members(LANGUAGE_BOARDS_KEY);
-        if (names == null || names.isEmpty()) {
-            return List.of();
-        }
-        return names.stream()
-                .map(languageVocabulary::normalize)
-                .filter(CanonicalLanguage::recognized)
-                .sorted(Comparator.comparing(CanonicalLanguage::name))
-                .map(LanguageBoardDto::from)
+        Set<String> populated = redisTemplate.opsForSet().members(LANGUAGE_BOARDS_KEY);
+        Set<String> withMembers = populated == null ? Set.of() : populated;
+        return languageVocabulary.languages().stream()
+                .map(
+                        language ->
+                                LanguageBoardDto.from(
+                                        language, withMembers.contains(language.name())))
                 .toList();
     }
 

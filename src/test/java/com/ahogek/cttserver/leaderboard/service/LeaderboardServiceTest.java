@@ -3,6 +3,7 @@ package com.ahogek.cttserver.leaderboard.service;
 import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.common.lock.RedisLockService;
 import com.ahogek.cttserver.language.LanguageVocabulary;
+import com.ahogek.cttserver.leaderboard.dto.LanguageBoardDto;
 import com.ahogek.cttserver.leaderboard.dto.LeaderboardResponse;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardPeriod;
@@ -88,8 +89,10 @@ class LeaderboardServiceTest {
                         codingSessionRepository,
                         userRepository,
                         FIXED_CLOCK,
-                        new LanguageVocabulary(new ObjectMapper()));
+                        VOCABULARY);
     }
+
+    private static final LanguageVocabulary VOCABULARY = new LanguageVocabulary(new ObjectMapper());
 
     private CodingSession session(Instant start, Instant end) {
         CodingSession session = new CodingSession();
@@ -291,6 +294,50 @@ class LeaderboardServiceTest {
             assertThatCode(() -> service.updateUserScores(userId)).doesNotThrowAnyException();
             // the per-user lock is released even when the write failed
             verify(redisTemplate).delete("leaderboard:lock:" + userId);
+        }
+    }
+
+    @Nested
+    @DisplayName("languageBoards")
+    class LanguageBoardsTests {
+
+        @Test
+        @DisplayName("should offer the vocabulary, not only the boards that have members")
+        void shouldOfferVocabulary_whenDirectoryRequested() {
+            when(setOps.members("leaderboard:languages")).thenReturn(Set.of("Java"));
+
+            List<LanguageBoardDto> boards = service.languageBoards();
+
+            // The regression this guards: deriving the list from activity dropped every language
+            // nobody had pushed since the dimension existed, while a board for that same language
+            // answered 200. The two disagreed about one question.
+            assertThat(boards)
+                    .extracting(LanguageBoardDto::name)
+                    .contains("Java", "Elixir", "Astro", "Kotlin")
+                    .hasSize(VOCABULARY.languages().size());
+        }
+
+        @Test
+        @DisplayName("should flag only the boards that have members")
+        void shouldFlagMembership_whenDirectoryRequested() {
+            when(setOps.members("leaderboard:languages")).thenReturn(Set.of("Java"));
+
+            List<LanguageBoardDto> boards = service.languageBoards();
+
+            assertThat(boards)
+                    .filteredOn(LanguageBoardDto::hasMembers)
+                    .extracting(LanguageBoardDto::name)
+                    .containsExactly("Java");
+        }
+
+        @Test
+        @DisplayName("should still list every board when nothing was written yet")
+        void shouldListAll_whenNoBoardHasMembers() {
+            when(setOps.members("leaderboard:languages")).thenReturn(Set.of());
+
+            assertThat(service.languageBoards())
+                    .isNotEmpty()
+                    .noneMatch(LanguageBoardDto::hasMembers);
         }
     }
 
