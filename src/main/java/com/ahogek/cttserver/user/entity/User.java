@@ -135,26 +135,6 @@ public class User {
         transitionTo(UserStatus.LOCKED);
     }
 
-    /**
-     * Soft deletes the user account.
-     *
-     * <p>Data anonymization is performed according to GDPR requirements.
-     *
-     * @throws ConflictException if state transition is not allowed
-     */
-    public void markAsDeleted() {
-        transitionTo(UserStatus.DELETED);
-
-        // Data anonymization (GDPR compliance)
-        // Defensive null check for unpersisted entities
-        String idStr = this.id != null ? this.id.toString() : UUID.randomUUID().toString();
-        this.email = idStr + "@deleted.local";
-        this.displayName = "Deleted User";
-        this.passwordHash = null;
-        this.emailVerified = false;
-        this.emailVerifiedAt = null;
-    }
-
     // ==========================================
     // Core Transition Guard
     // ==========================================

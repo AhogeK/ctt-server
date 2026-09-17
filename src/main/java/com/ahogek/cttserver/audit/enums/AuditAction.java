@@ -51,6 +51,9 @@ public enum AuditAction {
     /** Account automatically unlocked after lockout period expired. */
     ACCOUNT_UNLOCKED("Account automatically unlocked after lockout expired"),
 
+    /** Account deleted by its owner, with identity anonymized and credentials revoked. */
+    ACCOUNT_DELETED("Account deleted by its owner"),
+
     // ==========================================
     // OAuth Integration
     // ==========================================
