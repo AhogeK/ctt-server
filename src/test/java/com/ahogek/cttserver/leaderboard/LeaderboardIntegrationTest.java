@@ -186,6 +186,11 @@ class LeaderboardIntegrationTest {
     }
 
     private void insertSession(UUID userId, String start, String end, String project) {
+        insertSession(userId, "Java", start, end, project);
+    }
+
+    private void insertSession(
+            UUID userId, String language, String start, String end, String project) {
         jdbcClient
                 .sql(
                         """
@@ -193,15 +198,23 @@ class LeaderboardIntegrationTest {
                             (id, user_id, session_uuid, project_name, language, start_time, end_time,
                              client_modified_at, client_version, server_version, updated_by_device_id,
                              is_deleted, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, 'Java', ?, ?, ?, 1, 1, NULL, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, NULL, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """)
                 .param(UUID.randomUUID())
                 .param(userId)
                 .param(UUID.randomUUID())
                 .param(project)
+                .param(language)
                 .param(Timestamp.from(Instant.parse(start)))
                 .param(Timestamp.from(Instant.parse(end)))
                 .param(Timestamp.from(Instant.parse(end)))
+                .update();
+    }
+
+    private void softDeleteSessions(UUID userId) {
+        jdbcClient
+                .sql("UPDATE coding_sessions SET is_deleted = true WHERE user_id = ?")
+                .param(userId)
                 .update();
     }
 
@@ -667,6 +680,50 @@ class LeaderboardIntegrationTest {
             // Shape assertion only: which boards exist depends on what other tests have pushed,
             // and an empty list is legal before anyone is ranked.
             assertThat(result).bodyJson().extractingPath("$.data.languages").isNotNull();
+        }
+
+        @Test
+        @DisplayName(
+                "Should drop a user from a language board when their last session in it is deleted")
+        void shouldDropUserFromLanguageBoard_whenTheirLastSessionIsDeleted() throws Exception {
+            RegisteredUser coder = registerAndLogin(uniqueEmail());
+            // No other test uses Ada, so this board's membership belongs to this test alone and the
+            // counts below are exact rather than "at least".
+            insertSession(
+                    coder.id(),
+                    "Ada",
+                    "2026-08-30T10:00:00Z",
+                    "2026-08-30T11:00:00Z",
+                    "ctt-server");
+            updateScore(coder.id());
+
+            String readKey = createReadApiKey(coder.jwt());
+            String adaBoard = "/api/v1/leaderboard?dimension=LANGUAGE&period=ALL&language=Ada";
+
+            assertThat(
+                            mvc.get()
+                                    .uri(adaBoard)
+                                    .header("Authorization", "Bearer " + readKey)
+                                    .exchange())
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.data.totalParticipants")
+                    .satisfies(n -> assertThat(((Number) n).longValue()).isEqualTo(1L));
+
+            // The owning client deleted its session, so the server no longer holds any Ada time for
+            // this user and must not keep ranking them on the Ada board.
+            softDeleteSessions(coder.id());
+            updateScore(coder.id());
+
+            assertThat(
+                            mvc.get()
+                                    .uri(adaBoard)
+                                    .header("Authorization", "Bearer " + readKey)
+                                    .exchange())
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.data.totalParticipants")
+                    .satisfies(n -> assertThat(((Number) n).longValue()).isEqualTo(0L));
         }
 
         @Test
