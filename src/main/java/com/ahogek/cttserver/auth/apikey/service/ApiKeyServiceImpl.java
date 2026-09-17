@@ -68,6 +68,13 @@ public class ApiKeyServiceImpl implements ApiKeyService {
                         .findById(userId)
                         .orElseThrow(() -> new NotFoundException(ErrorCode.USER_004));
 
+        // A deleted account must not be able to obtain a credential. The scope aspect only enforces
+        // scopes for API-key callers, so a session token minted before the deletion reaches this
+        // method, and without this check it would issue a key for an account that no longer exists.
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw createUserInactiveException(user.getStatus());
+        }
+
         long activeCount = apiKeyRepository.countByUserIdAndRevokedAtIsNull(userId);
         if (activeCount >= maxKeysPerUser) {
             throw new ConflictException(ErrorCode.AUTH_024);

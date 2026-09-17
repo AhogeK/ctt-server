@@ -233,6 +233,24 @@ class ApiKeyServiceImplTest {
                     .isInstanceOf(ConflictException.class);
             then(apiKeyRepository).should(never()).saveAndFlush(any());
         }
+
+        @Test
+        @DisplayName("shouldThrowForbiddenException_whenTheAccountIsDeleted")
+        void shouldThrowForbiddenException_whenAccountIsDeleted() {
+            // Given: a session token minted before the deletion still reaches this method, because
+            // the scope aspect only enforces scopes for API-key callers. A credential must not be
+            // issuable to an account that no longer exists, even one that authenticates nowhere.
+            CreateApiKeyRequest request =
+                    new CreateApiKeyRequest("Key", Set.of(ApiKeyScope.READ), null);
+            ReflectionTestUtils.setField(user, "status", UserStatus.DELETED);
+            given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+
+            // When & Then
+            assertThatThrownBy(() -> apiKeyService.createApiKey(USER_ID, request))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessageContaining("Account is deactivated");
+            then(apiKeyRepository).should(never()).saveAndFlush(any());
+        }
     }
 
     @Nested
