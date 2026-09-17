@@ -56,6 +56,18 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      *
      * @return list of locked users
      */
+    /**
+     * Lists every user id.
+     *
+     * <p>Ids rather than entities: the only caller walks the whole table to recompute derived
+     * ranking scores, and loading entities it will never read would cost memory proportional to the
+     * table for no benefit.
+     *
+     * @return all user ids
+     */
+    @Query("SELECT u.id FROM User u")
+    List<UUID> findAllIds();
+
     @Query("SELECT u FROM User u WHERE u.status = :status")
     List<User> findAllByStatus(@Param("status") UserStatus status);
 }

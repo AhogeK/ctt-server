@@ -1,10 +1,19 @@
 # Test profile configuration.
 #
-# Rate limiting is a production protection that depends on Redis; tests must be deterministic
-# and cannot depend on a rate limiter's live state, so it is disabled here (mirroring the local
-# profile). Without this the login/register flows intermittently fail when the Redis-backed
-# limiter is briefly unavailable under the parallel test run.
+# Background jobs are pushed out of reach rather than configured normally, because a test must not
+# depend on one running, nor be disturbed by one that does.
+#
+# The rate limiter is a production protection backed by Redis; without disabling it the
+# login/register flows intermittently fail when the limiter is briefly unavailable under the
+# parallel test run.
+#
+# The leaderboard score backfill recomputes every user's ranking scores. Inside a test run it would
+# rewrite Redis and the database while assertions about ranks and participant counts are in flight,
+# and each Spring context starts against a fresh Redis, so its "already done" marker would not stop
+# it either. A day-long initial delay keeps it out of a test run entirely.
 ctt:
   security:
     rate-limit:
       enabled: false
+  leaderboard:
+    backfill-initial-delay-ms: 86400000
