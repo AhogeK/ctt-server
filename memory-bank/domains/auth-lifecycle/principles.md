@@ -52,3 +52,34 @@ purpose is a defect even when the token is otherwise valid.
 When the captcha secret is unconfigured the verifier logs and passes (local development); when it is
 configured, a missing or failing token is `SECURITY_006`. Never hardcode a bypass, and never let a
 verification outage be treated as success.
+
+## 9. Deletion removes the row; the cascade is what makes it complete
+
+`DELETE /api/v1/users/me` deletes the user row. Everything belonging to the account goes with it
+through the schema's `ON DELETE CASCADE` foreign keys — sessions, statistics, achievements, sync
+state, devices, API keys, refresh tokens, OAuth links — while the audit trail survives because
+`audit_logs` uses `ON DELETE SET NULL`, keeping the events with the account reference cleared (the
+`ACCOUNT_DELETED` event carries the deleted id as its `resource_id`, since its `user_id` cannot).
+
+Deleting the row rather than marking it (`status = 'DELETED'`) is the deliberate part: a hand-written
+list of tables to clean up rots silently, missing whichever table is added next, while a cascade
+cannot. Anonymizing the row was the earlier candidate and it was rejected as incomplete — it cleared
+four fields and left the login IP, the project names and every session behind. `UserStatus.DELETED`
+remains in the enum and the store constraint, and the auth paths still refuse it, but nothing
+produces it: the terminal state has no producer.
+
+Two consequences worth stating:
+
+- **The client, not the server, holds the history.** The plugin's local database is the source of
+  truth, so deleting the server copy costs the user nothing they cannot re-push after registering
+  again. That is what makes an irreversible server-side delete acceptable rather than reckless.
+- **An access token outlives the row** for the rest of its lifetime (the 15-minute TTL, the same
+  window logout leaves open), because a JWT carries the status from when it was minted and the
+  request path reads that claim rather than the database. Nothing can be obtained in that window:
+  every credential is gone with the row, and `createApiKey` refuses a non-`ACTIVE` account — which
+  matters because the scope aspect only enforces scopes for API-key callers, so a session token
+  minted before the deletion does reach that method.
+
+The ranking cleanup is separate and runs **after** the transaction commits, never inside it: a
+ranking write that outlived a rollback would leave a live account unranked, while the reverse failure
+is logged and visible.

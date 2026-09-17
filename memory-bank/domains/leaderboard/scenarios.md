@@ -39,7 +39,7 @@ Trigger → judgement → action.
 | A key's window closes | It must not accumulate stale members forever | `ttlFor(period)` expires period keys; `ALL` never expires |
 | A user stops coding in a language (their session is deleted, or its language changes) | `LANGUAGE` is the only conditional dimension — the board was written, so it must be unwritten | The recompute removes the difference against `leaderboard:user:languages:<id>`, and the index drops the language if no board holds anyone. Do not fix this at the deletion site: a changed language strands the old board just as completely, and the recompute is the one place that sees the data as it is now |
 | A language's board shows a member who no longer codes in it | `expected: 0L but was: 1L` is the symptom | That is the strand above; `shouldDropUserFromLanguageBoard_whenTheirLastSessionIsDeleted` pins it end to end |
-| A user's account is deleted | Their entry should leave the ranking | Still unreachable — no account-deletion endpoint exists. `ZREM` now exists for the language case, so the mechanism is in place if one is added |
+| A user's account is deleted | Their entry should leave the ranking | `LeaderboardService.removeUserFromRankings`, called by `DELETE /api/v1/users/me` after the transaction commits. A recompute cannot do it: a deleted account never pushes again, so nothing would ever rewrite its entries. It keeps only ids the `users` table still holds, and prunes a language from the index once no board holds anyone |
 
 ## Perceiving a bug from the outside
 

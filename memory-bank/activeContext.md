@@ -1,5 +1,15 @@
 # Active Context
 
+- [2026-09-17] - 账号注销端点（DELETE /api/v1/users/me，v0.77.0，待提交）
+    - 触发: 你要求加注销能力 —— 此前清理 73 个测试账号时我只能手工 ZREM，因为服务端没有注销入口（记忆里早写着「ZREM 清理因无注销端点故不可达」）
+    - **裁决 1（删除语义）: 硬删除用户行，由 schema 的级联保证完整性**。项目里 `User.markAsDeleted()`（状态转 DELETED + 匿名化 4 个字段）是先前候选，我第一版实现用了它，随后**自己推翻**并在本批改为硬删除。理由: ①「删除账号」的实际语义是数据要没，而软删除**一条内容都不删**（会话/项目名/时间戳全留）②`markAsDeleted` 自称 GDPR 合规但**不完整** —— 清 email/displayName/passwordHash/emailVerified，却留下 `last_login_ip`（PII）与全部内容 ③schema 本就是为级联删除设计的（12 个 user 外键 CASCADE + `audit_logs` SET NULL —— 作者选 SET NULL 而非 CASCADE 正是为了让删用户可行）④手工维护「要删哪些表」必然腐烂，未来新增 user 表会静默遗漏；级联由数据库保证 ⑤留着的数据不为任何人服务（账号无法登录、无跨用户聚合）；用户也不丢数据（插件本地是权威副本，重新注册可重推）。`markAsDeleted` 与其测试随 cutover 删除；`UserStatus.DELETED` 保留在枚举与 DB 约束中（认证路径仍拒绝它）但**已无生产者**
+    - **裁决 2（访问令牌窗口）: 接受，不加 Redis 黑名单**。账单上唯一有意义的洞是「窗口内重铸长期凭据」，该洞**已堵**；剩下的能力只是读取自己的数据（写会话需 SYNC scope 的 API key，已随账号消失）。关闭它要求在**每个已认证请求**查 Redis → Redis 抖动即全站失败 ✗ 用真实可用性风险换无害读窗口是坏交易
+    - **端到端测试抓出我自己写错的 Javadoc（本批最值得记的一处）**: 我原写「每个请求都会重查用户状态，因此状态变更即刻使令牌失效」—— **是假的**。`JwtToCurrentUserConverter` 只读 token claims、**不查库**，`CurrentUser.status` 是签发时快照；且多数端点用 `getCurrentUserRequired()`（不校验状态），只有 `getActiveUserRequired()` 校验。真实窗口 = 访问令牌 TTL（**15m**，与 logout 同一取舍）
+    - **顺带堵掉一个会让删除被撤销的洞**: `ApiKeyScopeAspect` 只对 `ApiKeyPrincipal` 生效 → JWT 调用者直接放行 → 被删账号可在窗口内 `POST /api/v1/api-keys` 重铸长期凭据。`ApiKeyServiceImpl` **已有** `createUserInactiveException`（认证路径 `validateAndTouch` 用它拒绝非 ACTIVE）但创建路径未用 → 补上（复用现成 helper）
+    - 实现: `AccountDeletionService` + `DELETE /api/v1/users/me`。**再认证**沿用项目约定（缺密码 `USER_013`、密码错 `USER_014`；OAuth 无密码账号以会话为凭据）+ **拒绝 API key 调用者**（`CurrentUser.authType != WEB_SESSION` → 新增 `AUTH_025`）+ **排行榜清理在事务提交后**（事务内写 Redis 若随后回滚 → 活账号被摘榜，不可见且难发现）+ 审计 `ACCOUNT_DELETED`（监听器是 AFTER_COMMIT → 行已不在，故 user_id 只能为 null，改用 resource_id 记账号 id）
+    - 测试: Service +5（删行+审计形状/无密码账号/密码错则一个字节都不删/未提供密码/账号不存在）+ 控制器 +3（成功且顺序为先删后清榜/API key → 403 AUTH_025 且不触碰删除/未认证 401）+ 集成 +1（真实删除 → Ada 榜归零、被撤 key → 401、**users / coding_sessions / api_keys 三表计数归零**验证级联）+ ApiKey 服务 +1（非 ACTIVE 不可铸新 key）
+    - 领域沉淀: `domains/auth-lifecycle/principles.md` §9（删行 + 级联完整性 + 客户端持有历史 + 令牌窗口的兜底）；`domains/leaderboard/scenarios.md`「账号删除」行从"不可达"改为已可达
+    - 状态: ✅ 实施完成，待授权提交
 - [2026-09-17] - 语言榜成员真实化 + 目录默认只列有人榜（待提交）
     - 触发: 你提出「语言下拉应舍弃人数为 0 的」—— 顺着这条查下去，发现的**不只是 UI 问题**：语言榜的成员本身不真实
     - **复现的证据（不是推理）**: 客户端删除某语言最后一条会话后（`SyncPushService` 的 `APPLY_DELETE` → `softDelete`）重算，该用户仍留在该语言榜上、带着旧分数。复现测试断言 `totalParticipants` 应为 0，实测 **`expected: 0L but was: 1L`**。根因: 重算只为「当前存在的语言」写分（`intervalsByLanguage()` 只含未删会话），而旧条目**永不移除** —— 全包 grep `opsForZSet().remove` 结果为空，服务端从来没有 ZREM。影响不止计数: 幽灵成员虚增 `totalParticipants`（我上一批刚给前端做「第 N / 共 M」的输入），并长期占据一个名次
