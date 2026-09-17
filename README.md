@@ -287,9 +287,33 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 
 ### User Profile
 
-| Endpoint           | Method | Description                                                                                                              |
-|--------------------|--------|--------------------------------------------------------------------------------------------------------------------------|
-| `/api/v1/users/me` | GET    | Get current authenticated user's profile (JWT or API key) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
+| Endpoint                | Method | Description                                                                                                              |
+|-------------------------|--------|--------------------------------------------------------------------------------------------------------------------------|
+| `/api/v1/users/me`      | GET    | Get current authenticated user's profile (JWT or API key) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
+| `/api/v1/users/me`      | DELETE | Delete the current user's account permanently (requires JWT, CSRF token) - see below                                      |
+
+**Account deletion** (`DELETE /api/v1/users/me`): permanent and irreversible, confirmed with the
+account password in the request body (`{"password": "..."}`). Requires a signed-in session — an API
+key cannot delete the account it was issued for (`AUTH_025`). Accounts created through an OAuth
+provider have no password; for them the session is the whole of the available proof.
+
+What happens:
+
+- The user row is **deleted**, and the schema's cascade removes what hung off it: coding sessions,
+  statistics, achievements, sync state, devices, API keys, refresh tokens and OAuth links.
+- The account is removed from every leaderboard it was ranked in (`totalParticipants` drops).
+- The email address is freed and can be registered again as a new, unrelated account.
+- The audit trail survives: `audit_logs` keeps the events with the account reference cleared, and the
+  `ACCOUNT_DELETED` event carries the deleted id as its resource.
+- Already-issued access tokens stay valid until they expire — the 15-minute access-token TTL, the
+  same window logout leaves open — because a JWT carries the status from when it was minted. Nothing
+  can be obtained in that window: no credential exists to authenticate with, and none can be minted.
+
+Clients should treat this as losing the server copy: the plugin's local database is the source of
+truth for the user's history, and a new registration re-pushes it.
+
+Errors: `401` wrong password (`USER_014`) or missing/invalid JWT, `403` no password supplied for an
+account that has one (`USER_013`), or called with an API key (`AUTH_025`).
 
 **Response Fields**:
 - `id` (UUID)
