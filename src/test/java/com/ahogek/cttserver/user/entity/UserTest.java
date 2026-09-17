@@ -4,6 +4,7 @@ import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.UUID;
 
@@ -52,7 +53,7 @@ class UserTest {
     @Test
     void verifyEmailFromDeletedThrowsException() {
         User user = createUser();
-        user.markAsDeleted();
+        ReflectionTestUtils.setField(user, "status", UserStatus.DELETED);
 
         assertThatThrownBy(user::verifyEmail)
                 .isInstanceOf(ConflictException.class)
@@ -90,23 +91,9 @@ class UserTest {
     }
 
     @Test
-    void markAsDeletedAnonymizesData() {
-        User user = createUser();
-        UUID userId = user.getId();
-
-        user.markAsDeleted();
-
-        assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
-        assertThat(user.getEmail()).isEqualTo(userId.toString() + "@deleted.local");
-        assertThat(user.getDisplayName()).isEqualTo("Deleted User");
-        assertThat(user.getPasswordHash()).isNull();
-        assertThat(user.getEmailVerified()).isFalse();
-    }
-
-    @Test
     void cannotTransitionFromDeleted() {
         User user = createUser();
-        user.markAsDeleted();
+        ReflectionTestUtils.setField(user, "status", UserStatus.DELETED);
 
         assertThatThrownBy(user::reactivate)
                 .isInstanceOf(ConflictException.class)
