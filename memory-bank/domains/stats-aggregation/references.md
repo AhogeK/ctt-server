@@ -76,6 +76,7 @@ No stats-specific config keys: bucket boundaries and window semantics are code c
 | --- | --- |
 | File | `src/main/resources/language/vocabulary.json` |
 | Shape | `version` · `canonical` (name → Linguist category) · `aliases` (raw lowercase → canonical) · `nonLanguages` (raw lowercase) |
+| Current | **v2: 842 canonical / 489 aliases / 76 nonLanguages** — `canonical` is the whole Linguist set plus local extensions, not a subset derived from the IDEs installed somewhere |
 | Consumers | Server read paths (`StatsCalculator.languageDistribution`) and **copies vendored by both IDE plugins** for their local statistics views |
 
 **The file is a published contract, not an internal table.** Both plugins hold a byte-identical

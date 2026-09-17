@@ -59,14 +59,27 @@ optional one supplied to a dimension that has no use for it, is a `400`. Silentl
 answer a different question than the caller asked, and silently defaulting it would read a board
 nobody writes.
 
-## 5. Score units differ per dimension; never assume seconds
+## 5. A catalogue is a vocabulary fact; membership is an activity fact
+
+The language directory lists every language the vocabulary knows, and reports separately whether a
+board has members. Deriving the list from activity instead was a real defect: the index is written
+when a user's scores are recomputed, so a board for a language nobody had pushed since the dimension
+existed answered `200` while the directory did not offer it. The endpoint could tell "unknown
+language" from "no members" and the catalogue could not, which made the two disagree about one
+question.
+
+The same rule generalizes: anything that enumerates what a client may ask for is bounded by the
+vocabulary, and anything that describes current usage is separate and optional. Mixing them produces
+a list that is neither complete nor a faithful activity report.
+
+## 6. Score units differ per dimension; never assume seconds
 
 `TOTAL`, `NIGHT_OWL`, `EARLY_BIRD` yield seconds. `ACTIVE_DAYS` yields a **count of distinct days**.
 `STREAK` yields a **count of consecutive days**. `GROWTH` yields a **signed seconds delta** and may
 be negative. A client rendering "score" without knowing the dimension will mislabel it; the
 dimension is the unit.
 
-## 6. Ties have no defined order — and that is a decision, not an oversight
+## 7. Ties have no defined order — and that is a decision, not an oversight
 
 Equal scores are ordered by Redis member id (a UUID), so the order is **stable but meaningless**: it
 does not change between requests, and it does not mean anything either.
@@ -76,7 +89,7 @@ achievement time into the score itself, making the stored value no longer the re
 the dimension promises. The cost outweighs the benefit, so tied entries are documented as unordered
 rather than given a ranking they cannot support.
 
-## 7. Recompute on push, and write every legal key
+## 8. Recompute on push, and write every legal key
 
 A user's scores are recomputed from the database after a successful session push, so a new session
 appears in the ranking without a full rebuild. The recompute covers **every legal (dimension,
@@ -87,14 +100,28 @@ Because the same session views feed every pair, the expensive work (interval mer
 built once per recompute and shared. Cost then scales with the user's history, not with the number
 of keys.
 
-## 8. Key naming must not orphan existing data
+## 9. A score computed under old rules does not notice that it is stale
+
+Scores are written when a user pushes, so a change to the rules leaves every user who has not pushed
+since holding numbers that are wrong while looking healthy — and a dimension added since their last
+push has no number at all. For a new dimension that is every existing user, and the board then reads
+as empty for reasons unrelated to the data.
+
+Recomputation is therefore a first-class step of any scoring change, not an operational afterthought,
+and it is guarded by a marker whose key names both the rule generation and the vocabulary version:
+the generation covers a changed formula, the version covers canonical names shifting underneath the
+scores. Keeping them in the key rather than in a comment means a needed sweep cannot be skipped by
+forgetting to bump something. The marker lives in Redis because the scores do, so losing both
+together restores the work instead of hiding a gap.
+
+## 10. Key naming must not orphan existing data
 
 `ALL` appends an empty key suffix, so `leaderboard:total` stays byte-identical to the key already
 written by earlier versions. Introduced suffixed keys (`:week:<date>`) are new, but no existing
 member is left behind in a key the service no longer reads. Redis persists across deployments, so
 key changes are data migrations whether or not they are treated as such.
 
-## 9. A size is not inferable from a page
+## 11. A size is not inferable from a page
 
 `totalParticipants` (ZCARD) is reported because a client cannot derive the ranking size from the
 entries: a full page means "there may be more", and a short page means "this is the end" only for

@@ -75,3 +75,15 @@ X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP。
 3. 对比 User 等 DB 生成 id 的实体：id=null 天然判新建，无需此模式
 
 **教训**: 无 @Version 时 `save()` 对非 null id 走 merge，Hibernate 对 DB 无行的 detached 实体抛 `StaleObjectStateException`（"Row was already updated or deleted"）；有 @GeneratedValue + 非 null id 又抛 "uninitialized version"——两者都要求上述组合。
+
+## 派生数据重算：版本化标记的一次性回填
+
+当派生值（Redis ZSet 分数、物化行）依赖的是「计算规则」本身——排序公式、规范名映射——而非仅原始数据时，规则一改已有数据不会自动跟进，需要一次性全量重算。
+
+`LeaderboardScoreBackfill` 是该模式的实现：启动后延迟执行一次，遍历全部用户重算分数并写回。
+
+- **标记键同时编码规则代号与词表版本**（`...:backfill:{rule}:{vocabularyVersion}`），而不是把「记得 bump」写在注释里——忘记 bump 导致跳过必要重算这件事因此结构性不可能
+- 执行成功才写标记；失败不写 → 下次启动自动重试（自愈，无需人工介入）
+- 重算复用在线写路径（同一把用户锁 + 单事务），与并发推送安全共存
+
+**测试约束**：写数据的后台任务在测试中必须被推离（`application-test.yaml` 把初始延迟设为 1 天）。理由与禁用限流一致——它会在断言进行时改写共享 Redis/DB，且每个 Spring 上下文拿到的是全新 Redis，标记挡不住。**任何新增的 `@Scheduled` 写数据任务照此处理。**
