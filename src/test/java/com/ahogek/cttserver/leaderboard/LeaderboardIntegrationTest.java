@@ -727,6 +727,75 @@ class LeaderboardIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should drop a deleted account from every board it was ranked in")
+        void shouldDropDeletedAccountFromBoards() throws Exception {
+            RegisteredUser coder = registerAndLogin(uniqueEmail());
+            // Ada belongs to this test alone, so its size is exact rather than "at least". The
+            // account is deleted through the endpoint, which is the only thing that reaches the
+            // cleanup: a recompute cannot, because a deleted account never pushes again.
+            insertSession(
+                    coder.id(),
+                    "Ada",
+                    "2026-08-30T10:00:00Z",
+                    "2026-08-30T11:00:00Z",
+                    "ctt-server");
+            updateScore(coder.id());
+
+            // A separate viewer reads the boards afterwards: the deletion revokes the coder's keys.
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String viewerKey = createReadApiKey(viewer.jwt());
+            String coderReadKey = createReadApiKey(coder.jwt());
+            String adaBoard = "/api/v1/leaderboard?dimension=LANGUAGE&period=ALL&language=Ada";
+            assertThat(boardSize(adaBoard, viewerKey)).isEqualTo(1L);
+
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/users/me")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + coder.jwt())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content("{\"password\":\"" + PASSWORD + "\"}")
+                                    .exchange())
+                    .hasStatusOk();
+
+            assertThat(boardSize(adaBoard, viewerKey)).isZero();
+            // The key is gone with the row, so it no longer authenticates at all and cannot be told
+            // apart from one that never existed. The access token, being a stateless snapshot, is
+            // the only credential that outlives the deletion, and only for its remaining lifetime.
+            assertThat(
+                            mvc.get()
+                                    .uri("/api/v1/leaderboard?dimension=TOTAL&limit=1&offset=0")
+                                    .header("Authorization", "Bearer " + coderReadKey)
+                                    .exchange())
+                    .hasStatus(401);
+            // Nothing of the account is left: the cascade removes what the row owned, which is the
+            // point of deleting the row rather than marking it.
+            assertThat(countOf("SELECT COUNT(*) FROM users WHERE id = ?", coder.id())).isZero();
+            assertThat(
+                            countOf(
+                                    "SELECT COUNT(*) FROM coding_sessions WHERE user_id = ?",
+                                    coder.id()))
+                    .isZero();
+            assertThat(countOf("SELECT COUNT(*) FROM api_keys WHERE user_id = ?", coder.id()))
+                    .isZero();
+        }
+
+        private long countOf(String sql, UUID userId) {
+            return jdbcClient.sql(sql).param(userId).query(Long.class).single();
+        }
+
+        private long boardSize(String uri, String readKey) throws Exception {
+            String body =
+                    mvc.get()
+                            .uri(uri)
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange()
+                            .getResponse()
+                            .getContentAsString();
+            return objectMapper.readTree(body).path("data").path("totalParticipants").asLong();
+        }
+
+        @Test
         @DisplayName("Should report the ranking size alongside the caller's rank")
         void shouldReportTotalParticipants() throws Exception {
             RegisteredUser first = registerAndLogin(uniqueEmail());

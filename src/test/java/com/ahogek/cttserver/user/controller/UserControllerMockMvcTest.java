@@ -6,8 +6,10 @@ import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.idempotent.IdempotentAspect;
 import com.ahogek.cttserver.common.ratelimit.RateLimitAspect;
+import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 import com.ahogek.cttserver.user.dto.UserProfileResponse;
 import com.ahogek.cttserver.user.enums.UserStatus;
+import com.ahogek.cttserver.user.service.AccountDeletionService;
 import com.ahogek.cttserver.user.service.UserProfileService;
 
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +19,7 @@ import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -26,6 +29,11 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
  * UserController HTTP business logic tests.
@@ -52,15 +60,21 @@ class UserControllerMockMvcTest {
     @Autowired private MockMvcTester mvc;
 
     @MockitoBean private UserProfileService userProfileService;
+    @MockitoBean private AccountDeletionService accountDeletionService;
+    @MockitoBean private LeaderboardService leaderboardService;
     @MockitoBean private CurrentUserProvider currentUserProvider;
 
     private CurrentUser currentUser() {
+        return userWith(CurrentUser.AuthenticationType.WEB_SESSION);
+    }
+
+    private CurrentUser userWith(CurrentUser.AuthenticationType authType) {
         return new CurrentUser(
                 UserControllerMockMvcTest.USER_ID,
                 "test@example.com",
                 UserStatus.ACTIVE,
                 Set.of("ROLE_USER"),
-                CurrentUser.AuthenticationType.WEB_SESSION);
+                authType);
     }
 
     private UserProfileResponse fullProfile() {
@@ -193,6 +207,75 @@ class UserControllerMockMvcTest {
                     .doesNotHavePath("$.data.passwordHash")
                     .doesNotHavePath("$.data.lastLoginIp")
                     .doesNotHavePath("$.data.version");
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /api/v1/users/me")
+    class DeleteCurrentUserTests {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 200 and clean the rankings after the account is deleted")
+        void shouldReturn200_andCleanRankingsAfterDeletion_whenSessionDeletesAccount() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+
+            var result =
+                    mvc.delete()
+                            .uri("/api/v1/users/me")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"password\":\"StrongPass123!\"}")
+                            .with(csrf())
+                            .exchange();
+
+            assertThat(result).hasStatusOk().bodyJson().extractingPath("$.success").isEqualTo(true);
+            then(accountDeletionService).should().deleteAccount(USER_ID, "StrongPass123!");
+            // Order matters: the ranking cleanup must run on a committed deletion, never inside it.
+            inOrder(accountDeletionService, leaderboardService)
+                    .verify(accountDeletionService)
+                    .deleteAccount(USER_ID, "StrongPass123!");
+            inOrder(accountDeletionService, leaderboardService)
+                    .verify(leaderboardService)
+                    .removeUserFromRankings(USER_ID);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 403 AUTH_025 when called with an API key")
+        void shouldReturn403_whenCalledWithApiKey() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(userWith(CurrentUser.AuthenticationType.API_KEY));
+
+            var result =
+                    mvc.delete()
+                            .uri("/api/v1/users/me")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"password\":\"StrongPass123!\"}")
+                            .with(csrf())
+                            .exchange();
+
+            assertThat(result)
+                    .hasStatus(403)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_025");
+            // A key living on someone's disk must not be able to destroy the account it belongs to.
+            then(accountDeletionService).should(never()).deleteAccount(any(), any());
+            then(leaderboardService).should(never()).removeUserFromRankings(any());
+        }
+
+        @Test
+        @DisplayName("Should return 401 when unauthenticated")
+        void shouldReturn401_whenNoAuthentication() {
+            assertThat(
+                            mvc.delete()
+                                    .uri("/api/v1/users/me")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content("{\"password\":\"StrongPass123!\"}")
+                                    .with(csrf())
+                                    .exchange())
+                    .hasStatus(401);
         }
     }
 }
