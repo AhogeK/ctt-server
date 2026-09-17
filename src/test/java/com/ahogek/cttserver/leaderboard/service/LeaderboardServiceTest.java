@@ -295,6 +295,54 @@ class LeaderboardServiceTest {
             // the per-user lock is released even when the write failed
             verify(redisTemplate).delete("leaderboard:lock:" + userId);
         }
+
+        @Test
+        @DisplayName("should remove the user from a language board they no longer code in")
+        void shouldRemoveLanguageBoards_whenLanguageIsNoLongerUsed() {
+            // Ranked in Kotlin on the previous recompute, and no longer coding in it.
+            when(valueOps.get("leaderboard:user:languages:" + userId)).thenReturn("Java\nKotlin");
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(javaSession()));
+
+            service.updateUserScores(userId);
+
+            verify(zsetOps).remove("leaderboard:language:Kotlin", userId.toString());
+            verify(zsetOps)
+                    .remove("leaderboard:language:Kotlin:week:2026-08-31", userId.toString());
+            verify(zsetOps)
+                    .remove("leaderboard:language:Kotlin:month:2026-08-01", userId.toString());
+            verify(zsetOps)
+                    .remove("leaderboard:language:Kotlin:year:2026-01-01", userId.toString());
+            // The board held nobody else, so the language leaves the index with its last member.
+            verify(setOps).remove("leaderboard:languages", "Kotlin");
+            // Java is still coded in, so it is neither removed from nor dropped out of the index.
+            verify(zsetOps, never()).remove("leaderboard:language:Java", userId.toString());
+            // The record moves forward, which is what makes the next recompute exact.
+            verify(valueOps).set("leaderboard:user:languages:" + userId, "Java");
+        }
+
+        @Test
+        @DisplayName("should keep a language indexed while someone else is still ranked in it")
+        void shouldKeepLanguageIndexed_whenOthersAreStillRanked() {
+            when(valueOps.get("leaderboard:user:languages:" + userId)).thenReturn("Kotlin");
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(javaSession()));
+            when(zsetOps.size("leaderboard:language:Kotlin")).thenReturn(3L);
+
+            service.updateUserScores(userId);
+
+            verify(zsetOps).remove("leaderboard:language:Kotlin", userId.toString());
+            verify(setOps, never()).remove("leaderboard:languages", "Kotlin");
+        }
+
+        private CodingSession javaSession() {
+            CodingSession java =
+                    session(
+                            Instant.parse("2026-08-31T10:00:00Z"),
+                            Instant.parse("2026-08-31T11:00:00Z"));
+            java.setLanguage("Java");
+            return java;
+        }
     }
 
     @Nested
@@ -302,28 +350,33 @@ class LeaderboardServiceTest {
     class LanguageBoardsTests {
 
         @Test
-        @DisplayName("should offer the vocabulary, not only the boards that have members")
-        void shouldOfferVocabulary_whenDirectoryRequested() {
+        @DisplayName("should list only the boards that hold someone")
+        void shouldListPopulatedBoards_whenDirectoryRequested() {
             when(setOps.members("leaderboard:languages")).thenReturn(Set.of("Java"));
 
-            List<LanguageBoardDto> boards = service.languageBoards();
+            List<LanguageBoardDto> boards = service.languageBoards(false);
 
-            // The regression this guards: deriving the list from activity dropped every language
-            // nobody had pushed since the dimension existed, while a board for that same language
-            // answered 200. The two disagreed about one question.
+            // A board nobody is ranked in is a dead end for the selector this list exists for. The
+            // vocabulary is large and the set of languages anyone has pushed is small, so offering
+            // the vocabulary buries the boards that can be opened under hundreds that cannot.
+            assertThat(boards).extracting(LanguageBoardDto::name).containsExactly("Java");
+            assertThat(boards).allMatch(LanguageBoardDto::hasMembers);
+        }
+
+        @Test
+        @DisplayName("should list the whole vocabulary when empty boards are asked for")
+        void shouldListVocabulary_whenEmptyBoardsRequested() {
+            when(setOps.members("leaderboard:languages")).thenReturn(Set.of("Java"));
+
+            List<LanguageBoardDto> boards = service.languageBoards(true);
+
+            // The neighbouring question — which boards exist at all — stays answerable, including
+            // the
+            // membership fact per entry for a client that wants to sort or filter the long list.
             assertThat(boards)
                     .extracting(LanguageBoardDto::name)
                     .contains("Java", "Elixir", "Astro", "Kotlin")
                     .hasSize(VOCABULARY.languages().size());
-        }
-
-        @Test
-        @DisplayName("should flag only the boards that have members")
-        void shouldFlagMembership_whenDirectoryRequested() {
-            when(setOps.members("leaderboard:languages")).thenReturn(Set.of("Java"));
-
-            List<LanguageBoardDto> boards = service.languageBoards();
-
             assertThat(boards)
                     .filteredOn(LanguageBoardDto::hasMembers)
                     .extracting(LanguageBoardDto::name)
@@ -331,11 +384,13 @@ class LeaderboardServiceTest {
         }
 
         @Test
-        @DisplayName("should still list every board when nothing was written yet")
-        void shouldListAll_whenNoBoardHasMembers() {
+        @DisplayName("should list nothing when no board holds anyone")
+        void shouldListNothing_whenNoBoardHasMembers() {
             when(setOps.members("leaderboard:languages")).thenReturn(Set.of());
 
-            assertThat(service.languageBoards())
+            assertThat(service.languageBoards(false)).isEmpty();
+            // Nothing was written yet, so every board is empty — the vocabulary is what remains.
+            assertThat(service.languageBoards(true))
                     .isNotEmpty()
                     .noneMatch(LanguageBoardDto::hasMembers);
         }

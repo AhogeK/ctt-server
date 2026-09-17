@@ -218,11 +218,14 @@ public class LeaderboardController {
             summary = "Languages that have a leaderboard",
             description =
                     "Returns the canonical languages with at least one ranked member, so a client can"
-                            + " offer a selector for dimension=LANGUAGE without guessing which boards"
-                            + " exist or probing empty ones. A language is added when a user is ranked"
-                            + " in it and never removed; a board may therefore be empty for a period."
-                            + " `type` is the Linguist category, so a client can group or filter"
-                            + " (for example to show programming languages separately from formats).")
+                            + " offer a selector for dimension=LANGUAGE without probing empty ones."
+                            + " A language appears when someone is first ranked in it and disappears"
+                            + " when its last member stops coding in it, so the list is what a caller"
+                            + " can open and find someone in. `includeEmpty=true` returns the whole"
+                            + " vocabulary instead, answering which boards exist at all; every entry"
+                            + " then carries `hasMembers`. `type` is the Linguist category, so a"
+                            + " client can group or filter (for example to show programming languages"
+                            + " separately from formats).")
     @ApiResponses(
             value = {
                 @ApiResponse(
@@ -252,9 +255,18 @@ public class LeaderboardController {
     @RequiresApiKeyScope(ApiKeyScope.READ)
     @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
     @GetMapping("/languages")
-    public ResponseEntity<RestApiResponse<LanguageBoardsResponse>> languages() {
+    public ResponseEntity<RestApiResponse<LanguageBoardsResponse>> languages(
+            @RequestParam(name = "includeEmpty", defaultValue = "false")
+                    @Parameter(
+                            description =
+                                    "Also list boards nobody is ranked in yet, i.e. the whole"
+                                            + " vocabulary; by default only boards that hold someone"
+                                            + " are returned",
+                            example = "false")
+                    boolean includeEmpty) {
         return ResponseEntity.ok(
                 RestApiResponse.ok(
-                        new LanguageBoardsResponse(leaderboardService.languageBoards())));
+                        new LanguageBoardsResponse(
+                                leaderboardService.languageBoards(includeEmpty))));
     }
 }

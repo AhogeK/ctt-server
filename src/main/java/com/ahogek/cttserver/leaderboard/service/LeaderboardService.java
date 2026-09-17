@@ -31,6 +31,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,9 +74,26 @@ public class LeaderboardService {
      * Set of languages that have a board, so a client can offer a selector without guessing.
      *
      * <p>A SET rather than a scan: enumerating ZSet keys by pattern is O(total keys), and the index
-     * is written alongside the scores it describes.
+     * is written alongside the scores it describes. A language leaves the index when its last
+     * member does, so the index describes the boards that exist rather than the boards that ever
+     * did.
      */
     private static final String LANGUAGE_BOARDS_KEY = KEY_PREFIX + "languages";
+
+    /**
+     * The languages a user is currently ranked in, so the next recompute knows what to remove.
+     *
+     * <p>Language is the only dimension whose boards appear and disappear with the user's data:
+     * every other dimension writes a score whether or not the user has time in the window. Writing
+     * the current set alone would leave the previous one behind, so the recompute records what it
+     * wrote and compares. A string rather than a set because "ranked in nothing" is a state worth
+     * recording — it is what stops a user with no rankable language from re-deriving that fact on
+     * every push.
+     */
+    private static final String USER_LANGUAGES_PREFIX = KEY_PREFIX + "user:languages:";
+
+    /** Separates canonical names in the tracked set; no language name contains a newline. */
+    private static final String LANGUAGE_SEPARATOR = "\n";
 
     private static final String LOCK_PREFIX = "leaderboard:lock:";
     private static final Duration LOCK_TTL = Duration.ofSeconds(5);
@@ -206,27 +224,28 @@ public class LeaderboardService {
     }
 
     /**
-     * Returns every language a caller can rank inside, so a client can offer a selector.
+     * Returns the language boards a caller can rank inside, so a client can offer a selector.
      *
-     * <p>The list is the vocabulary, not the set of boards that happen to hold scores. Which boards
-     * exist is a property of the vocabulary: a language is rankable the moment it is recognized,
-     * and it is recognized whether or not anyone has pushed since the dimension was added. Deriving
-     * the list from activity instead produced a directory that omitted legitimate languages — a
-     * board for a language nobody had pushed yet answered `200`, while the directory did not offer
-     * it — so the two disagreed about the same question.
+     * <p>Only boards that hold someone are returned by default. A board nobody is ranked in is a
+     * dead end for the caller, and the gap between the two sets is the whole vocabulary against the
+     * handful of languages anyone has pushed — a selector built from the vocabulary buries the
+     * boards that open under hundreds that answer with an empty page.
      *
-     * <p>{@code hasMembers} carries the activity fact separately, where it belongs: the set of
-     * languages with scores is still maintained, but as a hint for ordering rather than as a filter
-     * over what exists. One set read answers it for every entry, so a client can sort populated
-     * boards first without the server issuing a count per board.
+     * <p>{@code includeEmpty} restores the vocabulary, which answers the neighbouring question of
+     * which boards exist at all. Nothing is lost by defaulting to the smaller list: an empty board
+     * and a language outside the vocabulary are already told apart by the board endpoint itself (an
+     * empty page against {@code 400}), and {@code hasMembers} carries the same fact per entry for a
+     * client that asks for everything.
      *
-     * @return every canonical language, ordered by name
+     * @param includeEmpty whether to list boards nobody is ranked in as well
+     * @return the boards, ordered by name
      */
     @Transactional(readOnly = true)
-    public List<LanguageBoardDto> languageBoards() {
+    public List<LanguageBoardDto> languageBoards(boolean includeEmpty) {
         Set<String> populated = redisTemplate.opsForSet().members(LANGUAGE_BOARDS_KEY);
         Set<String> withMembers = populated == null ? Set.of() : populated;
         return languageVocabulary.languages().stream()
+                .filter(language -> includeEmpty || withMembers.contains(language.name()))
                 .map(
                         language ->
                                 LanguageBoardDto.from(
@@ -367,8 +386,10 @@ public class LeaderboardService {
                     continue;
                 }
                 if (dimension.requiresLanguage()) {
-                    // One board per language the user actually used; a user with no sessions in a
-                    // language is simply absent from its board.
+                    // One board per language the user actually used; the reconciliation after this
+                    // loop is what makes a user with no sessions in a language absent from its
+                    // board
+                    // rather than ranked there at their old score.
                     for (String language : views.intervalsByLanguage().keySet()) {
                         writeScore(
                                 key(dimension, period, today, language),
@@ -386,6 +407,109 @@ public class LeaderboardService {
                 }
             }
         }
+        reconcileLanguageBoards(userId, views, today);
+    }
+
+    /**
+     * Removes the user from the language boards they no longer belong to.
+     *
+     * <p>Language is the only conditional dimension: every other dimension writes a score whether
+     * or not the user has time in the window, while a language board is written only while the user
+     * still has sessions in that language. Writing the current set alone therefore leaves the
+     * previous one behind — a user who deletes their last session in a language stays ranked in it
+     * with the score it had, which inflates the board's size and reports a rank nobody can earn
+     * back. Comparing against what the last recompute wrote makes the removal exact, without
+     * walking the vocabulary on every push.
+     *
+     * @param userId the user being recomputed
+     * @param views the user's current sessions, grouped
+     * @param today the day the recompute runs, for the period keys
+     */
+    private void reconcileLanguageBoards(UUID userId, SessionViews views, LocalDate today) {
+        Set<String> current = views.intervalsByLanguage().keySet();
+        String trackedKey = userLanguagesKey(userId);
+        String recorded = redisTemplate.opsForValue().get(trackedKey);
+        Set<String> stale = new HashSet<>();
+        if (recorded == null) {
+            // No record of a previous recompute, which is also where a user stands on their first
+            // push after this reconciliation shipped. The board index is a superset of the boards
+            // that can hold them, so it answers the same question: one membership test per language
+            // that ever held a rank, paid once per user.
+            stale.addAll(languagesRankedButUnused(userId, current, today));
+        } else {
+            for (String language : recorded.split(LANGUAGE_SEPARATOR)) {
+                if (!language.isEmpty() && !current.contains(language)) {
+                    stale.add(language);
+                }
+            }
+        }
+        for (String language : stale) {
+            removeLanguageBoards(userId, language, today);
+        }
+        redisTemplate.opsForValue().set(trackedKey, String.join(LANGUAGE_SEPARATOR, current));
+    }
+
+    /**
+     * Returns the indexed languages the user holds a rank in but no longer codes in.
+     *
+     * <p>Reads membership from the lifetime board, which every language write includes: the boards
+     * of all supported periods for a language are written together, so the lifetime key answers for
+     * all of them.
+     *
+     * @param userId the user being recomputed
+     * @param current the languages the user codes in now
+     * @param today the day the recompute runs, for the period keys
+     * @return the languages to remove the user from
+     */
+    private Set<String> languagesRankedButUnused(
+            UUID userId, Set<String> current, LocalDate today) {
+        Set<String> indexed = redisTemplate.opsForSet().members(LANGUAGE_BOARDS_KEY);
+        if (indexed == null || indexed.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> stale = new HashSet<>();
+        for (String language : indexed) {
+            if (current.contains(language)) {
+                continue;
+            }
+            String lifetimeBoard =
+                    key(LeaderboardDimension.LANGUAGE, LeaderboardPeriod.ALL, today, language);
+            if (redisTemplate.opsForZSet().score(lifetimeBoard, userId.toString()) != null) {
+                stale.add(language);
+            }
+        }
+        return stale;
+    }
+
+    /**
+     * Removes the user from every board of a language, and drops the language from the index once
+     * no board holds anyone — which is what keeps the index a description of the boards that exist
+     * rather than of the boards that ever did.
+     *
+     * @param userId the user to remove
+     * @param language the canonical language
+     * @param today the day the recompute runs, for the period keys
+     */
+    private void removeLanguageBoards(UUID userId, String language, LocalDate today) {
+        boolean emptied = true;
+        for (LeaderboardPeriod period : LeaderboardPeriod.values()) {
+            if (!LeaderboardDimension.LANGUAGE.supports(period)) {
+                continue;
+            }
+            String boardKey = key(LeaderboardDimension.LANGUAGE, period, today, language);
+            redisTemplate.opsForZSet().remove(boardKey, userId.toString());
+            Long remaining = redisTemplate.opsForZSet().size(boardKey);
+            if (remaining != null && remaining > 0) {
+                emptied = false;
+            }
+        }
+        if (emptied) {
+            redisTemplate.opsForSet().remove(LANGUAGE_BOARDS_KEY, language);
+        }
+    }
+
+    private static String userLanguagesKey(UUID userId) {
+        return USER_LANGUAGES_PREFIX + userId;
     }
 
     private void writeScore(String key, UUID userId, long score, LeaderboardPeriod period) {
