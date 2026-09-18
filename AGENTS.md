@@ -280,16 +280,19 @@
 
 ### R26: AI 产物位置（强制）
 
-`docs/` 只放**面向用户的项目文档**（developer-handbook、time-strategy、api-governance 等）；AI 工作产物一律放 `.omp/`（已 gitignore，不进仓库）：
+`docs/` 只放**面向用户的项目文档**（developer-handbook、time-strategy、api-governance 等）；AI 工作产物放 `.omp/`（已 gitignore，不进仓库），**需要人机共读的计划类文档放 `.plans/`（入库，仅 develop）**：
 
 | 产物 | 位置 |
 |---|---|
-| 实施计划 | `.omp/plans/<feature>-plan.md`（**不带日期**，日期写文件内 `Date:` 字段） |
+| 实施计划（AI 内部） | `.omp/plans/<feature>-plan.md`（**不带日期**，日期写文件内 `Date:` 字段） |
 | 交付报告 / 需求草案 | `.omp/<topic>-delivery-report.md`、`.omp/<topic>-requirement.md` |
+| **计划 / 阶段计划 / 交付记录 / 归档（人机共读）** | **`.plans/<kebab-case-name>.md`（仓库内，中文，仅 develop、不进 master）** |
 | Agent 记忆 | `memory-bank/`（受 R1/R2/R13/R25 治理，**需要提交**） |
-| 面向用户的项目文档 | `docs/` |
+| 面向用户的项目文档（英文） | `docs/` |
 
-**红线**：禁止把实施计划写进 `docs/plans/`。
+**三层分工**（写进文件抬头，否则日后必混）：`.plans/` 规划与归档（人机共读、中文）／`docs/` 面向使用者的项目文档（英文）／`memory-bank/` 与 `.omp/` AI 自用。
+
+**红线**：禁止把实施计划写进 `docs/plans/`；`.plans/` 属面向 AI 与开发过程的内容，**禁止 cherry-pick 进 master**。
 
 ### R14: AGENTS.md 自更新（强制）
 

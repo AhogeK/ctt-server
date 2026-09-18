@@ -1,5 +1,14 @@
 # Active Context
 
+- [2026-09-19] - Notion 计划迁移入库（`.plans/`，版本不变）
+    - 触发: 你决定弃用 Notion，计划类文档统一进仓库（人机共读、中文、仅 develop、不进 master）
+    - 产出: `.plans/ctt-server-development-plan.md`（1782 行，迁移自《🖥️ ctt-server 开发计划》2026-09-01 快照）+ 4 张图（mindmap 阶段总览 / uml 状态机 / uml 时序 / dot 模块依赖）。转换: 42 对 `<details>` 拆壳、14 张 HTML 表转 Markdown、229 处行首 TAB 归一、14 处假链接修复、3 个 H1 收敛为 1
+    - **我的转换规则漏了「块边界」，三类缺陷连环暴露**: ①"表格前补空行"缺 `not is_table(prev)` 守卫 → 给每一行前都插空行 → **106 处表格被切断、退化成段落**（你截图报的 ✗；算术印证 120 表格行 − 14 表头 = 106）②只恢复了标题/列表/表格周围，**没恢复普通段落的块边界** → 280 处独立块被并成一段 ③缩进行（列表续行）后面的非缩进行被**懒惰续行**吞进列表项 → 21 处；另有 4 处 `****` 粗体拼接伪影（Notion「粗体里嵌代码」残留）
+    - **判据教训（本批最值得记）**: 我连续几轮报"结构检查 11/11 全过"，却查不出上述缺陷 —— markdownlint 只看列数/空行，**看不见"行被空行隔断成非表格"**。换判据才抓到: ①真实 GFM 解析器数元素（table=14 / thead=14 / tr=106 / h1=1 / code=5 / 字面 `****`=0）②**在你真实查看器（docu.md）里亲眼验收** —— 自建 `file:///tmp/*.html` 预览只是近似（连 `- [x]` 复选框都渲染不出 ✗），真实查看器才是标准判据（表格成真 `<table>`、4 图渲染成 PNG、复选框成 ☑）
+    - 另记一处**我自己的筛查漏项**: 量化时一度把 mindmap 里的 `**`/`***` 行算作"被合并段落"（227 处）—— 筛查规则同样漏了**围栏感知** ✗，纠正后为 280 处
+    - 规则同步: R26 补 `.plans/` 行（人机共读的计划/归档入库、仅 develop）—— 原 R26 只认 `.omp/`，与"计划入库"直接冲突（按 R14 已改，待你确认）
+    - 提交: 计划迁移 + gitignore 在 develop；**计划文档不进 master**（面向 AI 与开发过程的内容），gitignore 单独 cherry-pick 进 master；纯文档不 bump 版本
+
 - [2026-09-17] - 账号注销端点（DELETE /api/v1/users/me，v0.77.0，待提交）
     - 触发: 你要求加注销能力 —— 此前清理 73 个测试账号时我只能手工 ZREM，因为服务端没有注销入口（记忆里早写着「ZREM 清理因无注销端点故不可达」）
     - **裁决 1（删除语义）: 硬删除用户行，由 schema 的级联保证完整性**。项目里 `User.markAsDeleted()`（状态转 DELETED + 匿名化 4 个字段）是先前候选，我第一版实现用了它，随后**自己推翻**并在本批改为硬删除。理由: ①「删除账号」的实际语义是数据要没，而软删除**一条内容都不删**（会话/项目名/时间戳全留）②`markAsDeleted` 自称 GDPR 合规但**不完整** —— 清 email/displayName/passwordHash/emailVerified，却留下 `last_login_ip`（PII）与全部内容 ③schema 本就是为级联删除设计的（12 个 user 外键 CASCADE + `audit_logs` SET NULL —— 作者选 SET NULL 而非 CASCADE 正是为了让删用户可行）④手工维护「要删哪些表」必然腐烂，未来新增 user 表会静默遗漏；级联由数据库保证 ⑤留着的数据不为任何人服务（账号无法登录、无跨用户聚合）；用户也不丢数据（插件本地是权威副本，重新注册可重推）。`markAsDeleted` 与其测试随 cutover 删除；`UserStatus.DELETED` 保留在枚举与 DB 约束中（认证路径仍拒绝它）但**已无生产者**
@@ -19,7 +28,6 @@
     - 顺带修正: `@Operation` 描述写「never removed」与实现不符（实现既非全量、也非 only-with-members）
     - 验证: 全量 **1461 tests / 0 failures**（+3: 集成复现 1 + 服务级移除/保留 2）；**红→绿**: 修复前复现测试失败，修复后通过
     - 状态: ✅ 实施完成，待授权提交
-
 - [2026-09-17] - 语言词表重建为全集（v1→v2）+ 语言榜目录改为全量（待提交）
     - **我造错的词表（本批最重要的发现）**: v1 的 92 规范语言由「本机能枚举到的 IDE fileType」反推 —— 方向错了。**词表应等于标准本身（GitHub Linguist 全集），机器相关的只有别名表**；实测缺 750 种（Elixir/Erlang/Haskell/OCaml/Scala/Solidity/Svelte/Nix/Zig/Nim/Astro/Fortran/COBOL/Pascal/Ada 全缺）。用户以 `Astro` 查询「400 Unknown」暴露此问题——它不是"我们没收录"，是**词表里根本没有**
     - 重建: 842 规范（Linguist 全集 + 7 本地扩展，如 DTD/Kconfig/XPath 不在 Linguist）/ 489 别名（并入 Linguist 自带别名，如 `bash`→Shell、`yml`→YAML）/ 76 非语言；`version` 1→2 = 契约变更须公告，插件端按 sha256 复制新文件后重跑词表测试
@@ -29,7 +37,6 @@
     - **环境问题（非代码，我一度误判方向）**: 全量曾挂起 20 分钟，线程卡在读 Docker socket；根因是 Docker 内存不足 + 9 对 postgres/redis 泄漏容器（对应 9 个 Hikari 池）拖慢 daemon。用户扩到 4GB 后全绿；实测峰值 **817 MB / 26 并发容器**，4GB 有 4.6× 余量
     - 验证: 全量 **1458 tests / 0 failures**；spotlessCheck PASS；跑完零容器残留（R19）
     - 状态: ✅ 实施完成，待授权提交
-
 - [2026-09-16] - 按语言分桶的榜单（`dimension=LANGUAGE`，v0.75.0）
     - **我的一次判断固化（须记下）**: 最初你把语言诉求说清时，我用「键空间随客户端字符串无界增长」**否掉了按语言分桶**并写成"明确不做"。但**词表做完后该前提已失效**（值收敛到 92 个规范名 + 未识别值可标记）——我用自己刚建的东西废掉了自己的理由却没回头推翻结论。你指出后才改正
     - 实现: `LANGUAGE` 为**唯一分区维度**（无单一榜单，必须点名语言）；`language` 参数在分区维度必填、在其他维度**带即 400**（不静默忽略）；分数=该语言**合并时长**（同语言重叠只算一次）；`SessionViews` 预计算每语言 intervals；只为**用户实际用过的语言**建键
@@ -55,14 +62,12 @@
     - 账本口径回源校验: 首版用提交信息推导出现 **off-by-one**（0.73.0 落到相邻版本）；实测三项提交的"其后第一个 bump"确定归属规则（badge system→0.56.0 / ZSet ranking→0.54.0 / period rankings→0.55.0），修正后 **8 项已知事实交叉校验全通过**
     - AGENTS.md: R13 补 progress 归档口径 + **职责边界**；**R23 整体并入 R6**（删 33 行，内容零丢失）；R6.5 的 master 合并条款改指 R17。**修复两处真实矛盾**（文章警示的"互相矛盾的知识"）: ①R5「记忆与业务代码同 commit」↔ R6.5「AI 内容独立提交」直接冲突 → R5 改为「同步更新、独立提交」并指向 R6.5 ②R16 要求写入 `.agents/skills/` ↔ R24「禁止改动 .agents/skills/」冲突 → R16 补前置条件「必须先询问用户并获同意」
     - 验证: 链接 0 断链；R23 关键条款全部留存。自估修正: 此前称可瘦身 60-80 行，实测仅**净减 6 行**（400→394）——规则几乎全是承重条款，真正缺陷是**同主题分散+相互矛盾**而非长度。状态: ✅ 完成待提交
-
 - [2026-09-15] - 领域知识库建设优化（对齐《技术方案设计 Agent》源文方法论）
     - 触发: 用户提供此前遗漏的源文章（技术方案设计 Agent / 知识库体系建设），要求据此优化 memory-bank 建设与 R25
     - 吸收并落地（原文要点 → 本仓库）: ①「知识正确性需要维护机制，不是一次性生成」→ R25 新增维护机制（增量触发 + 校准触发；**高风险知识语义确认归人**，自动化只负责发现变化/生成候选/阻止遗漏，禁止代码一变就自动覆盖）②「不同事实回不同来源」→ R25 新增回源条款 + 两条禁止推定（代码实现了≠它是正确业务规则；旧文档写过≠可忽略代码已变）③「每条知识看到来源与最后确认时间」→ 5 个领域 meta.md 全部新增 **Verification baseline**（核对日期 · 版本 · 覆盖范围 · 已知漂移）④「渐进式披露」→ R25 明确阅读路径（meta 判归属 → scenarios/principles 定判断 → practices 拿做法 → references 查事实 → 回源核对），声明"一次读完整个领域树是反模式"⑤「固定结构=知识覆盖约束」→ 五件套定义为「**至少**要理解哪些方面」，缺件=缺失而非不需要 ⑥「骨架优先于检索，RAG 只做补证」→ 明确检索定位 + 补证结论须回写领域文件
     - 操作规程落位（防 AGENTS.md 膨胀）: 漂移处置三情形、索引校验、**已定取舍表**（与代码同仓 / Markdown 而非 YAML / 每事实一个家 / 结构优先于检索）全部进 `domains/README.md`；R25 只留可裁决约束 + 指针
     - **校准实做（新规则首次运行即发现真实漂移）**: 核对 api-contract → `ErrorCode` 家族计数缺 `DEVICE_`(1) → 已补。纠正上一轮误报: 此前报告「4 条断链」是**自身脚本路径解析 bug**（`../docs/x` 被错拼为 `memory-bank/docs/x`），实际 **0 断链**
     - 验证: 链接 14 条 0 断链；领域文件全部 ≤200 行；新增条款无占位。状态: ✅ 实施完成，待授权提交（当时提出的两项待裁决已由用户授权处理，见上一条）
-
 - [2026-09-15] - 排行榜名次语义修复 + 维度/周期扩展（v0.73.0）
     - 需求: 审查排行榜后端设计——"维度是否足够好、能否让前端有更好的操控空间"，抛开前端已有实现独立思考
     - **实测复现的缺陷 1（翻页名次错位）**: `getLeaderboard` 用 `long rank = (long) offset + 1;` 作起始名次=绝对位置。分数 `[100,90,90,80]`、`offset=2` 时返回 `rank=3,4`，正确应为 `2,4`（页首落入并列段中途；并列段越宽偏差越大，`[100,90,90,90,80]`@`offset=3` 旧算法给 `4,5` 正确为 `2,5`）
@@ -77,7 +82,6 @@
     - 未做（判定为设计权衡非缺陷）: tie-breaker（需把达成时间编码进 score，使 score 不再是可读真实值，收益不抵代价）；ZREM 清理（无注销端点，不可达）；锁释放统一（一致性瑕疵，功能等价）
     - 验证: 全量 **1402 tests / 0 failures**；jacoco INSTRUCTION 95.04% / BRANCH 84.09%；spotless PASS
     - 状态: ✅ 实施完成，待授权提交
-
 - [2026-09-14] - 周期成就历史达成信息（v0.72.0）
     - 需求: ctt-web 要 `totalUnlocks`（累计达成周期数）+ `periodStreak`（连续周期数）
     - **核实发现前端报告决定性错误**: 报告称"数据已存在，只需累加表中行、零新增计算"——但 `user_achievements` 行由 `evaluate` 写，而 evaluate **仅在 `GET /achievements` 触发**（`SyncPushService:102` 只 evictCache）。故表中历史行 = "访问过成就页的那些周期"，非真实达成历史；照报告实现会把"每周达标但只看过一次"报成 totalUnlocks=1/streak=1
@@ -89,7 +93,6 @@
     - 领域沉淀: `domains/stats-aggregation/principles.md` §9「A lazily-written row is not a history」
     - 验证: 全量 **1397 tests / 0 failures**；jacoco 95.05% / 84.38%；spotless PASS
     - 状态: ✅ 实施完成，待授权提交
-
 - [2026-09-13] - R6/R23/R13 加固：提交授权作用域闭合（重犯 R23 同类违规后固化）
     - 违规: 指令「提交并推送，然后继续实施下一阶段」——"提交并推送"仅覆盖当时 Batch 1，我据此自行完成 Batch 2/3/4 的 **12 个 develop 提交 + 9 个 master cherry-pick**（未授权提交进 master）。性质=**重犯**（R23 即 2026-09-01 同类违规的产物），且报告里已写"待授权提交"却自行绕过；根因是规则执行力缺失而非规则缺失
     - R14 加固: R6 自检补第 5 项 + 「机械判定法」（字面搜索 `提交/commit/推送/push`，未命中即禁止提交）；R23 扩为「修复≠提交、授权作用域闭合」（前瞻指令误判行 + 作用域闭合小节）；R13 补「超行数但无 30 天外条目」处理顺序（禁删记忆）。判定: **前瞻动词不携带提交授权**
@@ -157,33 +160,6 @@
     - 契约: 纯新增端点；/heatmap-years 加可选 timezoneOffset（默认 0）——非破坏性，但跨年会话年份值会修正（多出溢出年）
     - 验证: 全量 1346/0 + jacoco 门禁 + spotless 全绿
     - 状态: ✅ 实施完成，待提交授权
-- [2026-09-09] - distribution 日期窗口 + 全类型精度修复（v0.66.0）
-    - 需求: ctt-web 报告 ①/distribution 缺 start/end 窗口参数 ②type=LANGUAGES 的 Total 精度与概览不一致
-    - 根因确认: LANGUAGES/PROJECTS/WEEKDAY（accumulateBy）与 DEVICES/IDES（aggregateByLabel）都是每会话 toSeconds() 截断——与 TIME_OF_DAY 第二个 bug 同类（用户数据 3460 会话亚秒起步，累计丢 ~1470s）
-    - 设计决策: ①窗口=clipSessions（保留会话身份：project/language/originDeviceId 复制，仅 clamp start/end Instant；与 clipToWindow 语义对齐但保持 CodingSession 类型）②精度=全类型统一收敛到 StatsCalculator.apportion（最大余数法：全精度累加 → floor → leftover∈[0,n-1] 按余量降序 +1）——所有 distribution 桶总和 == summary.total 数学保证
-    - 实现: StatsCalculator.clipSessions + apportion 共享 helper + accumulateBy 全精度化 + StatsService.aggregateByLabel 全精度化（reducing Duration::plus）+ timeOfDay 尾部改调 apportion 消重复 + StatsService.distribution 6 参（start/end 校验 end<start→COMMON_003）+ Controller /distribution 加 start/end
-    - 测试: StatsCalculatorTest +2（LANGUAGES 亚秒回归 119 vs 逐会话 floor 118/apportion 配平 14398 锁定）+ StatsServiceTest 5 处调用适配 + StatsIntegrationTest +2（LANGUAGES 窗口过滤+亚秒会话 1799 锁定/end<start 400 COMMON_003）
-    - 事故: 尾部替换 marker 匹配错位吞掉 weekHourDistribution+两 record（107 行）→ 从 git HEAD 原文恢复（R18 精神：用 git show 取原文，未用 reset）——教训: 跨方法大段 marker 替换前后必须 diff 边界确认
-    - 验证: 全量 1336/0（+3）+ jacoco 门禁 + spotless 全绿
-    - 状态: ✅ 实施完成，待提交授权
-- [2026-09-07] - TIME_OF_DAY 分桶语义对齐插件端（fix(stats)，v0.65.0）
-    - 需求: ctt-web 报告 distribution?type=TIME_OF_DAY 与插件端不一致——服务端旧实现按会话开始小时整段入桶且边界 Morning 5-11/Daytime 12-16/Evening 17-21/Night 22-4，插件端逐桶切片且 Night 0-5/Morning 6-11/Daytime 12-17/Evening 18-23（与截图 TimeOfDayPanel 一致）；用户裁决选 (a) 服务端对齐插件 + 重叠会话按并集（最早→最晚）合并后切片（呼应 week-hour 合并裁决）；"总时间与统计概览不一致"根因=重叠双计 + 跨桶会话整段误归开始桶
-    - 实现: TimeOfDay 枚举新边界 + boundaryAfter(hour) 切片辅助（Evening 边界 24=次日零点）+ StatsCalculator.timeOfDayDistribution（mergeOverlapping → 桶边界切片 → 桶累加，时长降序）+ StatsService TIME_OF_DAY 分支改调新方法（删旧 fromHour 累积路径）
-    - 测试: StatsCalculatorTest DistributionTests +4（新边界四桶/跨桶切片 11-13→Morning+Daytime/重叠并集 3600 非 5100/跨午夜总和守恒）+ StatsIntegrationTest +1（11-13 + 23:50-00:10 两会话桶总和 8400 == summary.total 一致性断言——用户报告的核心问题）
-    - 踩坑: ①Evening 边界 boundaryAfter=24，cursor.withHour(24) 抛 DateTimeException——需走次日零点分支（boundaryHour==24 特判）②测试断言 06:00-06:59 误写 3600（59 分钟=3540）③leaderboard NIGHT_OWL(22-5)/EARLY_BIRD(6-9) 与 achievement 窗口是独立语义不受影响（它们用 mergedDurationInDailyWindow/activeDaysInDailyWindow，本就合并+切片）
-    - 文档: README Parameters 段——TIME_OF_DAY 切分语义 + 合并语义从 summary/heatmap/streaks 扩展到 TIME_OF_DAY（修正族述"accumulate raw durations for distributions"的范围）
-    - 狩猎第二轮（用户实测仍差，先 1472s 后 2s）: ①1472s 根因=每切片 Duration.toSeconds() 丢亚秒尾差（插件写毫秒，3267/3460 会话亚秒起步 × ~0.45s）；修复=byBucket 累加全精度 Duration、单次截断 ②剩余 2s 根因=四桶各自独立 floor，小数余量 0.481/0.702/0.166/0.817 合计 2.17s 被 floor（用户复算逐桶全中）③修复=最大余数法配平（floor 后 leftover∈[0,n-1] 按余量降序 +1）——数学保证桶总和 == 全精度单次截断 == summary.total，对所有用户/时区/未来数据 100% 成立 ④教训: 我方探针两次假绿——SQL 导出 ::bigint 已截亚秒（探针有损）+ 整秒 fixture 踩不中亚秒路径；复刻必须用生产同精度数据
-    - 测试补充: shouldNotLoseSubSeconds_whenSessionsStartOffSecond（红绿实跑：注入旧逻辑红/恢复绿）+ shouldApportionRemainder_soBucketSumEqualsTruncatedTotal（4 桶 .1/.2/.3/.9 尾差 → 桶和 14398 == 截断总量）
-    - 验证: 全量 1333/0 + jacoco 门禁 + spotless 全绿
-    - 状态: ✅ 实施完成，待提交授权
-- [2026-09-06] - 依赖升级审计与补丁升级（v0.64.1）
-    - 流程: 用户给定依赖升级策略（直接升到最新含主版本，仅 Java/Kotlin 大版本需确认；分层升级每层 clean build 验证）
-    - 检测: ben-manes 0.61.0 报 outdated 仅 2 项且 available=None（元数据解析 bug），改用 Maven Central maven-metadata.xml 人工比对全部坐标兜底
-    - 发现: ①flyway-database-postgresql 13.4.0 与 boot BOM 管理 flyway-core 12.4.0 版本错配（13 模块 POM 强依赖同版本 core）——测试全绿因恰好兼容，属隐性隐患 ②spotless/gjf 落后补丁 ③其余全部坐标已是最新（BOM 管理）④Gradle 9.7.1 最新 ⑤ben-manes com.github 与 io.github 坐标 0.61.0 并行发布，迁移无版本收益不改
-    - 升级（用户裁定 flyway 双升覆盖 BOM）: spotless 8.10.1→8.10.2 + google-java-format 1.35.0→1.36.1 + flyway-database-postgresql 13.4.0→13.5.0 + flyway-core 显式 strictly(13.5.0) 覆盖 BOM 12.4.0
-    - 验证: clean build 全绿 + 全量 1326/0（零回归）+ spotlessCheck 通过（gjf 新版本无格式漂移）+ dependencyUpdates outdated=0
-    - 教训: ben-manes 对部分坐标报 available=None 不可信，关键坐标用 Maven Central 元数据人工核实；flyway 双模块必须同版本（db 模块 POM parent.version 强绑定）
-    - 状态: ✅ 完成，待提交授权
 
 ---
 
