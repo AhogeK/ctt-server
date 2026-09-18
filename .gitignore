@@ -36,6 +36,10 @@ out/
 ### VS Code ###
 .vscode/
 
+### Obsidian ###
+# Editor state directory (ships bundled plugins); a pattern without a slash matches at every level
+.obsidian/
+
 ### Local Configuration (Security: Never commit sensitive data) ###
 src/main/resources/application-local.yml
 src/main/resources/application-local.yaml
