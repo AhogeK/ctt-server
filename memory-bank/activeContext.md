@@ -1,5 +1,14 @@
 # Active Context
 
+- [2026-09-19] - 依赖更新分析与升级（v0.77.1）
+    - 策略: 一律直接升到最新稳定版（含主版本），兼容性由编译 + 全量测试验证，不做逐项风险评估
+    - **ben-manes 报告不可尽信（旧坑复现）**: `dependencyUpdates` 只列出 5 项，**缺 Spring Boot / spotless / postgresql 等关键坐标**；按既有教训改用 **Maven Central 元数据 + Gradle Plugin Portal 逐个核实**，才发现 Spring Boot 4.1.1 与 Gradle 9.7.1 **本已是最新稳定**（插件报的 4.2.0-M1 / 9.8.0-rc-3 是里程碑与 RC ✗ 按策略跳过）
+    - 升级: greenmail 2.1.13→**2.1.14**、springdoc-openapi 3.1.0→**3.1.1**、flyway 13.5.0→**13.7.0**、ben-manes 插件 **坐标迁移** `com.github.ben-manes.versions`→`io.github.ben-manes.versions` 且 0.61.0→**0.64.0**（两个 id 都已有 0.64.0，按新坐标走 ✓）
+    - **顺手修掉一处会漂移的重复来源**: `flyway-core` 的 `version { strictly("13.5.0") }` 是硬编码字面量，与目录里的 `flyway` 版本各自维护 → 改为 `strictly(libs.versions.flyway.get())`。**关键不变量**（上一批的血泪）: flyway 的 core 与 database-postgresql 必须同版本，BOM 给的 12.4.0 由 strictly 覆盖 → 升级后实测 `flyway-core 12.4.0 -> 13.7.0`、`flyway-database-postgresql -> 13.7.0` **同版本** ✓
+    - **techContext 技术栈表严重过期，已一并修正**: 原表写 Spring Boot 4.0.5 / Flyway 11.4.0 / springdoc 2.8.5 / Testcontainers 1.20.6 / JUnit 5 / JaCoCo 0.8.14，实际为 **4.1.1 / 13.7.0 / 3.1.1 / 2.0.5 / 6.1.3 / 0.8.15**；且表里还留着**已不再使用**的 JJWT（现用 `spring-security-oauth2-jose`），并把 spotless **插件版本**（8.10.2）与 google-java-format（1.36.1）混为一谈。修正后加了一句"**本表是快照，`gradle/libs.versions.toml` 才是唯一来源**"以防再漂
+    - 未动（附依据）: Spring Boot 4.1.1（最新稳定）、Gradle 9.7.1（最新稳定，9.8.0-rc-3 是 RC）、postgresql 42.7.13 / junit-platform-launcher 6.1.3 / spotless 8.10.2 / dependency-management 1.1.7（均已是 Maven Central 最新）、JDK 25.0.4（25 GA 家族最新，25.0.4.1 仅同版重建包；25→26 属大版本跳跃须先确认，未动）
+    - 验证: `clean build` + 全量 **1470 tests / 0 failures** ✓（首次运行失败一次、无诊断输出即重跑通过 —— 判断为升级后首次拉取构件的瞬时失败，最终解析版本已逐一核实 ✓）
+
 - [2026-09-19] - Notion 计划迁移入库（`.plans/`，版本不变）
     - 触发: 你决定弃用 Notion，计划类文档统一进仓库（人机共读、中文、仅 develop、不进 master）
     - 产出: `.plans/ctt-server-development-plan.md`（1782 行，迁移自《🖥️ ctt-server 开发计划》2026-09-01 快照）+ 4 张图（mindmap 阶段总览 / uml 状态机 / uml 时序 / dot 模块依赖）。转换: 42 对 `<details>` 拆壳、14 张 HTML 表转 Markdown、229 处行首 TAB 归一、14 处假链接修复、3 个 H1 收敛为 1

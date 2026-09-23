@@ -188,6 +188,12 @@
 
 禁止擅自添加依赖。添加前必须提供分析（目的、选型理由、影响评估、替代方案）并获得用户同意。红线：禁止冗余依赖，禁止重复功能包，优先复用现有依赖。
 
+**升级依赖时（两次踩坑后固化）**：
+
+- **版本以 Maven Central / Gradle Plugin Portal 元数据为准**，`dependencyUpdates` 报告会**漏报关键坐标**（实测只列出 5 项，Spring Boot / spotless / postgresql 全缺）——按坐标逐个查 `maven-metadata.xml`，插件 id 查 Plugin Portal；里程碑与 RC **不算"最新稳定版"**
+- **升级后必须同批更新 `techContext.md` 的版本快照**（R2 的「技术栈变化」包含依赖升级；该表曾长期停留在 Spring Boot 4.0.5 / Flyway 11.4.0 而实际已 4.1.1 / 13.7.0，且留着已移除的依赖）
+- **同一模块族的版本只能有一个来源**：`flyway-core` 与 `flyway-database-postgresql` 必须同版本（前者被 Boot BOM 管理，靠 `strictly` 覆盖），字面量要写成 `libs.versions.<name>.get()` 而不是第二次硬编码
+
 ### R13: 记忆文件维护（强制 - 冷热分层）
 
 **核心原则：修剪 = 归档而非删除。** memory-bank 是项目记忆，历史条目即使当前不用也可能被回溯（排障、决策溯源、模式复用），像数据库冷数据一样分层保存。
