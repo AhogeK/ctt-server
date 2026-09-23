@@ -44,7 +44,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.flywaydb:flyway-core") {
-        version { strictly("13.5.0") }
+        // The BOM ships an older flyway-core than the database-postgresql module this project adds,
+        // and that module's POM requires them at the same version. Reading the catalog keeps the two
+        // from drifting apart, which a second literal in this file would allow.
+        version { strictly(libs.versions.flyway.get()) }
     }
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation(libs.flyway.database.postgresql)
