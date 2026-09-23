@@ -32,7 +32,7 @@ CTT Server provides:
 | Cache          | Redis (latest)                       |
 | API Docs       | springdoc-openapi                    |
 | Templates      | Thymeleaf (email rendering)          |
-| Testing        | JUnit 5 + Testcontainers             |
+| Testing        | JUnit 6 + Testcontainers             |
 | Configuration  | @ConfigurationProperties (Type-safe) |
 
 ## Architecture
