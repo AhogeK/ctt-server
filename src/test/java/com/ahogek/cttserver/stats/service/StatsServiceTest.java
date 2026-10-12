@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -135,6 +136,102 @@ class StatsServiceTest {
         }
 
         @Test
+        @DisplayName("summaryShouldCompareAgainstYesterdayAndAverage_whenUtcMaterialized")
+        void summaryShouldCompareAgainstYesterdayAndAverage_whenUtcMaterialized() {
+            // Rows are anchored to the real today; the previous windows are relative to it.
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(true);
+            when(dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId))
+                    .thenReturn(
+                            List.of(
+                                    day(today.minusDays(2).toString(), 1000),
+                                    day(today.minusDays(1).toString(), 2000)));
+
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, null);
+
+            assertThat(summary.today()).isZero();
+            assertThat(summary.total()).isEqualTo(3000);
+            // three days carry the average, but only two of them had ended by yesterday
+            assertThat(summary.dailyAverage()).isEqualTo(1000);
+            assertThat(summary.comparisons().today().previousSeconds()).isEqualTo(2000);
+            assertThat(summary.comparisons().today().changePercent()).isEqualTo(-100.0);
+            assertThat(summary.comparisons().dailyAverage().previousSeconds()).isEqualTo(1500);
+            assertThat(summary.comparisons().dailyAverage().changePercent()).isEqualTo(-33.33);
+        }
+
+        @Test
+        @DisplayName("summaryShouldCompareAgainstLastWeek_whenUtcMaterialized")
+        void summaryShouldCompareAgainstLastWeek_whenUtcMaterialized() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            LocalDate weekStart = today.with(DayOfWeek.MONDAY);
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(true);
+            when(dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId))
+                    .thenReturn(
+                            List.of(
+                                    day(weekStart.minusDays(4).toString(), 5000),
+                                    day(weekStart.toString(), 6000)));
+
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, null);
+
+            // The previous week ends where this one starts, so the 6000 is this week's, not last
+            // week's - which makes this week 6000 against last week's 5000.
+            assertThat(summary.comparisons().thisWeek().previousSeconds()).isEqualTo(5000);
+            assertThat(summary.comparisons().thisWeek().changePercent()).isEqualTo(20.0);
+        }
+
+        @Test
+        @DisplayName("summaryShouldCompareAgainstLastMonth_whenUtcMaterialized")
+        void summaryShouldCompareAgainstLastMonth_whenUtcMaterialized() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            LocalDate monthStart = today.withDayOfMonth(1);
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(true);
+            when(dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId))
+                    .thenReturn(
+                            List.of(
+                                    day(monthStart.minusDays(1).toString(), 700),
+                                    day(monthStart.toString(), 800)));
+
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, null);
+
+            assertThat(summary.comparisons().thisMonth().previousSeconds()).isEqualTo(700);
+        }
+
+        @Test
+        @DisplayName("summaryShouldCompareAgainstLastYear_whenUtcMaterialized")
+        void summaryShouldCompareAgainstLastYear_whenUtcMaterialized() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            LocalDate yearStart = today.withDayOfYear(1);
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(true);
+            when(dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId))
+                    .thenReturn(
+                            List.of(
+                                    day(yearStart.minusYears(1).toString(), 900),
+                                    day(yearStart.toString(), 1000)));
+
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, null);
+
+            assertThat(summary.comparisons().thisYear().previousSeconds()).isEqualTo(900);
+        }
+
+        @Test
+        @DisplayName("summaryShouldReportNoBaseline_whenThePreviousAverageFloorsToZero")
+        void summaryShouldReportNoBaseline_whenThePreviousAverageFloorsToZero() {
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            when(dailyStatsMaterializer.bootstrapIfNeeded(userId)).thenReturn(true);
+            when(dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId))
+                    .thenReturn(List.of(day(today.minusDays(2).toString(), 1)));
+
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.UTC, null);
+
+            // One second over three days averages to zero whole seconds, and yesterday's average —
+            // one second over two days — also floors to zero: the change is stated against no
+            // baseline rather than against zero.
+            assertThat(summary.dailyAverage()).isZero();
+            assertThat(summary.comparisons().dailyAverage().previousSeconds()).isZero();
+            assertThat(summary.comparisons().dailyAverage().changePercent()).isNull();
+        }
+
+        @Test
         @DisplayName("summaryShouldFallBackToLive_whenNonUtcZone")
         void summaryShouldFallBackToLive_whenNonUtcZone() {
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
@@ -144,6 +241,28 @@ class StatsServiceTest {
 
             assertThat(summary.total()).isEqualTo(3600);
             verify(dailyStatsRepository, never()).findByUserIdOrderByUtcDateAsc(any());
+        }
+
+        @Test
+        @DisplayName("summaryShouldLeaveComparisonsEmpty_whenHistoryPredatesEveryWindow")
+        void summaryShouldLeaveComparisonsEmpty_whenHistoryPredatesEveryWindow() {
+            // More than two years back, so it is older than yesterday, last week, last month and
+            // last year whatever the run date is.
+            String older = LocalDate.now(ZoneOffset.UTC).minusDays(800).toString();
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(session(older + "T10:00:00", older + "T11:00:00")));
+
+            StatsSummaryResponse summary = service.summary(userId, ZoneOffset.ofHours(8), null);
+
+            assertThat(summary.total()).isEqualTo(3600);
+            assertThat(summary.comparisons().today().previousSeconds()).isZero();
+            assertThat(summary.comparisons().thisWeek().previousSeconds()).isZero();
+            assertThat(summary.comparisons().thisMonth().previousSeconds()).isZero();
+            assertThat(summary.comparisons().thisYear().previousSeconds()).isZero();
+            assertThat(summary.comparisons().today().changePercent()).isNull();
+            // The daily average does not reset with the period windows: 3600 over 801 days is 4,
+            // and yesterday it was 3600 over 800 days, also 4.
+            assertThat(summary.comparisons().dailyAverage().changePercent()).isEqualTo(0.0);
         }
 
         @Test

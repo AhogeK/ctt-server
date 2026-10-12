@@ -256,6 +256,111 @@ class StatsIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should carry every comparison key even without a baseline")
+        void shouldCarryComparisonKeys_whenNoBaseline() throws Exception {
+            String[] jwtAndUserId = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(jwtAndUserId[0], "Read Key", "READ");
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            // The six original keys keep existing: an older client reads exactly these and must not
+            // break because an object was added.
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data")
+                    .asMap()
+                    .containsKeys(
+                            "today", "dailyAverage", "thisWeek", "thisMonth", "thisYear", "total");
+            // The global non_null policy drops null fields, but a client has to be able to tell "no
+            // baseline" from "field I do not know about": the key must exist and hold null.
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.comparisons")
+                    .asMap()
+                    .containsOnlyKeys("today", "dailyAverage", "thisWeek", "thisMonth", "thisYear");
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.comparisons.today")
+                    .asMap()
+                    .containsEntry("previousSeconds", 0)
+                    .containsEntry("changePercent", null);
+        }
+
+        @Test
+        @DisplayName("Should compare today against yesterday")
+        void shouldCompareTodayAgainstYesterday_whenBothHaveSessions() throws Exception {
+            String[] jwtAndUserId = registerVerifyAndLogin(uniqueEmail());
+            String jwt = jwtAndUserId[0];
+            UUID userId = UUID.fromString(jwtAndUserId[1]);
+            String readKey = createApiKey(jwt, "Read Key", "READ");
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            LocalDate yesterday = today.minusDays(1);
+            insertSession(
+                    userId,
+                    yesterday.atStartOfDay().plusHours(1).toInstant(ZoneOffset.UTC),
+                    yesterday.atStartOfDay().plusHours(2).toInstant(ZoneOffset.UTC),
+                    "ctt-server",
+                    "Java");
+            insertSession(
+                    userId,
+                    today.atStartOfDay().plusHours(1).toInstant(ZoneOffset.UTC),
+                    today.atStartOfDay().plusHours(2).toInstant(ZoneOffset.UTC),
+                    "ctt-server",
+                    "Java");
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?timezoneOffset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result).bodyJson().extractingPath("$.data.today").isEqualTo(3600);
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.comparisons.today.previousSeconds")
+                    .isEqualTo(3600);
+            // An hour today against an hour yesterday: no change at all.
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.comparisons.today.changePercent")
+                    .isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("Should carry every comparison key on the timezone-shifted path")
+        void shouldCarryComparisonKeys_whenTimezoneShifted() throws Exception {
+            String[] jwtAndUserId = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(jwtAndUserId[0], "Read Key", "READ");
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?timezoneOffset=480")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            // A shifted request is served by live aggregation instead of the materialized rows, and
+            // it has to hand the client the same five keys, nulls included.
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.comparisons")
+                    .asMap()
+                    .containsOnlyKeys("today", "dailyAverage", "thisWeek", "thisMonth", "thisYear");
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.comparisons.thisYear")
+                    .asMap()
+                    .containsEntry("previousSeconds", 0)
+                    .containsEntry("changePercent", null);
+        }
+
+        @Test
         @DisplayName("Should return language distribution")
         void shouldReturnDistribution_whenLanguages() throws Exception {
             String[] jwtAndUserId = registerVerifyAndLogin(uniqueEmail());

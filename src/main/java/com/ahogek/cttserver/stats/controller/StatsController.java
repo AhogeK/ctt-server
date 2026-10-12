@@ -129,7 +129,9 @@ public class StatsController {
             summary = "Coding activity summary",
             description =
                     "Returns today / daily average / this week / this month / this year / lifetime"
-                            + " totals in seconds, computed in the requested timezone.")
+                            + " totals in seconds, computed in the requested timezone, each with its"
+                            + " change against the previous complete period (yesterday, last week,"
+                            + " last month, last year).")
     @ApiResponses(
             value = {
                 @ApiResponse(

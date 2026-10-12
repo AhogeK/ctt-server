@@ -17,8 +17,10 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -167,6 +169,114 @@ class StatsCalculatorTest {
 
             assertThat(utc.today()).isEqualTo(3600);
             assertThat(plus8.today()).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("shouldMeasurePreviousCompletePeriods_whenSessionsSpanThem")
+        void shouldMeasurePreviousCompletePeriods_whenSessionsSpanThem() {
+            // Monday 2026-03-02: the previous week is 02-23..03-01, the previous month February,
+            // the previous year 2025. Each previous period holds a differently sized session, so a
+            // metric paired with the wrong window cannot pass.
+            LocalDate today = LocalDate.of(2026, 3, 2);
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-03-02T09:00:00"),
+                                    at("2026-03-02T13:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-03-01T10:00:00"),
+                                    at("2026-03-01T11:00:00"),
+                                    "b",
+                                    "Java"),
+                            session(
+                                    at("2026-02-10T10:00:00"),
+                                    at("2026-02-10T12:00:00"),
+                                    "c",
+                                    "Java"),
+                            session(
+                                    at("2025-11-22T10:00:00"),
+                                    at("2025-11-22T13:00:00"),
+                                    "d",
+                                    "Go"));
+
+            Summary summary = StatsCalculator.summary(sessions, UTC, today);
+
+            assertThat(summary.today()).isEqualTo(4 * 3600);
+            assertThat(summary.total()).isEqualTo(10 * 3600);
+            assertThat(summary.previous().today()).isEqualTo(3600); // 03-01
+            assertThat(summary.previous().thisWeek()).isEqualTo(3600); // 03-01 only, not 02-10
+            assertThat(summary.previous().thisMonth()).isEqualTo(2 * 3600); // February
+            assertThat(summary.previous().thisYear()).isEqualTo(3 * 3600); // 2025
+            // 100 days elapsed before today, so 101 days carry the lifetime average
+            assertThat(summary.dailyAverage()).isEqualTo(36000 / 101);
+            // yesterday's average: the 9 hours before today over those 100 days
+            assertThat(summary.previous().dailyAverage()).isEqualTo(21600 / 100);
+        }
+
+        @Test
+        @DisplayName("shouldHaveNoPreviousAverage_whenTodayIsTheFirstCodingDay")
+        void shouldHaveNoPreviousAverage_whenTodayIsTheFirstCodingDay() {
+            LocalDate today = LocalDate.of(2026, 3, 2);
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-03-02T09:00:00"),
+                                    at("2026-03-02T10:00:00"),
+                                    "a",
+                                    "Java"));
+
+            Summary summary = StatsCalculator.summary(sessions, UTC, today);
+
+            assertThat(summary.dailyAverage()).isEqualTo(3600);
+            assertThat(summary.previous().dailyAverage()).isZero();
+            assertThat(summary.previous().today()).isZero();
+            assertThat(summary.previous().thisWeek()).isZero();
+            assertThat(summary.previous().thisMonth()).isZero();
+            assertThat(summary.previous().thisYear()).isZero();
+        }
+
+        @Test
+        @DisplayName("shouldSplitPreviousDayAtLocalMidnight_whenZoneShifts")
+        void shouldSplitPreviousDay_whenSessionCrossesLocalMidnight() {
+            // 03-01T23:30+08:00 .. 03-02T00:30+08:00: one UTC day, two local days.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-03-01T15:30:00"),
+                                    at("2026-03-01T16:30:00"),
+                                    "a",
+                                    "Java"));
+
+            Summary utc = StatsCalculator.summary(sessions, UTC, LocalDate.of(2026, 3, 2));
+            Summary plus8 = StatsCalculator.summary(sessions, UTC_PLUS_8, LocalDate.of(2026, 3, 2));
+
+            assertThat(utc.today()).isZero();
+            assertThat(utc.previous().today()).isEqualTo(3600);
+            assertThat(plus8.today()).isEqualTo(1800);
+            assertThat(plus8.previous().today()).isEqualTo(1800);
+        }
+
+        @Test
+        @DisplayName("shouldClipAcrossTheWeekBoundary_whenComparingWeeks")
+        void shouldClipAcrossTheWeekBoundary_whenSessionSpansIt() {
+            // Sunday 23:00 into Monday 01:00: one hour belongs to last week, one to this week.
+            LocalDate today = LocalDate.of(2026, 3, 2); // Monday
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-03-01T23:00:00"),
+                                    at("2026-03-02T01:00:00"),
+                                    "a",
+                                    "Java"));
+
+            Summary summary = StatsCalculator.summary(sessions, UTC, today);
+
+            assertThat(summary.thisWeek()).isEqualTo(3600);
+            assertThat(summary.previous().thisWeek()).isEqualTo(3600);
+            assertThat(summary.today()).isEqualTo(3600);
+            assertThat(summary.previous().today()).isEqualTo(3600);
         }
     }
 
@@ -505,7 +615,7 @@ class StatsCalculatorTest {
             // every session starting off the second, deflating buckets vs summary.total.
             // 5 sessions of 59.9s each, each inside Morning: total 299.5s -> 299 after a
             // single end-of-aggregation truncation (raw 5*59.9 = 299.5).
-            List<CodingSession> sessions = new java.util.ArrayList<>();
+            List<CodingSession> sessions = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
                 Instant start =
                         at("2026-08-30T06:00:00").plusSeconds(i * 3600L).plusNanos(900_000_000);
@@ -1306,7 +1416,7 @@ class StatsCalculatorTest {
         void shouldReport100_whenOneMonthCodedEveryDay() {
             // August 2026 has 31 days; code 1h every day
             List<CodingSession> sessions =
-                    java.util.stream.IntStream.rangeClosed(1, 31)
+                    IntStream.rangeClosed(1, 31)
                             .mapToObj(
                                     day ->
                                             session(
@@ -1329,7 +1439,7 @@ class StatsCalculatorTest {
         @DisplayName("shouldReportFloorPercent_whenOneDayMissing")
         void shouldReportFloorPercent_whenOneDayMissing() {
             List<CodingSession> sessions =
-                    java.util.stream.IntStream.rangeClosed(1, 30)
+                    IntStream.rangeClosed(1, 30)
                             .mapToObj(
                                     day ->
                                             session(
@@ -1354,7 +1464,7 @@ class StatsCalculatorTest {
         void shouldReport100_whenFebruaryIsFullyCovered() {
             // February 2026 has 28 days; a short month must not be penalised for being short
             List<CodingSession> sessions =
-                    java.util.stream.IntStream.rangeClosed(1, 28)
+                    IntStream.rangeClosed(1, 28)
                             .mapToObj(
                                     day ->
                                             session(
@@ -1377,7 +1487,7 @@ class StatsCalculatorTest {
         @DisplayName("shouldReportBestMonth_whenLaterMonthIsWorse")
         void shouldReportBestMonth_whenLaterMonthIsWorse() {
             List<CodingSession> sessions =
-                    java.util.stream.IntStream.rangeClosed(1, 28)
+                    IntStream.rangeClosed(1, 28)
                             .mapToObj(
                                     day ->
                                             session(
@@ -1391,9 +1501,7 @@ class StatsCalculatorTest {
                                                                     + "T11:00:00"),
                                                     "a",
                                                     "Java"))
-                            .collect(
-                                    java.util.stream.Collectors.toCollection(
-                                            java.util.ArrayList::new));
+                            .collect(Collectors.toCollection(ArrayList::new));
             sessions.add(
                     session(at("2026-03-01T10:00:00"), at("2026-03-01T11:00:00"), "a", "Java"));
 
