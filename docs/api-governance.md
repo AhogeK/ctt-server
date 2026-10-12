@@ -28,8 +28,7 @@ Endpoints accessed via browser using JWT. Standard user operations.
 
 *   **Examples**:
     *   `GET  /api/v1/users/me`
-    *   `POST /api/v1/apikeys`
-    *   `GET  /api/v1/stats/dashboard`
+    *   `GET  /api/v1/stats/summary`
     *   `POST /api/v1/auth/terms/accept`
     *   `POST /api/v1/auth/api-keys` (Create API key)
     *   `GET  /api/v1/auth/api-keys` (List API keys)
@@ -48,7 +47,7 @@ Endpoints requiring a fully active and verified account.
 
 *   **Examples**:
     *   `DELETE /api/v1/users/me` (Account deletion)
-    *   `PUT /api/v1/users/me/password`
+    *   `POST /api/v1/users/me/password/change`
 *   **Authentication**: Required (`CurrentUserProvider.getActiveUserRequired()`).
 *   **Rate Limiting**: Enforced by **User ID**.
     *   Strict capacity (e.g., 5 requests / hour).
