@@ -1,5 +1,7 @@
 package com.ahogek.cttserver.language;
 
+import java.util.Locale;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -39,7 +41,7 @@ public enum LanguageType {
         if (value == null || value.isBlank()) {
             return OTHER;
         }
-        return switch (value.strip().toLowerCase(java.util.Locale.ROOT)) {
+        return switch (value.strip().toLowerCase(Locale.ROOT)) {
             case "programming" -> PROGRAMMING;
             case "markup" -> MARKUP;
             case "data" -> DATA;

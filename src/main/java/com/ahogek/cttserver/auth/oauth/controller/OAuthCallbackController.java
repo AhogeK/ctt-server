@@ -43,6 +43,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -71,9 +72,8 @@ public class OAuthCallbackController {
     private static final String LOGIN_REDIRECT_PATH = "/oauth/callback";
     private static final String ERROR_REDIRECT_PATH = "/oauth/error";
 
-    private static final java.util.regex.Pattern STATE_UUID_PATTERN =
-            java.util.regex.Pattern.compile(
-                    "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+    private static final Pattern STATE_UUID_PATTERN =
+            Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
 
     private final OAuthStateService stateService;
     private final GitHubOAuthClient githubClient;

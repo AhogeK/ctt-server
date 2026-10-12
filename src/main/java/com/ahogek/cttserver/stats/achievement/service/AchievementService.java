@@ -19,6 +19,7 @@ import com.ahogek.cttserver.sync.repository.CodingSessionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -166,7 +167,7 @@ public class AchievementService {
             // holds at most one entry per timezone so this is bounded in practice.
             Set<String> keys = new HashSet<>();
             var scanOptions =
-                    org.springframework.data.redis.core.ScanOptions.scanOptions()
+                    ScanOptions.scanOptions()
                             .match(CACHE_PREFIX + userId + ":*")
                             .count(100)
                             .build();
