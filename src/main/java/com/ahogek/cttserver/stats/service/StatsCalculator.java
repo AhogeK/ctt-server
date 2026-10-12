@@ -72,7 +72,35 @@ public final class StatsCalculator {
             long thisWeek,
             long thisMonth,
             long thisYear,
-            long total) {}
+            long total,
+            PreviousPeriods previous) {}
+
+    /**
+     * Seconds coded in the period immediately before each period of {@link Summary}, so a caller
+     * can state a period-over-period change. All values are in seconds, {@code dailyAverage} as
+     * seconds per day.
+     *
+     * <p>Every window is the closed historical period — yesterday, last week, last month, last year
+     * — not the same period to date, so {@code dailyAverage} here is the average as it stood at the
+     * end of yesterday. A window holding no coding is 0; {@code dailyAverage} is 0 on the first
+     * coding day, where no completed day exists to average over.
+     *
+     * <p>Component names mirror {@link Summary}'s on purpose: each holds the value that component
+     * had in the previous complete period, which is what makes {@code previous.today()} read as
+     * "today, as of the previous period" beside {@code summary.today()}.
+     *
+     * @param today yesterday
+     * @param dailyAverage the daily average at the end of yesterday
+     * @param thisWeek last ISO week
+     * @param thisMonth last calendar month
+     * @param thisYear last calendar year
+     */
+    public record PreviousPeriods(
+            long today, long dailyAverage, long thisWeek, long thisMonth, long thisYear) {
+
+        /** A summary with no history behind it: every window is empty. */
+        public static final PreviousPeriods NONE = new PreviousPeriods(0, 0, 0, 0, 0);
+    }
 
     /** One day of coding in the heatmap. */
     public record DailyPoint(LocalDate date, long seconds) {}
@@ -283,7 +311,7 @@ public final class StatsCalculator {
     public static Summary summary(List<CodingSession> sessions, ZoneOffset zone, LocalDate today) {
         List<TimeInterval> intervals = toIntervals(sessions, zone);
         if (intervals.isEmpty()) {
-            return new Summary(0, 0, 0, 0, 0, 0);
+            return new Summary(0, 0, 0, 0, 0, 0, PreviousPeriods.NONE);
         }
         OffsetDateTime dayStart = today.atStartOfDay().atOffset(zone);
         OffsetDateTime weekStart = today.with(DayOfWeek.MONDAY).atStartOfDay().atOffset(zone);
@@ -308,8 +336,38 @@ public final class StatsCalculator {
         long daysSinceFirst = ChronoUnit.DAYS.between(firstDate, today) + 1;
         long dailyAverage = total / Math.max(daysSinceFirst, 1);
 
+        long previousToday = mergedDurationSeconds(intervals, dayStart.minusDays(1), dayStart);
+        long previousWeek = mergedDurationSeconds(intervals, weekStart.minusWeeks(1), weekStart);
+        long previousMonth =
+                mergedDurationSeconds(intervals, monthStart.minusMonths(1), monthStart);
+        long previousYear = mergedDurationSeconds(intervals, yearStart.minusYears(1), yearStart);
+        long previousAverage = previousDailyAverage(total, todaySeconds, daysSinceFirst);
+
         return new Summary(
-                todaySeconds, dailyAverage, weekSeconds, monthSeconds, yearSeconds, total);
+                todaySeconds,
+                dailyAverage,
+                weekSeconds,
+                monthSeconds,
+                yearSeconds,
+                total,
+                new PreviousPeriods(
+                        previousToday, previousAverage, previousWeek, previousMonth, previousYear));
+    }
+
+    /**
+     * The daily average as it stood at the end of yesterday, for a comparison against today's.
+     *
+     * <p>Yesterday had one fewer elapsed day than today, so its average is yesterday's total —
+     * everything except today — over that smaller count. The first coding day has no completed day
+     * behind it, so there is no baseline to state and the value is 0.
+     *
+     * @param total lifetime seconds, including today
+     * @param todaySeconds seconds coded today
+     * @param daysSinceFirst days from the first coding day to today, inclusive
+     * @return seconds per day as of the end of yesterday, or 0 on the first coding day
+     */
+    public static long previousDailyAverage(long total, long todaySeconds, long daysSinceFirst) {
+        return daysSinceFirst > 1 ? (total - todaySeconds) / (daysSinceFirst - 1) : 0;
     }
 
     /**

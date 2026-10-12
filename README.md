@@ -446,7 +446,7 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 
 | Endpoint | Method | Description | Required Scope |
 |----------|--------|-------------|----------------|
-| `/api/v1/stats/summary` | GET | Today / daily average / this week / month / year / lifetime totals (seconds) | READ |
+| `/api/v1/stats/summary` | GET | Today / daily average / this week / month / year / lifetime totals (seconds), each with its change against the previous complete period | READ |
 | `/api/v1/stats/heatmap` | GET | Per-day coding seconds over a date range (default: this year) | READ |
 | `/api/v1/stats/streaks` | GET | Current and longest consecutive coding day streaks | READ |
 | `/api/v1/stats/distribution` | GET | Duration distribution by languages / projects / time-of-day / weekday / devices / IDEs | READ |
@@ -480,7 +480,12 @@ start to latest end) for summary/heatmap/streaks and the TIME_OF_DAY distributio
 buckets follow the plugin's statistics (Night 00:00-05:59, Morning 06:00-11:59, Daytime 12:00-17:59,
 Evening 18:00-23:59) and slice bucket-spanning sessions at bucket boundaries, so its entries sum to
 the summary total; other distributions accumulate raw durations per session, matching the plugin
-StatisticsView semantics. Badges
+StatisticsView semantics. `GET /api/v1/stats/summary` also measures the first five metrics against
+the previous **complete** period — yesterday, last week, last month, last year — so a change is
+stated against a finished baseline rather than the same period to date: each comparison carries
+`previousSeconds` and a two-decimal `changePercent`, which is `null` when that period holds no
+coding (and for `dailyAverage`, which compares against its own value at the end of yesterday, on
+the first coding day). All five keys are always present and `total` has no comparison. Badges
 are unlocked lazily on query — 67 badges: 51 perpetual ones across seven families (streak 8, total
 duration 8, language count 9, early bird 8, night owl 8, daily burst 5, perfect month 5) plus 16
 windowed ones that reset every period (daily 3, weekly 5, monthly 4, yearly 4) — and unlock records
@@ -515,7 +520,10 @@ are rate-limited to 60 req/min (`RATE_LIMIT_001`).
 recomputed); a user's first UTC read bootstraps the full history once under a per-user lock.
 UTC statistics reads (summary / heatmap / streaks) are served from the materialized rows;
 timezone-shifted requests aggregate live because a session crossing local midnight contributes
-to two local days while living on a single UTC day.
+to two local days while living on a single UTC day. The summary's comparison windows follow the
+same source as the values they compare against, so a multi-day baseline served from these rows can
+differ from the live aggregation by up to one second per day it spans — the rows hold whole seconds
+per day.
 
 ### Global Leaderboard
 

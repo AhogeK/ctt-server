@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param thisMonth seconds coded this calendar month
  * @param thisYear seconds coded this calendar year
  * @param total lifetime seconds (overlaps merged)
+ * @param comparisons each metric above measured against its previous complete period; {@code total}
+ *     has none
  */
 @Schema(description = "Coding activity summary in seconds")
 public record StatsSummaryResponse(
@@ -26,4 +28,13 @@ public record StatsSummaryResponse(
         @Schema(description = "Seconds coded this calendar year", example = "1296000")
                 long thisYear,
         @Schema(description = "Lifetime seconds (overlapping sessions merged)", example = "5000000")
-                long total) {}
+                long total,
+        @Schema(
+                        description =
+                                "Each metric against its previous complete period (yesterday, last"
+                                        + " week, last month, last year); total has no comparison",
+                        example =
+                                "{\"today\": {\"previousSeconds\": 3600, \"changePercent\": 12.5},"
+                                        + " \"dailyAverage\": {\"previousSeconds\": 0,"
+                                        + " \"changePercent\": null}}")
+                StatsComparisons comparisons) {}

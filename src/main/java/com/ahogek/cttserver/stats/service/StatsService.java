@@ -13,6 +13,8 @@ import com.ahogek.cttserver.stats.dto.HeatmapResponse;
 import com.ahogek.cttserver.stats.dto.HourlyDistributionResponse;
 import com.ahogek.cttserver.stats.dto.HourlyStatPoint;
 import com.ahogek.cttserver.stats.dto.RecentSessionResponse;
+import com.ahogek.cttserver.stats.dto.StatsComparison;
+import com.ahogek.cttserver.stats.dto.StatsComparisons;
 import com.ahogek.cttserver.stats.dto.StatsSummaryResponse;
 import com.ahogek.cttserver.stats.dto.StreakStatsResponse;
 import com.ahogek.cttserver.stats.dto.WeekHourDistributionResponse;
@@ -86,50 +88,131 @@ public class StatsService {
         if (!canUseMaterializedDays(userId, zone, filter)) {
             return liveSummary(userId, zone, filter);
         }
-        // UTC path reads the materialized per-day totals (week/month boundaries are whole-day
-        // sums, so day-granular materialization is exact). The lower bound covers every
-        // materialized day; the upper bound is open so future-dated sessions are not dropped.
+        return materializedSummary(userId);
+    }
+
+    /**
+     * Serves the summary from the live sessions, for the requests the materialized rows cannot
+     * answer exactly: another timezone, a device or IDE filter, or an unbootstrapped history.
+     *
+     * @param userId the owning user
+     * @param zone aggregation timezone
+     * @param filter optional origin-device or IDE filter; {@code null} aggregates all sessions
+     * @return the summary in seconds
+     */
+    private StatsSummaryResponse liveSummary(UUID userId, ZoneOffset zone, SessionFilter filter) {
+        return toResponse(
+                StatsCalculator.summary(sessionsOf(userId, filter), zone, LocalDate.now(zone)));
+    }
+
+    /**
+     * Serves the summary from the materialized per-UTC-day rows, which is only valid when {@link
+     * #canUseMaterializedDays} allows it — the signature cannot express that.
+     *
+     * <p>Week/month/year boundaries are whole-day sums, so day-granular rows are exact for them.
+     * The current periods keep the open-ended sums they have always had, so future-dated rows are
+     * not dropped; the previous periods are closed historical windows, because "the previous
+     * complete week" has an end as well as a start. Multi-day windows here can differ from the live
+     * aggregation by up to one second per day when sessions carry sub-second tails, since these
+     * rows store whole seconds per day while the live path truncates the window sum once.
+     *
+     * @param userId the owning user
+     * @return the summary in seconds
+     */
+    private StatsSummaryResponse materializedSummary(UUID userId) {
         List<DailyStats> days = dailyStatsRepository.findByUserIdOrderByUtcDateAsc(userId);
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
         long total = days.stream().mapToLong(DailyStats::getMergedSeconds).sum();
         long todaySeconds =
                 days.stream()
-                        .filter(day -> day.getUtcDate().equals(LocalDate.now(ZoneOffset.UTC)))
+                        .filter(day -> day.getUtcDate().equals(today))
                         .mapToLong(DailyStats::getMergedSeconds)
                         .findFirst()
                         .orElse(0);
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        long week =
-                days.stream()
-                        .filter(day -> !day.getUtcDate().isBefore(today.with(DayOfWeek.MONDAY)))
-                        .mapToLong(DailyStats::getMergedSeconds)
-                        .sum();
-        long month =
-                days.stream()
-                        .filter(day -> !day.getUtcDate().isBefore(today.withDayOfMonth(1)))
-                        .mapToLong(DailyStats::getMergedSeconds)
-                        .sum();
-        long year =
-                days.stream()
-                        .filter(day -> !day.getUtcDate().isBefore(today.withDayOfYear(1)))
-                        .mapToLong(DailyStats::getMergedSeconds)
-                        .sum();
+        LocalDate weekStart = today.with(DayOfWeek.MONDAY);
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate yearStart = today.withDayOfYear(1);
+        long week = secondsFrom(days, weekStart);
+        long month = secondsFrom(days, monthStart);
+        long year = secondsFrom(days, yearStart);
         LocalDate firstDate =
                 days.stream().map(DailyStats::getUtcDate).min(LocalDate::compareTo).orElse(today);
         long daysSinceFirst = ChronoUnit.DAYS.between(firstDate, today) + 1;
         long dailyAverage = total / Math.max(daysSinceFirst, 1);
-        return new StatsSummaryResponse(todaySeconds, dailyAverage, week, month, year, total);
+        long previousAverage =
+                StatsCalculator.previousDailyAverage(total, todaySeconds, daysSinceFirst);
+
+        return toResponse(
+                new StatsCalculator.Summary(
+                        todaySeconds,
+                        dailyAverage,
+                        week,
+                        month,
+                        year,
+                        total,
+                        new StatsCalculator.PreviousPeriods(
+                                secondsBetween(days, today.minusDays(1), today),
+                                previousAverage,
+                                secondsBetween(days, weekStart.minusWeeks(1), weekStart),
+                                secondsBetween(days, monthStart.minusMonths(1), monthStart),
+                                secondsBetween(days, yearStart.minusYears(1), yearStart))));
     }
 
-    private StatsSummaryResponse liveSummary(UUID userId, ZoneOffset zone, SessionFilter filter) {
-        StatsCalculator.Summary summary =
-                StatsCalculator.summary(sessionsOf(userId, filter), zone, LocalDate.now(zone));
+    /**
+     * Sums the materialized rows from {@code startInclusive} onward, with no upper bound.
+     *
+     * @param days the user's rows
+     * @param startInclusive first date to include
+     * @return the summed seconds
+     */
+    private static long secondsFrom(List<DailyStats> days, LocalDate startInclusive) {
+        return days.stream()
+                .filter(day -> !day.getUtcDate().isBefore(startInclusive))
+                .mapToLong(DailyStats::getMergedSeconds)
+                .sum();
+    }
+
+    /**
+     * Sums the materialized rows inside the half-open date range.
+     *
+     * @param days the user's rows
+     * @param startInclusive first date to include
+     * @param endExclusive first date to exclude
+     * @return the summed seconds
+     */
+    private static long secondsBetween(
+            List<DailyStats> days, LocalDate startInclusive, LocalDate endExclusive) {
+        return days.stream()
+                .filter(
+                        day ->
+                                !day.getUtcDate().isBefore(startInclusive)
+                                        && day.getUtcDate().isBefore(endExclusive))
+                .mapToLong(DailyStats::getMergedSeconds)
+                .sum();
+    }
+
+    /**
+     * Assembles the response, so both source paths pair each metric with its previous period in one
+     * place instead of two that can drift apart.
+     *
+     * @param summary the current periods and the previous ones behind them
+     * @return the summary with per-metric comparisons
+     */
+    private static StatsSummaryResponse toResponse(StatsCalculator.Summary summary) {
+        StatsCalculator.PreviousPeriods previous = summary.previous();
         return new StatsSummaryResponse(
                 summary.today(),
                 summary.dailyAverage(),
                 summary.thisWeek(),
                 summary.thisMonth(),
                 summary.thisYear(),
-                summary.total());
+                summary.total(),
+                new StatsComparisons(
+                        StatsComparison.of(summary.today(), previous.today()),
+                        StatsComparison.of(summary.dailyAverage(), previous.dailyAverage()),
+                        StatsComparison.of(summary.thisWeek(), previous.thisWeek()),
+                        StatsComparison.of(summary.thisMonth(), previous.thisMonth()),
+                        StatsComparison.of(summary.thisYear(), previous.thisYear())));
     }
 
     /**
