@@ -191,7 +191,7 @@ public class UserController {
     @DeleteMapping("/me")
     public ResponseEntity<RestApiResponse<EmptyResponse>> deleteCurrentUser(
             @Valid @RequestBody DeleteAccountRequest request) {
-        CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
+        CurrentUser currentUser = currentUserProvider.getActiveUserRequired();
         // An API key is a credential sitting on disk in the plugin; letting one destroy the account
         // it was issued for turns a leaked key into account loss.
         if (currentUser.authType() != CurrentUser.AuthenticationType.WEB_SESSION) {

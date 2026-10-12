@@ -43,12 +43,23 @@ Endpoints accessed via browser using JWT. Standard user operations.
     (e.g., creating an API key, changing password).
 
 ### Tier 3: High-Privilege User (Web)
-Endpoints requiring a fully active and verified account.
+Endpoints that change credentials, identity, or the account itself: they require the account to be
+**active at the moment the token was issued**, so a token carrying a non-active status (issued or
+refreshed during a lockout, suspension, or deletion) cannot use them.
 
 *   **Examples**:
-    *   `DELETE /api/v1/users/me` (Account deletion)
-    *   `POST /api/v1/users/me/password/change`
-*   **Authentication**: Required (`CurrentUserProvider.getActiveUserRequired()`).
+    *   `DELETE /api/v1/users/me` (Account deletion — additionally requires a web session, `AUTH_025`)
+    *   `POST /api/v1/users/me/password/set`, `POST /api/v1/users/me/password/change`
+    *   `POST /api/v1/users/me/email/change-request`, `POST /api/v1/users/me/email/resend-verification`
+    *   `POST /api/v1/auth/api-keys` (minting a credential)
+    *   `DELETE /api/v1/auth/oauth/accounts/{provider}` (removing a login method)
+*   **Authentication**: Required (`CurrentUserProvider.getActiveUserRequired()`), which rejects
+    `PENDING_VERIFICATION` (`AUTH_006`), `LOCKED` (`AUTH_004`), `SUSPENDED` (`AUTH_005`) and
+    `DELETED` (`AUTH_022`) with the status the token carries.
+*   **Deliberately not in this tier**: operations that *protect* an account stay reachable while it
+    is locked or suspended — logout, logout-all, cancelling a pending email change, reading one's own
+    profile, and revoking or purging API keys. Gating those would remove the only self-service way
+    out of a compromise.
 *   **Rate Limiting**: Enforced by **User ID**.
     *   Strict capacity (e.g., 5 requests / hour).
 *   **Idempotency**: Mandatory.

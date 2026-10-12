@@ -182,7 +182,7 @@ public class EmailChangeController {
     @PostMapping("/change-request")
     public ResponseEntity<RestApiResponse<EmptyResponse>> requestEmailChange(
             @Valid @RequestBody EmailChangeRequest request, HttpServletRequest httpRequest) {
-        UUID userId = currentUserProvider.getCurrentUserRequired().id();
+        UUID userId = currentUserProvider.getActiveUserRequired().id();
         String ip = IpUtils.getRealIp(httpRequest);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
         EmptyResponse response =
@@ -476,7 +476,7 @@ public class EmailChangeController {
     @PostMapping("/resend-verification")
     public ResponseEntity<RestApiResponse<EmptyResponse>> resendEmailChangeVerification(
             HttpServletRequest httpRequest) {
-        UUID userId = currentUserProvider.getCurrentUserRequired().id();
+        UUID userId = currentUserProvider.getActiveUserRequired().id();
         String ip = IpUtils.getRealIp(httpRequest);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
         EmptyResponse response =

@@ -116,7 +116,7 @@ public class PasswordController {
     @PostMapping("/set")
     public ResponseEntity<RestApiResponse<EmptyResponse>> setPassword(
             @Valid @RequestBody SetPasswordRequest request) {
-        UUID userId = currentUserProvider.getCurrentUserRequired().id();
+        UUID userId = currentUserProvider.getActiveUserRequired().id();
         passwordService.setPassword(userId, request.newPassword());
         return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok()));
     }
@@ -226,7 +226,7 @@ public class PasswordController {
     @PostMapping("/change")
     public ResponseEntity<RestApiResponse<EmptyResponse>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request) {
-        UUID userId = currentUserProvider.getCurrentUserRequired().id();
+        UUID userId = currentUserProvider.getActiveUserRequired().id();
         passwordService.changePassword(userId, request.currentPassword(), request.newPassword());
         return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok()));
     }

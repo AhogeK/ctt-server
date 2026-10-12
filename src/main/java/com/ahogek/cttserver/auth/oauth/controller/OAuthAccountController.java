@@ -224,7 +224,7 @@ public class OAuthAccountController {
     @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/accounts/{provider}")
     public ResponseEntity<Void> unbindAccount(@PathVariable OAuthProvider provider) {
-        UUID userId = currentUserProvider.getCurrentUserRequired().id();
+        UUID userId = currentUserProvider.getActiveUserRequired().id();
         oauthLoginOrRegisterService.unbindFromExistingUser(userId, provider);
 
         return ResponseEntity.noContent().build();

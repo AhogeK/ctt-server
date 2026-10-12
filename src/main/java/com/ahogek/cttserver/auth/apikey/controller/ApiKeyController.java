@@ -222,7 +222,7 @@ public class ApiKeyController {
     @PostMapping
     public ResponseEntity<RestApiResponse<CreateApiKeyResponse>> createApiKey(
             @Valid @RequestBody CreateApiKeyRequest request) {
-        UUID userId = currentUserProvider.getCurrentUserRequired().id();
+        UUID userId = currentUserProvider.getActiveUserRequired().id();
         CreateApiKeyResponse response = apiKeyService.createApiKey(userId, request);
         return ResponseEntity.created(URI.create("/api/v1/auth/api-keys/" + response.apiKey().id()))
                 .body(RestApiResponse.ok(response));
