@@ -172,6 +172,9 @@
 - **语言**：代码/注释/日志强制英文，仅 `.md` 可中文
 - **注释（Clean Code）**：✅ 公共API Javadoc/复杂算法Why/警示信息；❌ 解释代码做了什么/冗余注释/注释掉的代码/TODO/FIXME
 - **OpenAPI Schema（强制）**：所有DTO/Response加 `@Schema(description)`，每个字段加 `@Schema(description, example)`，校验注解不可遗漏，禁止硬编码版本号（用 `@Value("${info.app.version}")`），@ApiResponse必须带content，错误响应必须有独立示例
+- **可空键的序列化契约（强制）**：某个键**必须始终存在**而值可为 null 时，须在该组件上加 `@JsonInclude(Include.ALWAYS)` 覆盖全局 `non_null` 策略——否则键会被**静默丢弃**，"没有基线"与"客户端不认识该字段"无法区分。断言必须**按键**做（`asMap().containsEntry(k, null)`），`extractingPath(...).isNull()` 对**缺失键同样通过** ✗ 抓不到
+- **`@Schema` 的 `example` 必须是代码可达的状态**：不可达的示例（如"非 0 基期却 null 变更"）会让对接方按不存在的形态写代码
+- **禁止在代码中使用全限定类名**：除 `import` 外一律用短名（`IntStream.rangeClosed` 而非 `java.util.stream.IntStream.rangeClosed`）
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试**：多断言链式调用 `.isX().isY().isZ()`，方法名 `shouldX_whenY`
 - **编辑前验证（强制）**：先读完整文件（片段读取不足时直接整文件读取，不反复片段读同一文件）→ 编辑后LSP diagnostics → 编译验证 → 运行相关测试

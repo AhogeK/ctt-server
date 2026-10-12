@@ -42,6 +42,33 @@ JSON — the constants are the single source for the envelope shape.
 | Adding a param to a controller but not to its test mocks | `cannot be applied to given types` in tests | Grep every caller of the service method after changing its signature |
 | Adding a DTO import in a block whose neighbouring line already existed | Duplicate import; a mangled file | Diff the import block after editing |
 
+## A null field is absent by default — opt out when the key is part of the contract
+
+`spring.jackson.default-property-inclusion: non_null` (`application.yaml`) drops null fields from
+every response. Right default for optional extras, wrong one for a field whose *presence* the client
+reads:
+
+- **Absent means "your client is older than this field"; null means "the field exists and has no
+  value".** Collapsing the two makes "no baseline" indistinguishable from "unknown field", which is
+  exactly what a client needs to tell apart to decide whether to render or hide an element.
+- Primitives survive the policy by accident (`long 0` is not null) — that is why aggregate counters
+  are primitives, and why a test asserting the key exists **at zero** is worth keeping.
+- A legitimately nullable field opts out on the record component:
+  `@JsonInclude(JsonInclude.Include.ALWAYS)` (with `@Schema(nullable = true)` so the docs agree).
+  Annotating the component is enough — Jackson reads record-component annotations.
+
+**Assert it as a key, not as a value.** `extractingPath("$.x.y").isNull()` passes for a *missing*
+key too, so it cannot detect the policy silently dropping the field. Assert on the containing map:
+`extractingPath("$.x").asMap().containsEntry("y", null)` — and for a family of always-present keys,
+`asMap().containsOnlyKeys(...)`, which also catches renames.
+
+**An `example` must be a state the code can actually emit.** Generated docs are what a client
+integrator reads first, so a sample that pairs a non-zero `previousSeconds` with a `null` percent —
+a combination the DTO never produces, because null requires a zero baseline — teaches them to handle
+a case that cannot happen while hiding the one that does. When a field's value is conditional, put
+the sample on the branch that is hardest to guess (here: the null belongs to the metric that has no
+baseline at all) and keep the other samples computed from reachable inputs.
+
 ## Validation patterns
 
 - Path/query binding errors and bean-validation failures both surface as `400 COMMON_003` with a

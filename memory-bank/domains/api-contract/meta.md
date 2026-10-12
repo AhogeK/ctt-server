@@ -44,8 +44,8 @@ filter-chain wiring (cross-cutting, `systemPatterns.md`), DB schema.
 
 | | |
 | --- | --- |
-| Checked against source | 2026-09-11 · v0.67.0 (domain written from source) |
-| Coverage | Built from `ErrorCode`, the global handler, the response envelopes and the controllers at that revision; not re-verified since |
+| Checked against source | 2026-09-11 · v0.67.0 (domain written from source); the inclusion-policy and example-validity practice re-read and extended **2026-10-12 · v0.78.0** |
+| Coverage | Built from `ErrorCode`, the global handler, the response envelopes and the controllers at that revision; the `non_null` inclusion policy and record-component `@JsonInclude` opt-out re-verified at v0.78.0, the rest not re-verified since |
 | Known drift | `ErrorCode` families re-counted 2026-09-15: the `DEVICE_` family was missing from `references.md` and has been added. Re-count after any change to `ErrorCode` |
 
 Treat unverified parts as a lead to check, not as a fact.

@@ -1610,7 +1610,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 #### S1：统计聚合基础（个人看板核心维度）✅
 
-**实现状态：** ✅ **全部完成**（v0.53.1，设备/IDE 维度扩展 v0.59.0，IDE 过滤 v0.60.0）— stats/ 包 9 维度聚合 + 6 端点落地，全量测试通过（含时区边界 / 跨天会话 / 空数据 / 非法区间），双轴 Code Review 通过，与插件端 StatisticsView 同数据集联调一致；插件端 heatmap 按天不合并 bug 已反馈修复。v0.59.0 补齐设备 / IDE 维度：origin_device_id 创建时盖章（跨设备更新不漂移）+ 全端点可选 deviceId 过滤（他人设备 404）+ distribution 新增 type=DEVICES / type=IDES（IDE 桶派生自 origin 设备注册的 ide_name；deviceId 为安装级、同机多 IDE 共享，协议/插件零改动）。v0.60.0 补齐 IDE 过滤：6 端点可选 ideName 参数（与 deviceId 互斥 400、未匹配任何设备 404）+ GET /ide-filters 筛选选项端点（distinct 非空 IDE 名）。v0.61.0 新增 GET /heatmap-years（有有效会话的年份倒序，热力图年下拉数据源；数据源=coding_sessions 非物化表）
+**实现状态：** ✅ **全部完成**（v0.53.1，设备/IDE 维度扩展 v0.59.0，IDE 过滤 v0.60.0，年下拉数据源 v0.61.0，**summary 涨跌对比（`comparisons`，对比上一完整周期）v0.78.0**）— stats/ 包 9 维度聚合 + 6 端点落地，全量测试通过（含时区边界 / 跨天会话 / 空数据 / 非法区间），双轴 Code Review 通过，与插件端 StatisticsView 同数据集联调一致；插件端 heatmap 按天不合并 bug 已反馈修复。v0.59.0 补齐设备 / IDE 维度：origin_device_id 创建时盖章（跨设备更新不漂移）+ 全端点可选 deviceId 过滤（他人设备 404）+ distribution 新增 type=DEVICES / type=IDES（IDE 桶派生自 origin 设备注册的 ide_name；deviceId 为安装级、同机多 IDE 共享，协议/插件零改动）。v0.60.0 补齐 IDE 过滤：6 端点可选 ideName 参数（与 deviceId 互斥 400、未匹配任何设备 404）+ GET /ide-filters 筛选选项端点（distinct 非空 IDE 名）。v0.61.0 新增 GET /heatmap-years（有有效会话的年份倒序，热力图年下拉数据源；数据源=coding_sessions 非物化表）。v0.78.0 新增 summary 的 `comparisons`：五个指标各带上一**完整**周期（昨天/上周/上月/去年）的 `previousSeconds` + 两位小数 `changePercent`（`null` = 不可比），五键恒在、`total` 无对比项；物化与实时两条路径共用同一装配点
 
 **目标：** 建立 stats/ 包，基于 coding_sessions 提供个人统计聚合，维度对齐插件端 StatisticsView 全部能力。
   **维度：**

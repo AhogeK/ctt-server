@@ -47,8 +47,8 @@ sync ingestion (`sync-protocol` domain).
 
 | | |
 | --- | --- |
-| Checked against source | 2026-09-11 · v0.67.0 (domain written from source) |
-| Coverage | Built from the `stats` package, calculator and service at that revision; not fully re-verified since |
-| Known drift | Calculator methods re-read 2026-09-15/16 (`accumulateBy`, `mergedSecondsByDay`, `bestPerfectMonthPercent`, `languageDistribution`, `languageCountAchievedAt`); the rest of the domain is unverified against HEAD |
+| Checked against source | 2026-09-11 · v0.67.0 (domain written from source); summary response shape and comparison rules re-read and extended **2026-10-12 · v0.78.0** |
+| Coverage | Built from the `stats` package, calculator and service at that revision; the summary response shape, previous-period windows and the `non_null` opt-out re-verified at v0.78.0, the rest not fully re-verified since |
+| Known drift | Calculator methods re-read 2026-09-15/16 (`accumulateBy`, `mergedSecondsByDay`, `bestPerfectMonthPercent`, `languageDistribution`, `languageCountAchievedAt`); the comparison rules (`summary`, `previousDailyAverage`, `StatsComparison.of`) re-read 2026-10-12; the rest of the domain is unverified against HEAD |
 
 Treat unverified parts as a lead to check, not as a fact.

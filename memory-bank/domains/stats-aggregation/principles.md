@@ -72,3 +72,34 @@ rule as `achievement_progress`).
 
 **Generalization**: before treating a derived table as a complete record, find what *writes* it and
 when. Lazy/on-demand writers produce gaps that look like data.
+
+## 10. A comparison is stated against a closed period, from the same source as the value
+
+`summary.comparisons` measures each metric against the **previous complete period** — yesterday,
+last week, last month, last year — not the same period to date. A change against a partial baseline
+drifts as the current period fills and reads as noise, so each previous window is a bounded
+half-open range `[previousStart, currentStart)`.
+
+Four consequences that are easy to get wrong:
+
+- **The previous value must come from the same primitive as the value it compares.** Materialized
+  path: sum the `daily_stats` rows inside the window. Live path: cut the window out of the *same*
+  merged interval list. Mixing primitives (say per-day truncated sums against a once-truncated
+  current value) is principle 2 broken across two values, and it is invisible at the second level.
+- **Each rule has one enforcing site.** The wire rules — a zero previous period yielding `null`,
+  and percent rounded to two decimals half away from zero — live in `StatsComparison.of`; the
+  `dailyAverage` baseline lives in `StatsCalculator.previousDailyAverage`. Both source paths call
+  them instead of re-deriving, which is what keeps the materialized and live answers comparable.
+- **`dailyAverage` has no period window.** It compares against itself as it stood at the end of
+  yesterday — `(total − today) / (daysElapsed − 1)` — and has no baseline at all on the first coding
+  day (0, which the wire format renders as a null change, never as −100%).
+- **A zero previous period means no change can be stated**, not "infinite growth" and not −100%:
+  the DTO emits `null`. `current == 0, previous > 0` is the case that legitimately reports −100%.
+- **Cross-path equality is bounded by the materialization granularity, not a goal.** The materialized
+  path sums per-day truncated `merged_seconds`; the live path truncates the window sum once. For a
+  window of ≥2 days holding sub-second (ms-tail) sessions the two can therefore differ by up to the
+  number of days in the window — bounded, known, and older than the comparisons themselves (the
+  current week/month/year sums have always had it). It cannot be removed without storing remainders
+  in `daily_stats`, and it is **not** a bug to "fix" by moving one path onto the other's primitive:
+  that would break the value the comparison is stated against. Single-day windows (today, and the
+  `dailyAverage` baseline) are exact in both paths.

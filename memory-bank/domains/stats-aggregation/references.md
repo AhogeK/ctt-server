@@ -21,6 +21,21 @@ Facts to look up. No judgement here.
 `zone` = `timezoneOffset` minutes east of UTC (−720..720, default 0). `heatmap`/`hourly`/
 `distribution`/`week-hour` dates are inclusive ISO `yyyy-MM-dd`; omitted bounds = full history.
 
+## Summary response shape
+
+| Field | Meaning |
+| --- | --- |
+| `today` / `thisWeek` / `thisMonth` / `thisYear` | merged seconds in the current local day / ISO week (Monday start) / calendar month / calendar year |
+| `dailyAverage` | lifetime total ÷ days from the first coding day to today, inclusive |
+| `total` | lifetime merged seconds — has **no** comparison |
+| `comparisons.{today,dailyAverage,thisWeek,thisMonth,thisYear}` | `previousSeconds` + `changePercent` (two decimals, or `null`) |
+
+All values are whole seconds; `dailyAverage`'s `previousSeconds` is seconds **per day**. The five
+comparison keys are always present (`total` has none), and `changePercent` is `null` exactly when
+`previousSeconds` is 0 — the two sources being an empty previous period and the first coding day for
+`dailyAverage`. The field opts out of the global `non_null` policy so the null key survives; see
+`api-contract/practices.md`.
+
 ## Dimensions
 
 | `DistributionType` | Family | Source |
