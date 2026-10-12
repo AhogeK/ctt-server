@@ -22,6 +22,7 @@ in production.
 | Trigger | Judgement | Action |
 | --- | --- | --- |
 | New way to log in | Does it authenticate (login) or link (bind)? | Login → issue tokens + set login metadata; bind → no tokens, no metadata |
+| New endpoint that changes a credential or identity | Account state has to be valid as of the token | Call `getActiveUserRequired()` (Tier 3 in `docs/api-governance.md`); reads and protective operations stay on `getCurrentUserRequired()` — a locked account must still be able to log out and revoke keys |
 | New credential change | Do other sessions survive? | Default: revoke refresh tokens; state the choice in the PR/report |
 | New verification token use | Reusing the shared table? | Add a purpose value and filter on it in every lookup |
 

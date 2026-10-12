@@ -83,3 +83,22 @@ Two consequences worth stating:
 The ranking cleanup is separate and runs **after** the transaction commits, never inside it: a
 ranking write that outlived a rollback would leave a live account unranked, while the reverse failure
 is logged and visible.
+
+## 10. Credentials and identity change only from an active account
+
+`getActiveUserRequired()` rejects the statuses a token can carry besides `ACTIVE` —
+`PENDING_VERIFICATION` (`AUTH_006`), `LOCKED` (`AUTH_004`), `SUSPENDED` (`AUTH_005`), `DELETED`
+(`AUTH_022`) — and it gates every endpoint that can alter a credential, an identity, or the account
+itself: setting or changing a password, requesting or resending an email change, minting an API key,
+unbinding an OAuth provider, deleting the account.
+
+**What it closes, and what it does not.** The status is read from the token's claim rather than from
+the store, so the gate rejects a token that was issued or refreshed while the account was already
+inactive. It does **not** shorten the window in which a token minted while active keeps working after
+the status changes (principle 9 — closing that would mean reading the store on every request, the
+tradeoff this domain already rejected).
+
+**Protective operations stay outside the gate, deliberately.** Logout, `logout-all`, cancelling a
+pending email change, reading one's own profile, and revoking or purging an API key keep working for a
+locked or suspended account: they are how a user escapes a compromise, and gating them would turn a
+lockout into a trap.
