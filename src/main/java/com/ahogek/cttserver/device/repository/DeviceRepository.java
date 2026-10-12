@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -34,5 +35,5 @@ public interface DeviceRepository extends JpaRepository<Device, UUID> {
      * @param userId the user ID
      * @return the device if found and owned by the user
      */
-    java.util.Optional<Device> findByIdAndUserId(UUID id, UUID userId);
+    Optional<Device> findByIdAndUserId(UUID id, UUID userId);
 }
