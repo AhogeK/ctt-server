@@ -13,6 +13,7 @@ import com.ahogek.cttserver.user.controller.PasswordController;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.service.PasswordService;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,17 @@ class PasswordControllerIntegrationTest {
 
     @MockitoBean private PasswordService passwordService;
     @MockitoBean private CurrentUserProvider currentUserProvider;
+
+    /**
+     * The slice tests stand in for an account that is active, which is the state they exercise; the
+     * rejection of an inactive one is covered end-to-end by {@code
+     * ActiveAccountGateIntegrationTest}.
+     */
+    @BeforeEach
+    void treatCurrentUserAsActive() {
+        BDDMockito.given(currentUserProvider.getActiveUserRequired())
+                .willAnswer(invocation -> currentUserProvider.getCurrentUserRequired());
+    }
 
     private CurrentUser currentUser() {
         return new CurrentUser(

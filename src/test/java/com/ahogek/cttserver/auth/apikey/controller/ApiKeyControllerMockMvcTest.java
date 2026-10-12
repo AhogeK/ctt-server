@@ -17,6 +17,7 @@ import com.ahogek.cttserver.common.idempotent.IdempotentAspect;
 import com.ahogek.cttserver.common.ratelimit.RateLimitAspect;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,17 @@ class ApiKeyControllerMockMvcTest {
     @MockitoBean private ApiKeyService apiKeyService;
     @MockitoBean private ApiKeyQueryService apiKeyQueryService;
     @MockitoBean private CurrentUserProvider currentUserProvider;
+
+    /**
+     * The slice tests stand in for an account that is active, which is the state they exercise; the
+     * rejection of an inactive one is covered end-to-end by {@code
+     * ActiveAccountGateIntegrationTest}.
+     */
+    @BeforeEach
+    void treatCurrentUserAsActive() {
+        BDDMockito.given(currentUserProvider.getActiveUserRequired())
+                .willAnswer(invocation -> currentUserProvider.getCurrentUserRequired());
+    }
 
     private CurrentUser currentUser() {
         return new CurrentUser(
