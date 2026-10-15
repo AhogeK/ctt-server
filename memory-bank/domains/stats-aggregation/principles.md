@@ -103,3 +103,21 @@ Four consequences that are easy to get wrong:
   in `daily_stats`, and it is **not** a bug to "fix" by moving one path onto the other's primitive:
   that would break the value the comparison is stated against. Single-day windows (today, and the
   `dailyAverage` baseline) are exact in both paths.
+
+## 11. An hourly average's denominator is "days with coding", and its numerator is one accumulation
+
+`activeDays` counts local days holding at least one whole second of coding — **not** days on which a
+session merely *started*. A session crossing local midnight codes on two local days and belongs to
+both; counting start days (what the code did until 2026-10) silently inflates every average for
+users with late-night sessions.
+
+`hourly` and `hourly-days` must never slice independently. `StatsCalculator.hourlyByDay` is the single
+accumulator: `hourlyDistribution` builds its 24 hour-sums from the same per-day buckets
+`hourlySecondsByDay` returns, and the 31-day cap is applied only at the edge of the per-day public
+method, never inside the derivation. Summing `hourly-days` hour by hour and dividing by `activeDays`
+therefore reproduces the average curve **by construction** — an invariant the integration test
+asserts instead of assuming. The same call returns the window's active-day count alongside the
+truncated series (`DayHourlyWindow`), so the denominator never needs a second pass over the sessions.
+
+**Basis**: `StatsCalculator.hourlyByDay` / `hourlySecondsByDay`, `StatsService.hourlyDays`,
+`StatsIntegrationTest.shouldReturnHourlyDays_reproducingHourlyCurve` (2026-10-15, v0.79.0).

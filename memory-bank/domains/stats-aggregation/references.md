@@ -11,6 +11,7 @@ Facts to look up. No judgement here.
 | `/api/v1/stats/streaks` | zone, deviceId, ideName | READ | 60/min |
 | `/api/v1/stats/distribution` | type, zone, start, end, deviceId, ideName | READ | 60/min |
 | `/api/v1/stats/hourly` | zone, start, end, deviceId, ideName | READ | 60/min |
+| `/api/v1/stats/hourly-days` | zone, start, end, deviceId, ideName | READ | 60/min |
 | `/api/v1/stats/week-hour` | zone, start, end, deviceId, ideName | READ | 60/min |
 | `/api/v1/stats/recent` | limit, deviceId, ideName | READ | 60/min |
 | `/api/v1/stats/heatmap-years` | zone | READ | 60/min |
@@ -19,7 +20,24 @@ Facts to look up. No judgement here.
 | `/api/v1/stats/achievements` | zone | READ | 60/min |
 
 `zone` = `timezoneOffset` minutes east of UTC (−720..720, default 0). `heatmap`/`hourly`/
-`distribution`/`week-hour` dates are inclusive ISO `yyyy-MM-dd`; omitted bounds = full history.
+`hourly-days`/`distribution`/`week-hour` dates are inclusive ISO `yyyy-MM-dd`; omitted bounds =
+full history. `hourly-days` returns at most the **31 most recent** active days, oldest first, while
+its `activeDays` still counts every coded day in the window (so it matches `hourly`).
+
+## Duration semantics per surface
+
+Two semantics coexist. Which one a surface uses is deliberate, and mixing them silently changes what
+a number means — read this table before adding or interpreting a surface.
+
+| Semantics | Surfaces |
+| --- | --- |
+| **Merged** — overlapping intervals are unioned first | `summary`, `heatmap`, `streaks`, `distribution?type=TIME_OF_DAY`, `week-hour` |
+| **Raw per session** — each session contributes its own duration | `distribution?type=LANGUAGES` / `PROJECTS` / `WEEKDAY` / `DEVICES` / `IDES` (registry-backed ones via `aggregateByLabel`), `hourly`, `hourly-days` |
+
+`timeOfDayDistribution` is merged while `weekdayDistribution` is raw, and `weekHourDistribution` is
+merged while `weekdayDistribution` is not: near-identical names are the most common source of
+misreads. `StatsCalculator`'s class Javadoc and the README keep the same list — update all three
+together.
 
 ## Summary response shape
 

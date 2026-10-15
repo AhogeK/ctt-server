@@ -1,5 +1,18 @@
 # Active Context
 
+- [2026-10-15] - hourly-days 端点（按日的每小时分布，v0.79.0，待提交）
+    - 需求: 前端要在「Average hourly coding duration」面板里把**每天的曲线**叠画在平均曲线背后，并在含今天的窗口标出"当下时刻"
+    - **回源核出的实质问题（前端报告未覆盖）**: `hourlyDistribution` 的 `activeDays` 是「**会话起始日**去重」而非领域文档定义的「**有编码的天数**」→ 跨本地午夜的会话只贡献 **1** 天分母，把平均值**抬高**；前端整套叠画假设（分母 = 有编码的天数、逐日数组之和 = 平均曲线的分子）因此不成立。裁决: **修缺陷**（对齐 `meta.md` 定义 + 前端语义 + 新端点需要同源），不做静默修改
+    - 结构决策（防止两套口径漂移）: 抽出 `hourlyByDay(..., maxDays)` 单一累加器（`TreeMap<LocalDate, long[24]>`），`hourlyDistribution` 改为**由同一份日桶派生**（小时和 = 逐日相加，分母 = 日桶数）；31 天上限只施加在 `hourlySecondsByDay` 边缘 → 「逐日之和 ÷ 分母 = 平均曲线」由**构造**保证而非约定。集成测试断言该不变量（`average×N ≤ sum < (average+1)×N`，因平均值按整数向下取整）
+    - 其他裁决: 原始累加（重叠计两次，与 `hourly` 一致，不合并）；只出活跃日、升序；`activeDays` 取窗口真实值、**不受 31 天截断影响**（与 `hourly` 恒等）；上限 31 防未设窗口的全历史请求放大响应
+    - 实现: `StatsCalculator`（`DayHourly` record + `hourlySecondsByDay` + 私有 `hourlyByDay`，重写 `hourlyDistribution`）、DTO `HourlyDayPoint`/`HourlyDaysResponse`、`StatsService.hourlyDays`（`end<start` → COMMON_003，与 hourly 同）、`GET /api/v1/stats/hourly-days`（READ + 60/60，参数与 hourly 完全一致）
+    - 测试: 计算器 +7（跨午夜切成两天 / 重叠计两次 / **与 hourly 逐小时一致 + 分母修正** / 31 天取最新 / 丢弃零日并升序 / 空）、集成 +2（逐日数组重算平均曲线 + `activeDays` 与 hourly 相等 / 400 区间非法）。**我自己写错一处期望**（第 11 小时只含第二段 1800，我错记成 5400）—— 跑出来才发现
+    - 领域沉淀: `stats-aggregation/principles.md` §11（分母定义 + 单一累加器 + 不变量）、`references.md`（端点表 + 31 天上限）、`practices.md`（"第二份切片会漂移"陷阱）
+    - **前端复核回执（2026-10-15）**: 分母修正与结构（唯一累加源、上限只在边界、`activeDays` 与截断无关）两项复核通过；raw 口径 / 31 上限 / 无服务端缓存 / 无"今天未结束"字段全部接受。三项顺手项**全部采纳**（均零行为变化）: ① `StatsCalculator` 类注释的时长语义清单校正（time-of-day 实为**合并**、两清单都缺的 week-hour 补入）+ README 合并清单补 week-hour ② `weekHourDistribution` 重复两遍的合并注释删一段 ③ 去掉 `hourlyDays` 的第二遍全量累加 —— 新增 `DayHourlyWindow` record（`days` 截断 / `activeDays` 全量），一次 `hourlyByDay` 同时产出两者
+    - 顺带核实: `devices`/`IDEs` 分布经 `aggregateByLabel(sessions, …)` 逐会话聚合 = **raw**；已把「哪个面合并、哪个面原始」列为 `references.md` 新表（前端正是被同类清单误导过）
+    - 验证: 计算器 **7/7**、集成 **22/22** 绿；全量 **1503 tests / 0 failures / 0 errors**（上批 1494，+9 = 计算器 7 + 集成 2）；jacoco INSTRUCTION **95%** / BRANCH **84%**（阈值 80/70）；`spotlessCheck` PASS
+    - 状态: 实施完成，**待授权提交**
+
 - [2026-10-12] - 账号状态门控接线 + 生产侧 FQCN 清理（v0.78.1）
     - **先纠正我自己报错的数字**: 上批收尾我说"仓库还剩 9 处全限定类名 / 8 个文件"，实测是**生产 4 处 + 测试 91 处**（前后两次 grep 过滤条件不一致 ✗）。教训：规模必须用同一条命令复算，不能凭中间结果拼凑
     - **裁决 1（门控）= 把已实现却从未接线的 `getActiveUserRequired()` 接上，而不是改文档就范**: 接口 Javadoc 明写"适合要求账号完全激活的业务操作"并按状态映射错误码（`AUTH_006`/`004`/`005`/`022`）、`SpringSecurityCurrentUserProviderTest` 已逐状态钉死、`docs/api-governance.md` Tier 3 以它作为 Gate —— 三者齐备 ⇒ 属"**意图在、接线缺**"的**缺陷**（R25：文档记录的是意图而代码违反时，改文档就范是错的 ✗）
@@ -114,85 +127,6 @@
     - 未做（判定为设计权衡非缺陷）: tie-breaker（需把达成时间编码进 score，使 score 不再是可读真实值，收益不抵代价）；ZREM 清理（无注销端点，不可达）；锁释放统一（一致性瑕疵，功能等价）
     - 验证: 全量 **1402 tests / 0 failures**；jacoco INSTRUCTION 95.04% / BRANCH 84.09%；spotless PASS
     - 状态: ✅ 实施完成，待授权提交
-- [2026-09-14] - 周期成就历史达成信息（v0.72.0）
-    - 需求: ctt-web 要 `totalUnlocks`（累计达成周期数）+ `periodStreak`（连续周期数）
-    - **核实发现前端报告决定性错误**: 报告称"数据已存在，只需累加表中行、零新增计算"——但 `user_achievements` 行由 `evaluate` 写，而 evaluate **仅在 `GET /achievements` 触发**（`SyncPushService:102` 只 evictCache）。故表中历史行 = "访问过成就页的那些周期"，非真实达成历史；照报告实现会把"每周达标但只看过一次"报成 totalUnlocks=1/streak=1
-    - 决策: **从 sessions 回算**，不信任表行（与报告建议相反）。16 个窗口成就只用 2 种类型（TOTAL_SECONDS/ACTIVE_DAYS），回算代价低
-    - 实现: `StatsCalculator.totalsByPeriod(sessions, zone, periodKeyOf)`（基于既有 `mergedSecondsByDay`，按调用方 key 一次分组出 {seconds, activeDays}，保持本类对 achievement 无依赖）；`AchievementWindow.previousPeriod`（week 用 minusWeeks 保证 ISO 跨年、month 用 minusMonths 不用 30 天近似）；Service 回算达标周期 **∪ 表中行**（并集保证软删后不降，同 achievement_progress 单调性）；两新字段为 primitive `int`（`non_null` 下不缺席）；**缓存 v3 → v4**（响应 shape 变更）
-    - 语义裁决: `periodStreak` 本周期未达成时返回 **0**（返回上期连击会与同卡片 `unlocked=false` 矛盾）
-    - **红-绿验证**: 临时改回"只信表行" → 3 条测试失败 → 恢复全绿（证明测试能抓住报告方案）
-    - 测试: Service +5 / Window +4 / Calculator +3 / 集成 +2
-    - 领域沉淀: `domains/stats-aggregation/principles.md` §9「A lazily-written row is not a history」
-    - 验证: 全量 **1397 tests / 0 failures**；jacoco 95.05% / 84.38%；spotless PASS
-    - 状态: ✅ 实施完成，待授权提交
-- [2026-09-13] - R6/R23/R13 加固：提交授权作用域闭合（重犯 R23 同类违规后固化）
-    - 违规: 指令「提交并推送，然后继续实施下一阶段」——"提交并推送"仅覆盖当时 Batch 1，我据此自行完成 Batch 2/3/4 的 **12 个 develop 提交 + 9 个 master cherry-pick**（未授权提交进 master）。性质=**重犯**（R23 即 2026-09-01 同类违规的产物），且报告里已写"待授权提交"却自行绕过；根因是规则执行力缺失而非规则缺失
-    - R14 加固: R6 自检补第 5 项 + 「机械判定法」（字面搜索 `提交/commit/推送/push`，未命中即禁止提交）；R23 扩为「修复≠提交、授权作用域闭合」（前瞻指令误判行 + 作用域闭合小节）；R13 补「超行数但无 30 天外条目」处理顺序（禁删记忆）。判定: **前瞻动词不携带提交授权**
-    - 状态: ⏸ 已写入 AGENTS.md 与 memory-bank，待授权提交
-- [2026-09-11..13] - 成就系统扩展四批（v0.68.0 → v0.71.0，全链路完成）
-    - Batch 1（type/tier 投影 + 阶梯扩容 + PERFECT_MONTH 连续化，v0.68.0）: 前置核实前端文档 **3 处错误 + 2 处缺口**——DAILY_BURST progress 已是秒不需改语义、阶梯提案丢了 3 个现存 code（LANGUAGES_10/EARLY_BIRD_30/NIGHT_OWL_30）会孤立已解锁记录、tier 非"枚举已持有"需推导；缺口=周期成就需 period_key 改唯一约束、46 阶会退化成 46 次全量扫描。实施: 枚举 15 → **51 阶**（STREAK/TOTAL/EARLY_BIRD/NIGHT_OWL 各 8、LANGUAGES 9、DAILY_BURST/PERFECT_MONTH 各 5）**保留全部 15 个既存 code**；tier 由静态 TIERS 表按 type 分组 + target 升序推导（不手写序数）；DTO 增 type/tier；**per-type EnumMap 记忆化**（51 阶 → 7 次计算）；`PERFECT_MONTH` 二值 → `bestPerfectMonthPercent`（最佳月百分比覆盖，unit month→percent，用百分比而非天数使 28 天满勤=100 与 31 天 29 天=93 跨月长一致）；`LocalDate.now(clock)` → `now(clock.withZone(zone))`
-    - Batch 2（achievedAt 回推真实达成时刻，v0.69.0）: 需求——`unlockedAt` 用 `@CreationTimestamp` + 懒评估，记的是"首次被读取时刻"。关键判断: **无需迁移**（`unlocked_at` 已 NOT NULL，只需写入方传值），本批零 schema 变更。回推: 6 个精确原语入 `StatsCalculator`（纯计算、不依赖 achievement 包，避免 `stats.service → achievement` 循环依赖）——含累计时长返**区间内精确跨阈时刻**、月覆盖 `ceil(target%×月长/100)`（与 `bestPerfectMonthPercent` 同口径）。架构: 私有 record `Measurement(progress, resolver)` 使 **progress 与 achievedAt 同源同算**（单次 switch 产出两者，避免 Repeated Switch；record 组件访问器与自定义方法同名会冲突 → 组件改名 `resolver` + 语义方法 `achievedAt(long)`）。写路径: `insertIfAbsent` 增 `OffsetDateTime unlockedAt` 参、`UserAchievement` 去 `@CreationTimestamp`（防未来 JPA persist 覆盖）、并发败者改读回胜者时刻。防御: resolver 返 null 时 warn + 回退观察时刻（不静默丢解锁、不写错误时刻）
-    - Batch 3（progress 高水位单调不回退，v0.70.0）: 需求——progress 从存活会话实时算但会话可软删，已解锁不撤销 → 界面出现"3/10 天却已发奖"自相矛盾。设计判断: 高水位按**家族**存储而非按徽章（progress 是家族属性，8 个 STREAK 阶报同一个数，按 code 存会重复 8 份）；与 `daily_stats`（纯派生）不同，**本表是系统 of record**（会话删掉后历史最大值不可重建）。迁移 `V20260913120000__create_achievement_progress.sql`；仓储 `raiseIfHigher` 用 `INSERT ... ON CONFLICT DO UPDATE SET progress = GREATEST(...) WHERE progress < EXCLUDED.progress`——**单调性由 SQL 保证**；服务 `progress = max(测量值, 已解锁徽章的最高 target)` 作下界 → 与高水位比较后提升，**使「已发奖但数值更低」由构造消除**。测试关键: 初版两条用 LANGUAGES_3 + 高水位 3 是**无效测试**（仅靠下界即通过）→ 改 LANGUAGES_8 进度 6/高水位 7，使断言只能由高水位满足
-    - Batch 4（周期成就，v0.71.0）: 需求——原 15 阶全终身、拿满即终局，期望窗口滚动与终身并存。三个陷阱（事先识别并规避）: ①唯一约束 `(user_id, code)` 使周期再达成被 `ON CONFLICT` 跳过 → 必须改三元组 ②高水位表键是 `achievement_type`，周期与终身共享 type 会互相污染 ③tier 按 type 分组时 DAY 的 7200s 会与 LIFETIME 的 36000s 混成无意义阶梯。迁移 `V20260913130000__add_achievement_period_key.sql`——加 `period_key VARCHAR(20) NOT NULL DEFAULT 'LIFETIME'`（存量行自动落 LIFETIME = 旧行为不变）→ DROP 旧约束 → ADD `(user_id, achievement_code, period_key)` 唯一 + `(user_id, period_key)` 索引。新枚举 `AchievementWindow`（LIFETIME/DAY/WEEK/MONTH/YEAR，周用 **ISO week-based year** 使跨年的同一周保持同一 key）；新类型 `ACTIVE_DAYS`；枚举 51 → **67 阶 / 14 阶梯**（51 终身 + 16 周期: daily 3/weekly 5/monthly 4/yearly 4），`tier` 改为按 **(type, window)** 分组（public `LadderKey` record + `allInDeclarationOrder()` + `byCode()`）；**高水位只对 LIFETIME 生效**——周期必须能重置，加 mark 会使其永久满足（有专门测试锁定）；服务 `measure(LadderKey, ...)` 先 `clipSessions` 到窗口再算，解锁按 `(code, periodKey)` 匹配且仅**当前周期**的行算已解锁
-    - 测试抓到并修复: LadderKey 重构时 `floorOf` 丢掉"仅看已解锁徽章"条件，变成取整条阶梯最大 target（返回 60/365 而非 7/30）；解锁时刻原按阶梯折叠致同阶梯各阶共享时间戳 → 改回按 code 键
-    - 缓存键版本化（响应 shape 变更，防滚动部署读旧 JSON）: Batch 1 **v2**（增 type/tier）→ Batch 4 **v3**（增 window/windowStart/windowEnd，LIFETIME 时后两者 null）
-    - 双轴 code review（独立子 agent ×2）: Standards 4 项硬违规（README 陈旧/测试缺 `_whenY`/Javadoc 倍率声明不实/PERFECT_MONTH Javadoc 过期）+ Spec 全部达标；**两轴独立命中同一处 Javadoc 缺陷**；我方另查出「新字段无 MVC 全链路断言」+「缓存键未版本化」
-    - 验证: 逐批全量 1352 → 1364 → 1368 → **1383 tests / 0 failures**；jacoco 逐批 94.99%..95.24% / 84.11%..84.57%；spotless 每批 PASS；Batch 3 红-绿验证（临时禁用高水位 → 12 用例失败 → 恢复全绿）
-    - 评审报告: `.omp/achievement-expansion-review.md` / `.omp/achievement-expansion-spec.md`
-    - 状态: ✅ 四批全部实施完成
-- [2026-09-11] - master 生产分支内容边界清理（非 AI 的"开发内容"一并清出）
-    - 触发: 用户指出 master 上的 `docs/plans/2026-05-02-terms-acceptance.md` 属 AI 内容必须删除；并纠正我的误判——`dev-docs/` 下的两份 QA 文档是**开发内容**，本就不属 master（我此前建议 cherry-pick 过去是错的）
-    - 判据（用户给定）: master = 项目文档（`docs/` 面向用户者）+ 业务代码/测试/版本；`docs/plans/`（AI 计划）与 `dev-docs/`（开发/对接内容）均不进 master
-    - 执行:
-      · `85cdc51 chore: remove AI implementation plan from production branch`（删 docs/plans/2026-05-02-terms-acceptance.md，457 行）
-      · `3779ef7 chore: remove dev-only documentation from production branch`（删 dev-docs/{apikey,oauth,sync,user}/frontend-integration.md，1301 行）
-    - 溯源: 4 份 dev-docs 非刻意添加——随 `feat(oauth)`/`docs(pull paging protocol)` 等 cherry-pick 的提交捎带进 master；README/docs 均未引用
-    - 用户裁决: ①`docs/terms-acceptance-frontend-guide.md` 从 master 删除（同一内容判据）→ `0be68a1`，430 行 ②R17 加 dev-docs 排除规则
-    - R17 加固: 核心原则改为"无 AI 文件、无开发内容"；master 禁止项补 CLAUDE.md/SKILL_GRAPH.md/skills-lock.json + dev-docs/、docs/plans/、对接方指南；新增**内容边界判据**（面向本项目使用者=项目文档进 master；面向 AI 或面向对接方开发者的实施/对接说明=不进 master；位于 docs/ 但内容是接指南者按内容判定不按目录）；master同步规则 cherry-pick 排除 `dev-docs/`、`docs/plans/`（feature 提交常携带这些路径被捎带进 master）；验证项补"无 dev-docs、无 docs/plans"
-    - master 终态: `docs/` 仅 6 份面向用户项目文档（api-governance/audit-boundary-spec/case-normalization/developer-handbook/security-architecture/time-strategy）；对 AI 与开发内容零命中
-    - 验证: 构建 BUILD SUCCESSFUL；develop 保有全部 dev-docs 与初始 plans（零内容丢失，仅在 master 侧清除）；两分支 clean，工作分支 develop
-    - 状态: ✅ 全部推送完成
-- [2026-09-11] - 领域知识库建设（memory-bank/domains/，R25 落地）+ systemPatterns 去重
-    - 背景: R25 规则已立（上一轮吸收自 ctt-web）但 `domains/` 目录不存在——规则搬了、库没建。用户确认「按你推荐来，不从简、不保守」
-    - 判定: 建 **4 个**领域（非原荐 3 个）——核查 auth 域知识密度后追加 `auth-lifecycle`：86 个源文件、219+ 历史条目，且 `OAuthStatePayload.Action` 三处同步约定**错放在 AGENTS.md R8.5（规则文件）**，正是 R25 要归位的领域判断
-    - 建树（21 文件，全部 ≤78 行，无占位符，链接零断链）:
-      · `domains/README.md` 索引（两层分工 + 领域表 + 五件套说明）
-      · `stats-aggregation/` — 时间轴 vs 分类维度守恒律、单次截断、时区先于截断、最大余数配平、物化与 live 等价、选项列表同源、插件对齐
-      · `sync-protocol/` — LWW 四级优先级链 + 内容幂等、游标不可回卷、push 原子性、origin vs last-writer、水位乐观推进的已知缺口
-      · `api-contract/` — 错误码复用优先、状态码归注册表、404 不泄露存在性、兄弟端点错误集一致、429 双发 retryAfter、scope 失败关闭
-      · `auth-lifecycle/` — BIND 不发 token 会话不变量、登录元数据全路径、分层解锁、杀开关、防枚举、terms 版本门、token 用途隔离、captcha 配置开关
-    - 去重迁移（R25「不得两处重复」）:
-      · `systemPatterns.md` 的「同步策略 LWW+软删除」→ 留一行指针指向 sync-protocol/principles.md
-      · 「登录元数据设置模式」表 → 迁至 auth-lifecycle/practices.md，systemPatterns 留指针
-      · AGENTS.md R8.5 的 `OAuthStatePayload.Action` 约定 → 迁至 auth-lifecycle/scenarios.md，R8.5 改为「领域判断归领域文件」原则条款 + 链接
-      · 「客户端分配 ID 实体模式（Device）」保留在 systemPatterns（横切持久层规范），sync-protocol/practices.md 改为链接不复制
-    - 保留未迁: 时间策略/邮箱规范/测试风格/接口治理/接口安全/客户端上下文/传输安全/架构风格/安全底座——均为横切规范，符合 R25 分层
-    - 验证: 链接完整性脚本零断链；行数全部 ≤200；占位符扫描零命中（两条 grep 命中为 "never as a stub"/"Backfills" 误报）
-    - 状态: ✅ 待提交授权
-- [2026-09-11] - AGENTS.md 优化：吸收 ctt-web 的 6 条规则补缺（R14 流程）
-    - 触发: 用户要求对照 `../ctt-web/AGENTS.md` 优化本项目规则
-    - 事实核查: `.agents/` 在 ctt-server 有 48 个受跟踪文件（AI 技能工作区却无保护规则，真实缺口）；`.omp/` 已 gitignore（第 55 行）；AGENTS.md 仅存在于 develop（master 无 AI 文件，R17 一致）
-    - 吸收（仅取能补齐真实缺口的，不照搬前端专属）:
-      ① R3 扩为「关联项目（只读红线）」——新增 `../ctt-web`，明确严禁修改关联项目任何文件、契约变更走需求文本（此前 R3 只说"主动读取"，无禁止修改；与 ctt-web R3/R23 对齐）
-      ② R8 新增「讨论信号」bullet——"为什么/能不能/是否应该/你看呢/是不是…更好" = 讨论确认信号，先分析后实施，严禁当实施指令
-      ③ R9「编辑前验证」补全整文件阅读原则（片段不足直接整文件读，不反复片段读）
-      ④ 新增 R24 AI 边界——身份（唯一可写仓库=ctt-server）+ `.agents/` 只读保护（对齐 ctt-web R16/R23）+ 审查/调查子任务严格只读禁 --fix（对齐 ctt-web R22，附"子 agent 写盘污染工作区"红线）
-      ⑤ 新增 R25 领域知识库——domains/<domain>/ 五件套（meta/principles/scenarios/practices/references），按需建档禁占位，横切规范留 systemPatterns 不重复
-      ⑥ 新增 R26 AI 产物位置——docs/ 只放用户文档，AI 产物进 .omp/（此前仅存在于 2026-08-31 activeContext 条目，未固化为规则）
-    - 未吸收: ctt-web R13（API 对接 Zod/组件规范）、R9 的 Vue/Tailwind 条目、R7 的状态管理/路由项——前端专属，不适用后端；ctt-web R6 的 `git add` 需授权更严——本项目 R6 已覆盖 commit/push 授权，`git add` 属提交准备动作，保持现状
-    - 结构: 记忆库结构段拆为「时间线层 / 领域层」两层（对齐 ctt-web）；现无领域目录（按需建档，不建空结构）
-    - 验证: 纯文档规则变更，无代码影响；规则编号 R23→R24/R25/R26 追加、原 R14-R22 保持原位不改号（R14 命名约定）
-    - 状态: ✅ 待提交授权
-- [2026-09-11] - heatmap-months 端点 + heatmap-years 时区口径修正（v0.67.0）
-    - 需求: ctt-web——Coding trend 面板加「自然月」选择器（与年选择同级），选项须限定在有数据的月份；并指出 heatmap-years 无 timezoneOffset、年份按 UTC 提取的同源口径问题（授权我判断是否一并修）
-    - 判定: 一并修——年列表与月列表必须互相自洽（否则前端年份行会渲染出空月网格/漏年），且跨年会话在原 SQL 口径下已与 heatmap 不一致
-    - 设计决策: ①存在性口径 = 「该月/年至少有一个非零日（timezoneOffset 折算后）」——复用 mergedSecondsByDay（与 heatmap 同一 day-split），filter>0 精确对齐「heatmap 有非零点」，规避亚秒日（floor 后 0 秒）导致的假存在 ②数据源镜像 heatmap：UTC+bootstrapped 读 daily_stats（与 heatmap UTC 路径同源），否则 live sessions —— 保证列表与渲染同源不漂移 ③年与月共用 activeYearMonths(userId, zone) 私有方法，自洽由构造保证 ④删除已无用的 SQL findDistinctYearsByUserIdAndIsDeletedFalse（其 EXTRACT 口径即 bug 源）
-    - 实现: StatsCalculator.activeYearMonths(sessions, zone)（public，供 calculator 测试）+ StatsService.activeYearMonths 私有（源选择）/ heatmapYears(userId, zone) / heatmapMonths(userId, zone) + Controller GET /heatmap-months（READ+60/60，timezoneOffset @Min(-720)@Max(720) 默认 0）+ /heatmap-years 加同参数
-    - 测试: StatsCalculatorTest ActiveYearMonthsTests +5（UTC+8 边界折算 8/31T16:30Z→2026-09、跨月双向 8+9、跨年双向 2025-12+2026-01、重叠合并+零时长会话不计、空）+ StatsServiceTest 重写 2 + 新增 3（降序/live 时区折算双断言/物化源+零秒日不计+verify 不查 sessions）+ StatsIntegrationTest +2（月列表与 heatmap 逐点一致性断言（需求验收 4）+ 空用户 []）
-    - 契约: 纯新增端点；/heatmap-years 加可选 timezoneOffset（默认 0）——非破坏性，但跨年会话年份值会修正（多出溢出年）
-    - 验证: 全量 1346/0 + jacoco 门禁 + spotless 全绿
-    - 状态: ✅ 实施完成，待提交授权
-
 ---
 
 > **归档**：更早的条目已按月归档至 `memory-bank/archive/activeContext-YYYY-MM.md`（R13 冷数据），本文件只保留最近 30 天热条目。

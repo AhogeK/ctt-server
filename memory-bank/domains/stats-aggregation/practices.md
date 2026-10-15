@@ -87,3 +87,4 @@ new language stays visible instead of disappearing into a bucket nobody inspects
 | Replacing a large code block by line-marker | Markers drift; a slice can swallow neighbouring methods | Anchor on exact text and diff the boundary before/after |
 | Asserting a value the fixture cannot express (e.g. 59-minute span as 3600s) | Red herrings that look like product bugs | Compute the expected seconds from the fixture |
 | Comparing averages to totals | `hourly`/`week-hour` emit **averages** (divided by active days), not sums | Compare like with like |
+| Re-deriving the hourly numerator from a second slicing loop | The average curve and `hourly-days` must share one accumulator; two implementations drift | Sum `hourly-days` per hour ÷ `activeDays` and assert it lands on `hourly` |

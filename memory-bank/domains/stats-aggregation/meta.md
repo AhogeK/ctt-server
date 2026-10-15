@@ -3,7 +3,8 @@
 ## Boundary
 
 All coding-session aggregation served under `/api/v1/stats/**`: period summaries, daily heatmaps,
-streaks, dimension distributions, hourly and weekday-hour heatmaps, option lists for filters, and
+streaks, dimension distributions, hourly usage (the average curve and the per-day breakdown behind
+it), weekday-hour heatmaps, option lists for filters, and
 the materialized per-day rows those reads are served from.
 
 **In scope**: duration semantics, timezone bucketing, window clipping, bucket boundaries,
