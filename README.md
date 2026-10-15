@@ -451,6 +451,7 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 | `/api/v1/stats/streaks` | GET | Current and longest consecutive coding day streaks | READ |
 | `/api/v1/stats/distribution` | GET | Duration distribution by languages / projects / time-of-day / weekday / devices / IDEs | READ |
 | `/api/v1/stats/hourly` | GET | Per-hour average coding seconds across active days | READ |
+| `/api/v1/stats/hourly-days` | GET | Per-day hourly coding seconds behind that average (at most the 31 most recent days, oldest first) | READ |
 | `/api/v1/stats/heatmap-years` | GET | Years with coding activity (timezone-aware), descending | READ |
 | `/api/v1/stats/heatmap-months` | GET | Months (`yyyy-MM`) with coding activity, descending | READ |
 | `/api/v1/stats/week-hour` | GET | Weekly coding heatmap: average seconds per weekday-hour cell | READ |
@@ -459,8 +460,8 @@ another user is rejected with 409 `DEVICE_001`; API-key registration binds the k
 | `/api/v1/stats/achievements` | GET | Achievement badges with unlock state and progress, unlocking newly reached badges | READ |
 
 **Parameters**: `timezoneOffset` (minutes, e.g. `480` for UTC+8) shifts day/week/month/hour
-boundaries to the caller's timezone; heatmap, hourly and distribution accept `start` / `end`
-dates (ISO, inclusive, full history when omitted); every endpoint
+boundaries to the caller's timezone; heatmap, hourly, hourly-days and distribution accept `start` /
+`end` dates (ISO, inclusive, full history when omitted); every endpoint
 except achievements accepts an optional `deviceId` (origin-device filter) or `ideName` (exact
 IDE-name filter against the device registry; mutually exclusive with deviceId, unknown IDE names
 yield 404); the distribution endpoint additionally supports `type=DEVICES` / `type=IDES`
@@ -476,7 +477,8 @@ averaged over the days each weekday appears in the window, optional `start`/`end
 (inclusive, full history when omitted), only exercised cells returned;
 achievements evaluate window-based badges (early bird 06:00-09:00, night owl 22:00-05:00, perfect
 month) in the requested timezone. Aggregations merge overlapping sessions into unions (earliest
-start to latest end) for summary/heatmap/streaks and the TIME_OF_DAY distribution; TIME_OF_DAY
+start to latest end) for summary/heatmap/streaks, the TIME_OF_DAY distribution and the week-hour
+heatmap; TIME_OF_DAY
 buckets follow the plugin's statistics (Night 00:00-05:59, Morning 06:00-11:59, Daytime 12:00-17:59,
 Evening 18:00-23:59) and slice bucket-spanning sessions at bucket boundaries, so its entries sum to
 the summary total; other distributions accumulate raw durations per session, matching the plugin
