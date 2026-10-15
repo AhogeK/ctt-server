@@ -12,6 +12,7 @@ import com.ahogek.cttserver.stats.achievement.dto.AchievementResponse;
 import com.ahogek.cttserver.stats.achievement.service.AchievementService;
 import com.ahogek.cttserver.stats.dto.DistributionResponse;
 import com.ahogek.cttserver.stats.dto.HeatmapResponse;
+import com.ahogek.cttserver.stats.dto.HourlyDaysResponse;
 import com.ahogek.cttserver.stats.dto.HourlyDistributionResponse;
 import com.ahogek.cttserver.stats.dto.RecentSessionResponse;
 import com.ahogek.cttserver.stats.dto.StatsSummaryResponse;
@@ -622,6 +623,121 @@ public class StatsController {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
         HourlyDistributionResponse response =
                 statsService.hourly(
+                        currentUser.id(),
+                        zoneOffset(timezoneOffset),
+                        start,
+                        end,
+                        new SessionFilter(deviceId, ideName));
+        return ResponseEntity.ok(RestApiResponse.ok(response));
+    }
+
+    @Operation(
+            summary = "Per-day coding activity by hour",
+            description =
+                    "Returns each active day's coding seconds, hour by hour, in the requested"
+                            + " timezone. This is the same accumulation the hourly distribution"
+                            + " divides, kept per day, so a client can draw every day behind the"
+                            + " average curve: summing the days' arrays hour by hour and dividing"
+                            + " by activeDays reproduces that curve. Optional start/end dates"
+                            + " (inclusive) clip the aggregation window; omitted bounds aggregate"
+                            + " the full history. At most the 31 most recent active days are"
+                            + " returned, oldest first; days without coding are omitted.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "404",
+                        description =
+                                "Requested deviceId unknown or owned by another user - COMMON_002",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "device-not-found",
+                                                        summary =
+                                                                "Device not found or access denied",
+                                                        value = DEVICE_NOT_FOUND_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Per-day hourly distribution retrieved",
+                        content =
+                                @Content(
+                                        schema =
+                                                @Schema(
+                                                        implementation =
+                                                                HourlyDaysResponse.class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid API key or JWT",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid API key",
+                                                        value = UNAUTHORIZED_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description = "API key missing required scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scope-denied",
+                                                        summary = "API key lacks READ scope",
+                                                        value = SCOPE_DENIED_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "Rate limit exceeded - RATE_LIMIT_001",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rate-limited",
+                                                        summary = "Too many requests",
+                                                        value = RATE_LIMITED_EXAMPLE)))
+            })
+    @RequiresApiKeyScope(ApiKeyScope.READ)
+    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @GetMapping("/hourly-days")
+    public ResponseEntity<RestApiResponse<HourlyDaysResponse>> hourlyDays(
+            @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
+                    int timezoneOffset,
+            @Parameter(
+                            name = "start",
+                            description =
+                                    "Optional window start date (inclusive, ISO yyyy-MM-dd);"
+                                            + " omitted aggregates the full history")
+                    @RequestParam(name = "start", required = false)
+                    LocalDate start,
+            @Parameter(
+                            name = "end",
+                            description =
+                                    "Optional window end date (inclusive, ISO yyyy-MM-dd);"
+                                            + " omitted aggregates the full history")
+                    @RequestParam(name = "end", required = false)
+                    LocalDate end,
+            @Parameter(
+                            name = "deviceId",
+                            description =
+                                    "Optional origin-device filter; omitted aggregates all devices. Unknown or"
+                                            + " foreign devices yield 404 COMMON_002.")
+                    @RequestParam(name = "deviceId", required = false)
+                    UUID deviceId,
+            @Parameter(
+                            name = "ideName",
+                            description =
+                                    "Optional exact IDE-name filter against the device registry; omitted"
+                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
+                                            + " unknown IDE names yield 404 COMMON_002.")
+                    @RequestParam(name = "ideName", required = false)
+                    String ideName) {
+        CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
+        HourlyDaysResponse response =
+                statsService.hourlyDays(
                         currentUser.id(),
                         zoneOffset(timezoneOffset),
                         start,

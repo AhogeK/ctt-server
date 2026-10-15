@@ -10,6 +10,8 @@ import com.ahogek.cttserver.stats.dto.DailyStatPoint;
 import com.ahogek.cttserver.stats.dto.DistributionEntryDto;
 import com.ahogek.cttserver.stats.dto.DistributionResponse;
 import com.ahogek.cttserver.stats.dto.HeatmapResponse;
+import com.ahogek.cttserver.stats.dto.HourlyDayPoint;
+import com.ahogek.cttserver.stats.dto.HourlyDaysResponse;
 import com.ahogek.cttserver.stats.dto.HourlyDistributionResponse;
 import com.ahogek.cttserver.stats.dto.HourlyStatPoint;
 import com.ahogek.cttserver.stats.dto.RecentSessionResponse;
@@ -36,6 +38,7 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -388,6 +391,42 @@ public class StatsService {
                         .toList();
         int activeDays = hourly.isEmpty() ? 0 : hourly.getFirst().activeDays();
         return new HourlyDistributionResponse(points, activeDays);
+    }
+
+    /**
+     * Per-day hourly coding seconds for a window.
+     *
+     * <p>Shares its accumulation with {@link #hourly}: summing the returned days hour by hour and
+     * dividing by {@code activeDays} reproduces the average curve, and the denominator is read from
+     * that same computation so the two endpoints cannot disagree about it.
+     *
+     * @param userId the owning user
+     * @param zone aggregation timezone
+     * @param start optional window start date (inclusive)
+     * @param end optional window end date (inclusive)
+     * @param filter optional device/IDE filter
+     * @return active days (at most the 31 most recent) plus the window's active-day count
+     * @throws ValidationException when {@code end} precedes {@code start}
+     */
+    public HourlyDaysResponse hourlyDays(
+            UUID userId, ZoneOffset zone, LocalDate start, LocalDate end, SessionFilter filter) {
+        if (start != null && end != null && end.isBefore(start)) {
+            throw new ValidationException(ErrorCode.COMMON_003, "end must not be before start");
+        }
+        List<CodingSession> sessions = sessionsOf(userId, filter);
+        StatsCalculator.DayHourlyWindow window =
+                StatsCalculator.hourlySecondsByDay(sessions, zone, start, end);
+        List<HourlyDayPoint> days =
+                window.days().stream()
+                        .map(
+                                day ->
+                                        new HourlyDayPoint(
+                                                day.date(),
+                                                Arrays.stream(day.hourlySeconds())
+                                                        .boxed()
+                                                        .toList()))
+                        .toList();
+        return new HourlyDaysResponse(days, window.activeDays());
     }
 
     /**

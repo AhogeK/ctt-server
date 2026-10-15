@@ -1835,4 +1835,191 @@ class StatsCalculatorTest {
             assertThat(achievedAt).isEqualTo(at("2026-08-28T10:00:00"));
         }
     }
+
+    @Nested
+    @DisplayName("hourlySecondsByDay")
+    class HourlyDaysTests {
+
+        @Test
+        @DisplayName("shouldSplitAcrossLocalDays_whenSessionCrossesMidnight")
+        void shouldSplitAcrossLocalDays_whenSessionCrossesMidnight() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-01T23:30:00"),
+                                    at("2026-09-02T00:30:00"),
+                                    "a",
+                                    "Java"));
+
+            StatsCalculator.DayHourlyWindow window =
+                    StatsCalculator.hourlySecondsByDay(sessions, UTC, null, null);
+            List<StatsCalculator.DayHourly> days = window.days();
+
+            assertThat(days).hasSize(2);
+            assertThat(window.activeDays()).isEqualTo(2);
+            assertThat(days.get(0).date()).isEqualTo(LocalDate.of(2026, 9, 1));
+            assertThat(days.get(0).hourlySeconds()[23]).isEqualTo(1800);
+            assertThat(days.get(1).date()).isEqualTo(LocalDate.of(2026, 9, 2));
+            assertThat(days.get(1).hourlySeconds()[0]).isEqualTo(1800);
+        }
+
+        @Test
+        @DisplayName("shouldCountOverlappingSessionsTwiceAsHourlyDoes")
+        void shouldCountOverlappingSessionsTwiceAsHourlyDoes() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-01T10:00:00"),
+                                    at("2026-09-01T11:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-01T10:30:00"),
+                                    at("2026-09-01T11:30:00"),
+                                    "b",
+                                    "Kotlin"));
+
+            List<StatsCalculator.DayHourly> days =
+                    StatsCalculator.hourlySecondsByDay(sessions, UTC, null, null).days();
+
+            // Raw accumulation, exactly like hourlyDistribution: the overlap counts once per
+            // session.
+            // The first session ends at 11:00, so hour 11 holds only the second session's half
+            // hour.
+            assertThat(days).hasSize(1);
+            assertThat(days.getFirst().hourlySeconds()[10]).isEqualTo(3600 + 1800);
+            assertThat(days.getFirst().hourlySeconds()[11]).isEqualTo(1800);
+        }
+
+        @Test
+        @DisplayName("shouldAgreeWithHourlyOnEveryHour_whenBothSeeTheSameSessions")
+        void shouldAgreeWithHourlyOnEveryHour() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-01T10:00:00"),
+                                    at("2026-09-01T12:30:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-01T11:30:00"),
+                                    at("2026-09-01T13:00:00"),
+                                    "b",
+                                    "Kotlin"),
+                            session(
+                                    at("2026-09-02T22:30:00"),
+                                    at("2026-09-03T01:30:00"),
+                                    "c",
+                                    "Go"));
+
+            LocalDate start = LocalDate.of(2026, 9, 1);
+            LocalDate end = LocalDate.of(2026, 9, 3);
+            List<StatsCalculator.HourlyPoint> hourly =
+                    StatsCalculator.hourlyDistribution(sessions, UTC, start, end);
+            StatsCalculator.DayHourlyWindow window =
+                    StatsCalculator.hourlySecondsByDay(sessions, UTC, start, end);
+            List<StatsCalculator.DayHourly> days = window.days();
+
+            long activeDays = window.activeDays();
+            assertThat(hourly.getFirst().activeDays()).isEqualTo((int) activeDays);
+            for (int hour = 0; hour < 24; hour++) {
+                long raw = 0;
+                for (StatsCalculator.DayHourly day : days) {
+                    raw += day.hourlySeconds()[hour];
+                }
+                long average = hourly.get(hour).averageSeconds();
+                assertThat(average * activeDays).isLessThanOrEqualTo(raw);
+                assertThat(raw).isLessThan((average + 1) * activeDays);
+            }
+        }
+
+        @Test
+        @DisplayName("shouldCountEveryCodedDay_asHourlyDenominator")
+        void shouldCountEveryCodedDayAsHourlyDenominator() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-01T23:30:00"),
+                                    at("2026-09-02T00:30:00"),
+                                    "a",
+                                    "Java"));
+
+            List<StatsCalculator.HourlyPoint> hourly =
+                    StatsCalculator.hourlyDistribution(sessions, UTC, null, null);
+
+            // A session crossing local midnight codes on two days, both of which carry the average.
+            assertThat(hourly.getFirst().activeDays()).isEqualTo(2);
+            assertThat(hourly.get(23).averageSeconds()).isEqualTo(900);
+            assertThat(hourly.get(0).averageSeconds()).isEqualTo(900);
+        }
+
+        @Test
+        @DisplayName("shouldKeepOnlyThe31MostRecentActiveDays")
+        void shouldKeepOnlyThe31MostRecentActiveDays() {
+            List<CodingSession> sessions =
+                    IntStream.rangeClosed(0, 34)
+                            .mapToObj(
+                                    offset ->
+                                            session(
+                                                    at(
+                                                            LocalDate.of(2026, 9, 1)
+                                                                            .plusDays(offset)
+                                                                    + "T10:00:00"),
+                                                    at(
+                                                            LocalDate.of(2026, 9, 1)
+                                                                            .plusDays(offset)
+                                                                    + "T11:00:00"),
+                                                    "a",
+                                                    "Java"))
+                            .toList();
+
+            StatsCalculator.DayHourlyWindow window =
+                    StatsCalculator.hourlySecondsByDay(sessions, UTC, null, null);
+            List<StatsCalculator.DayHourly> days = window.days();
+
+            assertThat(days).hasSize(31);
+            assertThat(window.activeDays()).isEqualTo(35);
+            assertThat(days.getFirst().date()).isEqualTo(LocalDate.of(2026, 9, 5));
+            assertThat(days.getLast().date()).isEqualTo(LocalDate.of(2026, 10, 5));
+        }
+
+        @Test
+        @DisplayName("shouldDropZeroDaysAndSortAscending")
+        void shouldDropZeroDaysAndSortAscending() {
+            List<CodingSession> sessions =
+                    List.of(
+                            session(
+                                    at("2026-09-03T09:00:00"),
+                                    at("2026-09-03T10:00:00"),
+                                    "a",
+                                    "Java"),
+                            session(
+                                    at("2026-09-01T09:00:00"),
+                                    at("2026-09-01T10:00:00"),
+                                    "b",
+                                    "Java"),
+                            session(
+                                    at("2026-09-01T09:00:00"),
+                                    at("2026-09-01T10:00:00"),
+                                    "c",
+                                    "Java"));
+
+            List<StatsCalculator.DayHourly> days =
+                    StatsCalculator.hourlySecondsByDay(sessions, UTC, null, null).days();
+
+            assertThat(days)
+                    .extracting(StatsCalculator.DayHourly::date)
+                    .containsExactly(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 3));
+            assertThat(days.getFirst().hourlySeconds()[9]).isEqualTo(7200);
+        }
+
+        @Test
+        @DisplayName("shouldReturnEmpty_whenNoSessions")
+        void shouldReturnEmpty_whenNoSessions() {
+            StatsCalculator.DayHourlyWindow window =
+                    StatsCalculator.hourlySecondsByDay(List.of(), UTC, null, null);
+            assertThat(window.days()).isEmpty();
+            assertThat(window.activeDays()).isZero();
+        }
+    }
 }

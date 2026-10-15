@@ -36,10 +36,10 @@ import java.util.function.Function;
  * <p>Two duration semantics exist by design and mirror the plugin side:
  *
  * <ul>
- *   <li><b>Merged</b> (summary, heatmap, streaks): overlapping intervals are merged so concurrent
- *       sessions across projects or windows are not double counted.
- *   <li><b>Raw accumulation</b> (languages, projects, time-of-day, hourly, weekday): each session
- *       contributes its own duration, matching the plugin's distribution providers.
+ *   <li><b>Merged</b> (summary, heatmap, streaks, time-of-day, week-hour): overlapping intervals
+ *       are merged so concurrent sessions across projects or windows are not double counted.
+ *   <li><b>Raw accumulation</b> (languages, projects, hourly, weekday): each session contributes
+ *       its own duration, matching the plugin's distribution providers.
  * </ul>
  *
  * <p>All boundaries are computed in the caller-provided zone offset: sessions are stored as UTC
@@ -113,6 +113,28 @@ public final class StatsCalculator {
 
     /** Per-hour usage averaged across active days. */
     public record HourlyPoint(int hour, long averageSeconds, int activeDays) {}
+
+    /**
+     * One local day's coding seconds, hour by hour, in the aggregation zone.
+     *
+     * <p>Only days that hold at least one whole second of coding are produced: a day is active when
+     * it has coding, which is also the denominator {@link HourlyPoint#activeDays()} reports.
+     *
+     * @param date the local day
+     * @param hourlySeconds seconds coded in each hour of that day, index 0-23
+     */
+    public record DayHourly(LocalDate date, long[] hourlySeconds) {}
+
+    /**
+     * The per-day hourly series of a window.
+     *
+     * @param days the most recent active days, oldest first; at most {@value #MAX_DAY_HOURLY_DAYS}
+     *     entries, fewer when the window holds fewer coded days
+     * @param activeDays every coded day in the window, before that cap
+     */
+    public record DayHourlyWindow(List<DayHourly> days, int activeDays) {}
+
+    private static final int MAX_DAY_HOURLY_DAYS = 31;
 
     private StatsCalculator() {}
 
@@ -500,9 +522,70 @@ public final class StatsCalculator {
             ZoneOffset zone,
             LocalDate windowStart,
             LocalDate windowEnd) {
+        DayHourlyWindow window = hourlyByDay(sessions, zone, windowStart, windowEnd, 0);
+        long[] hourSeconds = new long[24];
+        for (DayHourly day : window.days()) {
+            for (int hour = 0; hour < 24; hour++) {
+                hourSeconds[hour] += day.hourlySeconds()[hour];
+            }
+        }
+        int activeDays = window.activeDays();
+        List<HourlyPoint> points = new ArrayList<>();
+        for (int hour = 0; hour < 24; hour++) {
+            long average = activeDays == 0 ? 0 : hourSeconds[hour] / activeDays;
+            points.add(new HourlyPoint(hour, average, activeDays));
+        }
+        return points;
+    }
+
+    /**
+     * Seconds coded in each hour of each active local day inside the window.
+     *
+     * <p>This is the same accumulation {@link #hourlyDistribution} averages, exposed per day so a
+     * client can draw each day behind the average curve; every day's array sums to the numerators
+     * that distribution divides, by construction rather than by convention.
+     *
+     * <p>Days with no whole second of coding are dropped. At most the {@value #MAX_DAY_HOURLY_DAYS}
+     * most recent active days are returned, oldest of those first; {@code activeDays} still counts
+     * every coded day in the window.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param windowStart first date (inclusive), or {@code null} for no lower bound
+     * @param windowEnd last date (inclusive), or {@code null} for no upper bound
+     * @return the truncated series plus the window's active-day count
+     */
+    public static DayHourlyWindow hourlySecondsByDay(
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            LocalDate windowStart,
+            LocalDate windowEnd) {
+        return hourlyByDay(sessions, zone, windowStart, windowEnd, MAX_DAY_HOURLY_DAYS);
+    }
+
+    /**
+     * Accumulates clipped intervals into per-day, per-hour buckets, then applies the day cap.
+     *
+     * <p>Each session contributes its own duration (raw accumulation, mirroring the plugin's
+     * distribution panels): overlapping sessions count once per session, never merged. Slices cross
+     * hour boundaries, so a session spanning two hours lands in both.
+     *
+     * @param sessions live sessions
+     * @param zone aggregation timezone
+     * @param windowStart first date (inclusive), or {@code null}
+     * @param windowEnd last date (inclusive), or {@code null}
+     * @param maxDays keep at most this many of the most recent active days; {@code <= 0} keeps all
+     * @return the truncated series plus the window's active-day count
+     */
+    private static DayHourlyWindow hourlyByDay(
+            List<CodingSession> sessions,
+            ZoneOffset zone,
+            LocalDate windowStart,
+            LocalDate windowEnd,
+            int maxDays) {
         List<TimeInterval> intervals =
                 clipToWindow(toIntervals(sessions, zone), zone, windowStart, windowEnd);
-        long[] hourSeconds = new long[24];
+        Map<LocalDate, long[]> byDay = new TreeMap<>();
         for (TimeInterval interval : intervals) {
             OffsetDateTime cursor = interval.start();
             while (cursor.isBefore(interval.end())) {
@@ -510,21 +593,26 @@ public final class StatsCalculator {
                 OffsetDateTime nextHour = cursor.truncatedTo(ChronoUnit.HOURS).plusHours(1);
                 OffsetDateTime sliceEnd =
                         nextHour.isBefore(interval.end()) ? nextHour : interval.end();
-                hourSeconds[hour] += Duration.between(cursor, sliceEnd).toSeconds();
+                long[] hours = byDay.computeIfAbsent(cursor.toLocalDate(), day -> new long[24]);
+                hours[hour] += Duration.between(cursor, sliceEnd).toSeconds();
                 cursor = sliceEnd;
             }
         }
-        long activeDays =
-                intervals.stream()
-                        .map(interval -> interval.start().toLocalDate())
-                        .distinct()
-                        .count();
-        List<HourlyPoint> points = new ArrayList<>();
-        for (int hour = 0; hour < 24; hour++) {
-            long average = activeDays == 0 ? 0 : hourSeconds[hour] / activeDays;
-            points.add(new HourlyPoint(hour, average, (int) activeDays));
+        List<DayHourly> active = new ArrayList<>();
+        for (Map.Entry<LocalDate, long[]> entry : byDay.entrySet()) {
+            long total = 0;
+            for (long seconds : entry.getValue()) {
+                total += seconds;
+            }
+            if (total > 0) {
+                active.add(new DayHourly(entry.getKey(), entry.getValue()));
+            }
         }
-        return points;
+        List<DayHourly> days = active;
+        if (maxDays > 0 && active.size() > maxDays) {
+            days = active.subList(active.size() - maxDays, active.size());
+        }
+        return new DayHourlyWindow(List.copyOf(days), active.size());
     }
 
     /**
@@ -599,9 +687,6 @@ public final class StatsCalculator {
         // Overlapping sessions describe the same wall-clock activity (e.g. parallel project
         // windows): merge them first so a shared hour is counted once, matching the summary and
         // heatmap semantics. The union spans the earliest start to the latest end.
-        // Overlapping sessions describe the same wall-clock activity (e.g. parallel project
-        // windows): merge them first so a shared hour is counted once, matching the summary
-        // and heatmap semantics. The union spans the earliest start to the latest end.
         List<TimeInterval> intervals =
                 clipToWindow(
                         mergeOverlapping(toIntervals(sessions, zone)),

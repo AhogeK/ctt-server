@@ -541,6 +541,94 @@ class StatsIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should return per-day hourly seconds that reproduce the hourly curve")
+        void shouldReturnHourlyDays_reproducingHourlyCurve() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String jwt = auth[0];
+            UUID userId = UUID.fromString(auth[1]);
+            String readKey = createApiKey(jwt, "read", "READ");
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            insertSession(
+                    userId,
+                    today.minusDays(1)
+                            .atStartOfDay()
+                            .plusHours(9)
+                            .plusMinutes(30)
+                            .toInstant(ZoneOffset.UTC),
+                    today.minusDays(1)
+                            .atStartOfDay()
+                            .plusHours(10)
+                            .plusMinutes(30)
+                            .toInstant(ZoneOffset.UTC),
+                    "a",
+                    "Java");
+            insertSession(
+                    userId,
+                    today.atStartOfDay().plusHours(9).toInstant(ZoneOffset.UTC),
+                    today.atStartOfDay().plusHours(10).toInstant(ZoneOffset.UTC),
+                    "a",
+                    "Java");
+
+            var days =
+                    mvc.get()
+                            .uri("/api/v1/stats/hourly-days?timezoneOffset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(days).hasStatusOk();
+            var daysData =
+                    objectMapper.readTree(days.getResponse().getContentAsString()).path("data");
+            assertThat(daysData.path("activeDays").asInt()).isEqualTo(2);
+            assertThat(daysData.path("days").size()).isEqualTo(2);
+            assertThat(daysData.path("days").get(0).path("date").asText())
+                    .isEqualTo(today.minusDays(1).toString());
+            assertThat(daysData.path("days").get(1).path("date").asText())
+                    .isEqualTo(today.toString());
+            assertThat(daysData.path("days").get(0).path("hourlySeconds").size()).isEqualTo(24);
+            assertThat(daysData.path("days").get(0).path("hourlySeconds").get(9).asLong())
+                    .isEqualTo(1800);
+            assertThat(daysData.path("days").get(0).path("hourlySeconds").get(10).asLong())
+                    .isEqualTo(1800);
+            assertThat(daysData.path("days").get(1).path("hourlySeconds").get(9).asLong())
+                    .isEqualTo(3600);
+
+            var hourly =
+                    mvc.get()
+                            .uri("/api/v1/stats/hourly?timezoneOffset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            var hourlyData =
+                    objectMapper.readTree(hourly.getResponse().getContentAsString()).path("data");
+            assertThat(hourlyData.path("activeDays").asInt())
+                    .isEqualTo(daysData.path("activeDays").asInt());
+            for (int hour = 0; hour < 24; hour++) {
+                long sum = 0;
+                for (int day = 0; day < 2; day++) {
+                    sum += daysData.path("days").get(day).path("hourlySeconds").get(hour).asLong();
+                }
+                long average = hourlyData.path("points").get(hour).path("averageSeconds").asLong();
+                assertThat(average * 2).isLessThanOrEqualTo(sum);
+                assertThat(sum).isLessThan((average + 1) * 2);
+            }
+        }
+
+        @Test
+        @DisplayName("Should return 400 when hourly-days end is before start")
+        void shouldReturn400_whenHourlyDaysRangeInvalid() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(auth[0], "read", "READ");
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/stats/hourly-days?start=2026-01-01&end=2025-01-01")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatus(400);
+            assertThat(result).bodyJson().extractingPath("$.code").isEqualTo("COMMON_003");
+        }
+
+        @Test
         @DisplayName("Should unlock streak badges and persist them idempotently")
         void shouldUnlockStreakBadges_whenConsecutiveDays() throws Exception {
             String[] auth = registerVerifyAndLogin(uniqueEmail());
