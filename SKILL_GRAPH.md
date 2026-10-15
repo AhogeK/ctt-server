@@ -1,618 +1,1295 @@
-# SKILL GRAPH — AI Agent 技能索引
+<a id="top"></a>
+# SKILL GRAPH — 本机技能索引（人机共读）
 
-> **最后更新**: 2026-10-12（按各技能 `SKILL.md` 的 frontmatter 重新生成）
-> **技能总数**: **496** 个唯一技能 / 507 个 SKILL.md 文件
-> **来源**: 项目 `.agents/skills` 4 · 内置 omp 2 · 内置 superpowers 15 · 用户级 `~/.agents/skills` 416 · opencode 配置 70
-> **用途**: AI 执行任务前定位相关技能；人类查本机可用工具与用法
-> **用法**: 先看 §0 快速查找指南；否则用检索（如 `grep -i "关键词" SKILL_GRAPH.md`）定位技能名，**不要整篇读取**（全表约 12 万字节）
-> **维护**: 本文件是索引，不复制技能内容；技能增删后按同一规则重新生成。名称以技能 frontmatter 的 `name:` 为准（与目录名可能不同，如目录 `gstack-cso` 的技能名是 `cso`）
+> **最后更新**: 2026-10-12
+> **技能总数**: **496** 个唯一技能（项目 4 · 内置 17 · 用户级 412 · opencode 配置 63；跨源同名 4 组见 §5）
+> **来源**: 项目 `.agents/skills` · 内置 omp `~/.omp/agent/skills` · 内置 superpowers 插件 · 用户级 `~/.agents/skills` · opencode `~/.config/opencode/skills`
+> **名称**: 以技能 `SKILL.md` 的 frontmatter `name:` 为准；与目录名不同时在括号内标注目录（如 `cso`（目录 `gstack-cso`））
+> **用法**: 先看 §0 快速查找；其余用检索定位（如 `grep -i "单细胞" SKILL_GRAPH.md`），**不要整篇通读**
+> **维护**: 本文件只做索引，不复制技能内容；技能增删后按同一规则重新生成；说明由维护者用中文撰写，不复述英文原文
 
 ---
 
-## 0. 快速查找指南（下表每个技能名均已核对存在于本机）
+## 目录
 
-| 我要做什么 | 技能链（按顺序） |
+### 按任务（20 条技能链）
+
+| 任务 | 直达 | 任务 | 直达 |
+| --- | --- | --- | --- |
+| 规划新功能 | [跳转](#t-01) | 部署上线 | [跳转](#t-11) |
+| 修复 bug | [跳转](#t-02) | CLI 封装 | [跳转](#t-12) |
+| 代码审查 | [跳转](#t-03) | 深度研究 | [跳转](#t-13) |
+| Git / 提交 | [跳转](#t-04) | 上下文交接 | [跳转](#t-14) |
+| 测试策略 | [跳转](#t-05) | 会话纪律 / 防护 | [跳转](#t-15) |
+| 写作 / 文档 | [跳转](#t-06) | 科研写作 | [跳转](#t-16) |
+| UI / 前端 | [跳转](#t-07) | 单细胞 | [跳转](#t-17) |
+| 浏览器验证 | [跳转](#t-08) | 分子 ML | [跳转](#t-18) |
+| 性能优化 | [跳转](#t-09) | 量子计算 | [跳转](#t-19) |
+| 安全审计 | [跳转](#t-10) | 并行子代理 | [跳转](#t-20) |
+
+### 按用途分类
+
+| 分类 | 数量 | 直达 |
+| --- | --- | --- |
+| 需求与规划 | 16 | [跳转](#c-plan) |
+| 方案评审与决策 | 10 | [跳转](#c-design-review) |
+| 编码与重构 | 16 | [跳转](#c-impl) |
+| 调试与排障 | 10 | [跳转](#c-debug) |
+| 代码审查与 Git | 13 | [跳转](#c-review) |
+| 测试与验证 | 8 | [跳转](#c-test) |
+| UI / 视觉与设计 | 30 | [跳转](#c-ui) |
+| 浏览器与检索 | 26 | [跳转](#c-browser) |
+| 写作与文档 | 17 | [跳转](#c-doc) |
+| 科研与学术 | 26 | [跳转](#c-academic) |
+| 生信与组学 | 44 | [跳转](#c-bio) |
+| 分子 · 药物 · 实验室 | 24 | [跳转](#c-mol) |
+| 数据 · 可视化与 ML | 30 | [跳转](#c-data) |
+| 部署 · 运维与安全 | 22 | [跳转](#c-ops) |
+| 代理与会话 | 24 | [跳转](#c-agent) |
+| CLI 封装与外部工具 | 6 | [跳转](#c-cli) |
+
+### 按章节
+
+| 章节 | 内容 | 直达 |
+| --- | --- | --- |
+| §0 | 快速查找指南（按任务，20 条链） | [跳转](#s0) |
+| §1 | 项目技能（4） | [跳转](#s1) |
+| §2 | 内置技能（17） | [跳转](#s2) |
+| §3 | 用户级技能（412，按名称排序 —— 检索轴） | [跳转](#s3) |
+| §4 | opencode 配置技能（63） | [跳转](#s4) |
+| §5 | 跨源同名 | [跳转](#s5) |
+| §6 | 家族速查 | [跳转](#s6) |
+| §7 | 校正记录 | [跳转](#s7) |
+
+
+## 用途分类索引
+
+> 按"我要做什么"归类，可从上方目录的分类表直达；一个技能可出现在多个用途下（此处是索引，技能本体只在 §1–§4 收录一次）；未列入的技能按名称在 §3/§4 检索。
+
+<a id="c-plan"></a>
+### 需求与规划（16）
+
+把模糊想法变成可执行方案：先问清、再拆解、后落地。
+
+- `brainstorming` — 任何创造性工作开工前必须先做：做功能、改行为、起方案之前先把问题与选项谈清。
+- `writing-plans` — 手里已有需求或多步任务规格、尚未动代码时，先写实施计划。
+- `executing-plans` — 在当前会话内自己当执行者落地实施计划时使用（含无子代理可用的情况）。
+- `think` — 把粗糙想法变成经确认、可决策的完整方案后再动手（架构、重构、交接与选型场景）。
+- `to-spec` — 把当前对话整理成规格并发布到项目 issue tracker（不追问，直接成文）。
+- `to-tickets` — 把计划、规格或对话拆成一组"曳光弹"式工单，每张都声明其边界与验收。
+- `implement` — 依据一份规格或一组工单（tickets）落地实现。
+- `implement-spec` — 把 /to-spec 与 /to-tickets 的产物落成代码。
+- `planning-and-task-breakdown` — 把需求拆成有序、可实现的任务清单（有规格或明确需求但还没拆解时使用）。
+- `spec-driven-development` — 编码前先写规格：新项目、新功能或重大改动且尚无规格时使用。
+- `idea-refine` — 把粗糙想法打磨成清晰可执行的概念：结构化发散与收敛，适用于开工前的构思阶段。
+- `interview-me` — 通过连续单问挖掘用户真正想要的东西（而非其自以为想要的）。
+- `grill-me` — 就方案或设计接受一场不留情面的追问，用以打磨思路。
+- `loop-me` — 就"你想构建的工作流"接受规格层面的连续盘问，把需求问清。
+- `arbor` — 用假设树细化研究/工程问题：可重复评估器、孤立实验、证据追踪与基准优化。
+- `what-if-oracle` — 用结构化"假如…会怎样"情景压测研究计划（不做概率预测）。
+
+<a id="c-design-review"></a>
+### 方案评审与决策（10）
+
+上码前用多视角压测方案：CEO / 工程 / 设计 / DX 四种视角与对抗式追问。
+
+- `plan-ceo-review` — 以 CEO/创始人视角评审计划：重述问题、找 10 分产品、挑战前提并扩展范围。
+- `plan-eng-review` — 以工程经理视角锁定执行计划：架构、数据流、图示、边界与测试。
+- `plan-design-review` — 以设计师视角评审计划：逐维度 0–10 打分并说明理由。
+- `plan-devex-review` — 交互式开发者体验计划评审：开发者画像、竞品对标与 DX 设计。
+- `autoplan` — 自动跑完整计划评审：无需逐项确认，一次性拿到多视角评审结论。
+- `plan-tune` — 调整提问敏感度与开发者画像（gstack 的观察式自调优）。
+- `doubt-driven-development` — 关键决策先过一遍全新上下文的对抗式评审：交叉盘问假设、压测隐藏失败模式。
+- `consciousness-council` — 多视角议事：模拟不同思维原型辩论决策与取舍，分离证据/假设/价值并给出条件化建议。
+- `software-engineering-laws-and-philosophy` — 用 56 条软件工程定律指导技术决策、架构设计、规划与团队管理。
+- `grilling` — 就计划、决策或想法对用户进行高强度盘问，压力测试其思考。
+
+<a id="c-impl"></a>
+### 编码与重构（16）
+
+实现、简化，并守住质量底线。
+
+- `tdd` — 测试先行开发：用户要求 test-first 或提到红绿重构时使用。
+- `test-driven-development` — 写任何功能或修任何 bug 的实现代码之前使用：先写失败测试。
+- `incremental-implementation` — 把改动切成薄而可验证的小步交付，适用于任何需要控制风险的功能或重构。
+- `constraint-driven-development` — 把项目质量标准写成契约（CONSTRAINTS.md）并阻止代理悄悄降低门槛。
+- `source-driven-development` — 让每个实现决策都落在官方文档上：动手前先查证官方说法而非凭记忆。
+- `prototype` — 造一个用完即弃的原型来回答设计问题（验证某方案是否可行、手感如何）。
+- `full-output-enforcement` — 覆盖模型默认截断行为：强制完整代码输出、禁止占位符、妥善处理 token 上限切分。
+- `code-simplification` — 不改变行为地简化代码：可读性与可维护性差、复杂度堆积时使用。
+- `codebase-design` — 深模块设计的共同语言：模块接口、加深机会、接缝位置、可测性与 AI 可导航性。
+- `domain-modeling` — 建立并打磨项目领域模型：术语表 GLOSSARY.md、ADR 讨论与代码术语统一。
+- `api-and-interface-design` — 接口与模块边界设计：REST/GraphQL 端点、类型契约、前后端边界与稳定演进。
+- `improve-codebase-architecture` — 扫描代码库找出"加深模块"的机会，产出可视化 HTML 报告并逐个推翻或采纳。
+- `setup-ts-deep-modules` — 在 TypeScript 仓库接入 dependency-cruiser，使每个包成为隐藏实现细节的深模块。
+- `migrate-to-shoehorn` — 把测试里的 `as` 类型断言迁移到 @total-typescript/shoehorn。
+- `deslop-shared-libs` — 在近期改动中发现值得抽出的共享代码，并只推荐真正可共享的部分。
+- `subagent-driven-development` — 用子代理执行含独立任务的实施计划时使用。
+
+<a id="c-debug"></a>
+### 调试与排障（10）
+
+先根因后修复：症状定位、日志追踪与 CI 失败诊断。
+
+- `systematic-debugging` — 遇到 bug、测试失败或异常行为时，在提出修复方案之前使用的系统排查流程。
+- `diagnosing-bugs` — 难缠 bug 与性能回归的诊断循环：用户说"诊断/调试这个"或报告坏了/抛错/失败/变慢时使用。
+- `diagnosing-superpowers` — 技能会话本身出问题时复盘：重复劳动、计划被忽略、技能没触发、耗时或花费异常。
+- `hunt` — 先定位根因再动手修：报错、崩溃、回归或"以前能跑"时使用；不用于代码审查或新功能。
+- `debugging-and-error-recovery` — 系统化根因调试：测试失败、构建断裂、昨天还能跑今天不行、行为不符预期时使用。
+- `investigate` — 系统化调试（四阶段）：调查 → 分析 → 假设 → 实施，先根因后修复。
+- `troubleshooting` — 用 Chrome DevTools MCP 排查连接与目标（page/target）异常。
+- `memory-leak-debugging` — 排查 JavaScript/Node.js 内存泄漏：高内存占用与 OOM，含堆快照分析。
+- `ci-fix` — 诊断并修复 GitHub Actions 失败：看 workflow 运行与日志、定位根因、最小修复并推到修复分支。
+- `problem-report` — 以证据诊断问题并分轮盘问：代码锚定的报告（前情 / 代码 / 取证），先诊断再动手。
+
+<a id="c-review"></a>
+### 代码审查与 Git（13）
+
+合入前的审查、提交规范与分支收尾。
+
+- `code-review` — 以固定点（commit/分支/tag）为基准做双轴审查：Standard（是否符合本仓库规范）与 Spec（是否实现需求）。
+- `code-review-and-quality` — 多维代码审查，合入任何变更前使用（含自己、他人或代理写的代码）。
+- `requesting-code-review` — 完成任务、实现大功能或合入前，请求审查以确认是否符合需求。
+- `receiving-code-review` — 收到审查意见后、动手改之前使用：要求技术论证与验证，不做表演式认同。
+- `review` — 上库前 PR 评审：对照基线分支检查 SQL 安全、LLM 信任边界与回归风险。
+- `check` — 审查 diff、PR、发布就绪度与发布后续；不做根因调试，也不审文案。
+- `code-reviewer` — 审查 Java 25 / Spring Boot 4 代码与 PR：迁移风险、模块边界越界、JSpecify 空安全、安全与性能回归、Spring Data 陷阱。
+- `pr` — 撰写 PR 描述正文（按项目约定组织变更说明）。
+- `create-pull-request` — 按项目约定创建 GitHub PR：分析提交、整理分支并用 gh CLI 提交审阅。
+- `git-workflow-and-versioning` — git 工作流规范：提交、分支、冲突处理、把混乱工作区拆成干净原子提交、PR 与版本发布。
+- `git-guardrails-claude-code` — 为 Claude Code 配置 git 危险命令拦截钩子（push、reset --hard、clean、branch -D 等）。
+- `setup-pre-commit` — 在当前仓库配置 Husky pre-commit（lint-staged、类型检查与测试）。
+- `finishing-a-development-branch` — 实现完成且测试通过后，决定分支如何收尾合入时使用。
+
+<a id="c-test"></a>
+### 测试与验证（8）
+
+测试先行、测试体检与端到端验证。
+
+- `tdd` — 测试先行开发：用户要求 test-first 或提到红绿重构时使用。
+- `test-audit` — 找出低价值或重复的测试及其维系的"仅供测试"代码；默认只报告，批量删除需你确认。
+- `qa` — 对网站或 Web 应用做 QA 并给 1–5 分（5=无懈可击）与证据；发现问题时给修复建议。
+- `qa-only` — 只报告不修复：产出浏览器/API/CLI/任务/worker/webhook 的结构化 bug 报告。
+- `webapp-testing` — 用 Playwright 测试本地 Web 应用：验证界面、截图与收集日志。
+- `browser-testing-with-devtools` — 用 Chrome DevTools 在真实浏览器中测试：查 DOM、抓控制台错误、看网络请求、做性能与视觉校验。
+- `test-auth-bootstrap` — 在开发/测试环境自动取得可用凭据（或完整账号），使端到端验证不被登录/验证码卡住。
+- `verification-before-completion` — 声称"完成/修好/通过"之前必须运行验证命令并核对输出，先有证据再下结论。
+
+<a id="c-ui"></a>
+### UI / 视觉与设计（30）
+
+界面设计、视觉打磨、动效与无障碍。
+
+- `ui` — 构建与改造生产级 UI：组件、排版、布局与视觉一致性（不含后端逻辑）。
+- `design-taste-frontend` — 前端艺术指导（tasteskill v2）：基于 247 个精选站点研究的构图、字体、配色与摄影方向。
+- `design-taste-frontend-v1` — 上一版 taste-skill，仅在需要与其行为逐字兼容的旧项目中保留使用。
+- `frontend-ui-engineering` — 构建生产级、无障碍、自适应的界面：组件、布局、状态管理与 WCAG 达标。
+- `design-consultation` — 设计咨询：为新项目建立设计体系、品牌规范或 DESIGN.md。
+- `design-html` — 把定稿的设计或方案落成可交付的 HTML/CSS。
+- `design-review` — 视觉 QA 与设计打磨（不做事前的方案设计评审）。
+- `design-shotgun` — 设计发散：一次给出多个 UI 方向与变体供挑选。
+- `impeccable` — 界面设计的通用改进流程：设计、重塑、评审、审计、打磨、澄清、精简与加固。
+- `minimalist-ui` — 简洁编辑风界面：暖色单色调、字体对比、扁平 bento 网格与低饱和配色。
+- `industrial-brutalist-ui` — 工业粗野风格界面：瑞士印刷版式与军用终端美学的融合——刚性网格、极简配色。
+- `high-end-visual-design` — 按高端设计机构标准做界面：精确字体、间距、阴影、卡片结构与动效，并封堵廉价感默认样式。
+- `gpt-taste` — 高级 UX/UI 与 GSAP 动效工程：Python 驱动的版面随机化、AIDA 结构、编辑式字体与 bento 网格。
+- `oil-ui` — 网站/应用/仪表盘/组件的界面设计、改进与评审：先探索不同设计方向再落地。
+- `oiloil-ui-ux-guide` — 整理项目 UI/UX 规范并产出 design-spec.md，或对现有界面做优先级排序的评审；单个颜色字号这类小问题不适用。
+- `stitch-design-taste` — 为 Google Stitch 生成 DESIGN.md：把高端 UI 标准写成代理可执行的语义设计系统。
+- `emil-design-eng` — Emil Kowalski 的 UI 打磨哲学：组件设计、动效取舍与让产品"手感好"的细节。
+- `motion-spec` — 把模糊动效诉求（"丝滑一点""高级感""加点动画"）写成明确的动效规格：时长、曲线、编排与降级。
+- `animation-vocabulary` — 反查动画/动效术语：把"弹一下""橡皮筋滚动"这类描述对应到准确名称，供检索与沟通。
+- `review-animations` — 按高标准审查动画/动效代码（源自 Emil Kowalski 的设计工程标准）。
+- `draw-ui` — 设计 App、后台、游戏界面与完整落地页并产出 UI 设计稿；也可把设计稿或截图还原为 HTML/CSS、现有前端项目或微信小程序。不用于插画、海报、故事板与纯图片编辑。
+- `image-to-code` — 视觉要求高的网页任务：先生成设计稿，再据此产出代码（图像到代码的完整链路）。
+- `generate-image` — 经 OpenRouter 图像 API 生成或编辑图片（Gemini/Seedream/Recraft/GPT-Image）：照片、插画、概念图、标志与合成。
+- `brandkit` — 生成高端品牌视觉：品牌规范板、标志系统、识别手册与视觉世界提案。
+- `redesign-existing-projects` — 把现有网站/应用升级到高品质：审计现状、识别廉价 AI 套路并给出改造方案。
+- `web-design-guidelines` — 界面评审：可访问性、设计一致性与 UX 问题清单。
+- `web-accessibility-audit` — 审计 WCAG 无障碍合规并给出修复建议与优先级。
+- `a11y-debugging` — 用 Chrome DevTools 排查无障碍问题：语义 HTML、ARIA、焦点态、键盘导航、点击区域与对比度。
+- `infographics` — 用 OpenRouter 上的 Nano Banana 2 生成或评审信息图（统计摘要、时间线、流程）。
+- `diagram-design` — 生成品牌化专业图：架构与增量架构、现状图、流程、时序、状态机、ER、时间线、泳道、象限、雷达、树状与组织结构等。
+
+<a id="c-browser"></a>
+### 浏览器与检索（26）
+
+真机浏览器自动化、网页抓取与多源检索。
+
+- `browse` — 驱动真实浏览器（Aside）：打开页面、阅读、走完流程、截图并检查控制台错误。
+- `browser-use` — 直接的浏览器控制（CDP）：自动化、抓取、测试、截图与站点操作。
+- `browser-harness` — 经 CDP 驱动真实浏览器：点击输入、导航、已登录会话、JS 渲染或反爬页面（纯静态抓取请用 curl）。
+- `chrome-devtools` — 经 MCP 使用 Chrome DevTools：调试、排查与浏览器自动化（性能与网络分析）。
+- `chrome-devtools-cli` — 用命令行/脚本方式经 Chrome DevTools 完成浏览器自动化任务。
+- `opencli-browser` — 用 opencli 驱动真实 Chrome：检视页面、填表、点击与抓取数据。
+- `opencli-usage` — OpenCLI 会话的入口总览：都有哪些能力、如何发现适配器与命令、输出格式。
+- `opencli-adapter-author` — 为新站点编写 OpenCLI 适配器，或给现有站点增加命令。
+- `opencli-autofix` — OpenCLI 命令失败时的自动修复：定位并修补失效适配器。
+- `scrape` — 用已登录的真实浏览器会话抓取页面数据（只读）。
+- `dokobot` — 读取 JS 渲染的动态页面与 SPA 内容。
+- `doko-search` — 用本地浏览器在 Google/Bing/DuckDuckGo 上免费检索。
+- `doko-summarize` — 通过真实浏览器抓取并总结网页要点。
+- `doko-translate` — 整页翻译并尽量保留结构、格式、表格与代码块。
+- `doko-research` — 多轮网页研究：交叉核对来源并产出结构化、带引用的报告。
+- `smart-search` — 基于 opencli 的智能检索路由：按站点、社交、技术资料、新闻、购物、金融或中文内容选择最佳检索路径。
+- `ai-chat-browser` — 在 Gemini / Perplexity 网页版界面中自动化提问与检索（非 API 方式）。
+- `user-chrome-tabs` — 操作用户真实 macOS Chrome 与其既有登录会话中的标签页。
+- `setup-browser-cookies` — 把真实 Chromium 的 cookie 导入无头浏览会话，并做登录校验。
+- `remote-browser` — 在受限沙箱中用 Browser Use CLI 控制隔离的云浏览器。
+- `cloud` — Browser Use Cloud 文档参考：托管浏览器自动化 API（v2–v4）与 Python/TS SDK 用法。
+- `x402` — 用 Browser Use Cloud 的加密/USDC 钱包完成支付（无需 API Key 的方案）。
+- `exa-search` — 用 Exa 检索科研与技术网页，并批量抽取网页/PDF 正文（支持学术类目与域名过滤）。
+- `parallel-web` — 用 Parallel CLI 做网页检索、URL 抽取、深度研究、结构化数据补全与实体发现。
+- `read` — 抓取 URL 与 PDF 并总结或输出干净 Markdown（读、引用、保存网页时使用）。
+- `liteparse` — 本地文档与 PDF 解析：输出带边界框的空间文本，便于版面相关抽取。
+
+<a id="c-doc"></a>
+### 写作与文档（17）
+
+人读文档、写作法、排版与图表表达。
+
+- `write` — 起草、编辑或本地化中英文文稿（不含代码注释）。
+- `docs-update` — 代码变更后同步用户文档：更新/审阅文档、处理文档变更或分析近期提交的文档影响。
+- `documentation-and-adrs` — 记录决策与文档：写 ADR、公共 API 变更说明、功能发布说明与给未来工程师的背景。
+- `document-generate` — 为缺失文档补写教程、操作指南与模块说明。
+- `document-release` — 发布前审计并同步文档与代码差异。
+- `writing-beats` — 写作"节拍"：把内容拆成有推进感的段落与节拍再成文。
+- `writing-fragments` — 写作"碎片"：先积累片段与素材，再组装成完整文稿。
+- `writing-shape` — 写作"成形"：为素材确定整体结构与叙事形状。
+- `writing-guidelines` — 审查文档与散文的写作规范（文风、结构、可读性）。
+- `writing-for-agents` — 面向代理写文档：技能、AGENTS.md/CLAUDE.md 与规则文件的写法与维护边界。
+- `writing-skills` — 新建、修改技能，或部署前验证技能可用时使用。
+- `kami` — 用 Kami 模板排版专业文档：简历、单页、白皮书、信函与作品集。
+- `make-pdf` — 把 Markdown 转成出版级 PDF（1 英寸页边距、智能分页与页码）。
+- `markdown-mermaid-writing` — 写科研向 Markdown 文档与 Mermaid 图（流程、关系、时间线与结构）。
+- `documd-visuals` — 用 Markdown 做文本驱动可视化：图表、示意图、卡片、架构与页面布局（含可靠性/运营类图表）。
+- `diagram` — 把流程、架构、状态机画成图并导出 SVG/Excalidraw。
+- `venue-templates` — 按目标会议的模板与格式要求排版论文、海报、基金与 LaTeX 稿件。
+
+<a id="c-academic"></a>
+### 科研与学术（26）
+
+文献检索、稿件写作、投稿与审稿全流程。
+
+- `research` — 对高质量一手来源做调研，并把结论落成 Markdown 文件存档。
+- `research-lookup` — 为科学稿件或研究简报汇编最新学术证据（需明确要求时才用）。
+- `researchwrite` — 基于已有证据撰写、修改或审查研究提案、开题报告与研究计划。
+- `research-grants` — 科研基金申请的准备与评审支持（NSF/NIH/DOE/DARPA 及台湾 NSTC 等）。
+- `literature-review` — 用 PubMed/arXiv/bioRxiv/Semantic Scholar 等做系统综述、范围综述与叙述性综述。
+- `citation-management` — 文献引用管理：检索 OpenAlex/PubMed/Scholar、核对元数据、校验引用并生成规范 BibTeX。
+- `paper-lookup` — 跨 18 个学术 API 检索论文、预印本、引用、开放全文与仓储记录。
+- `paperzilla` — 通过 pz 管理 Paperzilla 研究源：读项目、检索订阅流、取推荐与经典论文。
+- `paperclip` — 检索并阅读生物医学论文、FDA/PMDA/EMA 文件、临床试验与蛋白记录。
+- `bgpt-paper-search` — 按主题或 DOI 检索 BGPT 论文并取全文级论断证据（实验、统计、范围、局限与出处）。
+- `peer-review` — 起草有证据边界的建设性同行评审与结构化稿件评估。
+- `scholar-evaluation` — 对学术作品做定性优先、可溯源的成长性评审与低风险评分卡审计。
+- `scientific-writing` — 撰写、修改与审查科学稿件或报告，标注证据出处与报告规范。
+- `scientific-visualization` — 用 Matplotlib/Seaborn 等产出真实、无障碍、可出版的科研图表（含不确定度表达）。
+- `scientific-slides` — 制作科研汇报与会议幻灯片（PowerPoint/演示文稿）。
+- `scientific-schematics` — 用 Nano Banana 2 生成科学示意图草稿并迭代精修。
+- `scientific-critical-thinking` — 评估科学主张与证据质量：实验设计有效性、偏倚、混杂与 GRADE 框架。
+- `scientific-brainstorming` — 科学创意发散：独立产出、结构化讨论、显式区分事实与假设。
+- `hypothesis-generation` — 把观察转成可检验的科学问题：候选假设、竞争解释、因果/相关主张、判别性预测与预注册分析计划。
+- `experimental-design` — 数据采集前设计实验：选设计、随机化、区组与处理组合排布，保证结果可解释。
+- `statistical-analysis` — 研究数据的统计分析指引：检验选择、假设检查、效应量与功效。
+- `statistical-power` — 研究规划阶段的样本量与统计功效计算（需要多少受试者才能检验出效应）。
+- `nature-academic-search` — 跨源检索文献、核对与管理引用，构建 MeSH 检索式与引用影响力核查。
+- `nature-citation` — 为稿件论断查找并验证 Nature/CNS 系列文献，做论断到来源的映射与补引。
+- `nature-downloader` — 合法获取学术全文：CNKI 机构访问、英文开放获取与出版社平台下载。
+- `nature-reader` — 生成中英对照的论文精读稿：正文、图表与公式对齐。
+
+<a id="c-bio"></a>
+### 生信与组学（44）
+
+单细胞、基因组、蛋白与影像组学的分析流水线。
+
+- `scanpy` — 单细胞 RNA-seq 标准流程：质控、标准化、HVG、PCA/UMAP/t-SNE、聚类与注释（可在 RDS/h5ad 间转换）。
+- `anndata` — 单细胞注释矩阵与 .h5ad / Zarr 数据格式：读取、切片与 scverse 生态衔接（分析流程用 scanpy）。
+- `scvi-tools` — 单细胞组学概率模型：scVI 批次整合、scANVI 注释与 totalVI 等。
+- `scvelo` — RNA 速率分析：从 spliced/unspliced 计数拟合动力学模型并推断潜在时间。
+- `biopython` — Biopython 序列处理：读写 FASTA/GenBank/PDB、系统发育、经 Bio.Entrez 访问 NCBI/PubMed。
+- `bioservices` — 用 Python 调 UniProt、KEGG、ChEMBL、Reactome、QuickGO、UniChem 等，做跨库注释与标识映射。
+- `pysam` — 读写、查询与过滤 SAM/BAM/CRAM/VCF/BCF/索引文件（HTSlib 封装）。
+- `pydeseq2` — 用 PyDESeq2 做 bulk RNA-seq 差异表达：计数校验、设计公式与结果解读。
+- `bulk-rnaseq` — bulk RNA-seq 定量到差异表达的准备：nf-core/rnaseq 或 Salmon/STAR/featureCounts，含链向与参考来源校验。
+- `deeptools` — NGS 分析工具箱：BAM 转 bigWig、相关性/PCA/指纹 QC、TSS 与 peak 的热图与剖面图。
+- `nextflow` — 编写、运行与调试 Nextflow DSL2 与 nf-core 流程（.nf、channel、配置与报错定位）。
+- `qiime2-amplicon` — 把双端 16S 扩增子数据跑成 QIIME 2 的 ASV 与物种注释，保留可追溯产物。
+- `gget` — 用 CLI/Python 快速查询 20+ 生物信息库：基因信息、BLAST/BLAT、病毒序列、PDB/mmCIF、富集与 OpenTargets 等。
+- `cellxgene-census` — 查询 CZ CELLxGENE Census 的公开单细胞与空间转录组数据（版本化元数据、表达切片与下载地址）。
+- `onekgpd` — 查询 1000 Genomes 项目（3202 个全基因组个体，GRCh38）的个体级变异、携带者、基因型与亲缘关系。
+- `tiledbvcf` — 用 TileDB-VCF 存取基因组变异调用：样本级 VCF/BCF 摄取、区域查询与队列导出。
+- `gtars` — 本地基因组区间模型与集合代数：重叠与计数、共识与覆盖、分词、片段处理与 refget/BEDbase 规划（Python/Rust/CLI）。
+- `geniml` — 本地基因组区间模型与集合代数：校验 BED/universe 契约，规划 Region2Vec/scEmbed 运行并检查一致性。
+- `genomic-coordinates` — 坐标约定转换、变异表示规范化与比较、装配版本/染色体命名不一致的提前发现。
+- `genomic-intelligence` — 用托管 DNA 语言模型从序列直接预测调控特征、基因结构与表达（六类任务，REST 与 MCP，无需本地 GPU）。
+- `pathway-enrichment` — 对基因列表或排序基因做通路/基因集富集分析，并解读结果（GSEA/GO/KEGG 等）。
+- `depmap` — 取用并分析 DepMap 数据：CRISPR Chronos 基因效应、癌症模型注释、组学标志物与 PRISM 药敏。
+- `mageck` — 用 MAGeCK 分析混合 CRISPR 筛选的 FASTQ 与 guide-count 矩阵：文库校验、富集与命中排序。
+- `flowio` — 读写 FCS 2.0/3.0/3.1 流式细胞术文件：元数据与通道检视、NumPy 事件提取、多数据集与导出（门控分析用 flowkit）。
+- `flowkit` — 流式细胞术分析：溢漏补偿、logicle/双指数变换、层级门控、GatingML 与 FlowJo 10 工作区。
+- `histolab` — 病理全片图像处理：切片检视、组织掩膜、随机/网格/评分抽样与 H&E 染色归一，产出可供训练的图块集。
+- `pathml` — 本地计算病理研究：切片加载与切块、预处理与质控、h5path 与深度学习流程衔接。
+- `omero-integration` — 用 omero-py/BlitzGateway/CLI 检视并自动化 OMERO 服务器上的显微图像流程（含注释与 ROI）。
+- `cellprofiler` — 可复现的 CellProfiler 显微图像流程：细胞核分割、计数与单目标荧光测量（无头批处理）。
+- `deepspot-m` — 由 H&E 病理图生成全转录组虚拟空间表达（DeepSpot-M）：224×224 切片、按基因符号查询。
+- `bids` — 组织、查询、校验与转换 BIDS 脑影像数据集（MRI/EEG/MEG/iEEG/PET 等）。
+- `nwb-conversion` — 用 NeuroConv/PyNWB 把神经科学采集数据转成 NWB 标准文件，保留元数据与时间对齐。
+- `neuropixels-analysis` — Neuropixels 胞外记录全流程：SpikeInterface 读取、Kilosort4 分选与单元质量筛选。
+- `relion` — 校验并执行 RELION 单颗粒冷冻电镜精修与半图后处理（STAR、光学、掩膜与 FSC）。
+- `phylogenetics` — 用 MAFFT 比对 + IQ-TREE 最大似然（含 FastTree）构建并分析系统发育树。
+- `etetoolkit` — 用 ETE 4 分析、比较、注释与可视化系统发育树：Newick/Nexus 读写、拓扑编辑、RF 比较与基因树事件。
+- `scikit-bio` — 生物数据工具箱：序列分析、比对、系统发育树、多样性指标与生物文件 I/O。
+- `pacsomatic` — 准备并启动 nf-core/pacsomatic 的肿瘤-正常配对 PacBio HiFi 流程。
+- `waypoint-bio` — 微生物组基础模型与基准：Waypoint 检查点、Compass 基准与丰度表分析。
+- `latchbio-integration` — 在 Latch 平台上构建、注册、调试并运行生信流程：Python SDK、CLI、Latch Data 与 Registry。
+- `dnanexus-integration` — 在 DNAnexus 上构建并运行可复现的基因组流程：dx CLI、dxpy、app/applet、原生工作流与 dxCompiler。
+- `lamindb` — 用 LaminDB 管理生物数据集与模型：产物登记、血缘追踪、schema 与关联查询。
+- `adaptyv` — 经 Adaptyv Foundry API/SDK 设计蛋白表征实验：选靶点目录、估成本、提交序列、跟踪进度并取结果。
+- `folklore-variant-evidence` — 取 ClinGen 基因-疾病有效性断言，并核对某 GRCh38 胚系 SNV/小 indel 的公开证据与文献。
+
+<a id="c-mol"></a>
+### 分子 · 药物 · 实验室（24）
+
+分子建模、药物筛选与实验自动化（含实验平台与自制硬件）。
+
+- `rdkit` — 化学信息学底层控制：SMILES/SDF 解析、描述符、指纹与反应处理（更简单场景用 datamol）。
+- `datamol` — RDKit 的 Pythonic 封装：SMILES 解析、标准化、描述符、指纹、聚类与 3D 构象（常规药物发现首选）。
+- `deepchem` — 用 DeepChem 做分子性质预测与 MoleculeNet 流程：SMILES 特征化、骨架划分、图模型与预训练迁移。
+- `medchem` — 药物化学过滤与化合物初筛：类药规则（Lipinski/Veber/CNS）、结构警示与 PAINS。
+- `molfeat` — 用 Molfeat 生成分子特征，用于 QSAR/QSPR、相似性与虚拟筛选。
+- `pytdc` — 经 PyTDC 使用 Therapeutics Data Commons：数据集检索、任务与评测指标。
+- `diffdock` — 用 DiffDock/DiffDock-L 预测蛋白-小分子结合构象：批量对接、构象筛选、置信度解读与虚拟筛选。
+- `esm` — 用 Biohub esm SDK 做 ESM3 蛋白生成、ESMC 嵌入与 ESMFold2 全原子折叠（本地推理或托管客户端）。
+- `tamarind` — 使用 Tamarind 平台上的开源分子设计与结构生物学工具（AlphaFold/RFdiffusion/Boltz/ESMFold 等）。
+- `rowan` — 用 Rowan 云端分子建模与药物化学工作流（Python API）：pKa、构象、对接与 MD。
+- `molecular-dynamics` — 用 OpenMM/MDAnalysis 搭建并分析分子动力学模拟（蛋白与配体体系、轨迹分析）。
+- `primekg` — 查询固定版本 PrimeKG 精准医学知识图谱：基因、药物、疾病与表型的类型化关联与多跳路径。
+- `alphagenome` — 查 GRCh38 单核苷酸变异的 AlphaGenome 预计算效应（AVI 分、Phred、18 项 SHAP 归因与各模态分数）。
+- `glycoengineering` — 糖基化分析与改造：扫描 N-糖基化序列、S/T 富集区、糖基证据，准备 NetNGlyc/NetOGlyc/GlycoSHIELD 流程。
+- `ncats-arax` — 查询 NCATS Translator ARAX 生产 API，取有界、带类型与出处的单跳/受限路径关系。
+- `pkpd-modeling` — 药代/药效建模：非房室分析、房室与群体 PK、TMDD、PBPK 与给药方案模拟。
+- `benchling-integration` — 用 Benchling SDK / v2 REST API 自动化实验室数据：登记实体、库存、ELN 条目、工作流与数仓查询。
+- `labarchive-integration` — 对接 LabArchives ELN 与 Inventory API：区域端点选择、签名请求与条目读写。
+- `opentrons-integration` — 编写、评审、迁移、仿真与排错 Opentrons 官方 Python Protocol API v2 协议。
+- `pylabrobot` — 开发与评审 PyLabRobot 实验自动化：移液方案、离线仿真与硬件对接。
+- `ginkgo-cloud-lab` — 在 Ginkgo Cloud Lab 上选方案、备输入、核价与下单：无细胞/大肠杆菌/毕赤酵母表达与多种读出方式。
+- `lab-hardware-cad` — 用 build123d 参数化设计自制实验室硬件，并导出 STEP/STL 等加工文件。
+- `protocolsio-integration` — 按 protocols.io 官方 REST/MCP 契约读取、校验并安全导出实验方案数据。
+- `fictiv` — 在浏览器中完成 Fictiv（按需制造平台）全流程：上传 CAD、配置工艺材料与公差、即时/人工报价与下单。
+
+<a id="c-data"></a>
+### 数据 · 可视化与 ML（30）
+
+数据处理、统计建模、绘图与模型训练。
+
+- `polars` — 高性能 DataFrame：Python ETL、分析与从 pandas 迁移，支持表达式与惰性执行。
+- `polars-bio` — 在 Polars DataFrame 上做基因组区间运算：重叠、最近邻、合并、覆盖与差集，读写 BED/VCF/BAM。
+- `dask` — 用 Dask 扩展 pandas/NumPy 与自定义流程：分块、调度器、DataFrame/Array/Bag/Futures 与分布式诊断。
+- `vaex` — 处理超内存的 HDF5/Arrow/CSV/Parquet 数据集：表达式计算与统计。
+- `statsmodels` — 用 statsmodels 拟合与诊断统计模型：OLS、GLM、离散与混合模型、ARIMA/SARIMAX。
+- `matplotlib` — 用 Matplotlib 精细控制科研绘图（自定义元素与复杂多面板布局）。
+- `seaborn` — 统计可视化：分布、关系、分类与热图（与 pandas 集成）。
+- `umap-learn` — 非线性降维与二维/三维可视化：UMAP、DensMAP、参数化 UMAP 与嵌入聚类。
+- `networkx` — 用 NetworkX 创建、分析并可视化复杂网络与图结构。
+- `sympy` — 精确符号数学：代数、微积分、方程求解与符号线性代数。
+- `matlab` — MATLAB / GNU Octave 数值工作流：数组、表格与时间数据、迁移与规划。
+- `pycalphad` — 从热力学数据库计算有限温度 CALPHAD 平衡：相分数、相组成与稳定性扫描。
+- `pymatgen` — 用 pymatgen 分析、校验、转换与变换材料结构与计算材料数据（相图、电子结构）。
+- `timesfm-forecasting` — 用 Google TimesFM 做零样本时间序列预测（含 CSV 规整、分位数与协变量）。
+- `aeon` — 时间序列机器学习：分类、回归、聚类、预测、异常检测、分段与相似性检索。
+- `scikit-learn` — 经典机器学习：分类、回归、聚类、预处理与 Pipeline 搭建。
+- `scikit-survival` — 右删失与竞争风险生存分析：模型构建、评估与审计。
+- `shap` — 用 SHAP 解释与审计模型预测：选择 explainer/masker 与全局/局部归因。
+- `pymc` — 用 PyMC 构建并检验贝叶斯模型：层次模型、NUTS、变分推断与 PSIS-LOO 诊断。
+- `pymoo` — 用 pymoo 求解与验证单目标/多目标/超多目标优化（NSGA-II/III、MOEA/D、约束与 Pareto 前沿）。
+- `uncertainty-and-units` — 物理单位换算、GUM 不确定度传播、量纲检查与数量级合理性判断。
+- `exploratory-data-analysis` — 对受支持的科学数据文件做有界本地探索分析：CSV/TSV/JSON 画像，可选 NumPy/HDF5/FASTA/图像元数据与缺失/泄漏检查。
+- `analysis-artifacts` — 数据分析过程中同步产出可复现产物：SQL、Python 可视化与汇总表（BigQuery 深挖场景）。
+- `dbt-model-index` — 提供 dbt 模型（BigQuery 表）查询索引，把模糊的数据问题落到具体表。
+- `database-lookup` — 按明确端点、过滤、分页与出处查询公开数据库 API，保证科学/监管/金融事实可复现。
+- `usfiscaldata` — 查询美国财政数据：国债、财政部报表、联邦支出与收入、证券。
+- `market-research-reports` — 产出可溯源的市场研究报告与假设驱动的市场规模/预测情景。
+- `pytorch-lightning` — 用 Lightning 组织 PyTorch 代码：LightningModule、Trainer、回调与分布式扩展。
+- `transformers` — Hugging Face Transformers：加载 Hub 模型、pipeline 推理、文本生成与 Trainer 微调。
+- `optimize-for-gpu` — 在 NVIDIA 硬件上加速科学 Python，并验证结果正确且确实更快（CUDA/RAPIDS/CuPy/Numba）。
+
+<a id="c-ops"></a>
+### 部署 · 运维与安全（22）
+
+发布上线、性能与可观测性、安全与合规。
+
+- `deploy-to-vercel` — 部署应用到 Vercel：上线、生成预览部署或给出访问链接。
+- `vercel-cli-with-tokens` — 用令牌（非交互）方式部署与管理 Vercel 项目。
+- `vercel-optimize` — 降低 Vercel 账单并优化性能指标（含 Core Web Vitals）。
+- `vercel-react-best-practices` — React/Next.js 性能最佳实践：包体积、数据获取与渲染优化。
+- `vercel-composition-patterns` — 组件组合模式重构：消除布尔 props 泛滥，改进复合组件与可复用结构。
+- `vercel-react-view-transitions` — React/Next.js 页面转场与共享元素动画（ViewTransition）。
+- `vercel-react-native-skills` — React Native / Expo 移动端组件、动画与性能优化。
+- `shipping-and-launch` — 生产上线准备：发布清单、灰度与回滚策略、上线前检查。
+- `land-and-deploy` — 落地并部署：合并 PR、等 CI 与部署完成，再用 canary 检查验证生产健康。
+- `landing-report` — 只读的队列看板：显示当前有哪些版本槽位被打开的 PR 占用。
+- `canary` — 上线后监控：验证灰度发布、发现回归。
+- `ship` — 发布工作流：合并基线分支、跑测试、评审 diff、升版本、更新 CHANGELOG 并提交。
+- `setup-deploy` — 为 /land-and-deploy 配置部署平台与参数（Fly.io、Render、Vercel 等）。
+- `ci-cd-and-automation` — 搭建与改造 CI/CD：质量门禁、测试运行器配置与部署策略。
+- `observability-and-instrumentation` — 给代码加可观测性：日志、指标、追踪与告警，让线上行为可诊断。
+- `performance-optimization` — 全栈性能优化：前端、后端、查询与数据库；性能不达标或变慢时使用。
+- `benchmark` — 网页性能、Core Web Vitals 与 Lighthouse 基准（不用于 AI 评测）。
+- `web-performance-audit` — 剖析并优化页面速度与 Lighthouse 分数（加载与渲染瓶颈定位）。
+- `debug-optimize-lcp` — 用 Chrome DevTools 调试并优化 LCP：慢加载、Core Web Vitals 问题定位。
+- `terraform-style-check` — 按 HashiCorp 官方风格约定编写与审查 Terraform HCL。
+- `security-and-hardening` — 代码安全加固：审计输入处理、认证授权、OWASP 漏洞与依赖安全。
+- `cso` — 安全审计：静态发现为主，具备条件时补充复现与修复候选（OWASP、威胁建模、漏洞复核）。
+
+<a id="c-agent"></a>
+### 代理与会话（24）
+
+技能体系本身、会话交接与代理协作。
+
+- `using-superpowers` — 会话开始时用：规定任何回应（含追问）之前先定位并加载相关技能。
+- `using-agent-skills` — 会话开始或需要判断该用哪个技能/流程时，给出技能加载与使用规范。
+- `dispatching-parallel-agents` — 有 2 个以上互不依赖、无共享状态的任务时，分派并行子代理。
+- `chief-of-staff` — 在单次会话内协调多个子代理，推进一个长期目标。
+- `handoff` — 把当前对话压缩成交接文档，供另一个代理接手继续。
+- `claude-handoff` — 把当前对话整理成交接文档，交给新的后台代理立即接手。
+- `context-save` — 保存当前工作上下文：Git 状态、已定决策与待办，供后续会话无缝接手。
+- `context-restore` — 恢复此前保存的上下文（优先当前分支），跨会话/工作区继续工作。
+- `health` — 体检 agent 配置与 AI 可维护性：指令漂移、hooks/MCP、验证器缺失；不查应用 bug，也不做 PR 审查。
+- `retro` — 对一次编码会话做复盘（哪些有效、哪些浪费、下次怎么改）。
+- `scheduler` — 设置本机定时提醒与轻量本地任务（不涉及云端代理）。
+- `skillify` — 把最近一次成功的 /scrape 流程固化成磁盘上的常驻 browser-skill，供后续直接调用。
+- `gstack` — gstack 技能套件的总入口：把任何 gstack 请求路由到正确的子技能（规划、评审、QA、发布…）。
+- `gstack-upgrade` — 升级 gstack 到最新版：识别全局安装还是仓库内置，执行升级并说明变更。
+- `pi-agent` — 安装、配置与使用 Pi（极简终端编码代理），含 provider 配置与嵌入方式。
+- `claude-code` — 调用 Claude Code 做代码评审、"claude review"、对抗式质询或征求第二意见。
+- `codex` — 调用 Codex 做代码评审、对抗式挑战、咨询或第二意见。
+- `pair-agent` — 把远程 AI 代理与你的浏览器配对：一条命令生成配对密钥并给出对方要执行的说明。
+- `sisyphus-execution-rules` — 会话开始强制加载：代理分工、实时更新、Git 限制与资源管理规则。
+- `using-git-worktrees` — 需要与当前工作区隔离地开发（或执行计划前）时，建立独立 worktree。
+- `careful` — 危险命令防护：在 rm -rf、DROP TABLE、force-push、reset --hard 等操作前告警。
+- `guard` — 全面安全模式：危险命令告警 + 目录级编辑限制（careful + freeze 的合体）。
+- `freeze` — 冻结编辑范围：把本会话的写入限制在指定目录内，防止顺手改无关代码。
+- `unfreeze` — 解除 freeze 的目录编辑限制，恢复全目录写入。
+
+<a id="c-cli"></a>
+### CLI 封装与外部工具（6）
+
+给 GUI 应用与非编程工具套一层命令行，让代理可自动化。
+
+- `cli-anything` — 为 GUI 应用或源码仓库构建、打磨、校验 CLI-Anything 命令行封装（不改动其生成格式）。
+- `cli-anything-*` — 家族：69 个具体应用的命令行驱动（Blender / GIMP / QGIS / Zotero / iTerm2 / Obsidian / FreeCAD / Postman… 完整清单见 §3 的 `cli-anything-` 前缀族）
+- `cli-hub-meta-skill` — 在实时目录里检索可用的 agent-native CLI 工具（创意、效率、AI 等方向）。
+- `opencli-*` — 家族：4 个 OpenCLI 适配器相关技能（`opencli-usage` / `opencli-browser` / `opencli-adapter-author` / `opencli-autofix`，均已在上方「浏览器与检索」列出）
+- `cli-anything-macrocli` — 用命令行驱动 MacroCLI：把 GUI 操作定义成可调用的参数化宏。
+- `reverse-engineering` — 逆向 macOS 二进制与私有 API：stripped Mach-O、arm64e、系统进程（Ghidra/LLDB）。
+
+---
+
+<a id="s0"></a>
+## 0. 快速查找指南（按任务）
+
+> 每个任务是一个独立小节，可从上方目录直达；链内技能按使用顺序排列。
+
+| 任务 | 直达 |
 | --- | --- |
-| 规划新功能 | `brainstorming` → `writing-plans` → `executing-plans` |
-| 修复 bug | `systematic-debugging` → `test-driven-development` → `verification-before-completion` |
-| 代码审查 | `requesting-code-review` → `code-review` → `receiving-code-review` |
-| Git / 提交 | `git-workflow-and-versioning` → `create-pull-request` |
-| 测试策略 | `tdd` → `test-audit` → `qa` |
-| 写作 / 文档 | `write` → `docs-update` → `documentation-and-adrs` |
-| UI / 前端 | `ui` → `design-taste-frontend` → `frontend-ui-engineering` |
-| 浏览器验证 | `browse` → `webapp-testing` → `browser-use` |
-| 性能优化 | `web-performance-audit` → `performance-optimization` → `debug-optimize-lcp` |
-| 安全审计 | `cso` → `security-and-hardening` |
-| 部署上线 | `deploy-to-vercel` → `shipping-and-launch` → `ci-cd-and-automation` |
-| CLI 封装 | `cli-anything` → `cli-hub-meta-skill` |
-| 深度研究 | `doko-research` → `parallel-web` → `paper-lookup` |
-| 上下文交接 | `context-save` → `context-restore` |
-| 会话纪律 / 防护 | `careful` → `guard` → `freeze` |
-| 科研写作 | `scientific-writing` → `nature-figure` → `scientific-visualization` |
-| 单细胞 | `scanpy` → `anndata` → `scvi-tools` → `scvelo` |
-| 分子 ML | `rdkit` → `datamol` → `deepchem` |
-| 量子计算 | `qiskit` → `cirq` → `pennylane` → `qutip` |
-| 并行子代理 | `dispatching-parallel-agents` → `subagent-driven-development` |
+| 规划新功能 | [跳转](#t-01) |
+| 修复 bug | [跳转](#t-02) |
+| 代码审查 | [跳转](#t-03) |
+| Git / 提交 | [跳转](#t-04) |
+| 测试策略 | [跳转](#t-05) |
+| 写作 / 文档 | [跳转](#t-06) |
+| UI / 前端 | [跳转](#t-07) |
+| 浏览器验证 | [跳转](#t-08) |
+| 性能优化 | [跳转](#t-09) |
+| 安全审计 | [跳转](#t-10) |
+| 部署上线 | [跳转](#t-11) |
+| CLI 封装 | [跳转](#t-12) |
+| 深度研究 | [跳转](#t-13) |
+| 上下文交接 | [跳转](#t-14) |
+| 会话纪律 / 防护 | [跳转](#t-15) |
+| 科研写作 | [跳转](#t-16) |
+| 单细胞 | [跳转](#t-17) |
+| 分子 ML | [跳转](#t-18) |
+| 量子计算 | [跳转](#t-19) |
+| 并行子代理 | [跳转](#t-20) |
+
+<a id="t-01"></a>
+### 0.1 规划新功能
+
+`brainstorming` → `writing-plans` → `executing-plans`
+
+- `brainstorming` — 任何创造性工作开工前必须先做：做功能、改行为、起方案之前先把问题与选项谈清。
+- `writing-plans` — 手里已有需求或多步任务规格、尚未动代码时，先写实施计划。
+- `executing-plans` — 在当前会话内自己当执行者落地实施计划时使用（含无子代理可用的情况）。
+
+<a id="t-02"></a>
+### 0.2 修复 bug
+
+`systematic-debugging` → `test-driven-development` → `verification-before-completion`
+
+- `systematic-debugging` — 遇到 bug、测试失败或异常行为时，在提出修复方案之前使用的系统排查流程。
+- `test-driven-development` — 写任何功能或修任何 bug 的实现代码之前使用：先写失败测试。
+- `verification-before-completion` — 声称"完成/修好/通过"之前必须运行验证命令并核对输出，先有证据再下结论。
+
+<a id="t-03"></a>
+### 0.3 代码审查
+
+`requesting-code-review` → `code-review` → `receiving-code-review`
+
+- `requesting-code-review` — 完成任务、实现大功能或合入前，请求审查以确认是否符合需求。
+- `code-review` — 以固定点（commit/分支/tag）为基准做双轴审查：Standard（是否符合本仓库规范）与 Spec（是否实现需求）。
+- `receiving-code-review` — 收到审查意见后、动手改之前使用：要求技术论证与验证，不做表演式认同。
+
+<a id="t-04"></a>
+### 0.4 Git / 提交
+
+`git-workflow-and-versioning` → `create-pull-request`
+
+- `git-workflow-and-versioning` — git 工作流规范：提交、分支、冲突处理、把混乱工作区拆成干净原子提交、PR 与版本发布。
+- `create-pull-request` — 按项目约定创建 GitHub PR：分析提交、整理分支并用 gh CLI 提交审阅。
+
+<a id="t-05"></a>
+### 0.5 测试策略
+
+`tdd` → `test-audit` → `qa`
+
+- `tdd` — 测试先行开发：用户要求 test-first 或提到红绿重构时使用。
+- `test-audit` — 找出低价值或重复的测试及其维系的"仅供测试"代码；默认只报告，批量删除需你确认。
+- `qa` — 对网站或 Web 应用做 QA 并给 1–5 分（5=无懈可击）与证据；发现问题时给修复建议。
+
+<a id="t-06"></a>
+### 0.6 写作 / 文档
+
+`write` → `docs-update` → `documentation-and-adrs`
+
+- `write` — 起草、编辑或本地化中英文文稿（不含代码注释）。
+- `docs-update` — 代码变更后同步用户文档：更新/审阅文档、处理文档变更或分析近期提交的文档影响。
+- `documentation-and-adrs` — 记录决策与文档：写 ADR、公共 API 变更说明、功能发布说明与给未来工程师的背景。
+
+<a id="t-07"></a>
+### 0.7 UI / 前端
+
+`ui` → `design-taste-frontend` → `frontend-ui-engineering`
+
+- `ui` — 构建与改造生产级 UI：组件、排版、布局与视觉一致性（不含后端逻辑）。
+- `design-taste-frontend` — 前端艺术指导（tasteskill v2）：基于 247 个精选站点研究的构图、字体、配色与摄影方向。
+- `frontend-ui-engineering` — 构建生产级、无障碍、自适应的界面：组件、布局、状态管理与 WCAG 达标。
+
+<a id="t-08"></a>
+### 0.8 浏览器验证
+
+`browse` → `webapp-testing` → `browser-use`
+
+- `browse` — 驱动真实浏览器（Aside）：打开页面、阅读、走完流程、截图并检查控制台错误。
+- `webapp-testing` — 用 Playwright 测试本地 Web 应用：验证界面、截图与收集日志。
+- `browser-use` — 直接的浏览器控制（CDP）：自动化、抓取、测试、截图与站点操作。
+
+<a id="t-09"></a>
+### 0.9 性能优化
+
+`web-performance-audit` → `performance-optimization` → `debug-optimize-lcp`
+
+- `web-performance-audit` — 剖析并优化页面速度与 Lighthouse 分数（加载与渲染瓶颈定位）。
+- `performance-optimization` — 全栈性能优化：前端、后端、查询与数据库；性能不达标或变慢时使用。
+- `debug-optimize-lcp` — 用 Chrome DevTools 调试并优化 LCP：慢加载、Core Web Vitals 问题定位。
+
+<a id="t-10"></a>
+### 0.10 安全审计
+
+`cso` → `security-and-hardening`
+
+- `cso` — 安全审计：静态发现为主，具备条件时补充复现与修复候选（OWASP、威胁建模、漏洞复核）。
+- `security-and-hardening` — 代码安全加固：审计输入处理、认证授权、OWASP 漏洞与依赖安全。
+
+<a id="t-11"></a>
+### 0.11 部署上线
+
+`deploy-to-vercel` → `shipping-and-launch` → `ci-cd-and-automation`
+
+- `deploy-to-vercel` — 部署应用到 Vercel：上线、生成预览部署或给出访问链接。
+- `shipping-and-launch` — 生产上线准备：发布清单、灰度与回滚策略、上线前检查。
+- `ci-cd-and-automation` — 搭建与改造 CI/CD：质量门禁、测试运行器配置与部署策略。
+
+<a id="t-12"></a>
+### 0.12 CLI 封装
+
+`cli-anything` → `cli-hub-meta-skill`
+
+- `cli-anything` — 为 GUI 应用或源码仓库构建、打磨、校验 CLI-Anything 命令行封装（不改动其生成格式）。
+- `cli-hub-meta-skill` — 在实时目录里检索可用的 agent-native CLI 工具（创意、效率、AI 等方向）。
+
+<a id="t-13"></a>
+### 0.13 深度研究
+
+`doko-research` → `parallel-web` → `paper-lookup`
+
+- `doko-research` — 多轮网页研究：交叉核对来源并产出结构化、带引用的报告。
+- `parallel-web` — 用 Parallel CLI 做网页检索、URL 抽取、深度研究、结构化数据补全与实体发现。
+- `paper-lookup` — 跨 18 个学术 API 检索论文、预印本、引用、开放全文与仓储记录。
+
+<a id="t-14"></a>
+### 0.14 上下文交接
+
+`context-save` → `context-restore`
+
+- `context-save` — 保存当前工作上下文：Git 状态、已定决策与待办，供后续会话无缝接手。
+- `context-restore` — 恢复此前保存的上下文（优先当前分支），跨会话/工作区继续工作。
+
+<a id="t-15"></a>
+### 0.15 会话纪律 / 防护
+
+`careful` → `guard` → `freeze`
+
+- `careful` — 危险命令防护：在 rm -rf、DROP TABLE、force-push、reset --hard 等操作前告警。
+- `guard` — 全面安全模式：危险命令告警 + 目录级编辑限制（careful + freeze 的合体）。
+- `freeze` — 冻结编辑范围：把本会话的写入限制在指定目录内，防止顺手改无关代码。
+
+<a id="t-16"></a>
+### 0.16 科研写作
+
+`scientific-writing` → `nature-figure` → `scientific-visualization`
+
+- `scientific-writing` — 撰写、修改与审查科学稿件或报告，标注证据出处与报告规范。
+- `nature-figure` — 用 Python 或 R 创建、修改、审查并导出论文配图（多面板、子图与期刊规范）。
+- `scientific-visualization` — 用 Matplotlib/Seaborn 等产出真实、无障碍、可出版的科研图表（含不确定度表达）。
+
+<a id="t-17"></a>
+### 0.17 单细胞
+
+`scanpy` → `anndata` → `scvi-tools` → `scvelo`
+
+- `scanpy` — 单细胞 RNA-seq 标准流程：质控、标准化、HVG、PCA/UMAP/t-SNE、聚类与注释（可在 RDS/h5ad 间转换）。
+- `anndata` — 单细胞注释矩阵与 .h5ad / Zarr 数据格式：读取、切片与 scverse 生态衔接（分析流程用 scanpy）。
+- `scvi-tools` — 单细胞组学概率模型：scVI 批次整合、scANVI 注释与 totalVI 等。
+- `scvelo` — RNA 速率分析：从 spliced/unspliced 计数拟合动力学模型并推断潜在时间。
+
+<a id="t-18"></a>
+### 0.18 分子 ML
+
+`rdkit` → `datamol` → `deepchem`
+
+- `rdkit` — 化学信息学底层控制：SMILES/SDF 解析、描述符、指纹与反应处理（更简单场景用 datamol）。
+- `datamol` — RDKit 的 Pythonic 封装：SMILES 解析、标准化、描述符、指纹、聚类与 3D 构象（常规药物发现首选）。
+- `deepchem` — 用 DeepChem 做分子性质预测与 MoleculeNet 流程：SMILES 特征化、骨架划分、图模型与预训练迁移。
+
+<a id="t-19"></a>
+### 0.19 量子计算
+
+`qiskit` / `cirq` / `pennylane` / `qutip`
+
+<a id="t-20"></a>
+### 0.20 并行子代理
+
+`dispatching-parallel-agents` → `subagent-driven-development`
+
+- `dispatching-parallel-agents` — 有 2 个以上互不依赖、无共享状态的任务时，分派并行子代理。
+- `subagent-driven-development` — 用子代理执行含独立任务的实施计划时使用。
 
 ---
-
+<a id="s1"></a>
 ## 1. 项目技能（`.agents/skills/`，4 个）
 
-> 本仓库自带；由 `skills-lock.json` 锁定来源与哈希（此处不复制锁定内容）
+> 本仓库自带，由 `skills-lock.json` 锁定来源与哈希。
 
-| 技能 | 何时使用 |
+| 技能 | 说明 |
 | --- | --- |
-| `code-reviewer` | Reviews Java 25 and Spring Boot 4 codebases, pull requests, files, and modules for migration risks, architecture boundary violations, JSpecify null-safety issues, security flaws, performance regressions, and Spring Data pitfalls. Use when… |
-| `creating-springboot-projects` | Creates Java 25 and Spring Boot 4 project structures, scaffolds, and implementation starting points for new services, REST APIs, and modular backends. Use when the task is to initialize a Spring Boot project, choose an architecture, select… |
-| `spring-data-jpa` | Designs and implements Spring Data JPA repositories, projections, query patterns, custom repositories, CQRS read models, entity relationships, and persistence performance fixes for Java 25 and Spring Boot 4 projects. Use when the task need… |
-| `springboot-migration` | Migrates Spring Boot applications to Boot 4 with Java 25, including related Spring Modulith 2 and Testcontainers 2 upgrade work. Use when the task is a concrete upgrade, dependency transition, starter rename, test-annotation migration, or… |
+| `code-reviewer` | 审查 Java 25 / Spring Boot 4 代码与 PR：迁移风险、模块边界越界、JSpecify 空安全、安全与性能回归、Spring Data 陷阱。 |
+| `creating-springboot-projects` | 新建 Spring Boot 4 工程：目录结构、架构选型与实现起点（新服务、REST API、模块化后端）。 |
+| `spring-data-jpa` | 设计 Spring Data JPA 仓储：投影、查询模式、自定义仓储、CQRS 读模型、关联映射与持久化性能修复。 |
+| `springboot-migration` | 迁移到 Boot 4 + Java 25：依赖与 starter 改名、测试注解迁移，含 Spring Modulith 2 / Testcontainers 2 升级。 |
 
 ---
 
-## 2. 内置技能（17 个：omp 2 + superpowers 15）
-
-## 2.1 内置 — omp（`~/.omp/agent/skills/`，2 个）
-
-> 随 omp 安装的内置技能
-
-| 技能 | 何时使用 |
-| --- | --- |
-| `teach` | Teach the user anything so it actually locks in and is understood, not just memorized. Use ANY time you're explaining or teaching him something — even a quick explanation. Based on two teaching principles he has personally verified to work… |
-| `visualize` | Add a correct, minimal visual to a lesson — a diagram or geometric picture — that renders inline in the Obsidian log. Use when an idea is genuinely clearer as a picture: a dependency graph, system/flow, sequence, state machine, tree, compa… |
+[返回目录](#top)
 
 ---
 
-### 2.2 内置 — superpowers（`~/.omp/plugins/node_modules/superpowers/skills/`，15 个）
+<a id="s2"></a>
+## 2. 内置技能（17 个）
 
-> Superpowers 插件包；通过 `skill://<name>` 读取
+### 2.1 omp 内置（`~/.omp/agent/skills/`，2 个）
 
-| 技能 | 何时使用 |
+| 技能 | 说明 |
 | --- | --- |
-| `brainstorming` | You MUST use this before any creative work - creating features, building components, adding functionality, modifying behavior, or planning anything new, in software or out of it (a talk, a business, a renovation). |
-| `diagnosing-superpowers` | Use when a superpowers session went wrong and your human partner wants to know why — repeated work, ignored plans, stumbles, poor results, a skill that didn't fire, "it took too long", "why is it so expensive", "what is it doing" — or want… |
-| `dispatching-parallel-agents` | Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies |
-| `executing-plans` | Use when executing an implementation plan in the current session as the implementer yourself — your human partner chose inline execution, or no subagent tool is available |
-| `finishing-a-development-branch` | Use when implementation is complete, all tests pass, and you need to decide how to integrate the work |
-| `receiving-code-review` | Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation |
-| `requesting-code-review` | Use when completing tasks, implementing major features, or before merging to verify work meets requirements |
-| `subagent-driven-development` | Use when executing implementation plans with independent tasks in the current session |
-| `systematic-debugging` | Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes |
-| `test-driven-development` | Use when implementing any feature or bugfix, before writing implementation code |
-| `using-git-worktrees` | Use when starting feature work that needs isolation from current workspace or before executing implementation plans - ensures an isolated workspace exists via native tools or git worktree fallback |
-| `using-superpowers` | Use when starting any conversation - establishes how to find and use skills, requiring skill invocation before ANY response including clarifying questions |
-| `verification-before-completion` | Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always |
-| `writing-plans` | Use when you have a spec or requirements for a multi-step task, before touching code |
-| `writing-skills` | Use when creating new skills, editing existing skills, or verifying skills work before deployment |
+| `teach` | 讲解任何内容都要让人真正理解而非记住：按已验证的教学原则组织解释，任何程度的讲解都可调用。 |
+| `visualize` | 给讲解配一张最小正确的图（依赖图、流程、时序、状态机、树、对比等），以内联 SVG 渲染。 |
+
+### 2.2 superpowers 插件（`~/.omp/plugins/node_modules/superpowers/skills/`，15 个）
+
+| 技能 | 说明 |
+| --- | --- |
+| `brainstorming` | 任何创造性工作开工前必须先做：做功能、改行为、起方案之前先把问题与选项谈清。 |
+| `systematic-debugging` | 遇到 bug、测试失败或异常行为时，在提出修复方案之前使用的系统排查流程。 |
+| `test-driven-development` | 写任何功能或修任何 bug 的实现代码之前使用：先写失败测试。 |
+| `verification-before-completion` | 声称"完成/修好/通过"之前必须运行验证命令并核对输出，先有证据再下结论。 |
+| `requesting-code-review` | 完成任务、实现大功能或合入前，请求审查以确认是否符合需求。 |
+| `receiving-code-review` | 收到审查意见后、动手改之前使用：要求技术论证与验证，不做表演式认同。 |
+| `writing-plans` | 手里已有需求或多步任务规格、尚未动代码时，先写实施计划。 |
+| `executing-plans` | 在当前会话内自己当执行者落地实施计划时使用（含无子代理可用的情况）。 |
+| `dispatching-parallel-agents` | 有 2 个以上互不依赖、无共享状态的任务时，分派并行子代理。 |
+| `subagent-driven-development` | 用子代理执行含独立任务的实施计划时使用。 |
+| `using-git-worktrees` | 需要与当前工作区隔离地开发（或执行计划前）时，建立独立 worktree。 |
+| `finishing-a-development-branch` | 实现完成且测试通过后，决定分支如何收尾合入时使用。 |
+| `writing-skills` | 新建、修改技能，或部署前验证技能可用时使用。 |
+| `using-superpowers` | 会话开始时用：规定任何回应（含追问）之前先定位并加载相关技能。 |
+| `diagnosing-superpowers` | 技能会话本身出问题时复盘：重复劳动、计划被忽略、技能没触发、耗时或花费异常。 |
 
 ---
 
-## 3. 用户级技能（`~/.agents/skills/`，416 个）
-
-> 本机技能库主体；按名称排序
-
-| 技能 | 何时使用 |
-| --- | --- |
-| `13c-metabolic-flux` | Estimates intracellular metabolic fluxes from steady-state carbon-13 isotope-tracing measurements using validated atom maps, mfapy isotope simulation, constrained multistart fitting, and flux-profile diagnostics. Use for 13C-MFA, carbon tr… |
-| `a11y-debugging` | Uses Chrome DevTools MCP for accessibility (a11y) debugging and auditing based on web.dev guidelines. Use when testing semantic HTML, ARIA labels, focus states, keyboard navigation, tap targets, and color contrast. |
-| `adaptyv` | Uses the Adaptyv Bio Foundry API and Python SDK to design protein characterization experiments, estimate costs, submit sequences, monitor laboratory progress, and retrieve results. Applies to Adaptyv Foundry, its target catalog, binding sc… |
-| `aeon` | This skill should be used for time series machine learning tasks including classification, regression, clustering, forecasting, anomaly detection, segmentation, and similarity search. Use when working with temporal data, sequential pattern… |
-| `alphagenome` | Looks up precomputed AlphaGenome Atlas effects for any GRCh38 single-nucleotide variant (AVI score with Phred and 18 SHAP feature attributions, plus raw and quantile scores for RNA-seq, DNase, ATAC, ChIP-TF, ChIP-histone, CAGE, PRO-cap, sp… |
-| `analysis-artifacts` | Generate reproducible analysis artifacts — SQL queries, Python visualizations, and summary tables — as you work through a BigQuery data analysis. Use when asked to conduct a deep dive, exploratory analysis, or investigation that goes beyon… |
-| `analytical-method-validation` | Plans, executes, and documents validation, verification, and transfer of analytical procedures under the governing framework - ICH Q2(R2) and Q14, USP <1220>/<1225>/<1226>, ICH M10 bioanalytical, CLSI EP, or ISO/IEC 17025. Use for HPLC, LC… |
-| `animation-vocabulary` | Reverse-lookup glossary that turns a vague description of a web animation or motion effect into its exact term ("the bouncy thing when a popover opens" → Pop in; "the iOS rubber-band scroll" → Rubber-banding). Use when the user asks "what'… |
-| `anndata` | Handles annotated matrices in single-cell analysis, .h5ad and Zarr files, and integration with the scverse ecosystem. This is the data format skill—for analysis workflows use scanpy; for probabilistic models use scvi-tools; for population-… |
-| `api-and-interface-design` | Guides stable API and interface design. Use when designing APIs, module boundaries, or any public interface. Use when creating REST or GraphQL endpoints, defining type contracts between modules, or establishing boundaries between frontend… |
-| `arbor` | Applies Arbor Hypothesis Tree Refinement to research artifacts with repeatable evaluators, including model training, agent harnesses, data synthesis and benchmark optimization. Uses persistent hypotheses, isolated experiments, evidence pro… |
-| `arboreto` | Infers candidate gene regulatory networks from bulk or single-cell expression data using AertsLab Arboreto GRNBoost2 and GENIE3. Use for transcription factor-target association ranking, compatible Dask execution, sparse expression inputs,… |
-| `archify` | Create validated architecture, workflow, sequence, data-flow, lifecycle/state, entity-relationship, class/interface, tree, timeline, and execution waterfall diagrams as explorable standalone HTML with inline SVG, dark/light themes, optiona… |
-| `archify-review` | Review Archify issues, PRs, or code through value, cost, and impact to support evidence-based maintenance decisions. Use for issue triage, change reviews, and code quality assessments. |
-| `ask-matt` | Ask which skill or flow fits your situation. A router over the skills in this repo. |
-| `astropy` | Core Python library for astronomy and astrophysics workflows that need Astropy APIs, including units/quantities, coordinates, FITS I/O, tables, time systems, WCS, and cosmology. Use when implementing or debugging astronomical data analysis… |
-| `autoskill` | Analyzes user-requested Screenpipe history windows to detect repeated research workflows, match existing scientific skills, and stage new skill drafts or composition recipes for review. Requires a reachable Screenpipe HTTP API, normally on… |
-| `beautify-github-readme` | Redesign GitHub README homepages or create project-native pure SVG, hybrid SVG-composed PNG/WebP, and opt-in animated GIF assets. Use when a user asks to beautify, redesign, rebrand, visually upgrade, simplify, or audit a GitHub README; cr… |
-| `benchling-integration` | Benchling Python SDK and REST API integration for registry entities, inventory, ELN entries, workflows, Benchling Apps, and Data Warehouse queries. Use when automating lab data with benchling-sdk or the v2 API. |
-| `bgpt-paper-search` | Searches BGPT scientific papers by topic or DOI and retrieves claim-level evidence extracted from full text, including experiments, reported statistics, scope, limitations, and provenance. Use for literature reviews, evidence synthesis, an… |
-| `bids` | Organizes, queries, validates, and converts Brain Imaging Data Structure (BIDS) datasets. Supports organizing neuroscience and biomedical data (MRI, EEG, MEG, iEEG, PET, microscopy, NIRS, motion capture, EMG, MR spectroscopy, behavioral),… |
-| `biopython` | Provides Biopython workflows for sequence manipulation, file parsing (FASTA/GenBank/PDB), phylogenetics, and programmatic NCBI/PubMed access (Bio.Entrez). Supports batch processing, custom molecular-biology pipelines, BLAST automation, str… |
-| `bioservices` | Provides a Python interface to bioinformatics services including UniProt, KEGG, ChEMBL, Reactome, QuickGO, and UniChem. Used for cross-database protein annotation, pathway retrieval, chemical identifier mapping, and integrated biological d… |
-| `brandkit` | Premium brand-kit image generation skill for creating high-end brand-guidelines boards, logo systems, identity decks, and visual-world presentations. Trained for minimalist, cinematic, editorial, dark-tech, luxury, cultural, security, gami… |
-| `browser-harness` | Control a real browser via CDP: clicking, typing, navigation, logged-in sessions, JS-rendered or bot-protected pages. Not for plain HTTP fetches of public content - use curl for those. |
-| `browser-harness` | Control a real browser via CDP: clicking, typing, navigation, logged-in sessions, JS-rendered or bot-protected pages. Not for plain HTTP fetches of public content - use curl for those. |
-| `browser-harness` · 目录 `browser_harness` | Control a real browser via CDP: clicking, typing, navigation, logged-in sessions, JS-rendered or bot-protected pages. Not for plain HTTP fetches of public content - use curl for those. |
-| `browser-testing-with-devtools` | Tests in real browsers via Chrome DevTools MCP. Use when building or debugging anything that runs in a browser. Use when you need to inspect the DOM, capture console errors, analyze network requests, profile performance, or verify visual o… |
-| `browser-use` | Direct browser control via CDP for web interaction: automation, scraping, testing, screenshots, and site/app work. |
-| `bulk-rnaseq` | Prepares bulk RNA-seq FASTQ, Salmon, STAR or featureCounts output for gene-level differential expression. Covers nf-core/rnaseq and standalone quantification, biological replication, strandedness, reference provenance, validated count asse… |
-| `cantera` | Runs Cantera homogeneous chemical reactors and evaluates ignition delay with mechanism provenance, conservation checks, and numerical refinement. Use for combustion kinetics, closed adiabatic ideal-gas constant-volume or constant-pressure… |
-| `cellprofiler` | Runs reproducible CellProfiler microscopy pipelines for nuclear segmentation, cell counts, and per-object fluorescence measurements. Supports image/channel manifests, headless batch execution, segmentation overlays, and measurement QC for… |
-| `cellxgene-census` | Queries the CZ CELLxGENE Census programmatically for versioned public single-cell and spatial transcriptomics data. Use when you need population-scale cell metadata, gene expression slices, Census summary counts, source H5AD URIs/downloads… |
-| `chart-designer` | Design effective data visualizations and charts. Generate chart configurations for ECharts, Chart.js, and other libraries. Create dashboards and reports. |
-| `check` | Reviews diffs, PRs, release readiness, and publishing follow-through. Use when asked to review, triage issues or PRs, or ship. Not for debugging root causes or prose. |
-| `chief-of-staff` | Pursue a long-running goal in a single session by co-ordinating subagents. |
-| `chrome-devtools` | Uses Chrome DevTools via MCP for efficient debugging, troubleshooting and browser automation. Use when debugging web pages, automating browser interactions, analyzing performance, or inspecting network requests. This skill does not apply t… |
-| `chrome-devtools-cli` | Use this skill to write shell scripts or run shell commands to automate tasks in the browser or otherwise use Chrome DevTools via CLI. |
-| `ci-cd-and-automation` | Automates CI/CD pipeline setup. Use when setting up or modifying build and deployment pipelines. Use when you need to automate quality gates, configure test runners in CI, or establish deployment strategies. |
-| `ci-fix` | Diagnose and fix GitHub Actions CI failures. Inspects workflow runs and logs, identifies root causes, implements minimal fixes, and pushes to a fix branch. Use when CI is failing, red, broken, or needs diagnosis. |
-| `cirq` | Google quantum computing framework. Use when targeting Google Quantum AI hardware, designing noise-aware circuits, or running quantum characterization experiments. Best for Google hardware, noise modeling, and low-level circuit design. For… |
-| `citation-management` | Comprehensive citation management for academic research. Search OpenAlex, PubMed, and Google Scholar for papers, extract accurate metadata, validate citations, and generate properly formatted BibTeX entries. This skill should be used when… |
-| `claude-handoff` | Hand the current conversation off to a fresh background agent that picks up the work immediately. |
-| `cli-anything` | Use when the user wants Codex to build, refine, test, validate, or list CLI-Anything harnesses for GUI applications or source repositories. Adapts the full CLI-Anything methodology to Codex without changing the generated Python harness for… |
-| `cli-anything-adguardhome` | Command-line interface for AdGuard Home - Network-wide ad blocking and DNS management via AdGuard Home REST API. Designed for AI agents and power users who need to manage filtering, DNS rewrites, clients, DHCP, and query logs without a GUI. |
-| `cli-anything-anygen` | Command-line interface for Anygen - A stateful command-line interface for AnyGen OpenAPI — generate professional slides, documents, webs... |
-| `cli-anything-audacity` | Command-line interface for Audacity - A stateful command-line interface for audio editing, following the same patterns as the GIMP and Ble... |
-| `cli-anything-blender` | Command-line interface for Blender - A stateful command-line interface for 3D scene editing, following the same patterns as the GIMP CLI ... |
-| `cli-anything-browser` | Browser automation CLI using DOMShell MCP server. Maps Chrome's Accessibility Tree to a virtual filesystem for agent-native navigation. |
-| `cli-anything-calibre` | Command-line interface for Calibre - A stateful CLI harness for e-book library management, metadata editing, and format conversion wrapping the real Calibre tools (calibredb, ebook-convert, ebook-meta)... |
-| `cli-anything-ccswitch` | CLI interface for CC Switch — manage AI coding tool configurations from the terminal |
-| `cli-anything-chromadb` | Command-line interface for ChromaDB - A stateless CLI for managing vector database collections, documents, and semantic search. Designed for AI agents and automation via the ChromaDB HTTP API v2. |
-| `cli-anything-cloudanalyzer` | Command-line interface for CloudAnalyzer — Agent-friendly harness for CloudAnalyzer, a QA platform for mapping, localization, and perception outputs. Supports 27 commands across 8 groups: point cloud evaluation, trajectory evaluation, grou… |
-| `cli-anything-cloudcompare` | Command-line interface for CloudCompare — Agent-friendly harness for CloudCompare, the open-source 3D point cloud and mesh processing software. Supports 41 commands across 9 groups: project management, session control, point cloud operatio… |
-| `cli-anything-comfyui` | Command-line interface for ComfyUI - AI image generation workflow management via ComfyUI REST API. Designed for AI agents and power users who need to queue workflows, manage models, download generated images, and monitor the generation que… |
-| `cli-anything-dify-workflow` | Wrapper for the Dify workflow DSL CLI. Create, inspect, validate, edit, and export Dify workflow files through a CLI-Anything harness. |
-| `cli-anything-drawio` | Command-line interface for Drawio - A CLI harness for **Draw.io** — create, edit, and export diagrams from the command line.... |
-| `cli-anything-eez-studio` | Use EEZ Studio from the command line: inspect and modify native .eez-project files, edit LVGL screens/widgets, manage SCPI commands, and invoke the real EEZ Studio backend for LVGL builds. |
-| `cli-anything-eth2-quickstart` | Use eth2-quickstart to autonomously deploy a hardened Ethereum node, install execution and consensus clients, configure validator metadata, expose RPC safely, and inspect node health with structured JSON output. |
-| `cli-anything-exa` | Agent-native CLI for Exa web search and content retrieval workflows. |
-| `cli-anything-firefly-iii` | Firefly III CLI - Personal finance management via CLI-Anything |
-| `cli-anything-freecad` | Complete CLI harness for FreeCAD parametric 3D CAD modeler (258 commands). Covers ALL workbenches: Part (29 primitives + boolean + mirror + loft + sweep), Sketcher (26 cmds: geometry + constraints + editing), PartDesign (38 cmds: pad/pocke… |
-| `cli-anything-gimp` | Command-line interface for Gimp - A stateful command-line interface for image editing, built on Pillow. Designed for AI agents and pow... |
-| `cli-anything-godot` | Agent-native CLI for Godot project management, scenes, exports, and script execution. |
-| `cli-anything-hermes` | Use when the user wants Hermes Agent to build, refine, test, or validate a CLI-Anything harness for a GUI application or source repository. Adapts the CLI-Anything methodology to Hermes without changing the generated Python harness format. |
-| `cli-anything-inkscape` | Command-line interface for Inkscape - A stateful command-line interface for vector graphics editing, following the same patterns as the GI... |
-| `cli-anything-intelwatch` | Zero friction. Full context. Competitive intelligence, M&A due diligence, and OSINT directly from your terminal. Uses Node.js/npx. |
-| `cli-anything-iterm2` | Provides the cli-anything-iterm2 commands — the only way to actually send text to iTerm2 sessions, read live terminal output and scrollback history, manage windows/tabs/split panes, run tmux -CC workflows, broadcast to multiple panes, show… |
-| `cli-anything-iterm2-ctl` | Provides the cli-anything-iterm2 commands — the only way to actually send text to iTerm2 sessions, read live terminal output and scrollback history, manage windows/tabs/split panes, run tmux -CC workflows, broadcast to multiple panes, show… |
-| `cli-anything-joplin` | Command-line interface for Joplin workflows using the real joplin terminal backend |
-| `cli-anything-jumpserver` | Stateful CLI harness for JumpServer bastion host management. Supports asset, user, permission, account, session, audit, and operations management via REST API, with both one-shot and interactive REPL modes. |
-| `cli-anything-kdenlive` | Command-line interface for Kdenlive - A stateful command-line interface for video editing, following the same patterns as the Blender CLI ... |
-| `cli-anything-krita` | CLI harness for Krita digital painting — manage projects, layers, filters, and export via command line. Use when automating Krita workflows, batch processing images, or operating Krita without a GUI. |
-| `cli-anything-libreoffice` | Command-line interface for Libreoffice - A stateful command-line interface for document editing, producing real ODF files (ZIP archives with ... |
-| `cli-anything-live2d` | Inspect, validate, edit, lint, diff, batch-manage, and deploy Live2D Cubism models (.model3.json) from the command line. |
-| `cli-anything-lldb` | Stateful LLDB debugging via LLDB Python API |
-| `cli-anything-macrocli` | Use when the agent wants to define, list, inspect, or execute GUI macros via the MacroCLI CLI. Macros are parameterized, CLI-callable workflows — the agent invokes `macro run <name>` and the system handles backend routing (plugin, file tra… |
-| `cli-anything-mailchimp` | CLI harness for the Mailchimp Marketing API v3.0 — 303 commands across 30 resource groups (lists, campaigns, reports, automations, ecommerce, templates, and more). Supports JSON output and interactive REPL mode. |
-| `cli-anything-mermaid` | Command-line interface for Mermaid Live Editor - Create, edit, and render Mermaid diagrams via stateful project files and mermaid.ink renderer URLs. Designed for AI agents and power users who need to generate flowcharts, sequence diagrams,… |
-| `cli-anything-minimax` | Command-line interface for MiniMax AI — chat (MiniMax-M3, MiniMax-M2.7) and speech-2.x TTS via the MiniMax API. |
-| `cli-anything-mubu` | Command-line interface for Mubu - Canonical packaged entrypoint for the Mubu live bridge.... |
-| `cli-anything-musescore` | CLI for music notation — transpose, export PDF/audio/MIDI, extract parts, manage instruments |
-| `cli-anything-n8n` | Command-line interface for n8n workflow automation platform. Manages workflows, executions, credentials, variables, and tags. Based on n8n Public API v1.1.1 (n8n >= 1.0.0). |
-| `cli-anything-notebooklm` | Experimental NotebookLM harness for listing notebooks, managing sources, asking questions, generating artifacts, and downloading outputs through an installed notebooklm CLI. |
-| `cli-anything-novita` | Command-line interface for Novita AI - An OpenAI-compatible AI API client for DeepSeek, GLM, and other models. |
-| `cli-anything-nsight-graphics` | Windows-first CLI harness for Nsight Graphics capture, GPU Trace summary, and ngfx-replay analysis |
-| `cli-anything-nslogger` | CLI harness for NSLogger — parse, filter, export, and monitor NSLogger log files (.rawnsloggerdata / .nsloggerdata) |
-| `cli-anything-obs-studio` | Command-line interface for Obs Studio - A stateful command-line interface for OBS Studio scene collection editing, following the same patter... |
-| `cli-anything-obsidian` | Command-line interface for Obsidian — Knowledge management and note-taking via Obsidian Local REST API. Designed for AI agents and power users who need to manage notes, search the vault, and execute commands without the GUI. |
-| `cli-anything-ollama` | Command-line interface for Ollama - Local LLM inference and model management via Ollama REST API. Designed for AI agents and power users who need to manage models, generate text, chat, and create embeddings without a GUI. |
-| `cli-anything-openrefine` | Use OpenRefine through an agent-native CLI for importing messy data, applying JSON operation histories, inspecting rows, exporting cleaned data, and managing session undo/redo. |
-| `cli-anything-openscreen` | Command-line interface for Openscreen — a screen recording editor. A stateful CLI for editing screen recordings with zoom, speed ramps, trim, crop, annotations, and polished exports. Built on the Openscreen JSON project format with ffmpeg… |
-| `cli-anything-pm2` | Command-line interface for PM2 - A stateless CLI for Node.js process management via the PM2 CLI. List, start, stop, restart processes, view logs, and manage system configuration. |
-| `cli-anything-qgis` | Stateful QGIS CLI for projects, writable layers, features, layouts, exports, and qgis_process operations using the real QGIS runtime. |
-| `cli-anything-quietshrink` | Compress macOS screen recordings with zero CPU stress using Apple Silicon's hardware HEVC encoder. Typically reduces file size 70-90% while staying visually lossless. Computer stays silent during encoding. |
-| `cli-anything-rekordbox` | Command-line interface for Pioneer Rekordbox 6/7 - DJ library and live-deck control via guarded SQLCipher master.db access (pyrekordbox) + virtual MIDI mapping. Provides library inspection, playlist creation/add/clear, and live-deck mixing… |
-| `cli-anything-renderdoc` | CLI harness for RenderDoc graphics debugger capture analysis |
-| `cli-anything-rms` | Teltonika RMS device management and monitoring CLI |
-| `cli-anything-safari` | Safari browser automation CLI on macOS via safari-mcp. Controls real Safari (native, keeps logins) by wrapping the safari-mcp MCP server. Every one of the 84 MCP tools is exposed 1:1 with schema-accurate arguments — guaranteed parity, no m… |
-| `cli-anything-sbox` | Agent-native CLI for the s&box game engine (Facepunch Studios, Source 2): project management, scene/prefab editing, material/sound/localization configs, C# code generation, asset graph queries, project validation, and editor launch. |
-| `cli-anything-seaclip` | Command-line interface for SeaClip-Lite - A stateless CLI for managing issues, pipelines, agents, schedules, and activity on the SeaClip-Lite project management board. |
-| `cli-anything-shotcut` | Command-line interface for Shotcut - A stateful command-line interface for video editing, built on the MLT XML format. Designed for AI ag... |
-| `cli-anything-siyuan` | SiYuan (思源笔记) CLI — manage notebooks, documents, blocks, and search your knowledge base from the terminal. |
-| `cli-anything-slay-the-spire-ii` | Command-line interface for Slay the Spire 2 - Control the real game through a local bridge mod HTTP API. Reads normalized game state and sends action commands for combat, navigation, rewards, and menu management. |
-| `cli-anything-threemf` | 3MF mesh geometry editor — detect and resize cylindrical holes, repair meshes, compare 3D printing files. Works with BambuStudio and PrusaSlicer 3MF files. |
-| `cli-anything-tigris` | Command-line interface for Tigris object storage — wraps the official `tigris` CLI to expose buckets, objects, presigned URLs, snapshots, IAM, and scoped access keys to AI agents. Globally distributed, S3-compatible, no egress fees. |
-| `cli-anything-unimol-tools` | Interactive CLI for Uni-Mol molecular property prediction training and inference workflows. |
-| `cli-anything-unrealinsights` | Capture Unreal Engine traces, inspect Trace Store files, keep Unreal Insights GUI open, and export/summarize timing/counter data. |
-| `cli-anything-videocaptioner` | AI-powered video captioning — transcribe speech, optimize/translate subtitles, and burn them into video via the stable VideoCaptioner backend. Free ASR and translation included. |
-| `cli-anything-wavetone` | Control WaveTone 2.61 workflows through a JSON manifest and launch the real Windows WaveTone executable. |
-| `cli-anything-web-yu-pri` | Use Japan Post Web Yu-pri from a CLI by driving the real browser UI for login, inspection, screenshots, dry-run planning, and contents-form filling. |
-| `cli-anything-wiremock` | Python CLI harness for WireMock HTTP mock server administration |
-| `cli-anything-zoom` | Command-line interface for Zoom - CLI harness for **Zoom** — manage meetings, participants, and recordings from the command line via t... |
-| `cli-anything-zotero` | CLI harness for Zotero. |
-| `cli-hub-meta-skill` | Discover agent-native CLIs for professional software. Access the live catalog to find tools for creative workflows, productivity, AI, and more. |
-| `clinical-decision-support` | Prepares and validates research-only clinical decision-support evaluation, evidence-profile, cohort, survival, biomarker/model, privacy, and governance artifacts. Supports aggregate or synthetic research documentation and traceability, exc… |
-| `clinical-reports` | Creates safety-bounded draft structures and runs local deterministic checks for clinical case, diagnostic, trial, safety, and aggregate research reports. Use only with synthetic, de-identified, or aggregate inputs and verified source-fact… |
-| `cloud` | Documentation reference for using Browser Use Cloud — the hosted API and SDK for browser automation. Use this skill whenever the user needs help with the Cloud REST API (v2, v3, or v4), browser-use-sdk (Python or TypeScript), X-Browser-Use… |
-| `cobrapy` | Performs constraint-based metabolic modeling with COBRApy, including FBA, pFBA, FVA, gene knockouts, flux sampling, growth media, production envelopes, gap filling, and SBML model validation for systems biology and metabolic engineering. |
-| `code-review` | Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes: Standards (does the code follow this repo's documented coding standards?) and Spec (does the code match what the originating issue/spec asked for?)… |
-| `code-review-and-quality` | Conducts multi-axis code review. Use before merging any change. Use when reviewing code written by yourself, another agent, or a human. Use when you need to assess code quality across multiple dimensions before it enters the main branch. U… |
-| `code-simplification` | Simplifies code for clarity. Use when refactoring code for clarity without changing behavior. Use when code works but is harder to read, maintain, or extend than it should be. Use when reviewing code that has accumulated unnecessary comple… |
-| `codebase-design` | Shared vocabulary for designing deep modules. Use when the user wants to design or improve a module's interface, find deepening opportunities, decide where a seam goes, make code more testable or AI-navigable, or when another skill needs t… |
-| `consciousness-council` | Structures a multi-perspective council exercise for decisions, research trade-offs, and creative challenges. Simulates thinking archetypes, separates evidence from assumptions and values, and synthesizes a conditional recommendation. Use w… |
-| `constraint-driven-development` | Establishes a project's quality bar as a written contract and stops agents quietly lowering it. Interviews the user on which dimensions matter, supplies sane default thresholds when they have no number in mind, records everything in CONSTR… |
-| `context-engineering` | Optimizes agent context setup. Use when starting a new session, when agent output quality degrades, when switching between tasks, or when you need to configure rules files and context for a project. |
-| `create-pull-request` | Create a GitHub pull request following project conventions. Use when the user asks to create a PR, submit changes for review, or open a pull request. Handles commit analysis, branch management, and PR creation using the gh CLI tool. |
-| `dask` | Scales pandas, NumPy, and custom Python research workflows beyond memory or across clusters with Dask. Covers DataFrames, Arrays, Bags, Futures, chunking, schedulers, and distributed diagnostics. Use for partitioned file processing, scient… |
-| `database-lookup` | Queries documented public database APIs with explicit endpoints, filters, pagination, and provenance. Used when a scientific, regulatory, financial, or other database-backed fact must be retrieved reproducibly from a named source rather th… |
-| `datalad` | Retrieves, versions, and publishes scientific datasets with DataLad and git-annex, and captures computational provenance with datalad run, rerun, and containers-run. Use when cloning or fetching data from OpenNeuro, DANDI, datasets.datalad… |
-| `datamol` | Pythonic wrapper around RDKit with simplified interface and sensible defaults. Preferred for standard drug discovery including SMILES parsing, standardization, descriptors, fingerprints, clustering, 3D conformers, parallel processing. Retu… |
-| `dbt-model-index` | Provide a lookup index of dbt models (BigQuery tables) to guide query writing against a data warehouse. Use when you need to query, analyze, or look up data in a dbt-powered data warehouse, or when resolving a vague data question into the… |
-| `debug-optimize-lcp` | Guides debugging and optimizing Largest Contentful Paint (LCP) using Chrome DevTools MCP tools. Use this skill whenever the user asks about LCP performance, slow page loads, Core Web Vitals optimization, or wants to understand why their pa… |
-| `debugging-and-error-recovery` | Guides systematic root-cause debugging. Use when tests fail, builds break, something that worked yesterday broke, behavior doesn't match expectations, or you encounter any unexpected error. Use when you need to figure out what broke and wh… |
-| `deepchem` | Builds molecular property prediction and MoleculeNet workflows with DeepChem, including SMILES featurization, scaffold or grouped holdouts, masked labels, graph models and explicit pretrained encoder transfer. Used for ADMET, toxicity, sol… |
-| `deepspot-m` | Generates transcriptome-wide virtual spatial transcriptomics from H&E histology with DeepSpot-M. Used for predicted log1p-CPM expression from 224x224 tiles at about 20x, querying the released protein-coding gene panel by symbol, and whole-… |
-| `deeptools` | NGS analysis toolkit. BAM to bigWig conversion, QC (correlation, PCA, fingerprints), heatmaps/profiles (TSS, peaks), for ChIP-seq, RNA-seq, ATAC-seq visualization. |
-| `deploy-to-vercel` | Deploy applications and websites to Vercel. Use when the user requests deployment actions like "deploy my app", "deploy and give me the link", "push this live", or "create a preview deployment". |
-| `depmap` | Retrieves and analyzes Cancer Dependency Map (DepMap) release data, including CRISPR Chronos gene effects, cancer model annotations, omics biomarkers, and PRISM drug sensitivity. Supports cancer-selective dependency, co-essentiality, and c… |
-| `deprecation-and-migration` | Manages deprecation and migration. Use when removing old systems, APIs, or features. Use when migrating users from one implementation to another. Use when migrating a database schema in production, such as renaming or dropping a column wit… |
-| `design-taste-frontend` | tasteskill v2, the anti-slop frontend skill. Art direction for websites, distilled from a study of 247 curated gallery sites (One Page Love, Awwwards Sites of the Day). Deals researched directions (idea, composition, type, palette, photogr… |
-| `design-taste-frontend-v1` | The original v1 taste-skill, preserved for projects depending on its exact behavior. The current default is `design-taste-frontend` (v2), which is a new skill. Use this v1 install name only if you need exact backward compatibility. |
-| `dhdna-profiler` | Applies the DHDNA framework as an exploratory rubric for reasoning and writing patterns in supplied text. Used for explicit requests for DHDNA, cognitive-style reflection, a thinking-pattern profile, or comparisons of textual reasoning. Sc… |
-| `diagnosing-bugs` | Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow. |
-| `diagram-design` | Create branded architecture, architecture delta, IT current-state, flowchart, sequence, state machine, ER/data model, timeline, swimlane, quadrant, radar/spider, polar chart (polar/radial lollipop), loop/flywheel, nested, tree, org chart,… |
-| `diffdock` | Predicts protein-small-molecule binding poses with DiffDock and DiffDock-L from PDB or sequence plus SMILES/SDF/MOL2. Covers batch docking, pose triage, confidence interpretation, and validation. Use for molecular docking and virtual-scree… |
-| `dnanexus-integration` | Builds and operates reproducible genomics workloads on DNAnexus with the dx CLI, dxpy, apps/applets, native workflows, dxCompiler, and Nextflow. Supports DNAnexus data transfers, dxapp.json development, execution monitoring, workflow impor… |
-| `docs-update` | Update user-facing documentation when code changes. Use when asked to update docs, review docs, handle documentation changes, run scheduled documentation tasks, or analyze recent commits for documentation needs. |
-| `documd-visuals` | Create text-driven visuals in Markdown: charts, diagrams, cards, architecture and page layouts. Charts and analytical views (bar, line, pie, heatmap, correlation, regression); reliability and operations (latency, incident, throughput, cycl… |
-| `documentation-and-adrs` | Records decisions and documentation. Use when you need to document an architecture decision (ADR) or the reasoning behind a design choice, when changing public APIs, shipping features, or when you need to record context that future enginee… |
-| `domain-modeling` | Build and sharpen a project's domain model. Use when discussing codebase terminology, writing or editing a GLOSSARY.md, or recording or editing an ADR. |
-| `doubt-driven-development` | Subjects every non-trivial decision to a fresh-context adversarial review before it stands. Use when you want every assumption cross-examined before proceeding, when stress-testing a plan for hidden failure modes, when correctness matters… |
-| `draw-ui` | 设计 App、后台、游戏界面和完整网站落地页，生成 UI 设计稿；按需把设计稿或截图还原为 HTML/CSS、现有前端项目或微信小程序。用户要求页面设计、完整落地页、截图还原或小程序高保真时使用。不用于普通插画、海报、故事板、纯图片编辑或无设计任务的业务代码修改。 |
-| `emil-design-eng` | This skill encodes Emil Kowalski's philosophy on UI polish, component design, animation decisions, and the invisible details that make software feel great. |
-| `esm` | Uses the Biohub esm Python SDK for ESM3 protein generation, ESMC embeddings, and ESMFold2 all-atom folding. Applies to local model inference and Biohub hosted clients, including former Forge workflows; distinguishes the separate legacy fai… |
-| `etetoolkit` | Analyzes, manipulates, compares, annotates, and visualizes phylogenetic or other hierarchical trees with ETE 4. Supports Newick/Nexus tree I/O, topology edits and pattern matching, Robinson-Foulds comparisons, gene-tree evolutionary events… |
-| `exa-search` | Searches scientific and technical web content with Exa and extracts page or PDF text from URLs in batches. Supports scholarly discovery with the publication category and academic domain filters. Applies to requests to search the web, look… |
-| `experimental-design` | Designs experiments and studies BEFORE data is collected — choosing a design, randomizing, blocking, and laying out treatment combinations so results are interpretable. Use whenever someone is planning a study, asks how to assign subjects/… |
-| `exploratory-data-analysis` | Performs bounded, local exploratory analysis of explicitly supported scientific files. Supports redacted CSV/TSV/JSON profiles; optional NumPy, HDF5, FASTA/FASTQ, and basic image metadata inspection; missingness/leakage audits; outlier and… |
-| `fictiv` | Operates Fictiv (app.fictiv.com), the on-demand manufacturing platform, end to end in the user's browser. Covers uploading CAD parts, configuring process, material, finish, threads, tolerances and inspections, getting instant or manual quo… |
-| `find-skills` | Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is loo… |
-| `flowio` | Reads, inspects, and writes Flow Cytometry Standard (FCS) 2.0, 3.0, and 3.1 files with FlowIO. Use for low-level FCS metadata and channel inspection, NumPy event extraction, multi-dataset files, table export, and FCS 3.1 creation; use Flow… |
-| `flowkit` | Analyzes flow cytometry data with FlowKit, including spillover compensation, logicle and biexponential transforms, hierarchical gating, GatingML strategies, and supported FlowJo 10 workspaces. Use for reproducible gate counts, population p… |
-| `fluidsim` | Plans, configures, inspects, restarts, and analyzes bounded FluidSim computational-fluid-dynamics simulations with explicit numerical-validity and HPC safety checks. Use for FluidSim solver selection, parameter review, FFT/MPI setup, outpu… |
-| `folklore-variant-evidence` | Retrieves ClinGen gene-disease validity assertions for a public gene or disease, and reviews source-linked public evidence and literature for one supported GRCh38 germline nuclear SNV or simple indel through Folklore Clinical Variant Inter… |
-| `frontend-ui-engineering` | Builds production-quality, accessible, responsive user-facing UIs. Use when building or modifying interfaces and pages, creating components, implementing layouts, meeting WCAG accessibility requirements, managing state, or when the output… |
-| `full-output-enforcement` | Overrides default LLM truncation behavior. Enforces complete code generation, bans placeholder patterns, and handles token-limit splits cleanly. Apply to any task requiring exhaustive, unabridged output. |
-| `generate-image` | Generates or edits images with AI models through the OpenRouter Image API (Gemini, Seedream, Recraft, GPT-Image, Riverflow). Use for photos, illustrations, artwork, concept art, visual assets, logos, and image editing or compositing from r… |
-| `geniml` | Supports audited local Geniml genomic-interval workflows: validate BED and universe contracts, plan Region2Vec or scEmbed runs, inspect model/tokenizer compatibility, and assess consensus universes. |
-| `genomic-coordinates` | Converts genomic intervals between coordinate conventions, normalises and compares variant representations, and detects assembly or contig-naming mismatches before they corrupt an analysis. Used whenever coordinates cross a format, tool, o… |
-| `genomic-intelligence` | Predicts regulatory features, gene structure, and expression directly from DNA sequence using Genomic Intelligence's hosted transformer DNA language models — no local GPU or model weights. Six tasks over a REST API and a hosted MCP server… |
-| `geomaster` | Supports geospatial research workflows for remote sensing, vector and raster GIS, spatial statistics, terrain and network analysis, and machine learning for Earth observation. Use when processing satellite imagery, aligning coordinate syst… |
-| `geopandas` | Guidance and local audit tools for Python workflows that directly use GeoPandas GeoSeries, GeoDataFrame, spatial operations, or vector-data I/O. |
-| `get-available-resources` | Detects host inventory and effective CPU, memory, disk, scheduler, container, and accelerator limits when a user asks for resource-aware planning or before a clearly resource-sensitive local workload. Produces a redacted JSON snapshot and… |
-| `gget` | Queries 20+ bioinformatics resources through CLI/Python. Supports quick lookups of gene info, BLAST/BLAT, viral sequence downloads, PDB/mmCIF structures, G2P residue annotations, enrichment analysis, OpenTargets, COSMIC, CELLxGENE, and 8cu… |
-| `ginkgo-cloud-lab` | Guides protocol selection, input preparation, pricing checks, and browser ordering on Ginkgo Bioworks Cloud Lab (cloud.ginkgo.bio). Applies to cell-free, E. coli, and Pichia protein expression; HiBiT, A280, and LabChip readouts; IVT mRNA/c… |
-| `git-guardrails-claude-code` | Set up Claude Code hooks to block dangerous git commands (push, reset --hard, clean, branch -D, etc.) before they execute. Use when user wants to prevent destructive git operations, add git safety hooks, or block git push/reset in Claude C… |
-| `git-workflow-and-versioning` | Structures git workflow practices. Use when making any code change. Use when committing, branching, resolving conflicts, splitting uncommitted work in a messy working tree into clean atomic commits, opening or reviewing a pull request (PR)… |
-| `github-bug-report-triage` | Triage GitHub bug reports for actionability. Use when evaluating whether a bug issue has sufficient detail and identifying missing information from the reporter. |
-| `github-issue-dedupe` | Detect duplicate GitHub issues using semantic search and keyword matching. Use when asked to find duplicates, check for similar issues, or set up automated duplicate detection. |
-| `glycoengineering` | Analyzes and engineers protein glycosylation by scanning canonical N-glycosylation sequons, describing S/T-rich regions, checking curated glycan evidence, and preparing NetNGlyc, NetOGlyc and GlycoSHIELD workflows. Use for glycoprotein eng… |
-| `gpt-taste` | Elite UX/UI & Advanced GSAP Motion Engineer. Enforces Python-driven true randomization for layout variance, strict AIDA page structure, wide editorial typography (bans 6-line wraps), gapless bento grids, strict GSAP ScrollTriggers (pinning… |
-| `grill-me` | A relentless interview to sharpen a plan or design. |
-| `grill-with-docs` | A relentless interview to sharpen a plan or design, which also creates docs (ADR's and glossary) as we go. |
-| `grilling` | Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases. |
-| `gtars` | Supports Gtars for local genomic interval models and set algebra, overlaps and counts, consensus and coverage, tokenization, fragment processing, and refget/BEDbase planning across Python, Rust, and the CLI. |
-| `handoff` | Compact the current conversation into a handoff document for another agent to pick up. |
-| `health` | Audits agent config, instruction drift, hooks or MCP, and AI maintainability. Use when Claude, Codex, or Pi setup looks wrong. Not for application bugs or PR review. |
-| `high-end-visual-design` | Teaches the AI to design like a high-end agency. Defines the exact fonts, spacing, shadows, card structures, and animations that make a website feel expensive. Blocks all the common defaults that make AI designs look cheap or generic. |
-| `histolab` | Extracts and preprocesses whole-slide histology image tiles with Histolab. Use for WSI inspection, tissue masks, random/grid/score-based tile extraction, H&E stain normalization, and tile dataset preparation. For multiplexed imaging or dee… |
-| `hugging-science` | Discovers and evaluates scientific datasets, models, methodology posts, and Spaces through the Hugging Science catalog. Used when selecting scientific ML resources in biology, chemistry, genomics, materials, climate, physics, astronomy, me… |
-| `hunt` | Finds root cause before any fix. Use when something errors, crashes, regresses, or used to work. Not for code review or new features. |
-| `hypogenic` | Plans and audits use of ChicagoHAI HypoGeniC/HypoRefine for LLM-assisted hypothesis generation from labeled text datasets. Use for the `hypogenic` package, its task configs, hypothesis banks, or HypoBench datasets—not for manual hypothesis… |
-| `hypothesis-generation` | Formulates evidence-bounded scientific questions, candidate hypotheses, rival explanations, causal or associational claims, discriminating predictions, measurements, and preregistration-ready analysis plans. Used when turning observations… |
-| `idea-refine` | Refines raw ideas into sharp, actionable concepts through structured divergent and convergent thinking. Use when an idea is still vague, when you need to stress-test assumptions before committing to a plan, or when you want to expand optio… |
-| `image-to-code` | Elite website image-to-code skill for Codex. For visually important web tasks, it must first generate the design image(s) itself, deeply analyze them, then implement the website to match them as closely as possible. In Codex, it must prefe… |
-| `imagegen-frontend-mobile` | Elite mobile app image-generation skill for creating premium, app-native screen concepts and flows. Designed for iOS, Android, and cross-platform mobile products. Prioritizes clean hierarchy, comfortably readable text, strong multi-screen… |
-| `imagegen-frontend-web` | Elite frontend image-direction skill for generating premium, conversion-aware website design references. CRITICAL OUTPUT RULE — generate ONE separate horizontal image FOR EVERY section. A landing page with 8 sections produces 8 images. Nev… |
-| `imaging-data-commons` | Queries and downloads public cancer imaging data from NCI Imaging Data Commons. Supports IDC collection discovery, DICOM access, radiology (CT, MR, PET) and pathology AI datasets, metadata SQL, visualization, licensing, and citations. Uses… |
-| `impeccable` | Use when the user wants to design, redesign, shape, critique, audit, polish, clarify, distill, harden, optimize, adapt, animate, colorize, extract, or otherwise improve a frontend interface. Covers websites, landing pages, dashboards, prod… |
-| `implement` | Implement a piece of work based on a spec or set of tickets. |
-| `implement-spec` | Implement the result of /to-spec and /to-tickets in code. |
-| `improve-codebase-architecture` | Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick. |
-| `incremental-implementation` | Delivers changes incrementally in thin, verifiable slices. Use when implementing any feature or change that touches more than one file, or when picking up the next task from a plan. Use when rolling a change out behind a feature flag, when… |
-| `industrial-brutalist-ui` | Raw mechanical interfaces fusing Swiss typographic print with military terminal aesthetics. Rigid grids, extreme type scale contrast, utilitarian color, analog degradation effects. For data-heavy dashboards, portfolios, or editorial sites… |
-| `infographics` | Creates and reviews infographics with Nano Banana 2 via OpenRouter. Use for statistical summaries, timelines, comparisons, processes, and visual explanations with supplied data or optional Sonar research. Supports ten layouts, eight style… |
-| `interview-me` | Extracts what the user actually wants instead of what they think they should want. Achieves this through one-question-at-a-time interview until ~95% confidence about the underlying intent. Use when an ask is underspecified ("build me X" wi… |
-| `iso-standards-readiness` | Prepares and structurally reviews readiness evidence for ISO management-system and laboratory-competence standards - ISO 13485 medical device QMS, ISO 14971 device risk management, ISO/IEC 17025 testing and calibration laboratories, and IS… |
-| `kami` | Typeset professional documents with Kami templates: resumes, one-pagers, white papers, letters, portfolios, and slide decks. Use when asked to 做 PDF / 排版 / 简历 / 一页纸 / PPT / slides, or to create a Kami landing page. Not for auditing or rest… |
-| `lab-hardware-cad` | Designs custom laboratory hardware as parametric build123d models and exports fabrication artifacts as STEP, STL, and DXF files - microfluidic chips and molds, optomechanical mounts and breadboard adapters, cuvette and microplate holders,… |
-| `labarchive-integration` | Integrates with the official LabArchives ELN REST-like API and Inventory API v1. Supports regional endpoint selection, signed-request construction, user authorization and UID flows, local LA container validation, and verified LabArchives i… |
-| `lamindb` | Manages biological datasets and models with LaminDB, including artifact registration, lineage tracking, schema validation, Bionty ontology annotation, query/search, collections, branches, storage, and workflow integrations. Use for reprodu… |
-| `latchbio-integration` | Builds, registers, debugs, and operates bioinformatics workflows on Latch using the Python SDK, CLI, Latch Data and Registry, Nextflow, Snakemake, programmatic execution, and Latch MCP. Use when authoring or deploying Latch workflows, conf… |
-| `latex-posters` | Creates research posters in LaTeX using beamerposter, tikzposter, or baposter. Use for conference posters, academic presentations, multi-column scientific layouts, figure integration, typography, compilation, and PDF preflight. |
-| `learn` | Runs a six-phase research workflow from source bundle to publish-ready output. Use when researching an unfamiliar domain or compiling materials into one reference. Not for quick lookups or single-file reads. |
-| `liteparse` | Local document and PDF parsing that returns spatial text with bounding boxes. Use for extracting text from PDFs, DOCX, Office files, and images; running OCR on scans; producing layout-preserved JSON for RAG; batch-ingesting folders of pape… |
-| `literature-review` | Conducts systematic, scoping, and narrative literature reviews using PubMed, arXiv, bioRxiv, Semantic Scholar, and other appropriate sources. Use for research synthesis, reproducible literature searches, screening, citation checking, or pr… |
-| `loop-me` | Grill me about specs for the workflows I want to build, within this workspace. |
-| `mageck` | Analyzes pooled CRISPR screen FASTQ reads and guide-count matrices with MAGeCK, validates guide libraries and contrasts, measures replicate and library QC, and produces gene hit rankings with effect sizes and FDR. Use for new knockout, CRI… |
-| `marine-carbonate-chemistry` | Solves seawater carbonate chemistry with PyCO2SYS for chemical oceanography, ocean acidification, and marine carbon-cycle research. Use for paired total alkalinity, dissolved inorganic carbon, pH, or seawater pCO2/fCO2 measurements; carbon… |
-| `markdown-mermaid-writing` | Writes scientific Markdown documentation and Mermaid diagrams for workflows, relationships, timelines, and schemas. Provides syntax references, document templates, accessibility guidance, and version-aware rendering checks. Use when a user… |
-| `market-research-reports` | Builds evidence-traceable market research reports and assumption-driven market sizing or forecast scenarios. Use for market definition, industry and customer evidence, competitive landscapes, TAM/SAM/SOM reconciliation, forecast sensitivit… |
-| `markitdown` | Converts heterogeneous documents and selected URIs to Markdown with Microsoft MarkItDown for text analysis, search, and LLM/RAG ingestion. Covers safe local conversion, streams, Office/PDF/data formats, batch workflows, plugins, vision OCR… |
-| `matchms` | Processes, cleans, compares, and searches tandem mass spectra with matchms. Use for MS/MS file I/O, metadata harmonization, peak filtering, spectral similarity, library matching, score matrices, and molecular-similarity networks. Use pyope… |
-| `matlab` | Builds, reviews, migrates, and plans MATLAB or GNU Octave numerical workflows. Use for arrays, tabular/time data, tests, projects, graphics, MAT files, and explicit Python interoperability. |
-| `matplotlib` | Creates and customizes scientific plots with Matplotlib. Used for fine-grained control over plot elements, novel plot types, and scientific workflows. Export to PNG/PDF/SVG for publication. For quick statistical plots use seaborn; for inte… |
-| `mcp-builder` | Build high-quality MCP (Model Context Protocol) servers that let LLMs interact with external services through well-designed tools. Use when creating MCP servers to integrate APIs or services in Python (FastMCP) or Node/TypeScript (MCP SDK). |
-| `medchem` | Applies medicinal chemistry filters for compound triage, using drug-likeness rules (Lipinski, Veber, CNS), structural alert catalogs (PAINS, NIBR, ChEMBL), complexity metrics, and the medchem query language for library filtering. |
-| `memory-leak-debugging` | Diagnoses and resolves memory leaks in JavaScript/Node.js applications. Use when a user reports high memory usage, OOM errors, or wants to capture, compare, or inspect heap snapshots with Chrome DevTools MCP memory tools. |
-| `migrate-to-shoehorn` | Migrate test files from `as` type assertions to @total-typescript/shoehorn. Use when user mentions shoehorn, wants to replace `as` in tests, or needs partial test data. |
-| `minimalist-ui` | Clean editorial-style interfaces. Warm monochrome palette, typographic contrast, flat bento grids, muted pastels. No gradients, no heavy shadows. |
-| `modal` | Modal is a serverless cloud platform for running Python on demand, including on-demand GPUs. Use when deploying or serving AI/ML models, running GPU-accelerated workloads (training, fine-tuning, inference), serving web endpoints, schedulin… |
-| `molecular-dynamics` | Runs and analyzes molecular dynamics simulations with OpenMM and MDAnalysis. Sets up protein/small molecule systems, defines force fields, runs energy minimization and production MD, and analyzes trajectories (RMSD, RMSF, contact maps, fre… |
-| `molfeat` | Featurizes small molecules with Molfeat for QSAR/QSPR, chemical similarity, virtual screening, and molecular ML. Covers ECFP/MACCS fingerprints, RDKit descriptors, pharmacophores, pretrained embeddings, configuration persistence, and molec… |
-| `motion-spec` | Turn vague motion requests ("make it smoother / more premium / add some animation / 丝滑一点 / 高级感 / 动效") into a concrete, reference-grounded spec BEFORE writing animation code, then implement and verify it against a measured baseline. Use thi… |
-| `nature-academic-search` | Search literature across sources, verify or manage citations, and build MeSH strategies or citation-impact audits. Use for 文献检索、引文核对、参考文献管理、严格他引 and evidence-backed citer profiles; not for translating a paper or drafting manuscript prose. |
-| `nature-citation` | Find and verify Nature/CNS-family literature supporting manuscript claims, with claim-to-source mapping and reference-manager export. Use for Nature系列引用、CNS支撑文献、分段补引用 when this journal scope is requested; use broader literature search for… |
-| `nature-data` | Draft or audit manuscript Data/Code Availability statements, dataset access routes, repository plans, and FAIR metadata. Use for 数据可用性声明、数据共享、数据仓库选择 and dataset citations; not general data cleaning or statistical analysis. |
-| `nature-downloader` | Use when a user needs lawful academic full text, CNKI institutional access, English OA retrieval, publisher API access, institutional browser fallback, or supporting information downloads. |
-| `nature-experiment-log` | 标准化实验日志记录——直接上传或读取本地图片、语音和文字，产出带 YAML frontmatter 的 Markdown；可选集成飞书 CLI 与 Obsidian。 |
-| `nature-figure` | Create, revise, audit, and export manuscript scientific figures in Python or R. Use for 论文配图、科研绘图、多面板图 and submission-ready plots, or explicitly requested AI-generated graphical abstracts and mechanism schematics. Not for interactive dashb… |
-| `nature-literature-pipeline` | Complete automated literature discovery pipeline: multi-source search → six-dimension scoring → fine reading → formatted delivery → archival. Combines a configurable engine with daily cron-driven application layer. Works with Feishu, Teleg… |
-| `nature-paper-to-patent` | Turn research papers or inventor materials into evidence-grounded Chinese invention patent drafts and technical disclosures. Use for 技术交底书、专利撰写、现有技术对比 and Chinese DOCX patent packages; not general manuscript writing. |
-| `nature-paper2ppt` | Create or improve a Chinese academic PPTX from a scientific paper or research reading notes, with source figures and speaker notes. Use for 论文做PPT、文献汇报、组会PPT and paper-based conference or defense presentations. |
-| `nature-polishing` | Polish, translate, or tighten existing academic prose while preserving facts, terminology, and evidence boundaries. Use for 论文润色、学术翻译、正文精简, or manuscript LaTeX layout fixes. Use nature-writing when the main task is drafting new sections or… |
-| `nature-reader` | Create source-grounded Chinese-English paper readers with aligned text, figures, tables, and equations. Use for 全文翻译、中英文对照、论文精读 or source-linked questions about a paper; respect a requested excerpt or question without generating a full rea… |
-| `nature-response` | Draft, audit, or revise responses to peer review, revision cover letters, and marked-manuscript or LaTeX revision packages. Use for 审稿意见回复、逐点回复、返修信、 rebuttals and edits to existing response drafts. Initial-submission materials belong to na… |
-| `nature-reviewer` | Provide evidence-grounded mock peer review of scientific manuscripts or excerpts, covering significance, validity, and major/minor concerns. Use for 模拟审稿、投稿前自审、审稿人视角评估; not author rebuttal drafting. |
-| `nature-writing` | Draft or restructure scientific manuscript arguments, sections, and initial-submission materials from author-provided evidence. Use for 论文写作、章节起草、论证重构、正文压缩、首次投稿材料. Use nature-polishing for language-only edits to existing prose and nature-r… |
-| `ncats-arax` | Queries the NCATS Translator ARAX production API for bounded, typed, provenance-rich one-hop and endpoint-pinned two-hop biomedical knowledge-graph relationships. Use for Biolink-constrained RTX-KG2 lookup, explicit selected-provider ARAX… |
-| `networkx` | Creates, analyzes, and visualizes complex networks and graphs in Python with NetworkX. Use when working with network/graph data structures, computing graph algorithms (shortest paths, centrality, clustering), detecting communities, generat… |
-| `neurokit2` | Builds and audits reproducible NeuroKit2 research workflows for physiological time-series preprocessing, event/interval analysis, multimodal alignment, variability, and complexity. Use when code imports neurokit2 or needs its current APIs,… |
-| `neuropixels-analysis` | Analyzes Neuropixels extracellular recordings end-to-end with SpikeInterface. Covers loading SpikeGLX/Open Ephys/NWB data, preprocessing, drift/motion correction, Kilosort4 (and CPU) spike sorting, quality metrics, and unit curation (thres… |
-| `nextflow` | Builds, runs, and debugs Nextflow DSL2 pipelines and nf-core workflows. Use for Nextflow, nf-core, .nf files, nextflow.config, processes/channels/operators, samplesheets, nf-test, modules/subworkflows, container and executor configuration,… |
-| `nmrglue` | Processes calibrated one-dimensional complex NMR free-induction decays with nmrglue into phased spectra, peak candidates, and signed integration regions. Use for raw 1D NMR processing, ppm-axis verification, apodization, Fourier transforma… |
-| `nwb-conversion` | Converts neuroscience acquisition data to Neurodata Without Borders files with NeuroConv and PyNWB, preserves metadata and timebases, checks evidence-based clock alignment, and produces schema validation, NWB Inspector findings and round-t… |
-| `observability-and-instrumentation` | Instruments code so production behavior is visible and diagnosable. Use when adding logging, metrics, tracing, or alerting. Use when shipping any feature that runs in production and you need evidence it works. Use when production issues ar… |
-| `oil-ui` | Design, improve, and review interfaces for websites, apps, dashboards, and components: explore distinct design directions, compare styles side by side, and refine visual hierarchy against real screenshots. Delivers comparison pages, design… |
-| `oiloil-ui-ux-guide` | 梳理项目 UI/UX 设计规范并输出 design-spec.md，评审现有界面并给出按优先级排序的修复建议，或整理指定界面的设计规则。用户要求设计系统、设计规范或完整界面评审时使用；单个颜色、字号或按钮大小的简单问题直接回答。 |
-| `omero-integration` | Inspects and automates microscopy data workflows against OMERO.server with omero-py, BlitzGateway, OMERO CLI, tables, annotations, ROIs, rendering, and documented OMERO.web APIs. Use this skill for scoped OMERO inventory, metadata export,… |
-| `onekgpd` | Queries the 1000 Genomes Project dataset (3,202 whole-genome-sequenced individuals, GRCh38) at the level of individual participants. Use when a question is about individuals or variants in the 1000 Genomes Project cohort: which individuals… |
-| `ontology-term-resolution` | Resolves free-text scientific labels to ontology term IDs and validates existing CURIEs against the EBI Ontology Lookup Service (OLS4). Also looks up prefixes in Bioregistry, resolves compact identifiers via Identifiers.org, maps lab short… |
-| `open-notebook` | Organizes research with the self-hosted Open Notebook alternative to NotebookLM. Supports source ingestion (PDFs, web pages, audio, video, and Office documents), cited document chat, text and vector search, notes, custom transformations, a… |
-| `open-source` | Documentation reference for writing Python code using the browser-use open-source library. Use this skill whenever the user needs help with Agent, Browser, or Tools configuration, is writing code that imports from browser_use, asks about @… |
-| `opencli-adapter-author` | Use when writing an OpenCLI adapter for a new site or adding a new command to an existing site. Guides end-to-end from first recon through field decoding, adapter coding, and verify. Replaces opencli-oneshot / opencli-explorer. For ad-hoc… |
-| `opencli-autofix` | Automatically fix broken OpenCLI adapters when commands fail. Load this skill when an opencli command fails — it guides you through collecting a trace artifact, patching the adapter, retrying, and filing an upstream GitHub issue after a ve… |
-| `opencli-browser` | Use when an agent needs to drive a real Chrome window via opencli — inspect a page, fill forms, click through logged-in flows, or extract data ad-hoc. Covers the selector-first target contract, compound form fields, stale-ref handling, net… |
-| `opencli-usage` | Use at the start of any OpenCLI session — this is the top-level map of what `opencli` can do, how to discover adapters, what flags and output formats are universal, and which specialized skill to load next. Point here when an agent asks "w… |
-| `openpiv` | Performs Particle Image Velocimetry (PIV) analysis with OpenPIV. Use when extracting velocity fields from PIV image pairs, analyzing fluid dynamics or flow visualization experiments, cross-correlating interrogation windows, validating and… |
-| `opentrons-integration` | Authors, reviews, migrates, simulates, and troubleshoots official Opentrons Python Protocol API v2 protocols for Flex and OT-2 robots. Use for robot-specific liquid handling, deck and labware setup, pipettes, modules, runtime parameters, l… |
-| `optimize-for-gpu` | GPU-accelerates scientific Python on NVIDIA hardware and verifies that the result is correct and faster. Use for CUDA/GPU optimization; CPU-bound NumPy, SciPy, pandas, scikit-learn, NetworkX, scikit-image, vector-search, image-processing,… |
-| `pacsomatic` | Prepares and launches nf-core/pacsomatic matched tumor-normal PacBio HiFi genomics workflows from unaligned BAM inputs. Supports samplesheet generation, pinned Nextflow launch artifacts, local checks, LSF/Slurm/PBS Pro/SGE launcher submiss… |
-| `paper-lookup` | Searches 18 scholarly APIs for papers, preprints, citations, open-access full text, repository records, and journal OA status, and returns results with reproducible provenance. Covers PubMed, PMC, Europe PMC, bioRxiv, medRxiv, arXiv, OpenA… |
-| `paperclip` | Searches and reads biomedical papers, FDA/PMDA/EMA documents, clinical trials, and protein records with the GXL Paperclip CLI and Python SDK. Supports source-scoped search, full-text grep, metadata SQL, map/reduce extraction, figure analys… |
-| `paperzilla` | Reads projects, searches project feeds, and retrieves recommendations and canonical papers in Paperzilla through the pz CLI. Supports recent recommendations, paper details, markdown-based summaries, recommendation feedback, JSON export, an… |
-| `parallel-web` | Uses Parallel CLI for web search, URL extraction, deep research, structured data enrichment, entity discovery, and recurring web monitoring. Best for requests that explicitly need current web evidence, academic-source discovery, repeated e… |
-| `pathml` | Supports local computational pathology research with PathML: slide loading and tiling, preprocessing and QC, h5path storage, multiplex quantification, spatial graphs, and bounded model inference. Use for whole-slide H&E, CODEX, Vectra, Mes… |
-| `pathogen-variant-surveillance` | Queries public GenSpectrum LAPIS data for pathogen genomic surveillance, current lineage nomenclature, weekly sequence proportions, reporting delays, and descriptive mutation frequencies. Use for variant surveillance, Pango lineage validat… |
-| `pathway-enrichment` | Performs pathway and gene-set enrichment analysis on gene lists or ranked gene data and interprets the results. Used when the user has a set of genes (differentially expressed genes from PyDESeq2/Scanpy, CRISPR-screen hits, cluster marker… |
-| `peer-review` | Prepares evidence-bounded, constructive peer-review drafts and structured manuscript assessments. Supports authorized review of scientific manuscripts, protocols, preprints, or research proposals; reporting-guideline selection; claim–evide… |
-| `pennylane` | Builds and differentiates PennyLane quantum circuits, hybrid PyTorch or JAX models, molecular VQE and QAOA workflows. Use for variational quantum algorithms, quantum machine learning, simulator validation, and moving validated circuits to… |
-| `performance-optimization` | Optimizes application performance across frontend, backend, queries, and databases. Use when performance requirements exist, when you suspect performance regressions, when Core Web Vitals or load times need improvement, when N+1 query patt… |
-| `phylogenetics` | Builds and analyzes phylogenetic trees using MAFFT multiple sequence alignment, IQ-TREE maximum likelihood with ModelFinder and branch support, and FastTree approximate inference. Uses ETE3 for tree summaries and visualization. Applies to… |
-| `pi-agent` | Builds with and operates Pi, the minimal terminal coding harness. Use for installing Pi, configuring providers/models/settings/environment variables, creating Pi skills/extensions/packages/themes/prompt templates, embedding Pi through the… |
-| `pkpd-modeling` | Pharmacokinetic and pharmacodynamic modelling and simulation - non-compartmental analysis, compartmental and population PK, PK/PD and exposure-response, TMDD, PBPK orientation, bioequivalence, allometric scaling and first-in-human dose, dr… |
-| `planning-and-task-breakdown` | Breaks work into ordered tasks. Use when you have a spec or clear requirements and need to break work into implementable tasks. Use when a task feels too large to start, when you need to estimate scope, or when parallel work is possible. |
-| `polars` | High-performance DataFrame library for Python ETL, analytics, and pandas migration. It supports expression-based data manipulation with lazy query optimization, parallel execution, streaming out-of-core processing, Arrow interoperability,… |
-| `polars-bio` | Performs genomic interval overlap, nearest, merge, coverage, complement and subtraction on Polars DataFrames, and reads or writes BED, VCF, BCF, BAM, CRAM, GFF, GTF, FASTA and FASTQ data. Use for coordinate-aware genomic joins, read-depth… |
-| `pptx-posters` | Creates and audits editable scientific posters in macro-free PowerPoint (.pptx) from author-approved local content and assets. Used when the requested deliverable is a PowerPoint research/conference poster and exact physical, printer, acce… |
-| `pr` | Use when writing a PR body. |
-| `primekg` | Queries a pinned Precision Medicine Knowledge Graph (PrimeKG) CSV for typed gene, drug, disease, and phenotype nodes, direct associations, disease context, and one- or two-hop paths. Use for PrimeKG reproducibility, biological association… |
-| `primer-design` | Designs and audits PCR and RT-qPCR primers with Primer3, explicit thermodynamic conditions, reference-based off-target amplification searches, and traceable sequence coordinates. Use for designing primer pairs, checking existing primers, e… |
-| `problem-report` | Diagnose a problem with evidence and then interrogate it in rounds — a code-anchored report (前情 / 代码 / 取证 / 结论 / 未确定 / 提问) followed by numbered questions, each carrying a discriminating axis and a recommended answer, until nothing is left… |
-| `protocolsio-integration` | Reads, validates, and safely exports protocols.io data with current official REST/MCP contracts, or creates non-executing mutation plans. The bundled client makes bounded official-host GET requests only with explicit --execute. Use only fo… |
-| `prototype` | Build a throwaway prototype to answer a design question. Use when the user wants to sanity-check whether a state model or logic feels right, or explore what a UI should look like. |
-| `pufferlib` | Version-aware guidance for PufferLib reinforcement-learning environments, vectorization, policies, PuffeRL training, evaluation, and safe checkpoint review. Covers the native 5.0 build and environment API, published 3.0.0 Gymnasium/Petting… |
-| `pybamm` | Simulates lithium-ion battery charge, discharge and rest experiments with PyBaMM, records parameter-set provenance, checks mesh and solver sensitivity, and compares predicted voltage curves with measured cycling data. Use for SPM or DFN el… |
-| `pycalphad` | Computes finite-temperature CALPHAD equilibria, phase fractions, and phase compositions from thermodynamic TDB databases using pycalphad. Use for alloy phase stability, equilibrium temperature sweeps, tie lines, lever-rule checks, or repro… |
-| `pydeseq2` | Performs bulk RNA-seq differential expression analysis with PyDESeq2, including count validation, formula designs, explicit contrasts, Wald tests, FDR correction, coefficient-matched LFC shrinkage, and result visualization. Use for PyDESeq… |
-| `pydicom` | Reads, inspects, writes, transforms, and preflights local DICOM datasets and pixel data. Applies to DICOM metadata, transfer syntaxes, compression plugins, frames, private elements, JSON, and bounded de-identification review. |
-| `pyhealth` | Builds and validates PyHealth clinical machine-learning pipelines for EHR, signals, imaging, and medical codes. Use for PyHealth dataset loading, MIMIC-III/IV, eICU or OMOP prediction tasks, patient-level evaluation, mortality/readmission/… |
-| `pylabrobot` | Develops and reviews PyLabRobot lab-automation resources, liquid-handling plans, offline simulations, and supported-device integrations. Supports PyLabRobot protocols and API questions; keep physical execution behind an explicit operator s… |
-| `pymatgen` | Analyzes, validates, converts, and transforms materials structures and computed materials data with pymatgen. Use for local phase diagrams, symmetry sensitivity, electronic-structure I/O, and bounded Materials Project queries. |
-| `pymc` | Builds and checks Bayesian models with PyMC, including hierarchical models, NUTS MCMC, variational inference, mutable-data predictions, posterior predictive checks, diagnostics, and PSIS-LOO model comparison. Use for probabilistic modeling… |
-| `pymoo` | Solves and validates single-, multi-, and many-objective optimization with pymoo, including NSGA-II, NSGA-III, MOEA/D, constraints, Pareto approximations, reference directions, and ZDT/DTLZ benchmarks for engineering and research problems. |
-| `pyopenms` | Processes mass spectrometry data with pyOpenMS. Supports proteomics and metabolomics workflows—feature detection, peptide/protein identification, label-free quantification, adduct/accurate-mass annotation, and complex LC-MS/MS pipelines. S… |
-| `pysam` | Provides Python/HTSlib workflows for genomic files. Used when reading, querying, filtering, or writing SAM/BAM/CRAM, VCF/BCF, FASTA/FASTQ, or tabix data with pysam, including pileup, coverage, indexing, and CRAM references. |
-| `pytdc` | Provides Therapeutics Data Commons workflows through PyTDC for registry discovery, dataset access, task-aware splits, evaluator metrics, benchmark groups, and bounded molecular-oracle scoring. Use when working with TDC therapeutic ML datas… |
-| `pytorch-lightning` | Deep learning framework (PyTorch Lightning / lightning package). Organize PyTorch code into LightningModules, configure Trainers for multi-GPU/TPU, implement data pipelines, callbacks, logging (W&B, TensorBoard, MLflow), distributed traini… |
-| `pyzotero` | Manages Zotero reference libraries using the pyzotero Python client: retrieves, creates, updates, and deletes items, collections, tags, and attachments via the Zotero Web API v3 or local API. Applies when working with Zotero libraries prog… |
-| `qa` | QA-test a website or web app and return a 1-5 quality score (5 = flawless, 1 = broken) with evidence. Use when the user wants to test, QA, evaluate, score, or "check how good" a site, page, flow, or app — including a local dev server (e.g.… |
-| `qiime2-amplicon` | Processes paired-end 16S amplicon reads into QIIME 2 ASVs and taxonomy with retained artifact provenance. Checks paired FASTQ manifests, primer orientation diagnostics, predicted post-trimming overlap, sample IDs, runtime versions and read… |
-| `qiskit` | Builds, simulates, transpiles, and executes quantum circuits with Qiskit and IBM Quantum Runtime. Use for Qiskit 2.x circuits and operators, V2 Sampler or Estimator primitives, target-aware transpilation, local or noisy simulation, IBM QPU… |
-| `qutip` | Simulate and audit closed and open quantum-system models with QuTiP 5, including deterministic, trajectory, steady-state, spectral, and phase-space workflows. Use for local quantum-dynamics work where physical assumptions, dimensions, and… |
-| `rdkit` | Cheminformatics toolkit for fine-grained molecular control. SMILES/SDF parsing, descriptors (MW, LogP, TPSA), fingerprints, substructure search, 2D/3D generation, similarity, reactions. For standard workflows with simpler interface, use da… |
-| `rea-changelog-update` | Prepare or rewrite REA release changelogs and GitHub release notes from pinned Git history, with verified contributor thanks and Release Please synchronization. |
-| `rea-tool-design` | Design or change REA investigation tools, CLI/MCP contracts, provider capabilities, and Evidence semantics. |
-| `read` | Fetches URLs and PDFs, then summarizes or returns clean Markdown. Use when asked to read, fetch, quote, cite, convert, or save a URL or PDF. Not for local text files already in the repo. |
-| `redesign-existing-projects` | Upgrades existing websites and apps to premium quality. Audits current design, identifies generic AI patterns, and applies high-end design standards without breaking functionality. Works with any CSS framework or vanilla CSS. |
-| `relion` | Validates and executes RELION single-particle cryo-EM refinement and half-map postprocessing. Supports STAR optics/acquisition checks, particle-stack consistency, gold-standard half sets, soft-mask validation, diagnostic Fourier shell corr… |
-| `relsa-severity-assessment` | Supports multivariate severity assessment and exploratory endpoint-time score forecasting for laboratory animal studies using the RELSA (RELative Severity Assessment) score and ARIMA-based foRcast forecasting. Use when combining welfare re… |
-| `remote-browser` | Controls an isolated Browser Use Cloud browser from a sandboxed machine with the current Browser Use CLI. |
-| `research` | Investigate a question against high-trust primary sources and capture the findings as a Markdown file in the repo. Use when the user wants a topic researched, docs or API facts gathered, or reading legwork delegated to a background agent. |
-| `research-grants` | Supports research proposal preparation and review for NSF, NIH, DOE, DARPA, and Taiwan NSTC, including opportunity-specific requirements, aims, review criteria, budgets, broader impacts, forms, and resubmissions. Use for investigator-autho… |
-| `research-lookup` | Compiles current scholarly evidence for a scientific manuscript or research brief when the user explicitly asks to gather literature, references, background evidence, competing findings, or a manuscript research packet. Uses Parallel Searc… |
-| `researchwrite` | Compose, revise, or audit research proposals, opening reports, and research plans from supporting evidence. Use for 研究计划、开题报告、科研项目申请书. Invoked as researchwrite for compatibility; use nature-writing for general manuscript sections. |
-| `retro` | Conduct a retrospective on a coding session. |
-| `reverse-engineer-anything` | Reverse engineer native, managed, Electron/JavaScript, packaged, firmware, and browser targets with REA. Use shipped-artifact or requested runtime evidence to explain features, compare versions, decompile code, or guide a reconstruction. S… |
-| `review-animations` | Reviews animation and motion code against a high craft bar derived from Emil Kowalski's design engineering philosophy. Default to flagging; approval is earned. |
-| `rowan` | Rowan is a cloud-native molecular modeling and medicinal-chemistry workflow platform with a Python API. Use for pKa and macropKa prediction, conformer and tautomer ensembles, docking and analogue docking, protein-ligand cofolding, MSA gene… |
-| `scaffold-exercises` | Create exercise directory structures with sections, problems, solutions, and explainers that pass linting. Use when user wants to scaffold exercises, create exercise stubs, or set up a new course section. |
-| `scanpy` | Performs Scanpy single-cell RNA-seq QC, normalization, HVG selection, PCA/UMAP/t-SNE, clustering, exploratory marker ranking, pseudobulk preparation, visualization, and Seurat or SingleCellExperiment RDS conversion to h5ad. Applies to esta… |
-| `scheduler` | Schedule on-device reminders and local actions only. Use this skill to set personal reminders or run lightweight, local tasks at a specific time or interval (e.g., notifications, local scripts), on the user's computer or with platforms lik… |
-| `scholar-evaluation` | Provides qualitative-first, evidence-traceable developmental review of scholarly works and audit low-stakes research-assessment rubrics with optional local quality controls. Never use for ranking people or consequential decisions. |
-| `scientific-brainstorming` | Facilitates evidence-aware scientific ideation with independent generation, structured discussion, explicit assumptions, transparent evaluation, adversarial review, and decision logs. Use for early-stage research brainstorming or prioritiz… |
-| `scientific-critical-thinking` | Evaluates scientific claims and evidence quality. Applies to experimental design validity, biases and confounders, statistical interpretation, evidence grading frameworks (GRADE, Cochrane Risk of Bias), and teaching critical analysis. Supp… |
-| `scientific-schematics` | Generates scientific diagram drafts using Nano Banana 2 AI with smart iterative refinement. Uses Gemini 3.7 Flash for quality review. Refines when the review requests improvement, with at most two generations. Specialized in neural network… |
-| `scientific-slides` | Builds slide decks and presentations for research talks. Used for making PowerPoint slides, conference presentations, seminar talks, research presentations, thesis defense slides, or any scientific talk. Provides slide structure, design te… |
-| `scientific-visualization` | Creates and audits truthful, accessible, publication-ready scientific figures with Matplotlib, Seaborn, or Plotly. Use it for figure design, multi-panel layouts, uncertainty and missing-data displays, color/contrast review, image metadata… |
-| `scientific-writing` | Drafts, revises, and audits scientific manuscripts or reports with explicit evidence provenance, reporting-guideline coverage, authorship accountability, confidentiality controls, and local consistency checks. Use for manuscript sections,… |
-| `scikit-bio` | Biological data toolkit. Sequence analysis, alignments, phylogenetic trees, diversity metrics (alpha/beta, UniFrac), ordination (PCoA), PERMANOVA, FASTA/Newick I/O, for microbiome analysis. |
-| `scikit-learn` | Supports machine learning in Python with scikit-learn. Applies when working with supervised learning (classification, regression), unsupervised learning (clustering, dimensionality reduction), model evaluation, hyperparameter tuning, prepr… |
-| `scikit-survival` | Builds, evaluates, and audits right-censored or competing-risk survival workflows with scikit-survival, including leakage-safe preprocessing, model selection, probability prediction, and censoring-aware metrics. |
-| `scvelo` | Performs RNA velocity analysis with scVelo from spliced and unspliced single-cell RNA counts. Fits deterministic or dynamical models, examines gene phase portraits, builds velocity graphs, estimates relative latent time, and ranks velocity… |
-| `scvi-tools` | Fits probabilistic models for single-cell omics, including scVI batch integration, scANVI annotation, totalVI CITE-seq, MultiVI RNA/ATAC integration, and posterior differential expression. Use for generative modeling, reference mapping, mu… |
-| `seaborn` | Creates Seaborn statistical visualizations with pandas integration for distributions, relationships, categorical comparisons, regression displays, pair plots, and heatmaps. Supports function and objects interfaces with explicit aggregation… |
-| `security-and-hardening` | Hardens code against vulnerabilities. Use when auditing an input handler for vulnerabilities, when handling user input, authentication, data storage, or external integrations, or when checking a login flow is safe against the OWASP Top Ten… |
-| `seo-aeo-audit` | Optimize for search engine visibility, ranking, and AI citations. Use when asked to improve SEO, optimize for search, fix meta tags, add structured data, or improve AEO and AI visibility. |
-| `setup-matt-pocock-skills` | Configure this repo for the engineering skills: set up its issue tracker, triage label vocabulary, and domain doc layout. Run once before first use of the other engineering skills. |
-| `setup-pre-commit` | Set up Husky pre-commit hooks with lint-staged (Prettier), type checking, and tests in the current repo. Use when user wants to add pre-commit hooks, set up Husky, configure lint-staged, or add commit-time formatting/typechecking/testing. |
-| `setup-ts-deep-modules` | Wire dependency-cruiser into a TypeScript repo so each package is a deep module, with implementation hidden in subfolders and reachable only through its entry-point files. User-invoked. |
-| `shap` | Explain and audit machine-learning predictions with SHAP. Use for selecting SHAP explainers and maskers, computing and validating feature attributions, handling multi-output explanations, and producing local or global SHAP visualizations. |
-| `shipping-and-launch` | Prepares production launches. Use when preparing to deploy to production, or when asking what needs to be in place before shipping. Use when you need a pre-launch checklist, when setting up monitoring, when planning a staged rollout, or wh… |
-| `show-me` | Help the user understand the current topic visually with concise diagrams, code-shape sketches, and focused HTML artifacts. |
-| `simpy` | Builds, inspects, tests, and analyzes bounded process-based discrete-event simulations with SimPy. Use for event scheduling, resource queues, interrupts, monitoring, independent replications, warm-up, and reproducible output analysis. |
-| `slack-qa-investigate` | Investigate and answer repository questions in read-only mode. Use when asked for research-backed answers that require codebase and documentation investigation without making file changes. |
-| `smart-search` | 基于 opencli 命令的智能搜索路由器。当用户想要使用 OpenCLI、CLI 或 API 搜索、查询、查找或研究信息时，尤其是涉及指定网站、社交媒体、技术资料、新闻、购物、旅游、求职、金融或中文内容时，务必使用此 skill |
-| `software-engineering-laws-and-philosophy` | Guides technical decisions, architecture design, planning, and team management using the 56 Laws of Software Engineering. Use when diagnosing organizational bottlenecks, reviewing system designs, estimating timelines, or addressing technic… |
-| `source-driven-development` | Grounds every implementation decision in official documentation. Use when you want to verify an approach against the official docs before implementing it, or when you want authoritative, source-cited code free from outdated patterns. Use w… |
-| `spec-driven-development` | Creates specs before coding. Use when starting a new project, feature, or significant change and no specification exists yet. Use when drafting a PRD or requirements document with objectives and scope, or when requirements are unclear, amb… |
-| `stable-baselines3` | Trains and evaluates single-agent reinforcement learning with Stable Baselines3 (PPO, SAC, DQN, TD3, DDPG, A2C), Gymnasium custom environments, vectorized rollouts, callbacks, and checkpoint normalization. Applies to reproducible RL experi… |
-| `statistical-analysis` | Guided statistical analysis for research data - test selection, assumption checking, effect sizes, power analysis, Bayesian alternatives, and APA-formatted reporting. Use whenever a user wants to compare groups, test a hypothesis, analyze… |
-| `statistical-power` | Calculates sample sizes and statistical power for study planning. Applies when someone asks "how many subjects/samples/replicates do I need", wants an a priori power analysis, a minimum detectable effect (MDE), a power curve, or needs to j… |
-| `statsmodels` | Fits and diagnoses Python statistical models including OLS, GLM, discrete and mixed models, ARIMA and SARIMAX. Supports coefficient inference, marginal effects, model comparison and time series forecasting with explicit design and uncertai… |
-| `stitch-design-taste` | Semantic Design System Skill for Google Stitch. Generates agent-friendly DESIGN.md files that enforce premium, anti-generic UI standards — strict typography, calibrated color, asymmetric layouts, perpetual micro-motion, and hardware-accele… |
-| `sympy` | Performs exact symbolic mathematics with SymPy for algebra, calculus, equation solving, symbolic linear algebra, physics, and lambdify or LaTeX code generation. Use when a task needs symbolic results, explicit assumptions, or exact arithme… |
-| `tamarind` | Provides access to a collection of open-source molecular design and structural biology tools on the Tamarind Bio platform, via its REST API or MCP server — no local GPUs required. Tamarind bundles popular open-source models for structure p… |
-| `tdd` | Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", or wants integration tests. |
-| `tellurium` | Simulates biochemical kinetic models from SBML or Antimony with Tellurium and libRoadRunner, checks model units, compares deterministic parameter perturbations, and exports and replays SBML plus SED-ML COMBINE archives. Use for reaction-ne… |
-| `terraform-style-check` | Generate Terraform HCL code following HashiCorp's official style conventions and best practices. Use when writing, reviewing, or generating Terraform configurations. |
-| `think` | Turns rough ideas into approved, decision-complete plans before coding. Use when planning architecture, judging whether to build, or writing a handoff. Not for bug fixes or small edits. |
-| `tiledbvcf` | Stores and retrieves genomic variant calls with TileDB-VCF. Use for indexed single-sample VCF/BCF ingestion, incremental cohorts, region and sample queries, streaming results, allele statistics, QC, and VCF/BCF export locally or through Ti… |
-| `timesfm-forecasting` | Performs zero-shot time-series forecasting with Google's TimesFM, including regular-grid CSV preparation, quantile forecasts, XReg covariates, and held-out evaluation. Uses the Apache-licensed TimesFM 2.5 checkpoint by default and document… |
-| `to-questionnaire` | Turn a decision you can't fully answer into a questionnaire for someone else to fill in. |
-| `to-spec` | Turn the current conversation into a spec and publish it to the project issue tracker: no interview, just synthesis of what you've already discussed. |
-| `to-tickets` | Break a plan, spec, or the current conversation into a set of tracer-bullet tickets, each declaring its blocking edges, published to the configured tracker (edges as text in one file per ticket locally, or native blocking links on a real t… |
-| `torch-geometric` | Supports PyTorch Geometric (PyG) graph neural networks — node/link/graph classification, message passing (GCN, GAT, GraphSAGE, GIN), heterogeneous graphs, neighbor sampling, and custom datasets. Use when working with torch_geometric, not f… |
-| `torchdrug` | Builds and troubleshoots TorchDrug 0.2.1 workflows for molecular graphs, property prediction, self-supervised pretraining, molecule generation, retrosynthesis, protein representation learning, and knowledge graph reasoning. Use when code i… |
-| `transformers` | Hugging Face Transformers for loading Hub models, running pipeline inference, text generation, and Trainer fine-tuning on NLP, vision, audio, and multimodal tasks. Applies when working with AutoModel, pipelines, tokenizers, generation conf… |
-| `treatment-plans` | Formats and structurally validates local treatment-plan documentation after clinical decisions have already been supplied and verified by authorized licensed professionals. Use for source traceability, clinician-authored intervention recor… |
-| `triage` | Move issues and external PRs through a state machine of triage roles, categorise, verify, grill if needed, and write agent-ready briefs. |
-| `troubleshooting` | Uses Chrome DevTools MCP and documentation to troubleshoot connection and target issues. Trigger this skill when list_pages, new_page, or navigate_page fail, or when the server initialization fails. |
-| `ui` | Produces distinctive production UI and screenshot-grounded visual polish. Use when building or restyling pages, components, or typography. Not for backend logic or data pipelines. |
-| `umap-learn` | Applies UMAP-learn to nonlinear dimensionality reduction, 2D/3D embeddings, clustering preprocessing, supervised or semi-supervised UMAP, DensMAP, AlignedUMAP, and Parametric UMAP workflows. |
-| `uncertainty-and-units` | Tracks physical units and propagates measurement uncertainty in scientific calculations using pint and uncertainties. Use for unit conversion and dimensional checking, GUM uncertainty budgets, Type A and Type B evaluation, coverage factors… |
-| `user-chrome-tabs` | Drive the user's real Chrome on this macOS machine without hijacking, mutating or leaving behind their tabs. Use this before ANY browser automation here, and whenever a task needs the user's logged-in session, a real click/type/scroll, or… |
-| `usfiscaldata` | Queries the U.S. Treasury Fiscal Data REST API for federal financial data. No API key required. Use for national debt (Debt to the Penny), Daily Treasury Statements, Monthly Treasury Statements, Treasury securities auctions, interest rates… |
-| `using-agent-skills` | Discovers and invokes agent skills. Use when starting a session, or when you need to decide which skill or workflow applies to the piece of work at hand. This is the meta-skill that governs how all other skills are discovered and invoked. |
-| `vaex` | Processes large tabular scientific datasets with Vaex expressions, filtered views, streamed statistics, binned visualizations, and file conversion. Use for larger-than-RAM HDF5, Arrow, CSV, or Parquet analysis, virtual feature engineering,… |
-| `venue-templates` | Prepares journal manuscripts, conference papers, research posters, and grant documents using venue-specific formatting guidance and bundled LaTeX scaffolds. Supports selecting an official template, checking current page or anonymity rules,… |
-| `vercel-cli-with-tokens` | Deploy and manage projects on Vercel using token-based authentication. Use when working with Vercel CLI using access tokens rather than interactive login — e.g. "deploy to vercel", "set up vercel", "add environment variables to vercel". |
-| `vercel-composition-patterns` | React composition patterns that scale. Use when refactoring components with |
-| `vercel-optimize` | Use for Vercel cost and performance optimization on deployed projects, especially Next.js, SvelteKit, Nuxt, and limited Astro apps. Collect Vercel metrics, usage, project config, and code scan results first; investigate only metric-backed… |
-| `vercel-react-best-practices` | React and Next.js performance optimization guidelines from Vercel Engineering. This skill should be used when writing, reviewing, or refactoring React/Next.js code to ensure optimal performance patterns. Triggers on tasks involving React c… |
-| `vercel-react-native-skills` | React Native and Expo best practices for building performant mobile apps. Use |
-| `vercel-react-view-transitions` | Guide for implementing smooth, native-feeling animations using React's View Transition API (`<ViewTransition>` component, `addTransitionType`, and CSS view transition pseudo-elements). Use this skill whenever the user wants to add page tra… |
-| `wait-what` | Stop. That last message did not land: re-pitch it. |
-| `wayfinder` | Plan a huge chunk of work (more than one agent session can hold) as a shared map of decision tickets on your issue tracker, and resolve them one at a time until the way to the destination is clear. |
-| `waypoint-bio` | Supports work with Outpost Bio's open microbiome foundation models - the Waypoint checkpoints (Waypoint-6m, Waypoint-45m, Waypoint-170m), the Atlas pretraining corpus, the Compass eight-task benchmark, or the `waypoint` CLI from the `waypo… |
-| `web-accessibility-audit` | Audit web applications for WCAG accessibility compliance. Use when asked to run accessibility checks, identify common violations, and provide remediation guidance. |
-| `web-design-guidelines` | Review UI code for Web Interface Guidelines compliance. Use when asked to "review my UI", "check accessibility", "audit design", "review UX", or "check my site against best practices". |
-| `web-performance-audit` | Audit web performance using Chrome DevTools MCP. Use when asked to audit, profile, debug, or optimize page load performance, Lighthouse scores, or site speed. |
-| `webapp-testing` | Test local web applications with Playwright. Use when asked to verify frontend functionality, debug UI behavior, capture browser screenshots, or inspect browser logs. |
-| `what-if-oracle` | Supports structured what-if scenario analysis for research planning, experimental contingencies, and scientific project decisions. Explores favorable, reference, adverse, wild-card, contrarian, and second-order scenarios with explicit assu… |
-| `wizard` | Generate an interactive bash wizard that walks a human through steps only they can perform. Use when provisioning infrastructure, setting up credentials or CI secrets, walking an unfamiliar third-party dashboard, or running a one-off migra… |
-| `write` | Rewrites and polishes Chinese or English prose, technical instructions, and product copy. Use when drafting, editing, localizing, or cutting AI tone. Not for code comments or commit messages. |
-| `write-plan` | Write an evidence-anchored implementation plan in the house style — classify first, measure the facts, keep a decision ledger that separates verified from unverified, state what is explicitly not being done, and give every step its own ver… |
-| `writing-beats` | Writing, exploit; assemble raw material into a journey of beats, grounding each term before a beat leans on it. |
-| `writing-for-agents` | Writing documents for agents. Use when creating or editing skills, or modifying AGENTS.md or CLAUDE.md. |
-| `writing-fragments` | Writing, explore: mine raw fragments, no structure yet. |
-| `writing-guidelines` | Review docs/prose for Writing Guidelines compliance. Use when asked to "review my docs", "check writing style", "audit prose", "review docs voice and tone", or "check this page against the writing handbook". |
-| `writing-shape` | Writing, exploit: shape raw material into an article, paragraph by paragraph. |
-| `x402` | Set up Browser Use Cloud payments with x402 — pay per request from a crypto wallet (USDC on Base mainnet), no signup or API key. Two setups it works out up front — "just use it" (set up a wallet so you or Claude Code can run cloud browser… |
-| `zarr-python` | Stores and queries chunked N-D scientific arrays with Zarr-Python 3, including codecs, sharding, S3/GCS storage, and NumPy/Dask/Xarray integration. Use for array layout, bounded I/O, format migration, or scientific metadata preservation. |
+[返回目录](#top)
 
 ---
 
-## 4. opencode 配置技能（`~/.config/opencode/skills/`，70 个）
+<a id="s3"></a>
+## 3. 用户级技能（`~/.agents/skills/`，412 个）
 
-> 11 个本地目录（含 `gstack` 包内 4 个子技能）+ 56 个指向 gstack 仓库的符号链接：链接名 `gstack-<name>`，技能名为 `<name>`
+> 本机技能库主体，**按名称排序** —— 这是**检索轴**：已知名字时快速定位。
+> 想按用途找技能，请看上方的 **用途分类索引** —— 那是**发现轴**：按「我要做什么」归类，并给出每个成员的说明。
+> 字母本身不表达用途，因此这里不再按首字母拆小节。
 
-| 技能 | 何时使用 |
+| 技能 | 说明 |
 | --- | --- |
-| `ai-chat-browser` | Use when the user wants to communicate with Gemini or Perplexity via browser automation — sending messages, switching models, extracting responses, or exploring AI chat interfaces. Covers both browser-use CLI and OpenCLI approaches. |
-| `autoplan` · 目录 `gstack-autoplan` | Auto-review pipeline — reads the full CEO, design, eng, and DX review skills from disk and runs them sequentially with auto-decisions using 6 decision principles. Surfaces taste decisions (close approaches, borderline scope, outside-review… |
-| `benchmark` · 目录 `gstack-benchmark` | Web performance regression detection. Establishes baselines for page load times, Core Web Vitals, and resource sizes. Compares before/after on every PR. Tracks performance trends over time. Use when: "web performance benchmark", "page spee… |
-| `benchmark-models` · 目录 `gstack-benchmark-models` | Cross-model benchmark for gstack skills. Runs the same prompt through Claude, GPT (via Codex CLI), and Gemini side-by-side — compares latency, tokens, cost, and optionally quality via LLM judge. Answers "which model is actually best for th… |
-| `browse` · 目录 `gstack-browse` | Drive a real browser through Aside: open a page, read it, click through a flow, take screenshots, check console errors. Use when asked to open a site, test a page, take a screenshot, or dogfood a flow. (gstack) Voice triggers (speech-to-te… |
-| `canary` · 目录 `gstack-canary` | Post-deploy canary monitoring. Watches the live app for console errors, performance regressions, and page failures. Takes periodic screenshots, compares against pre-deploy baselines, and alerts on anomalies. Use when: "monitor deploy", "ca… |
-| `careful` · 目录 `gstack-careful` | Safety guardrails for destructive commands. Warns before rm -rf, DROP TABLE, force-push, git reset --hard, kubectl delete, and similar destructive operations. User can override each warning. Use when touching prod, debugging live systems,… |
-| `claude-code` · 目录 `gstack-claude-code` | Claude Code CLI second opinion for non-Claude Code hosts. Review a diff, challenge a change for failure modes, or consult Claude with read-only repo access and session continuity. Use for "claude review", "claude challenge", "ask claude",… |
-| `codex` · 目录 `gstack-codex` | OpenAI Codex CLI wrapper — three modes. Code review: independent diff review via codex review with pass/fail gate. Challenge: adversarial mode that tries to break your code. Consult: ask codex anything with session continuity for follow-up… |
-| `context-restore` · 目录 `gstack-context-restore` | Restore working context saved earlier by /context-save. Loads the most recent saved state (preferring the current branch, falling back across branches) so you can pick up where you left off — even across Conductor workspace handoffs. Use w… |
-| `context-save` · 目录 `gstack-context-save` | Save working context. Captures git state, decisions made, and remaining work so any future session can pick up without losing a beat. Use when asked to "save progress", "save state", "context save", or "save my work". Pair with /context-re… |
-| `cso` · 目录 `gstack-cso` | Security audit: supported static findings; qualified profiles add reproduction and repair candidates. (gstack) Use when: "security audit", "threat model", "OWASP", "CSO review", "recheck a vulnerability". Voice triggers (speech-to-text ali… |
-| `design-consultation` · 目录 `gstack-design-consultation` | Design consultation: understands your product, researches the landscape, proposes a complete design system (aesthetic, typography, color, layout, spacing, motion), and generates font+color preview pages. Creates DESIGN.md as your project's… |
-| `design-html` · 目录 `gstack-design-html` | Design finalization: generates production-quality Pretext-native HTML/CSS. Works with approved mockups from /design-shotgun, CEO plans from /plan-ceo-review, design review context from /plan-design-review, or from scratch with a user descr… |
-| `design-review` · 目录 `gstack-design-review` | Designer's eye QA: finds visual inconsistency, spacing issues, hierarchy problems, AI slop patterns, and slow interactions — then fixes them. Iteratively fixes issues in source code, committing each fix atomically and re-verifying with bef… |
-| `design-shotgun` · 目录 `gstack-design-shotgun` | Design shotgun: generate multiple AI design variants, open a comparison board, collect structured feedback, and iterate. Standalone design exploration you can run anytime. Use when: "explore designs", "show me options", "design variants",… |
-| `deslop-shared-libs` · 目录 `gstack-deslop-shared-libs` | Find worthwhile shared-code extractions in recent work. Use for /deslop-shared-libs, $deslop-shared-libs, or requests to find code worth sharing. Recommendations only. (gstack) |
-| `devex-review` · 目录 `gstack-devex-review` | Live developer experience audit. Actually TESTS the developer experience in the Aside browser: navigates docs, tries the getting started flow, times TTHW, screenshots error messages, evaluates CLI help text. Produces a DX scorecard with ev… |
-| `diagram` · 目录 `gstack-diagram` | Turn an English description (or mermaid source) into a diagram triplet: the source, an editable .excalidraw file you can open on excalidraw.com, and rendered SVG + PNG. The SVG/PNG use clean mermaid style; the .excalidraw carries the hand-… |
-| `document-generate` · 目录 `gstack-document-generate` | Generate missing documentation from scratch for a feature, module, or entire project. Uses the Diataxis framework (tutorial / how-to / reference / explanation) to produce complete, structured documentation. Can be invoked standalone or cal… |
-| `document-release` · 目录 `gstack-document-release` | Release documentation audit. Reads relevant project docs, cross-references the diff, builds a Diataxis coverage map (reference/how-to/tutorial/explanation), updates README/ARCHITECTURE/CONTRIBUTING/CLAUDE.md to match what shipped, detects… |
-| `doko-research` | Iterative web research with structured synthesis and source tracking. Conducts multi-round searches via local readpage, reads and cross-references sources, builds a structured research report with citations. |
-| `doko-search` | Free web search using dokobot read in local mode — read search engine result pages through your real Chrome browser. No API key, no cost, no rate limits. Works with Google, Bing, DuckDuckGo, Baidu, platform search pages, and other search e… |
-| `doko-summarize` | Generate concise summaries of web pages with key points extraction. Reads any page via a real Chrome browser and produces structured summaries at adjustable detail levels. |
-| `doko-translate` | Translate web page content while preserving structure and formatting. Reads any web page via a real Chrome browser and translates it section by section, keeping headings, lists, tables, and code blocks intact. |
-| `dokobot` | Read and extract content from any web page using a real Chrome browser — including SPAs, JavaScript-rendered sites, and complex dynamic pages. Use when fetching page content that headless tools can't render, searching the web, or reading f… |
-| `freeze` · 目录 `gstack-freeze` | Restrict file edits to a specific directory for the session. Blocks Edit, Write and NotebookEdit outside the allowed path. Use when debugging to prevent accidentally "fixing" unrelated code, or when you want to scope changes to one module.… |
-| `gstack` | Router for the gstack skill suite. Sends any gstack request to the right skill (planning, review, QA, shipping, debugging, docs, security, design). Routes QA by intent and browser interaction to /browse. Use when you invoke gstack without… |
-| `gstack-upgrade` | Upgrade gstack to the latest version. Detects global vs vendored install, runs the upgrade, and shows what's new. Use when asked to "upgrade gstack", "update gstack", or "get latest version". Voice triggers (speech-to-text aliases): "upgra… |
-| `gstack-upgrade` | Upgrade gstack to the latest version. Detects global vs vendored install, runs the upgrade, and shows what's new. Use when asked to "upgrade gstack", "update gstack", or "get latest version". Voice triggers (speech-to-text aliases): "upgra… |
-| `guard` · 目录 `gstack-guard` | Full safety mode: destructive command warnings + directory-scoped edits. Combines /careful (warns before rm -rf, DROP TABLE, force-push, etc.) with /freeze (blocks edits outside a specified directory). Use for maximum safety when touching… |
-| `investigate` · 目录 `gstack-investigate` | Systematic debugging with root cause investigation. Four phases: investigate, analyze, hypothesize, implement. Iron Law: no fixes without root cause. Use when asked to "debug this", "fix this bug", "why is this broken", "investigate this e… |
-| `ios-clean` · 目录 `gstack-ios-clean` | Remove the DebugBridge SPM package and all #if DEBUG wiring from an iOS app. Cleans up StateServer, DebugOverlay, accessor codegen output, and app-side hooks installed by /ios-qa. This is a convenience wrapper — the structural Release-buil… |
-| `ios-design-review` · 目录 `gstack-ios-design-review` | Visual design audit for iOS apps on real hardware. Connects to a real iPhone via the same StateServer as /ios-qa, screenshots every screen, evaluates against Apple HIG, DESIGN.md, and design best practices. Scores each dimension 0-10 with… |
-| `ios-fix` · 目录 `gstack-ios-fix` | Autonomous iOS bug fixer. Takes a bug found by /ios-qa, reads the source, writes the fix, rebuilds, redeploys, and verifies the fix on the real device. Closes the loop: find bug → fix bug → confirm fix — zero human intervention. Captures t… |
-| `ios-qa` · 目录 `gstack-ios-qa` | Live-device iOS QA for SwiftUI apps. Connects to a real iPhone or iPad via USB CoreDevice IPv6 tunnel, reads Swift source to understand every screen, then runs a vision-driven agent loop: screenshot → analyze → decide → act → verify → repe… |
-| `ios-sync` · 目录 `gstack-ios-sync` | Regenerate the iOS debug bridge against the latest upstream gstack templates. Updates StateServer.swift, DebugOverlay.swift, Package.swift, and the typed @Observable state accessors. Use after you upgrade gstack or add new ViewModels/prope… |
-| `land-and-deploy` · 目录 `gstack-land-and-deploy` | Land and deploy workflow. Merges the PR, waits for CI and deploy, verifies production health via canary checks. Takes over after /ship creates the PR. Use when: "merge", "land", "deploy", "merge and verify", "land it", "ship it to producti… |
-| `landing-report` · 目录 `gstack-landing-report` | Read-only queue dashboard for workspace-aware ship. Shows which VERSION slots are currently claimed by open PRs, which sibling Conductor workspaces have WIP work likely to ship soon, and what slot /ship would pick next. No mutations — just… |
-| `make-pdf` · 目录 `gstack-make-pdf` | Turn any markdown file into a publication-quality PDF. Proper 1in margins, intelligent page breaks, page numbers, cover pages, running headers, curly quotes and em dashes, clickable TOC, diagonal DRAFT watermark. Not a draft artifact — a f… |
-| `notion-mcp` | Use when interacting with Notion workspace via MCP tools - creating, searching, updating pages, databases, views, comments, or querying data. Requires Notion MCP server configured. |
-| `office-hours` | YC Office Hours — two modes. Startup mode: six forcing questions that expose demand reality, status quo, desperate specificity, narrowest wedge, observation, and future-fit. Builder mode: design thinking brainstorming for side projects, ha… |
-| `office-hours` · 目录 `gstack-office-hours` | YC Office Hours — two modes. Startup mode: six forcing questions that expose demand reality, status quo, desperate specificity, narrowest wedge, observation, and future-fit. Builder mode: design thinking brainstorming for side projects, ha… |
-| `open-gstack-browser` · 目录 `gstack-open-gstack-browser` | Launch GStack Browser — AI-controlled Chromium with the sidebar extension baked in. Opens a visible browser window where you can watch every action in real time. The sidebar shows a live activity feed and chat. Anti-bot stealth built in. U… |
-| `pair-agent` · 目录 `gstack-pair-agent` | Pair a remote AI agent with your browser. One command generates a setup key and prints instructions the other agent can follow to connect. Works with OpenClaw, Hermes, Codex, Cursor, or any agent that can make HTTP requests. The remote age… |
-| `plan-ceo-review` · 目录 `gstack-plan-ceo-review` | CEO/founder-mode plan review. Rethink the problem, find the 10-star product, challenge premises, expand scope when it creates a better product. Four modes: SCOPE EXPANSION (dream big), SELECTIVE EXPANSION (hold scope + cherry-pick expansio… |
-| `plan-design-review` | Designer's eye plan review — interactive, like CEO and Eng review. Rates each design dimension 0-10, explains what would make it a 10, then fixes the plan to get there. Works in plan mode. For live site visual audits, use /design-review. U… |
-| `plan-design-review` · 目录 `gstack-plan-design-review` | Designer's eye plan review — interactive, like CEO and Eng review. Rates each design dimension 0-10, explains what would make it a 10, then fixes the plan to get there. Works in plan mode. For live site visual audits, use /design-review. U… |
-| `plan-devex-review` · 目录 `gstack-plan-devex-review` | Interactive developer experience plan review. Explores developer personas, benchmarks against competitors, designs magical moments, and traces friction points before scoring. Three modes: DX EXPANSION (competitive advantage), DX POLISH (bu… |
-| `plan-eng-review` · 目录 `gstack-plan-eng-review` | Eng manager-mode plan review. Lock in the execution plan — architecture, data flow, diagrams, edge cases, test coverage, performance. Walks through issues interactively with opinionated recommendations. Use when asked to "review the archit… |
-| `plan-tune` · 目录 `gstack-plan-tune` | Self-tuning question sensitivity + developer psychographic for gstack (v1: observational). Review which AskUserQuestion prompts fire across gstack skills, set per-question preferences (never-ask / always-ask / ask-only-for-one-way), inspec… |
-| `qa-only` · 目录 `gstack-qa-only` | Report browser/API/CLI/job/worker/webhook bugs. Produces a structured report with contract evidence or browser scores and repro steps — but never fixes anything. Use when asked to "just report bugs", "qa report only", or "test but don't fi… |
-| `reverse-engineering` | Use when 逆向 macOS 二进制或私有 API：stripped Mach-O、arm64e、Apple 系统进程（Dock/WindowServer/某个 .app），需要 Ghidra headless 静态定位、Hopper（fat/universal、GUI 交互）分析或 LLDB 动态验证，或维护 Pattern/offset 自动化（系统更新后 yabai 一类补丁失效）；也用于配置/验证 REA 引擎（Ghidra/Hopper）与排查 provid… |
-| `review` · 目录 `gstack-review` | Pre-landing PR review. Analyzes diff against the base branch for SQL safety, LLM trust boundary violations, conditional side effects, and other structural issues. Use when asked to "review this PR", "code review", "pre-landing review", or… |
-| `scrape` · 目录 `gstack-scrape` | Pull data from a web page through the Aside browser — your real, already signed-in sessions. Read-only; returns one JSON document. Use when asked to "scrape", "get data from", "pull", "extract from", or "what's on" a page. (gstack) |
-| `setup-browser-cookies` · 目录 `gstack-setup-browser-cookies` | Import cookies from your real Chromium browser into the headless browse session. Opens an interactive picker UI where you select which cookie domains to import. Use before QA testing authenticated pages. Use when asked to "import cookies",… |
-| `setup-deploy` · 目录 `gstack-setup-deploy` | Configure deployment settings for /land-and-deploy. Detects your deploy platform (Fly.io, Render, Vercel, Netlify, Heroku, GitHub Actions, custom), production URL, health check endpoints, and deploy status commands. Writes the configuratio… |
-| `setup-gbrain` · 目录 `gstack-setup-gbrain` | Set up gbrain for this coding agent: install the CLI, initialize a local PGLite or Supabase brain, register MCP, capture per-remote trust policy. One command from zero to "gbrain is running, and this agent can call it." Use when: "setup gb… |
-| `ship` · 目录 `gstack-ship` | Ship workflow: detect + merge base branch, run tests, review diff, bump VERSION, update CHANGELOG, commit, push, create PR. Use when asked to "ship", "deploy", "push to main", "create a PR", "merge and push", or "get it deployed". Proactiv… |
-| `sisyphus-execution-rules` | 会话开始强制加载 — Sisyphus执行规则：Agent分工、实时更新、Git限制、资源管理。 触发词：会话开始、执行规则、Agent边界、委托规则、记忆更新、版本同步。 |
-| `skillify` · 目录 `gstack-skillify` | Codify the most recent successful /scrape flow into a permanent browser-skill on disk. Future /scrape calls with the same intent run the codified script in ~200ms instead of re-driving the page. Walks back through the conversation, synthes… |
-| `spec` · 目录 `gstack-spec` | Turn vague intent into a precise, executable spec in five phases. Files the issue, optionally spawns a Claude Code agent in a fresh worktree, and lets /ship close the source issue on merge. Use when asked to "spec this out", "file an issue… |
-| `sync-gbrain` · 目录 `gstack-sync-gbrain` | Keep gbrain current with this repo's code and refresh agent search guidance in CLAUDE.md. Wraps the gstack-gbrain-sync orchestrator with state probing, native code-surface registration, capability checks, and a verdict block. Re-runnable,… |
-| `test-audit` · 目录 `gstack-test-audit` | Find low-value or duplicate tests and the test-only code they keep alive. Report-only unless you approve a batch. Use for /test-audit. (gstack) |
-| `test-auth-bootstrap` | Automatically obtain a valid auth token (or full account) in a dev/test environment so E2E verification can run without asking the human for credentials. Trigger whenever integration testing is blocked by auth (captcha, email verification,… |
-| `unfreeze` · 目录 `gstack-unfreeze` | Clear the freeze boundary set by /freeze, allowing edits to all directories again. Use when you want to widen edit scope without ending the session. Use when asked to "unfreeze", "unlock edits", "remove freeze", or "allow all edits". (gsta… |
+| `13c-metabolic-flux` | 用稳态 ¹³C 同位素示踪数据估算胞内代谢通量（原子映射、mfapy 模拟、约束多起点拟合与通量诊断）。 |
+| `a11y-debugging` | 用 Chrome DevTools 排查无障碍问题：语义 HTML、ARIA、焦点态、键盘导航、点击区域与对比度。 |
+| `adaptyv` | 经 Adaptyv Foundry API/SDK 设计蛋白表征实验：选靶点目录、估成本、提交序列、跟踪进度并取结果。 |
+| `aeon` | 时间序列机器学习：分类、回归、聚类、预测、异常检测、分段与相似性检索。 |
+| `alphagenome` | 查 GRCh38 单核苷酸变异的 AlphaGenome 预计算效应（AVI 分、Phred、18 项 SHAP 归因与各模态分数）。 |
+| `analysis-artifacts` | 数据分析过程中同步产出可复现产物：SQL、Python 可视化与汇总表（BigQuery 深挖场景）。 |
+| `analytical-method-validation` | 按 ICH Q2(R2)/Q14、USP、ICH M10、CLSI EP、ISO 17025 规划并记录分析方法验证、确认与转移。 |
+| `animation-vocabulary` | 反查动画/动效术语：把"弹一下""橡皮筋滚动"这类描述对应到准确名称，供检索与沟通。 |
+| `anndata` | 单细胞注释矩阵与 .h5ad / Zarr 数据格式：读取、切片与 scverse 生态衔接（分析流程用 scanpy）。 |
+| `api-and-interface-design` | 接口与模块边界设计：REST/GraphQL 端点、类型契约、前后端边界与稳定演进。 |
+| `arbor` | 用假设树细化研究/工程问题：可重复评估器、孤立实验、证据追踪与基准优化。 |
+| `arboreto` | 从表达数据推断基因调控网络（GRNBoost2 / GENIE3），排序转录因子-靶基因关联，支持 Dask 与稀疏输入。 |
+| `archify` | 生成可交互的独立 HTML 架构图：架构、流程、时序、数据流、状态机、ER、类图、树、时间线、瀑布图（含明暗主题）。 |
+| `archify-review` | 从价值/成本/影响三维度审查 Archify 的 issue、PR 或代码，支撑维护决策。 |
+| `ask-matt` | 不确定该用哪个技能或流程时，由它在本仓库技能清单中路由推荐。 |
+| `astropy` | 天文数据处理：单位与量、坐标、FITS 读写、表、时间系统、WCS 与宇宙学。 |
+| `autoskill` | 扫描用户指定的 Screenpipe 历史窗口，发现重复的研究流程并起草新技能或组合配方待审。 |
+| `beautify-github-readme` | 重做 GitHub README 首页或产出项目原生 SVG/PNG/GIF 视觉资产（美化、重塑品牌、审计）。 |
+| `benchling-integration` | 用 Benchling SDK / v2 REST API 自动化实验室数据：登记实体、库存、ELN 条目、工作流与数仓查询。 |
+| `bgpt-paper-search` | 按主题或 DOI 检索 BGPT 论文并取全文级论断证据（实验、统计、范围、局限与出处）。 |
+| `bids` | 组织、查询、校验与转换 BIDS 脑影像数据集（MRI/EEG/MEG/iEEG/PET 等）。 |
+| `biopython` | Biopython 序列处理：读写 FASTA/GenBank/PDB、系统发育、经 Bio.Entrez 访问 NCBI/PubMed。 |
+| `bioservices` | 用 Python 调 UniProt、KEGG、ChEMBL、Reactome、QuickGO、UniChem 等，做跨库注释与标识映射。 |
+| `brandkit` | 生成高端品牌视觉：品牌规范板、标志系统、识别手册与视觉世界提案。 |
+| `browser-harness` | 经 CDP 驱动真实浏览器：点击输入、导航、已登录会话、JS 渲染或反爬页面（纯静态抓取请用 curl）。 |
+| `browser-testing-with-devtools` | 用 Chrome DevTools 在真实浏览器中测试：查 DOM、抓控制台错误、看网络请求、做性能与视觉校验。 |
+| `browser-use` | 直接的浏览器控制（CDP）：自动化、抓取、测试、截图与站点操作。 |
+| `bulk-rnaseq` | bulk RNA-seq 定量到差异表达的准备：nf-core/rnaseq 或 Salmon/STAR/featureCounts，含链向与参考来源校验。 |
+| `cantera` | 用 Cantera 做均相反应与点火延迟计算：机理来源、守恒检查与数值收敛。 |
+| `cellprofiler` | 可复现的 CellProfiler 显微图像流程：细胞核分割、计数与单目标荧光测量（无头批处理）。 |
+| `cellxgene-census` | 查询 CZ CELLxGENE Census 的公开单细胞与空间转录组数据（版本化元数据、表达切片与下载地址）。 |
+| `chart-designer` | 设计数据可视化与图表：生成 ECharts / Chart.js 等配置，搭建仪表盘与报表。 |
+| `check` | 审查 diff、PR、发布就绪度与发布后续；不做根因调试，也不审文案。 |
+| `chief-of-staff` | 在单次会话内协调多个子代理，推进一个长期目标。 |
+| `chrome-devtools` | 经 MCP 使用 Chrome DevTools：调试、排查与浏览器自动化（性能与网络分析）。 |
+| `chrome-devtools-cli` | 用命令行/脚本方式经 Chrome DevTools 完成浏览器自动化任务。 |
+| `ci-cd-and-automation` | 搭建与改造 CI/CD：质量门禁、测试运行器配置与部署策略。 |
+| `ci-fix` | 诊断并修复 GitHub Actions 失败：看 workflow 运行与日志、定位根因、最小修复并推到修复分支。 |
+| `cirq` | Google 量子计算框架：面向 Google 硬件、噪声感知线路与表征实验的低层设计。 |
+| `citation-management` | 文献引用管理：检索 OpenAlex/PubMed/Scholar、核对元数据、校验引用并生成规范 BibTeX。 |
+| `claude-handoff` | 把当前对话整理成交接文档，交给新的后台代理立即接手。 |
+| `cli-anything` | 为 GUI 应用或源码仓库构建、打磨、校验 CLI-Anything 命令行封装（不改动其生成格式）。 |
+| `cli-anything-adguardhome` | 用命令行驱动 AdGuard Home（DNS 过滤/家庭网络管控）：把该应用常用操作封装成命令，便于无人值守自动化。 |
+| `cli-anything-anygen` | 用命令行驱动 AnyGen（幻灯片/文档/网页生成）：把该应用常用操作封装成命令，便于无人值守自动化。 |
+| `cli-anything-audacity` | 用命令行驱动 Audacity（音频编辑）：把该应用常用操作封装成命令，便于无人值守自动化。 |
+| `cli-anything-blender` | 用命令行驱动 Blender（3D 场景编辑）：把该应用常用操作封装成命令，便于无人值守自动化。 |
+| `cli-anything-browser` | 用命令行驱动浏览器（经 DOMShell 把可访问性树映射为虚拟文件系统）：便于无人值守自动化。 |
+| `cli-anything-calibre` | 用命令行驱动 Calibre（电子书库与格式转换）：把常用操作封装成命令，便于无人值守自动化。 |
+| `cli-anything-ccswitch` | 用命令行驱动 CC Switch（AI 编码工具配置切换）。 |
+| `cli-anything-chromadb` | 用命令行驱动 ChromaDB（向量库）：集合、文档与语义检索管理。 |
+| `cli-anything-cloudanalyzer` | 用命令行驱动 CloudAnalyzer（建图/定位/感知评测）：点云、轨迹与分组评测。 |
+| `cli-anything-cloudcompare` | 用命令行驱动 CloudCompare（点云与网格处理）：工程、会话与点云操作 40+ 命令。 |
+| `cli-anything-comfyui` | 用命令行驱动 ComfyUI（图像生成工作流）：排队、模型管理与结果下载。 |
+| `cli-anything-dify-workflow` | 用命令行驱动 Dify 工作流 DSL：创建、检查、校验、编辑与导出。 |
+| `cli-anything-drawio` | 用命令行驱动 Draw.io：图表的创建、编辑与导出。 |
+| `cli-anything-eez-studio` | 用命令行驱动 EEZ Studio：改 .eez-project、编辑 LVGL 界面与 SCPI，并调用真实后端构建。 |
+| `cli-anything-eth2-quickstart` | 用命令行驱动 eth2-quickstart：自动化部署加固的以太坊节点、装执行/共识客户端并配置验证者。 |
+| `cli-anything-exa` | 用命令行驱动 Exa：网络搜索与内容抓取。 |
+| `cli-anything-firefly-iii` | 用命令行驱动 Firefly III：个人财务记账与预算。 |
+| `cli-anything-freecad` | 用命令行驱动 FreeCAD：参数化 3D 建模，覆盖 Part/Sketcher/PartDesign 等全部工作台。 |
+| `cli-anything-gimp` | 用命令行驱动 GIMP：图像编辑（底层 Pillow）。 |
+| `cli-anything-godot` | 用命令行驱动 Godot：项目管理、场景、导出与脚本执行。 |
+| `cli-anything-hermes` | 用 Hermes Agent 构建、打磨、测试与校验 GUI 应用的 CLI-Anything 封装。 |
+| `cli-anything-inkscape` | 用命令行驱动 Inkscape：矢量图形编辑。 |
+| `cli-anything-intelwatch` | 用命令行驱动 IntelWatch：竞品情报、并购尽调与 OSINT。 |
+| `cli-anything-iterm2` | 用命令行驱动 iTerm2：向会话发送文本、读实时输出与回滚、管理窗口分屏与 tmux 工作流。 |
+| `cli-anything-iterm2-ctl` | 用命令行驱动 iTerm2：会话文本发送、终端输出读取、窗口与分屏管理（同上，控制入口）。 |
+| `cli-anything-joplin` | 用命令行驱动 Joplin：笔记读写（基于真实 joplin 终端后端）。 |
+| `cli-anything-jumpserver` | 用命令行驱动 JumpServer 堡垒机：资产、用户、权限、会话与审计管理。 |
+| `cli-anything-kdenlive` | 用命令行驱动 Kdenlive：视频编辑。 |
+| `cli-anything-krita` | 用命令行驱动 Krita：数字绘画的工程、图层、滤镜与导出。 |
+| `cli-anything-libreoffice` | 用命令行驱动 LibreOffice：文档编辑并产出真实 ODF 文件。 |
+| `cli-anything-live2d` | 用命令行处理 Live2D Cubism 模型（.model3.json）：校验、编辑、批量与发布。 |
+| `cli-anything-lldb` | 用命令行驱动 LLDB：经 Python API 做有状态调试。 |
+| `cli-anything-macrocli` | 用命令行驱动 MacroCLI：把 GUI 操作定义成可调用的参数化宏。 |
+| `cli-anything-mailchimp` | 用命令行驱动 Mailchimp 营销 API：名单、活动、报表、自动化与模板。 |
+| `cli-anything-mermaid` | 用命令行驱动 Mermaid：创建、编辑并渲染图表（经 mermaid.ink）。 |
+| `cli-anything-minimax` | 用命令行驱动 MiniMax：对话（M3/M2.7）与 speech-2.x 语音合成。 |
+| `cli-anything-mubu` | 用命令行驱动 Mubu（幕布）：实时桥接的标准入口。 |
+| `cli-anything-musescore` | 用命令行驱动 MuseScore：移调、分谱、乐器管理与 PDF/音频/MIDI 导出。 |
+| `cli-anything-n8n` | 用命令行驱动 n8n：工作流、执行记录、凭据、变量与标签管理。 |
+| `cli-anything-notebooklm` | 用命令行驱动 NotebookLM：笔记本与来源管理、提问、生成并下载产物。 |
+| `cli-anything-novita` | 用命令行驱动 Novita AI：OpenAI 兼容接口（DeepSeek、GLM 等）。 |
+| `cli-anything-nsight-graphics` | 用命令行驱动 Nsight Graphics（Windows）：捕获、GPU Trace 摘要与 ngfx-replay 分析。 |
+| `cli-anything-nslogger` | 用命令行处理 NSLogger 日志（.rawnsloggerdata/.nsloggerdata）：解析、过滤、导出与监控。 |
+| `cli-anything-obs-studio` | 用命令行驱动 OBS Studio：场景集合编辑。 |
+| `cli-anything-obsidian` | 用命令行驱动 Obsidian：经 Local REST API 管理笔记、搜索与执行命令。 |
+| `cli-anything-ollama` | 用命令行驱动 Ollama：本地模型管理、生成、对话与嵌入。 |
+| `cli-anything-openrefine` | 用命令行驱动 OpenRefine：导入脏数据、应用操作历史、检视与导出清洗结果。 |
+| `cli-anything-openscreen` | 用命令行驱动 Openscreen：录屏剪辑的缩放、变速、裁剪、标注与导出。 |
+| `cli-anything-pm2` | 用命令行驱动 PM2：Node 进程的启动、停止、重启与日志。 |
+| `cli-anything-qgis` | 用命令行驱动 QGIS：工程、可写图层、要素、出图与 qgis_process。 |
+| `cli-anything-quietshrink` | 用命令行驱动 QuietShrink：Apple Silicon 硬件 HEVC 压缩 macOS 录屏（静音、体积降 70–90%）。 |
+| `cli-anything-rekordbox` | 用命令行驱动 Rekordbox（DJ 曲库与 deck 控制）：曲库检视、播放列表与现场混音。 |
+| `cli-anything-renderdoc` | 用命令行驱动 RenderDoc：图形调试捕获分析。 |
+| `cli-anything-rms` | 用命令行驱动 Teltonika RMS：设备管理与监控。 |
+| `cli-anything-safari` | 用命令行驱动 Safari（macOS，经 safari-mcp）：保留登录态的原生浏览器自动化，84 个工具 1:1 暴露。 |
+| `cli-anything-sbox` | 用命令行驱动 s&box（Source 2）：工程管理、场景/预制体编辑、配置、C# 代码生成与校验。 |
+| `cli-anything-seaclip` | 用命令行驱动 SeaClip-Lite：议题、流水线、代理、日程与动态管理。 |
+| `cli-anything-shotcut` | 用命令行驱动 Shotcut：基于 MLT XML 的视频编辑。 |
+| `cli-anything-siyuan` | 用命令行驱动 SiYuan 思源笔记：笔记本、文档、块与搜索。 |
+| `cli-anything-slay-the-spire-ii` | 用命令行驱动杀戮尖塔 2：经本地桥接模组读取对局状态并下达战斗/导航/奖励操作。 |
+| `cli-anything-threemf` | 用命令行处理 3MF：检测并调整圆孔尺寸、修复网格、比较打印文件（BambuStudio/PrusaSlicer）。 |
+| `cli-anything-tigris` | 用命令行驱动 Tigris：S3 兼容对象存储的桶、对象、预签名 URL 与访问密钥。 |
+| `cli-anything-unimol-tools` | 用命令行驱动 Uni-Mol：分子性质预测的训练与推理。 |
+| `cli-anything-unrealinsights` | 用命令行驱动 Unreal Insights：捕获 Trace、检视 Trace Store、导出与汇总时序/计数器数据。 |
+| `cli-anything-videocaptioner` | 用命令行驱动 VideoCaptioner：转写、字幕优化/翻译与烧字幕。 |
+| `cli-anything-wavetone` | 用命令行驱动 WaveTone 2.61（Windows）：经 JSON 清单控制波形编辑。 |
+| `cli-anything-web-yu-pri` | 用命令行驱动日本邮政 Web Yu-pri：登录、检视、截图、试算与寄件表单填写。 |
+| `cli-anything-wiremock` | 用命令行驱动 WireMock：HTTP mock 服务管理。 |
+| `cli-anything-zoom` | 用命令行驱动 Zoom：会议、参会人与录制管理。 |
+| `cli-anything-zotero` | 用命令行驱动 Zotero：文献库管理。 |
+| `cli-hub-meta-skill` | 在实时目录里检索可用的 agent-native CLI 工具（创意、效率、AI 等方向）。 |
+| `clinical-decision-support` | 仅用于研究性临床决策支持的产出与校验：证据档案、队列、生存与生物标志模型、隐私与治理材料。 |
+| `clinical-reports` | 起草临床病例/诊断/试验/安全性报告的受限结构并做本地确定性检查（仅限合成或去标识化输入）。 |
+| `cloud` | Browser Use Cloud 文档参考：托管浏览器自动化 API（v2–v4）与 Python/TS SDK 用法。 |
+| `cobrapy` | 约束型代谢建模：FBA/pFBA/FVA、基因敲除、通量采样、产率包络与 SBML 校验。 |
+| `code-review` | 以固定点（commit/分支/tag）为基准做双轴审查：Standard（是否符合本仓库规范）与 Spec（是否实现需求）。 |
+| `code-review-and-quality` | 多维代码审查，合入任何变更前使用（含自己、他人或代理写的代码）。 |
+| `code-simplification` | 不改变行为地简化代码：可读性与可维护性差、复杂度堆积时使用。 |
+| `codebase-design` | 深模块设计的共同语言：模块接口、加深机会、接缝位置、可测性与 AI 可导航性。 |
+| `consciousness-council` | 多视角议事：模拟不同思维原型辩论决策与取舍，分离证据/假设/价值并给出条件化建议。 |
+| `constraint-driven-development` | 把项目质量标准写成契约（CONSTRAINTS.md）并阻止代理悄悄降低门槛。 |
+| `context-engineering` | 优化 agent 上下文：新会话、输出质量下降、任务切换或配置项目规则文件时使用。 |
+| `create-pull-request` | 按项目约定创建 GitHub PR：分析提交、整理分支并用 gh CLI 提交审阅。 |
+| `dask` | 用 Dask 扩展 pandas/NumPy 与自定义流程：分块、调度器、DataFrame/Array/Bag/Futures 与分布式诊断。 |
+| `database-lookup` | 按明确端点、过滤、分页与出处查询公开数据库 API，保证科学/监管/金融事实可复现。 |
+| `datalad` | 用 DataLad/git-annex 取用、版本化与发布科研数据集，并用 datalad run/rerun 记录计算溯源。 |
+| `datamol` | RDKit 的 Pythonic 封装：SMILES 解析、标准化、描述符、指纹、聚类与 3D 构象（常规药物发现首选）。 |
+| `dbt-model-index` | 提供 dbt 模型（BigQuery 表）查询索引，把模糊的数据问题落到具体表。 |
+| `debug-optimize-lcp` | 用 Chrome DevTools 调试并优化 LCP：慢加载、Core Web Vitals 问题定位。 |
+| `debugging-and-error-recovery` | 系统化根因调试：测试失败、构建断裂、昨天还能跑今天不行、行为不符预期时使用。 |
+| `deepchem` | 用 DeepChem 做分子性质预测与 MoleculeNet 流程：SMILES 特征化、骨架划分、图模型与预训练迁移。 |
+| `deepspot-m` | 由 H&E 病理图生成全转录组虚拟空间表达（DeepSpot-M）：224×224 切片、按基因符号查询。 |
+| `deeptools` | NGS 分析工具箱：BAM 转 bigWig、相关性/PCA/指纹 QC、TSS 与 peak 的热图与剖面图。 |
+| `deploy-to-vercel` | 部署应用到 Vercel：上线、生成预览部署或给出访问链接。 |
+| `depmap` | 取用并分析 DepMap 数据：CRISPR Chronos 基因效应、癌症模型注释、组学标志物与 PRISM 药敏。 |
+| `deprecation-and-migration` | 管理弃用与迁移：下线旧系统/API/功能、把用户迁到新实现、在线改库表结构。 |
+| `design-taste-frontend` | 前端艺术指导（tasteskill v2）：基于 247 个精选站点研究的构图、字体、配色与摄影方向。 |
+| `design-taste-frontend-v1` | 上一版 taste-skill，仅在需要与其行为逐字兼容的旧项目中保留使用。 |
+| `dhdna-profiler` | 用 DHDNA 框架分析给定文本的推理与写作模式（认知风格画像、文本推理比较）。 |
+| `diagnosing-bugs` | 难缠 bug 与性能回归的诊断循环：用户说"诊断/调试这个"或报告坏了/抛错/失败/变慢时使用。 |
+| `diagram-design` | 生成品牌化专业图：架构与增量架构、现状图、流程、时序、状态机、ER、时间线、泳道、象限、雷达、树状与组织结构等。 |
+| `diffdock` | 用 DiffDock/DiffDock-L 预测蛋白-小分子结合构象：批量对接、构象筛选、置信度解读与虚拟筛选。 |
+| `dnanexus-integration` | 在 DNAnexus 上构建并运行可复现的基因组流程：dx CLI、dxpy、app/applet、原生工作流与 dxCompiler。 |
+| `docs-update` | 代码变更后同步用户文档：更新/审阅文档、处理文档变更或分析近期提交的文档影响。 |
+| `documd-visuals` | 用 Markdown 做文本驱动可视化：图表、示意图、卡片、架构与页面布局（含可靠性/运营类图表）。 |
+| `documentation-and-adrs` | 记录决策与文档：写 ADR、公共 API 变更说明、功能发布说明与给未来工程师的背景。 |
+| `domain-modeling` | 建立并打磨项目领域模型：术语表 GLOSSARY.md、ADR 讨论与代码术语统一。 |
+| `doubt-driven-development` | 关键决策先过一遍全新上下文的对抗式评审：交叉盘问假设、压测隐藏失败模式。 |
+| `draw-ui` | 设计 App、后台、游戏界面与完整落地页并产出 UI 设计稿；也可把设计稿或截图还原为 HTML/CSS、现有前端项目或微信小程序。不用于插画、海报、故事板与纯图片编辑。 |
+| `emil-design-eng` | Emil Kowalski 的 UI 打磨哲学：组件设计、动效取舍与让产品"手感好"的细节。 |
+| `esm` | 用 Biohub esm SDK 做 ESM3 蛋白生成、ESMC 嵌入与 ESMFold2 全原子折叠（本地推理或托管客户端）。 |
+| `etetoolkit` | 用 ETE 4 分析、比较、注释与可视化系统发育树：Newick/Nexus 读写、拓扑编辑、RF 比较与基因树事件。 |
+| `exa-search` | 用 Exa 检索科研与技术网页，并批量抽取网页/PDF 正文（支持学术类目与域名过滤）。 |
+| `experimental-design` | 数据采集前设计实验：选设计、随机化、区组与处理组合排布，保证结果可解释。 |
+| `exploratory-data-analysis` | 对受支持的科学数据文件做有界本地探索分析：CSV/TSV/JSON 画像，可选 NumPy/HDF5/FASTA/图像元数据与缺失/泄漏检查。 |
+| `fictiv` | 在浏览器中完成 Fictiv（按需制造平台）全流程：上传 CAD、配置工艺材料与公差、即时/人工报价与下单。 |
+| `find-skills` | 帮用户发现并安装技能："怎么做 X""有没有做 X 的技能""能不能扩展能力"这类请求时使用。 |
+| `flowio` | 读写 FCS 2.0/3.0/3.1 流式细胞术文件：元数据与通道检视、NumPy 事件提取、多数据集与导出（门控分析用 flowkit）。 |
+| `flowkit` | 流式细胞术分析：溢漏补偿、logicle/双指数变换、层级门控、GatingML 与 FlowJo 10 工作区。 |
+| `fluidsim` | 规划、配置、检视、重启与分析有界 CFD 仿真（FluidSim）：求解器选择、参数复核、FFT/MPI 与数值有效性检查。 |
+| `folklore-variant-evidence` | 取 ClinGen 基因-疾病有效性断言，并核对某 GRCh38 胚系 SNV/小 indel 的公开证据与文献。 |
+| `frontend-ui-engineering` | 构建生产级、无障碍、自适应的界面：组件、布局、状态管理与 WCAG 达标。 |
+| `full-output-enforcement` | 覆盖模型默认截断行为：强制完整代码输出、禁止占位符、妥善处理 token 上限切分。 |
+| `generate-image` | 经 OpenRouter 图像 API 生成或编辑图片（Gemini/Seedream/Recraft/GPT-Image）：照片、插画、概念图、标志与合成。 |
+| `geniml` | 本地基因组区间模型与集合代数：校验 BED/universe 契约，规划 Region2Vec/scEmbed 运行并检查一致性。 |
+| `genomic-coordinates` | 坐标约定转换、变异表示规范化与比较、装配版本/染色体命名不一致的提前发现。 |
+| `genomic-intelligence` | 用托管 DNA 语言模型从序列直接预测调控特征、基因结构与表达（六类任务，REST 与 MCP，无需本地 GPU）。 |
+| `geomaster` | 地理空间研究：遥感、矢量/栅格 GIS、空间统计、地形与网络分析、对地观测机器学习。 |
+| `geopandas` | 直接使用 GeoPandas 的 Python 流程指引与本地审计：GeoSeries/GeoDataFrame、空间操作与矢量数据 I/O。 |
+| `get-available-resources` | 探测本机可用资源（CPU/内存/磁盘/调度器/容器/加速器限额），用于做资源敏感任务的规划。 |
+| `gget` | 用 CLI/Python 快速查询 20+ 生物信息库：基因信息、BLAST/BLAT、病毒序列、PDB/mmCIF、富集与 OpenTargets 等。 |
+| `ginkgo-cloud-lab` | 在 Ginkgo Cloud Lab 上选方案、备输入、核价与下单：无细胞/大肠杆菌/毕赤酵母表达与多种读出方式。 |
+| `git-guardrails-claude-code` | 为 Claude Code 配置 git 危险命令拦截钩子（push、reset --hard、clean、branch -D 等）。 |
+| `git-workflow-and-versioning` | git 工作流规范：提交、分支、冲突处理、把混乱工作区拆成干净原子提交、PR 与版本发布。 |
+| `github-bug-report-triage` | 判断 GitHub bug 报告是否可行动，并指出缺失的复现信息。 |
+| `github-issue-dedupe` | 用语义检索与关键词匹配发现重复 issue，或建立自动查重。 |
+| `glycoengineering` | 糖基化分析与改造：扫描 N-糖基化序列、S/T 富集区、糖基证据，准备 NetNGlyc/NetOGlyc/GlycoSHIELD 流程。 |
+| `gpt-taste` | 高级 UX/UI 与 GSAP 动效工程：Python 驱动的版面随机化、AIDA 结构、编辑式字体与 bento 网格。 |
+| `grill-me` | 就方案或设计接受一场不留情面的追问，用以打磨思路。 |
+| `grill-with-docs` | 同上，并在追问过程中同步产出 ADR 与术语表文档。 |
+| `grilling` | 就计划、决策或想法对用户进行高强度盘问，压力测试其思考。 |
+| `gtars` | 本地基因组区间模型与集合代数：重叠与计数、共识与覆盖、分词、片段处理与 refget/BEDbase 规划（Python/Rust/CLI）。 |
+| `handoff` | 把当前对话压缩成交接文档，供另一个代理接手继续。 |
+| `health` | 体检 agent 配置与 AI 可维护性：指令漂移、hooks/MCP、验证器缺失；不查应用 bug，也不做 PR 审查。 |
+| `high-end-visual-design` | 按高端设计机构标准做界面：精确字体、间距、阴影、卡片结构与动效，并封堵廉价感默认样式。 |
+| `histolab` | 病理全片图像处理：切片检视、组织掩膜、随机/网格/评分抽样与 H&E 染色归一，产出可供训练的图块集。 |
+| `hugging-science` | 在 Hugging Science 目录中发现并评估科研数据集、模型、方法帖与 Space（生物/化学/材料/气候/天文等）。 |
+| `hunt` | 先定位根因再动手修：报错、崩溃、回归或"以前能跑"时使用；不用于代码审查或新功能。 |
+| `hypogenic` | 规划与审计用 HypoGeniC/HypoRefine 做 LLM 辅助假设生成（hypogenic 包、任务配置、假设库与 HypoBench）。 |
+| `hypothesis-generation` | 把观察转成可检验的科学问题：候选假设、竞争解释、因果/相关主张、判别性预测与预注册分析计划。 |
+| `idea-refine` | 把粗糙想法打磨成清晰可执行的概念：结构化发散与收敛，适用于开工前的构思阶段。 |
+| `image-to-code` | 视觉要求高的网页任务：先生成设计稿，再据此产出代码（图像到代码的完整链路）。 |
+| `imagegen-frontend-mobile` | 生成移动端 App 的高保真界面概念与流程稿，用作原生风格设计参考。 |
+| `imagegen-frontend-web` | 生成面向转化的网站设计参考图，强调版式与转化路径。 |
+| `imaging-data-commons` | 查询并下载 NCI Imaging Data Commons 的公开肿瘤影像数据（集合发现、元数据与影像检索）。 |
+| `impeccable` | 界面设计的通用改进流程：设计、重塑、评审、审计、打磨、澄清、精简与加固。 |
+| `implement` | 依据一份规格或一组工单（tickets）落地实现。 |
+| `implement-spec` | 把 /to-spec 与 /to-tickets 的产物落成代码。 |
+| `improve-codebase-architecture` | 扫描代码库找出"加深模块"的机会，产出可视化 HTML 报告并逐个推翻或采纳。 |
+| `incremental-implementation` | 把改动切成薄而可验证的小步交付，适用于任何需要控制风险的功能或重构。 |
+| `industrial-brutalist-ui` | 工业粗野风格界面：瑞士印刷版式与军用终端美学的融合——刚性网格、极简配色。 |
+| `infographics` | 用 OpenRouter 上的 Nano Banana 2 生成或评审信息图（统计摘要、时间线、流程）。 |
+| `interview-me` | 通过连续单问挖掘用户真正想要的东西（而非其自以为想要的）。 |
+| `iso-standards-readiness` | 准备并按结构审查 ISO 管理体系与实验室能力（如 ISO 13485/15189/17025）的就绪证据。 |
+| `kami` | 用 Kami 模板排版专业文档：简历、单页、白皮书、信函与作品集。 |
+| `lab-hardware-cad` | 用 build123d 参数化设计自制实验室硬件，并导出 STEP/STL 等加工文件。 |
+| `labarchive-integration` | 对接 LabArchives ELN 与 Inventory API：区域端点选择、签名请求与条目读写。 |
+| `lamindb` | 用 LaminDB 管理生物数据集与模型：产物登记、血缘追踪、schema 与关联查询。 |
+| `latchbio-integration` | 在 Latch 平台上构建、注册、调试并运行生信流程：Python SDK、CLI、Latch Data 与 Registry。 |
+| `latex-posters` | 用 LaTeX 制作学术海报（beamerposter / tikzposter / baposter）。 |
+| `learn` | 六阶段研究流程：从资料包到可发布产出，适用于陌生领域的系统性学习与研究。 |
+| `liteparse` | 本地文档与 PDF 解析：输出带边界框的空间文本，便于版面相关抽取。 |
+| `literature-review` | 用 PubMed/arXiv/bioRxiv/Semantic Scholar 等做系统综述、范围综述与叙述性综述。 |
+| `loop-me` | 就"你想构建的工作流"接受规格层面的连续盘问，把需求问清。 |
+| `mageck` | 用 MAGeCK 分析混合 CRISPR 筛选的 FASTQ 与 guide-count 矩阵：文库校验、富集与命中排序。 |
+| `marine-carbonate-chemistry` | 用 PyCO2SYS 解海水碳酸盐体系：化学海洋学、海洋酸化与碳循环计算。 |
+| `markdown-mermaid-writing` | 写科研向 Markdown 文档与 Mermaid 图（流程、关系、时间线与结构）。 |
+| `market-research-reports` | 产出可溯源的市场研究报告与假设驱动的市场规模/预测情景。 |
+| `markitdown` | 用 Microsoft MarkItDown 把各类文档与链接转成 Markdown，便于分析与检索。 |
+| `matchms` | 处理、清洗、比较与检索串联质谱：MS/MS 文件 I/O、元数据统一与谱库匹配。 |
+| `matlab` | MATLAB / GNU Octave 数值工作流：数组、表格与时间数据、迁移与规划。 |
+| `matplotlib` | 用 Matplotlib 精细控制科研绘图（自定义元素与复杂多面板布局）。 |
+| `mcp-builder` | 构建高质量 MCP 服务器，让 LLM 能安全调用外部服务。 |
+| `medchem` | 药物化学过滤与化合物初筛：类药规则（Lipinski/Veber/CNS）、结构警示与 PAINS。 |
+| `memory-leak-debugging` | 排查 JavaScript/Node.js 内存泄漏：高内存占用与 OOM，含堆快照分析。 |
+| `migrate-to-shoehorn` | 把测试里的 `as` 类型断言迁移到 @total-typescript/shoehorn。 |
+| `minimalist-ui` | 简洁编辑风界面：暖色单色调、字体对比、扁平 bento 网格与低饱和配色。 |
+| `modal` | 用 Modal 无服务器平台按需运行 Python（含按需 GPU），部署函数与批处理任务。 |
+| `molecular-dynamics` | 用 OpenMM/MDAnalysis 搭建并分析分子动力学模拟（蛋白与配体体系、轨迹分析）。 |
+| `molfeat` | 用 Molfeat 生成分子特征，用于 QSAR/QSPR、相似性与虚拟筛选。 |
+| `motion-spec` | 把模糊动效诉求（"丝滑一点""高级感""加点动画"）写成明确的动效规格：时长、曲线、编排与降级。 |
+| `nature-academic-search` | 跨源检索文献、核对与管理引用，构建 MeSH 检索式与引用影响力核查。 |
+| `nature-citation` | 为稿件论断查找并验证 Nature/CNS 系列文献，做论断到来源的映射与补引。 |
+| `nature-data` | 起草或审查稿件的 Data/Code Availability 声明、数据获取路径、仓库计划与 FAIR 元数据。 |
+| `nature-downloader` | 合法获取学术全文：CNKI 机构访问、英文开放获取与出版社平台下载。 |
+| `nature-experiment-log` | 标准实验日志：读图片/语音/文字产出带 YAML frontmatter 的 Markdown，可接飞书 CLI 与 Obsidian。 |
+| `nature-figure` | 用 Python 或 R 创建、修改、审查并导出论文配图（多面板、子图与期刊规范）。 |
+| `nature-literature-pipeline` | 全自动文献流水线：多源检索 → 六维打分 → 精读 → 汇总分发。 |
+| `nature-paper-to-patent` | 把论文或发明材料转成有证据支撑的中文发明专利草稿与技术交底书。 |
+| `nature-paper2ppt` | 由论文或阅读笔记生成中文学术 PPTX（含原图与要点提炼）。 |
+| `nature-polishing` | 润色、翻译或压缩既有学术文字，保持事实、术语与证据边界不变。 |
+| `nature-reader` | 生成中英对照的论文精读稿：正文、图表与公式对齐。 |
+| `nature-response` | 起草、审查或修改审稿回复、修回信与标记稿/LaTeX 修订。 |
+| `nature-reviewer` | 模拟同行评审：按重要性、有效性、证据强度给出结构化意见。 |
+| `nature-writing` | 从作者材料出发撰写或重构论文论证、章节与投稿材料。 |
+| `ncats-arax` | 查询 NCATS Translator ARAX 生产 API，取有界、带类型与出处的单跳/受限路径关系。 |
+| `networkx` | 用 NetworkX 创建、分析并可视化复杂网络与图结构。 |
+| `neurokit2` | 用 NeuroKit2 做生理时间序列的可复现预处理、事件提取、变异性与复杂度分析。 |
+| `neuropixels-analysis` | Neuropixels 胞外记录全流程：SpikeInterface 读取、Kilosort4 分选与单元质量筛选。 |
+| `nextflow` | 编写、运行与调试 Nextflow DSL2 与 nf-core 流程（.nf、channel、配置与报错定位）。 |
+| `nmrglue` | 用 nmrglue 处理一维复数 NMR FID：相位校正、谱图、峰与积分。 |
+| `nwb-conversion` | 用 NeuroConv/PyNWB 把神经科学采集数据转成 NWB 标准文件，保留元数据与时间对齐。 |
+| `observability-and-instrumentation` | 给代码加可观测性：日志、指标、追踪与告警，让线上行为可诊断。 |
+| `oil-ui` | 网站/应用/仪表盘/组件的界面设计、改进与评审：先探索不同设计方向再落地。 |
+| `oiloil-ui-ux-guide` | 整理项目 UI/UX 规范并产出 design-spec.md，或对现有界面做优先级排序的评审；单个颜色字号这类小问题不适用。 |
+| `omero-integration` | 用 omero-py/BlitzGateway/CLI 检视并自动化 OMERO 服务器上的显微图像流程（含注释与 ROI）。 |
+| `onekgpd` | 查询 1000 Genomes 项目（3202 个全基因组个体，GRCh38）的个体级变异、携带者、基因型与亲缘关系。 |
+| `ontology-term-resolution` | 把自由文本科学标签解析为本体术语 ID，并校验既有 CURIE（EBI Ontology Lookup）。 |
+| `open-notebook` | 用自托管 Open Notebook（NotebookLM 替代）组织研究：来源导入、基于引用的问答与会话。 |
+| `open-source` | browser-use 开源库的 Python 编码参考：Agent、Browser 与 Tools 用法（非 Cloud API）。 |
+| `opencli-adapter-author` | 为新站点编写 OpenCLI 适配器，或给现有站点增加命令。 |
+| `opencli-autofix` | OpenCLI 命令失败时的自动修复：定位并修补失效适配器。 |
+| `opencli-browser` | 用 opencli 驱动真实 Chrome：检视页面、填表、点击与抓取数据。 |
+| `opencli-usage` | OpenCLI 会话的入口总览：都有哪些能力、如何发现适配器与命令、输出格式。 |
+| `openpiv` | 用 OpenPIV 做粒子图像测速：从 PIV 图像序列提取速度场。 |
+| `opentrons-integration` | 编写、评审、迁移、仿真与排错 Opentrons 官方 Python Protocol API v2 协议。 |
+| `optimize-for-gpu` | 在 NVIDIA 硬件上加速科学 Python，并验证结果正确且确实更快（CUDA/RAPIDS/CuPy/Numba）。 |
+| `pacsomatic` | 准备并启动 nf-core/pacsomatic 的肿瘤-正常配对 PacBio HiFi 流程。 |
+| `paper-lookup` | 跨 18 个学术 API 检索论文、预印本、引用、开放全文与仓储记录。 |
+| `paperclip` | 检索并阅读生物医学论文、FDA/PMDA/EMA 文件、临床试验与蛋白记录。 |
+| `paperzilla` | 通过 pz 管理 Paperzilla 研究源：读项目、检索订阅流、取推荐与经典论文。 |
+| `parallel-web` | 用 Parallel CLI 做网页检索、URL 抽取、深度研究、结构化数据补全与实体发现。 |
+| `pathml` | 本地计算病理研究：切片加载与切块、预处理与质控、h5path 与深度学习流程衔接。 |
+| `pathogen-variant-surveillance` | 查询 GenSpectrum LAPIS 公开数据做病原基因组监测：谱系命名、周度频率与突变查询。 |
+| `pathway-enrichment` | 对基因列表或排序基因做通路/基因集富集分析，并解读结果（GSEA/GO/KEGG 等）。 |
+| `peer-review` | 起草有证据边界的建设性同行评审与结构化稿件评估。 |
+| `pennylane` | 构建并可微分的 PennyLane 量子线路与混合 PyTorch/JAX 模型（VQE、QAOA 等）。 |
+| `performance-optimization` | 全栈性能优化：前端、后端、查询与数据库；性能不达标或变慢时使用。 |
+| `phylogenetics` | 用 MAFFT 比对 + IQ-TREE 最大似然（含 FastTree）构建并分析系统发育树。 |
+| `pi-agent` | 安装、配置与使用 Pi（极简终端编码代理），含 provider 配置与嵌入方式。 |
+| `pkpd-modeling` | 药代/药效建模：非房室分析、房室与群体 PK、TMDD、PBPK 与给药方案模拟。 |
+| `planning-and-task-breakdown` | 把需求拆成有序、可实现的任务清单（有规格或明确需求但还没拆解时使用）。 |
+| `polars` | 高性能 DataFrame：Python ETL、分析与从 pandas 迁移，支持表达式与惰性执行。 |
+| `polars-bio` | 在 Polars DataFrame 上做基因组区间运算：重叠、最近邻、合并、覆盖与差集，读写 BED/VCF/BAM。 |
+| `pptx-posters` | 制作并审查可在 PowerPoint 中编辑的学术海报（.pptx，无宏）。 |
+| `pr` | 撰写 PR 描述正文（按项目约定组织变更说明）。 |
+| `primekg` | 查询固定版本 PrimeKG 精准医学知识图谱：基因、药物、疾病与表型的类型化关联与多跳路径。 |
+| `primer-design` | 设计并审查 PCR/RT-qPCR 引物：Primer3、明确的热力学条件与脱靶检查。 |
+| `problem-report` | 以证据诊断问题并分轮盘问：代码锚定的报告（前情 / 代码 / 取证），先诊断再动手。 |
+| `protocolsio-integration` | 按 protocols.io 官方 REST/MCP 契约读取、校验并安全导出实验方案数据。 |
+| `prototype` | 造一个用完即弃的原型来回答设计问题（验证某方案是否可行、手感如何）。 |
+| `pufferlib` | PufferLib 强化学习：环境与向量化、策略配置、PuffeRL 训练与检查点核查（按版本给指引）。 |
+| `pybamm` | 用 PyBaMM 模拟锂离子电池充放电与静置实验：参数集来源记录与结果校验。 |
+| `pycalphad` | 从热力学数据库计算有限温度 CALPHAD 平衡：相分数、相组成与稳定性扫描。 |
+| `pydeseq2` | 用 PyDESeq2 做 bulk RNA-seq 差异表达：计数校验、设计公式与结果解读。 |
+| `pydicom` | 读写、检视、变换与预检本地 DICOM 数据集与像素数据。 |
+| `pyhealth` | 构建并校验 PyHealth 临床机器学习流程（EHR、信号、影像与医疗编码）。 |
+| `pylabrobot` | 开发与评审 PyLabRobot 实验自动化：移液方案、离线仿真与硬件对接。 |
+| `pymatgen` | 用 pymatgen 分析、校验、转换与变换材料结构与计算材料数据（相图、电子结构）。 |
+| `pymc` | 用 PyMC 构建并检验贝叶斯模型：层次模型、NUTS、变分推断与 PSIS-LOO 诊断。 |
+| `pymoo` | 用 pymoo 求解与验证单目标/多目标/超多目标优化（NSGA-II/III、MOEA/D、约束与 Pareto 前沿）。 |
+| `pyopenms` | 用 pyOpenMS 处理质谱数据：蛋白组与代谢组流程、特征检测与定量。 |
+| `pysam` | 读写、查询与过滤 SAM/BAM/CRAM/VCF/BCF/索引文件（HTSlib 封装）。 |
+| `pytdc` | 经 PyTDC 使用 Therapeutics Data Commons：数据集检索、任务与评测指标。 |
+| `pytorch-lightning` | 用 Lightning 组织 PyTorch 代码：LightningModule、Trainer、回调与分布式扩展。 |
+| `pyzotero` | 用 pyzotero 管理 Zotero 文献库：检索、创建、更新与删除条目、集合与附件。 |
+| `qa` | 对网站或 Web 应用做 QA 并给 1–5 分（5=无懈可击）与证据；发现问题时给修复建议。 |
+| `qiime2-amplicon` | 把双端 16S 扩增子数据跑成 QIIME 2 的 ASV 与物种注释，保留可追溯产物。 |
+| `qiskit` | 用 Qiskit 构建、模拟、编译并执行量子线路（IBM Quantum Runtime），面向 IBM 硬件。 |
+| `qutip` | 用 QuTiP 5 模拟并审查封闭/开放量子系统：确定性、轨迹与相空间方法。 |
+| `rdkit` | 化学信息学底层控制：SMILES/SDF 解析、描述符、指纹与反应处理（更简单场景用 datamol）。 |
+| `rea-changelog-update` | 依据固定 Git 历史准备或重写 REA 发布日志与 GitHub Release 说明。 |
+| `rea-tool-design` | 设计或变更 REA 调查工具：CLI/MCP 契约、provider 能力与 Evidence 语义。 |
+| `read` | 抓取 URL 与 PDF 并总结或输出干净 Markdown（读、引用、保存网页时使用）。 |
+| `redesign-existing-projects` | 把现有网站/应用升级到高品质：审计现状、识别廉价 AI 套路并给出改造方案。 |
+| `relion` | 校验并执行 RELION 单颗粒冷冻电镜精修与半图后处理（STAR、光学、掩膜与 FSC）。 |
+| `relsa-severity-assessment` | 实验动物福利的多变量严重度评估与终点时间预测（探索性打分）。 |
+| `remote-browser` | 在受限沙箱中用 Browser Use CLI 控制隔离的云浏览器。 |
+| `research` | 对高质量一手来源做调研，并把结论落成 Markdown 文件存档。 |
+| `research-grants` | 科研基金申请的准备与评审支持（NSF/NIH/DOE/DARPA 及台湾 NSTC 等）。 |
+| `research-lookup` | 为科学稿件或研究简报汇编最新学术证据（需明确要求时才用）。 |
+| `researchwrite` | 基于已有证据撰写、修改或审查研究提案、开题报告与研究计划。 |
+| `retro` | 对一次编码会话做复盘（哪些有效、哪些浪费、下次怎么改）。 |
+| `reverse-engineer-anything` | 用 REA 逆向本机、托管、Electron/JavaScript、打包产物、固件与浏览器目标。 |
+| `review-animations` | 按高标准审查动画/动效代码（源自 Emil Kowalski 的设计工程标准）。 |
+| `rowan` | 用 Rowan 云端分子建模与药物化学工作流（Python API）：pKa、构象、对接与 MD。 |
+| `scaffold-exercises` | 生成练习目录结构（章节、题目、解答与讲解），并保证通过 lint。 |
+| `scanpy` | 单细胞 RNA-seq 标准流程：质控、标准化、HVG、PCA/UMAP/t-SNE、聚类与注释（可在 RDS/h5ad 间转换）。 |
+| `scheduler` | 设置本机定时提醒与轻量本地任务（不涉及云端代理）。 |
+| `scholar-evaluation` | 对学术作品做定性优先、可溯源的成长性评审与低风险评分卡审计。 |
+| `scientific-brainstorming` | 科学创意发散：独立产出、结构化讨论、显式区分事实与假设。 |
+| `scientific-critical-thinking` | 评估科学主张与证据质量：实验设计有效性、偏倚、混杂与 GRADE 框架。 |
+| `scientific-schematics` | 用 Nano Banana 2 生成科学示意图草稿并迭代精修。 |
+| `scientific-slides` | 制作科研汇报与会议幻灯片（PowerPoint/演示文稿）。 |
+| `scientific-visualization` | 用 Matplotlib/Seaborn 等产出真实、无障碍、可出版的科研图表（含不确定度表达）。 |
+| `scientific-writing` | 撰写、修改与审查科学稿件或报告，标注证据出处与报告规范。 |
+| `scikit-bio` | 生物数据工具箱：序列分析、比对、系统发育树、多样性指标与生物文件 I/O。 |
+| `scikit-learn` | 经典机器学习：分类、回归、聚类、预处理与 Pipeline 搭建。 |
+| `scikit-survival` | 右删失与竞争风险生存分析：模型构建、评估与审计。 |
+| `scvelo` | RNA 速率分析：从 spliced/unspliced 计数拟合动力学模型并推断潜在时间。 |
+| `scvi-tools` | 单细胞组学概率模型：scVI 批次整合、scANVI 注释与 totalVI 等。 |
+| `seaborn` | 统计可视化：分布、关系、分类与热图（与 pandas 集成）。 |
+| `security-and-hardening` | 代码安全加固：审计输入处理、认证授权、OWASP 漏洞与依赖安全。 |
+| `seo-aeo-audit` | 搜索与 AI 引用优化：SEO/AEO、结构化数据、元信息与可被引用的写法。 |
+| `setup-matt-pocock-skills` | 为本仓库配置工程技能：接入 issue tracker、triage 标签词表与文档约定。 |
+| `setup-pre-commit` | 在当前仓库配置 Husky pre-commit（lint-staged、类型检查与测试）。 |
+| `setup-ts-deep-modules` | 在 TypeScript 仓库接入 dependency-cruiser，使每个包成为隐藏实现细节的深模块。 |
+| `shap` | 用 SHAP 解释与审计模型预测：选择 explainer/masker 与全局/局部归因。 |
+| `shipping-and-launch` | 生产上线准备：发布清单、灰度与回滚策略、上线前检查。 |
+| `show-me` | 用简洁图表、代码结构草图与要点帮用户理解当前话题。 |
+| `simpy` | 用 SimPy 构建、检视与分析有界离散事件仿真（进程、资源队列与中断）。 |
+| `slack-qa-investigate` | 只读调查并回答代码库问题（不修改任何文件），给出有依据的答案。 |
+| `smart-search` | 基于 opencli 的智能检索路由：按站点、社交、技术资料、新闻、购物、金融或中文内容选择最佳检索路径。 |
+| `software-engineering-laws-and-philosophy` | 用 56 条软件工程定律指导技术决策、架构设计、规划与团队管理。 |
+| `source-driven-development` | 让每个实现决策都落在官方文档上：动手前先查证官方说法而非凭记忆。 |
+| `spec-driven-development` | 编码前先写规格：新项目、新功能或重大改动且尚无规格时使用。 |
+| `stable-baselines3` | 用 Stable Baselines3 训练与评估单智能体强化学习（PPO/SAC/DQN/TD3/DDPG 等）。 |
+| `statistical-analysis` | 研究数据的统计分析指引：检验选择、假设检查、效应量与功效。 |
+| `statistical-power` | 研究规划阶段的样本量与统计功效计算（需要多少受试者才能检验出效应）。 |
+| `statsmodels` | 用 statsmodels 拟合与诊断统计模型：OLS、GLM、离散与混合模型、ARIMA/SARIMAX。 |
+| `stitch-design-taste` | 为 Google Stitch 生成 DESIGN.md：把高端 UI 标准写成代理可执行的语义设计系统。 |
+| `sympy` | 精确符号数学：代数、微积分、方程求解与符号线性代数。 |
+| `tamarind` | 使用 Tamarind 平台上的开源分子设计与结构生物学工具（AlphaFold/RFdiffusion/Boltz/ESMFold 等）。 |
+| `tdd` | 测试先行开发：用户要求 test-first 或提到红绿重构时使用。 |
+| `tellurium` | 用 Tellurium/libRoadRunner 从 SBML/Antimony 模拟生化动力模型并检查守恒。 |
+| `terraform-style-check` | 按 HashiCorp 官方风格约定编写与审查 Terraform HCL。 |
+| `think` | 把粗糙想法变成经确认、可决策的完整方案后再动手（架构、重构、交接与选型场景）。 |
+| `tiledbvcf` | 用 TileDB-VCF 存取基因组变异调用：样本级 VCF/BCF 摄取、区域查询与队列导出。 |
+| `timesfm-forecasting` | 用 Google TimesFM 做零样本时间序列预测（含 CSV 规整、分位数与协变量）。 |
+| `to-questionnaire` | 把"你无法独自拍板"的决策转成一份问卷，交给该拍板的人填写。 |
+| `to-spec` | 把当前对话整理成规格并发布到项目 issue tracker（不追问，直接成文）。 |
+| `to-tickets` | 把计划、规格或对话拆成一组"曳光弹"式工单，每张都声明其边界与验收。 |
+| `torch-geometric` | PyTorch Geometric 图神经网络：节点/边/图分类、消息传递与采样。 |
+| `torchdrug` | TorchDrug 0.2.1 分子图工作流：性质预测、自监督预训练与生成、逆合成。 |
+| `transformers` | Hugging Face Transformers：加载 Hub 模型、pipeline 推理、文本生成与 Trainer 微调。 |
+| `treatment-plans` | 在临床决策已完成后，对治疗方案文档做格式整理与结构化校验（不参与临床决策）。 |
+| `triage` | 让 issue 与外部 PR 走完 triage 状态机：分类、校验、必要时盘问后分派。 |
+| `troubleshooting` | 用 Chrome DevTools MCP 排查连接与目标（page/target）异常。 |
+| `ui` | 构建与改造生产级 UI：组件、排版、布局与视觉一致性（不含后端逻辑）。 |
+| `umap-learn` | 非线性降维与二维/三维可视化：UMAP、DensMAP、参数化 UMAP 与嵌入聚类。 |
+| `uncertainty-and-units` | 物理单位换算、GUM 不确定度传播、量纲检查与数量级合理性判断。 |
+| `user-chrome-tabs` | 操作用户真实 macOS Chrome 与其既有登录会话中的标签页。 |
+| `usfiscaldata` | 查询美国财政数据：国债、财政部报表、联邦支出与收入、证券。 |
+| `using-agent-skills` | 会话开始或需要判断该用哪个技能/流程时，给出技能加载与使用规范。 |
+| `vaex` | 处理超内存的 HDF5/Arrow/CSV/Parquet 数据集：表达式计算与统计。 |
+| `venue-templates` | 按目标会议的模板与格式要求排版论文、海报、基金与 LaTeX 稿件。 |
+| `vercel-cli-with-tokens` | 用令牌（非交互）方式部署与管理 Vercel 项目。 |
+| `vercel-composition-patterns` | 组件组合模式重构：消除布尔 props 泛滥，改进复合组件与可复用结构。 |
+| `vercel-optimize` | 降低 Vercel 账单并优化性能指标（含 Core Web Vitals）。 |
+| `vercel-react-best-practices` | React/Next.js 性能最佳实践：包体积、数据获取与渲染优化。 |
+| `vercel-react-native-skills` | React Native / Expo 移动端组件、动画与性能优化。 |
+| `vercel-react-view-transitions` | React/Next.js 页面转场与共享元素动画（ViewTransition）。 |
+| `wait-what` | 当某段解释没听懂时，请它换一种更直白的说法把同一件事讲清楚。 |
+| `wayfinder` | 在陌生代码库里定位"该改哪里"：以目标为导向的代码导航与入口发现。 |
+| `waypoint-bio` | 微生物组基础模型与基准：Waypoint 检查点、Compass 基准与丰度表分析。 |
+| `web-accessibility-audit` | 审计 WCAG 无障碍合规并给出修复建议与优先级。 |
+| `web-design-guidelines` | 界面评审：可访问性、设计一致性与 UX 问题清单。 |
+| `web-performance-audit` | 剖析并优化页面速度与 Lighthouse 分数（加载与渲染瓶颈定位）。 |
+| `webapp-testing` | 用 Playwright 测试本地 Web 应用：验证界面、截图与收集日志。 |
+| `what-if-oracle` | 用结构化"假如…会怎样"情景压测研究计划（不做概率预测）。 |
+| `wizard` | 需要人工操作（凭据、开通、割接）时的分步引导式 bash 流程。 |
+| `write` | 起草、编辑或本地化中英文文稿（不含代码注释）。 |
+| `write-plan` | 把需求写成分步实施计划（写计划、规格转任务、多文件改动前使用）。 |
+| `writing-beats` | 写作"节拍"：把内容拆成有推进感的段落与节拍再成文。 |
+| `writing-for-agents` | 面向代理写文档：技能、AGENTS.md/CLAUDE.md 与规则文件的写法与维护边界。 |
+| `writing-fragments` | 写作"碎片"：先积累片段与素材，再组装成完整文稿。 |
+| `writing-guidelines` | 审查文档与散文的写作规范（文风、结构、可读性）。 |
+| `writing-shape` | 写作"成形"：为素材确定整体结构与叙事形状。 |
+| `x402` | 用 Browser Use Cloud 的加密/USDC 钱包完成支付（无需 API Key 的方案）。 |
+| `zarr-python` | 分块 N 维科学数组的读写：Zarr 分片、压缩与云存储 I/O。 |
+
+[返回目录](#top)
+
+---
+<a id="s4"></a>
+## 4. opencode 配置技能（`~/.config/opencode/skills/`，63 个）
+
+> 11 个本地目录（含 `gstack` 包内子技能）+ 56 个指向 gstack 仓库的符号链接；链接目录名形如 `gstack-<name>`，技能名为 `<name>`。
+
+| 技能 | 说明 |
+| --- | --- |
+| `gstack` | gstack 技能套件的总入口：把任何 gstack 请求路由到正确的子技能（规划、评审、QA、发布…）。 |
+| `gstack-upgrade` | 升级 gstack 到最新版：识别全局安装还是仓库内置，执行升级并说明变更。 |
+| `ai-chat-browser` | 在 Gemini / Perplexity 网页版界面中自动化提问与检索（非 API 方式）。 |
+| `autoplan` | 自动跑完整计划评审：无需逐项确认，一次性拿到多视角评审结论。 |
+| `benchmark` | 网页性能、Core Web Vitals 与 Lighthouse 基准（不用于 AI 评测）。 |
+| `benchmark-models` | 比较 LLM 的延迟、成本与质量（不用于网页性能）。 |
+| `browse` | 驱动真实浏览器（Aside）：打开页面、阅读、走完流程、截图并检查控制台错误。 |
+| `canary` | 上线后监控：验证灰度发布、发现回归。 |
+| `careful` | 危险命令防护：在 rm -rf、DROP TABLE、force-push、reset --hard 等操作前告警。 |
+| `claude-code` | 调用 Claude Code 做代码评审、"claude review"、对抗式质询或征求第二意见。 |
+| `codex` | 调用 Codex 做代码评审、对抗式挑战、咨询或第二意见。 |
+| `context-save` | 保存当前工作上下文：Git 状态、已定决策与待办，供后续会话无缝接手。 |
+| `context-restore` | 恢复此前保存的上下文（优先当前分支），跨会话/工作区继续工作。 |
+| `cso` | 安全审计：静态发现为主，具备条件时补充复现与修复候选（OWASP、威胁建模、漏洞复核）。 |
+| `design-consultation` | 设计咨询：为新项目建立设计体系、品牌规范或 DESIGN.md。 |
+| `design-html` | 把定稿的设计或方案落成可交付的 HTML/CSS。 |
+| `design-review` | 视觉 QA 与设计打磨（不做事前的方案设计评审）。 |
+| `design-shotgun` | 设计发散：一次给出多个 UI 方向与变体供挑选。 |
+| `deslop-shared-libs` | 在近期改动中发现值得抽出的共享代码，并只推荐真正可共享的部分。 |
+| `devex-review` | 开发现场 DX 审计：上手测试与 TTHW（首个胜利耗时）测量。 |
+| `diagram` | 把流程、架构、状态机画成图并导出 SVG/Excalidraw。 |
+| `document-generate` | 为缺失文档补写教程、操作指南与模块说明。 |
+| `document-release` | 发布前审计并同步文档与代码差异。 |
+| `doko-research` | 多轮网页研究：交叉核对来源并产出结构化、带引用的报告。 |
+| `doko-search` | 用本地浏览器在 Google/Bing/DuckDuckGo 上免费检索。 |
+| `doko-summarize` | 通过真实浏览器抓取并总结网页要点。 |
+| `doko-translate` | 整页翻译并尽量保留结构、格式、表格与代码块。 |
+| `dokobot` | 读取 JS 渲染的动态页面与 SPA 内容。 |
+| `freeze` | 冻结编辑范围：把本会话的写入限制在指定目录内，防止顺手改无关代码。 |
+| `guard` | 全面安全模式：危险命令告警 + 目录级编辑限制（careful + freeze 的合体）。 |
+| `investigate` | 系统化调试（四阶段）：调查 → 分析 → 假设 → 实施，先根因后修复。 |
+| `ios-clean` | 从 iOS 工程移除 DebugBridge SPM 包与所有 #if DEBUG 调试接线。 |
+| `ios-design-review` | 在真机上做 iOS 视觉设计审计（经 StateServer 连接真实 iPhone）。 |
+| `ios-fix` | 自主修复 iOS bug：读源码、改代码、重编译、重部署并验证（配合 /ios-qa 结果）。 |
+| `ios-qa` | 真机 iOS QA（SwiftUI）：经 USB CoreDevice 隧道连接 iPhone/iPad，读取状态并找 bug。 |
+| `ios-sync` | 按上游模板重新生成 iOS 调试桥（StateServer.swift 等访问器）。 |
+| `land-and-deploy` | 落地并部署：合并 PR、等 CI 与部署完成，再用 canary 检查验证生产健康。 |
+| `landing-report` | 只读的队列看板：显示当前有哪些版本槽位被打开的 PR 占用。 |
+| `make-pdf` | 把 Markdown 转成出版级 PDF（1 英寸页边距、智能分页与页码）。 |
+| `notion-mcp` | 经 MCP 操作 Notion：创建、检索、更新页面、数据库与视图。 |
+| `office-hours` | YC Office Hours 式提问：创业模式六问逼出真实需求；或对想法做可行性盘问。 |
+| `open-gstack-browser` | 启动 GStack Browser：内置侧栏扩展的 AI 可控 Chromium。 |
+| `pair-agent` | 把远程 AI 代理与你的浏览器配对：一条命令生成配对密钥并给出对方要执行的说明。 |
+| `plan-ceo-review` | 以 CEO/创始人视角评审计划：重述问题、找 10 分产品、挑战前提并扩展范围。 |
+| `plan-design-review` | 以设计师视角评审计划：逐维度 0–10 打分并说明理由。 |
+| `plan-devex-review` | 交互式开发者体验计划评审：开发者画像、竞品对标与 DX 设计。 |
+| `plan-eng-review` | 以工程经理视角锁定执行计划：架构、数据流、图示、边界与测试。 |
+| `plan-tune` | 调整提问敏感度与开发者画像（gstack 的观察式自调优）。 |
+| `qa-only` | 只报告不修复：产出浏览器/API/CLI/任务/worker/webhook 的结构化 bug 报告。 |
+| `reverse-engineering` | 逆向 macOS 二进制与私有 API：stripped Mach-O、arm64e、系统进程（Ghidra/LLDB）。 |
+| `review` | 上库前 PR 评审：对照基线分支检查 SQL 安全、LLM 信任边界与回归风险。 |
+| `scrape` | 用已登录的真实浏览器会话抓取页面数据（只读）。 |
+| `setup-browser-cookies` | 把真实 Chromium 的 cookie 导入无头浏览会话，并做登录校验。 |
+| `setup-deploy` | 为 /land-and-deploy 配置部署平台与参数（Fly.io、Render、Vercel 等）。 |
+| `setup-gbrain` | 安装并初始化 gbrain（本地 PGLite 或 Supabase），并注册到当前编码代理。 |
+| `ship` | 发布工作流：合并基线分支、跑测试、评审 diff、升版本、更新 CHANGELOG 并提交。 |
+| `sisyphus-execution-rules` | 会话开始强制加载：代理分工、实时更新、Git 限制与资源管理规则。 |
+| `skillify` | 把最近一次成功的 /scrape 流程固化成磁盘上的常驻 browser-skill，供后续直接调用。 |
+| `spec` | 五阶段把模糊意图写成精确可执行的规格，并落到 issue tracker。 |
+| `sync-gbrain` | 让 gbrain 与仓库代码保持同步，并刷新 CLAUDE.md 里的检索指引。 |
+| `test-audit` | 找出低价值或重复的测试及其维系的"仅供测试"代码；默认只报告，批量删除需你确认。 |
+| `test-auth-bootstrap` | 在开发/测试环境自动取得可用凭据（或完整账号），使端到端验证不被登录/验证码卡住。 |
+| `unfreeze` | 解除 freeze 的目录编辑限制，恢复全目录写入。 |
 
 ---
 
+[返回目录](#top)
+
+---
+
+<a id="s5"></a>
 ## 5. 跨源同名（已去重，按来源优先级解析）
 
-| 技能名 | 出现在 | 说明 |
+| 技能名 | 出现在 | 处理 |
 | --- | --- | --- |
-| `health` | 用户级技能、opencode 配置 | 同名不同文件；优先级：项目 > 内置 > 用户级 > opencode |
-| `learn` | 用户级技能、opencode 配置 | 同名不同文件；优先级：项目 > 内置 > 用户级 > opencode |
-| `qa` | 用户级技能、opencode 配置 | 同名不同文件；优先级：项目 > 内置 > 用户级 > opencode |
-| `retro` | 用户级技能、opencode 配置 | 同名不同文件；优先级：项目 > 内置 > 用户级 > opencode |
-| `teach` | 内置 omp、用户级技能 | 同名不同文件；优先级：项目 > 内置 > 用户级 > opencode |
-| `test-driven-development` | 内置 superpowers、用户级技能 | 同名不同文件；优先级：项目 > 内置 > 用户级 > opencode |
+| `teach` | 内置 omp、用户级 | 以 **内置 omp** 为准（随工具安装） |
+| `test-driven-development` | 内置 superpowers、用户级 | 以 **内置 superpowers** 为准 |
+| `health` | 用户级、opencode | 以**用户级**为准（`~/.agents/skills/health`） |
+| `learn` | 用户级、opencode | 以**用户级**为准 |
+| `qa` | 用户级、opencode | 以**用户级**为准 |
+| `retro` | 用户级、opencode | 以**用户级**为准 |
 
-同一来源内同名不同目录：`browser-harness`（browser-harness, browser_harness）、`office-hours`（gstack-office-hours, office-hours）、`plan-design-review`（gstack-plan-design-review, plan-design-review）
+> 优先级：项目 > 内置 > 用户级 > opencode。另有同源同名不同目录（`browser-harness` 对应 `browser-harness` 与 `browser_harness`；`gstack/plan-design-review` 与 `gstack-plan-design-review` 等）已合并为一行。
 
 ---
 
-## 6. 家族速查（按名称前缀，机器可核对）
+[返回目录](#top)
+
+---
+
+<a id="s6"></a>
+## 6. 家族速查
 
 | 前缀 / 族 | 数量 | 说明 |
 | --- | --- | --- |
-| `cli-anything-` | 70 | 为各类 GUI 应用封装的 CLI 技能 |
-| `nature-` | 14 | 学术写作与投稿全流程（Nature 系列） |
-| `doko-` | 4 | 浏览器检索 / 摘要 / 翻译（doko 系列） |
-| `gstack-*`（目录名） | 56 | 符号链接；技能名不带前缀（如 `cso`、`browse`），见 §4 |
+| `cli-anything-*` | 69 | 为各类 GUI 应用封装的命令行驱动（详见 §3 对应条目） |
+| `nature-*` | 14 | 学术写作与投稿全流程（检索、引用、配图、润色、审稿回复、专利、PPT） |
+| `doko-*` | 4 | 浏览器检索 / 摘要 / 翻译 / 多轮研究 |
+| `gstack-*`（目录名） | 56 | 符号链接指向外部 gstack 仓库；技能名不带前缀，见 §4 |
+| `plan-*-review` | 4 | 计划的多视角评审（CEO / 设计 / DX / 工程） |
+| `ios-*` | 5 | 真机 iOS 的 QA、修 bug、设计审计与调试桥同步 |
+| `vercel-*` | 6 | Vercel 部署与 React/Next.js 性能与组织规范 |
 
 ---
 
-## 7. 本次校正记录
+[返回目录](#top)
 
-- 上一版（2026-08-25，自称 464 个）按目录名收录，与技能实际名称不一致：目录 `gstack-cso` 的技能名是 `cso`。本次改为以 frontmatter `name:` 为准。
-- 上一版提及的名字中，114 个在本机已不存在（如 `arkcli-*`、`ast-grep`、`docx`、`browser`、`clean`、`git-master` 等），已全部移除；140 个名称新增或变形已按实际收录。
-- 数字口径（四源逐一枚举，非估算）：项目 4 / 内置 2+15 / 用户级 416 / opencode 70（含 56 符号链接）= 507 个 SKILL.md → 去重 496 个唯一技能；全部技能均有 frontmatter `description`，本表『何时使用』直接取自该字段。
+---
+
+<a id="s7"></a>
+## 7. 校正记录（本次重写）
+
+- **名称口径**：以技能 `SKILL.md` 的 frontmatter `name:` 为准。上一版按目录名收录，导致 `gstack-cso` 记成 `cso` 之外的名字、`browser_harness` 记成目录名等错位；本版修正，并在名字与目录不同时标注目录。
+- **删除**：上一版提及的名字中 **114 个在本机已不存在**（如 `arkcli-*`、`ast-grep`、`docx`、`browser`、`clean`、`git-master` 等），已全部移除；**140 个新增/变形**已按实际收录。
+- **去重**：合并 `browser-harness`（3 行 → 1 行）与 `gstack` 包内同名子技能（`plan-design-review`、`office-hours`、`gstack-upgrade`）；跨源同名的 6 组改记于 §5，正文只出现一次。
+- **语言**：说明改由维护者用**简体中文重写**（此前为机器翻译腔的直译），技能名/命令/路径/产品名保持原文；每条 ≤40 字，讲清"做什么 + 何时用"。
+- **口径（可复核）**：项目 4 · 内置 omp 2 · 内置 superpowers 15 · 用户级 416 个 SKILL.md（去重后 412）· opencode 70 个 SKILL.md（去重后 63）= 507 个 SKILL.md → **496 个唯一技能**。
+
+[返回目录](#top)
 
