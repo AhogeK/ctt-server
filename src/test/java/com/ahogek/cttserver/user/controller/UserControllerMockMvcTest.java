@@ -11,6 +11,7 @@ import com.ahogek.cttserver.user.dto.UserProfileResponse;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.service.AccountDeletionService;
 import com.ahogek.cttserver.user.service.UserProfileService;
+import com.ahogek.cttserver.user.service.UserService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,6 +62,7 @@ class UserControllerMockMvcTest {
     @Autowired private MockMvcTester mvc;
 
     @MockitoBean private UserProfileService userProfileService;
+    @MockitoBean private UserService userService;
     @MockitoBean private AccountDeletionService accountDeletionService;
     @MockitoBean private LeaderboardService leaderboardService;
     @MockitoBean private CurrentUserProvider currentUserProvider;
@@ -285,6 +287,75 @@ class UserControllerMockMvcTest {
                                     .uri("/api/v1/users/me")
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content("{\"password\":\"StrongPass123!\"}")
+                                    .with(csrf())
+                                    .exchange())
+                    .hasStatus(401);
+        }
+    }
+
+    @Nested
+    @DisplayName("PATCH /api/v1/users/me")
+    class UpdateCurrentUserProfileTests {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should return 200 with the updated profile and delegate the new name")
+        void shouldReturn200_withUpdatedProfile_whenNameValid() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.given(userProfileService.getCurrentUserProfile(USER_ID))
+                    .willReturn(fullProfile());
+
+            var result =
+                    mvc.patch()
+                            .uri("/api/v1/users/me")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"displayName\":\"NewName\"}")
+                            .with(csrf())
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.displayName")
+                    .isEqualTo("Test User");
+            then(userService).should().updateDisplayName(USER_ID, "NewName");
+            then(userProfileService).should().getCurrentUserProfile(USER_ID);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should write the name before reading back the profile it returns")
+        void shouldWriteBeforeReadingBack() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired())
+                    .willReturn(currentUser());
+            BDDMockito.given(userProfileService.getCurrentUserProfile(USER_ID))
+                    .willReturn(fullProfile());
+
+            mvc.patch()
+                    .uri("/api/v1/users/me")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"displayName\":\"NewName\"}")
+                    .with(csrf())
+                    .exchange();
+
+            // The response must reflect the new name, so the write has to land first.
+            inOrder(userService, userProfileService)
+                    .verify(userService)
+                    .updateDisplayName(USER_ID, "NewName");
+            inOrder(userService, userProfileService)
+                    .verify(userProfileService)
+                    .getCurrentUserProfile(USER_ID);
+        }
+
+        @Test
+        @DisplayName("Should return 401 when unauthenticated")
+        void shouldReturn401_whenNoAuthentication() {
+            assertThat(
+                            mvc.patch()
+                                    .uri("/api/v1/users/me")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content("{\"displayName\":\"NewName\"}")
                                     .with(csrf())
                                     .exchange())
                     .hasStatus(401);

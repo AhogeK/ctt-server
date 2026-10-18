@@ -290,7 +290,17 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 | Endpoint                | Method | Description                                                                                                              |
 |-------------------------|--------|--------------------------------------------------------------------------------------------------------------------------|
 | `/api/v1/users/me`      | GET    | Get current authenticated user's profile (JWT or API key) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
+| `/api/v1/users/me`      | PATCH  | Change the display name (JWT or a WRITE-scoped API key) and return the updated profile - see below                          |
 | `/api/v1/users/me`      | DELETE | Delete the current user's account permanently (requires JWT, CSRF token) - see below                                      |
+
+**Display name update** (`PATCH /api/v1/users/me`): body `{"displayName": "..."}`, validated with
+the same rule as registration (2-50 characters: Chinese, Japanese, Korean, Latin letters, digits,
+underscores, hyphens). The response is the same profile shape `GET /users/me` returns. Submitting
+the name the account already has is a successful no-op — nothing is written and no audit event is
+recorded — and a real change emits one `PROFILE_UPDATED` audit event carrying the old and new
+values. Display names are not unique: they are a label, never an identifier. Rate limited to
+10 changes/hour per user. Errors: `400 COMMON_003` (rule violation), `403 AUTH_020` (API key
+without WRITE scope), `403 AUTH_022` (account not active).
 
 **Account deletion** (`DELETE /api/v1/users/me`): permanent and irreversible, confirmed with the
 account password in the request body (`{"password": "..."}`). Requires a signed-in session — an API
@@ -313,7 +323,9 @@ Clients should treat this as losing the server copy: the plugin's local database
 truth for the user's history, and a new registration re-pushes it.
 
 Errors: `401` wrong password (`USER_014`) or missing/invalid JWT, `403` no password supplied for an
-account that has one (`USER_013`), or called with an API key (`AUTH_025`).
+account that has one (`USER_013`), or called with an API key (`AUTH_025`), `429 RATE_LIMIT_001` after
+5 attempts within an hour. The limit exists because confirming the password is a bcrypt verification:
+an unthrottled caller burns CPU rather than merely guessing.
 
 **Response Fields**:
 - `id` (UUID)

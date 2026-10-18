@@ -2,6 +2,8 @@ package com.ahogek.cttserver.user.service;
 
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -164,5 +167,48 @@ public class UserService {
                 user.getId().toString());
 
         return response;
+    }
+
+    /**
+     * Changes the user's display name.
+     *
+     * <p>Submitting the name the account already has is a successful no-op — nothing is written and
+     * no audit event is recorded — so the trail holds only real changes. The name is validated
+     * against the shared {@code REGEX_DISPLAY_NAME} at the request boundary; this method owns
+     * persistence and the audit record.
+     *
+     * @param userId the account whose display name changes
+     * @param displayName the validated new display name
+     * @throws NotFoundException if no user exists with the given ID
+     */
+    @Transactional
+    public void updateDisplayName(UUID userId, String displayName) {
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(() -> new NotFoundException(ErrorCode.USER_004));
+
+        String previous = user.getDisplayName();
+        if (displayName.equals(previous)) {
+            return;
+        }
+
+        user.setDisplayName(displayName);
+        userRepository.save(user);
+
+        auditLogService.log(
+                user.getId(),
+                AuditAction.PROFILE_UPDATED,
+                ResourceType.USER,
+                user.getId().toString(),
+                SecuritySeverity.INFO,
+                AuditDetails.extension(
+                        Map.of(
+                                "field",
+                                "displayName",
+                                "oldValue",
+                                String.valueOf(previous),
+                                "newValue",
+                                displayName)));
     }
 }

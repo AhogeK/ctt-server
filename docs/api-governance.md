@@ -48,6 +48,8 @@ Endpoints that change credentials, identity, or the account itself: they require
 refreshed during a lockout, suspension, or deletion) cannot use them.
 
 *   **Examples**:
+    *   `PATCH /api/v1/users/me` (Display-name change — a WRITE-scoped API key may call it; JWT users
+        pass the scope check by definition)
     *   `DELETE /api/v1/users/me` (Account deletion — additionally requires a web session, `AUTH_025`)
     *   `POST /api/v1/users/me/password/set`, `POST /api/v1/users/me/password/change`
     *   `POST /api/v1/users/me/email/change-request`, `POST /api/v1/users/me/email/resend-verification`

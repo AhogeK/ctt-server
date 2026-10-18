@@ -1,23 +1,30 @@
 package com.ahogek.cttserver.user.controller;
 
 import com.ahogek.cttserver.auth.CurrentUserProvider;
+import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
+import com.ahogek.cttserver.auth.apikey.security.RequiresApiKeyScope;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
+import com.ahogek.cttserver.common.ratelimit.RateLimit;
+import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 import com.ahogek.cttserver.user.dto.DeleteAccountRequest;
+import com.ahogek.cttserver.user.dto.UpdateProfileRequest;
 import com.ahogek.cttserver.user.dto.UserProfileResponse;
 import com.ahogek.cttserver.user.service.AccountDeletionService;
 import com.ahogek.cttserver.user.service.UserProfileService;
+import com.ahogek.cttserver.user.service.UserService;
 
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,16 +55,19 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class UserController {
 
     private final UserProfileService userProfileService;
+    private final UserService userService;
     private final AccountDeletionService accountDeletionService;
     private final LeaderboardService leaderboardService;
     private final CurrentUserProvider currentUserProvider;
 
     public UserController(
             UserProfileService userProfileService,
+            UserService userService,
             AccountDeletionService accountDeletionService,
             LeaderboardService leaderboardService,
             CurrentUserProvider currentUserProvider) {
         this.userProfileService = userProfileService;
+        this.userService = userService;
         this.accountDeletionService = accountDeletionService;
         this.leaderboardService = leaderboardService;
         this.currentUserProvider = currentUserProvider;
@@ -91,8 +101,8 @@ public class UserController {
                                                         value =
                                                                 """
                                                                 {
-                                                                  "code": "AUTH_001",
-                                                                  "message": "Authentication required",
+                                                                  "code": "AUTH_003",
+                                                                  "message": "Token invalid",
                                                                   "details": [],
                                                                   "traceId": "abc-123",
                                                                   "httpStatus": 401,
@@ -106,6 +116,140 @@ public class UserController {
         UUID userId = currentUserProvider.getCurrentUserRequired().id();
         UserProfileResponse profile = userProfileService.getCurrentUserProfile(userId);
         return ResponseEntity.ok(RestApiResponse.ok(profile));
+    }
+
+    @Operation(
+            summary = "Update the current user's profile",
+            description =
+                    """
+                    Changes the display name of the authenticated account and returns the updated \
+                    profile. The name follows the registration rule (2-50 characters; Chinese, \
+                    Japanese, Korean, Latin letters, digits, underscores and hyphens). Submitting \
+                    the name the account already has is a successful no-op: nothing is written and \
+                    no audit event is recorded. Display names are not unique — they are a label, \
+                    not an identifier.
+                    """)
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Profile updated, current profile returned",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "Display name violates the shared rule - COMMON_003",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "invalidDisplayName",
+                                                        summary =
+                                                                "Display name is not 2-50 valid characters",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "Validation error",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-10-18T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid credentials",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid credentials",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_003",
+                                                                  "message": "Token invalid",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-10-18T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description =
+                                "Account not active - AUTH_022, or an API key without WRITE scope - AUTH_020",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples = {
+                                            @ExampleObject(
+                                                    name = "accountNotActive",
+                                                    summary = "Account is not in the active state",
+                                                    value =
+                                                            """
+                                                            {
+                                                              "code": "AUTH_022",
+                                                              "message": "Account deactivated",
+                                                              "details": [],
+                                                              "traceId": "abc-123",
+                                                              "httpStatus": 403,
+                                                              "timestamp": "2026-10-18T10:00:00Z"
+                                                            }
+                                                            """),
+                                            @ExampleObject(
+                                                    name = "missingScope",
+                                                    summary = "API key lacks WRITE scope",
+                                                    value =
+                                                            """
+                                                            {
+                                                              "code": "AUTH_020",
+                                                              "message": "API key missing required scope",
+                                                              "details": [],
+                                                              "traceId": "abc-123",
+                                                              "httpStatus": 403,
+                                                              "timestamp": "2026-10-18T10:00:00Z"
+                                                            }
+                                                            """)
+                                        })),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "Rate limit exceeded - RATE_LIMIT_001",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rateLimited",
+                                                        summary = "More than 10 changes in an hour",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "RATE_LIMIT_001",
+                                                                  "message": "Too many requests",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 429,
+                                                                  "timestamp": "2026-10-18T10:00:00Z"
+                                                                }
+                                                                """)))
+            })
+    @SecurityRequirement(name = "bearerAuth")
+    @RequiresApiKeyScope(ApiKeyScope.WRITE)
+    @RateLimit(type = RateLimitType.USER, limit = 10, windowSeconds = 3600)
+    @PatchMapping("/me")
+    public ResponseEntity<RestApiResponse<UserProfileResponse>> updateCurrentUserProfile(
+            @Valid @RequestBody UpdateProfileRequest request) {
+        CurrentUser currentUser = currentUserProvider.getActiveUserRequired();
+        userService.updateDisplayName(currentUser.id(), request.displayName());
+        // Read the projection from its single source after the write, so the profile a client uses
+        // to sync local state always matches what was persisted.
+        return ResponseEntity.ok(
+                RestApiResponse.ok(userProfileService.getCurrentUserProfile(currentUser.id())));
     }
 
     @Operation(
@@ -134,21 +278,36 @@ public class UserController {
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
-                                        examples =
-                                                @ExampleObject(
-                                                        name = "invalidPassword",
-                                                        summary = "Supplied password is incorrect",
-                                                        value =
-                                                                """
-                                                                {
-                                                                  "code": "USER_014",
-                                                                  "message": "Invalid password",
-                                                                  "details": [],
-                                                                  "traceId": "abc-123",
-                                                                  "httpStatus": 401,
-                                                                  "timestamp": "2026-09-17T10:00:00Z"
-                                                                }
-                                                                """))),
+                                        examples = {
+                                            @ExampleObject(
+                                                    name = "invalidPassword",
+                                                    summary = "Supplied password is incorrect",
+                                                    value =
+                                                            """
+                                                            {
+                                                              "code": "USER_014",
+                                                              "message": "Invalid password",
+                                                              "details": [],
+                                                              "traceId": "abc-123",
+                                                              "httpStatus": 401,
+                                                              "timestamp": "2026-09-17T10:00:00Z"
+                                                            }
+                                                            """),
+                                            @ExampleObject(
+                                                    name = "invalidToken",
+                                                    summary = "Missing or invalid JWT",
+                                                    value =
+                                                            """
+                                                            {
+                                                              "code": "AUTH_003",
+                                                              "message": "Token invalid",
+                                                              "details": [],
+                                                              "traceId": "abc-123",
+                                                              "httpStatus": 401,
+                                                              "timestamp": "2026-09-17T10:00:00Z"
+                                                            }
+                                                            """)
+                                        })),
                 @ApiResponse(
                         responseCode = "403",
                         description = "Password not supplied, or the caller used an API key",
@@ -188,6 +347,9 @@ public class UserController {
                                         }))
             })
     @SecurityRequirement(name = "bearerAuth")
+    // Password verification is bcrypt (strength 12) — a deliberate CPU cost per request. Without a
+    // limit, a stolen session or a looping client turns this endpoint into CPU exhaustion.
+    @RateLimit(type = RateLimitType.USER, limit = 5, windowSeconds = 3600)
     @DeleteMapping("/me")
     public ResponseEntity<RestApiResponse<EmptyResponse>> deleteCurrentUser(
             @Valid @RequestBody DeleteAccountRequest request) {
