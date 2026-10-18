@@ -1834,15 +1834,27 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 | 不做 PUT 全量替换 | ✅ 已定 | 可写字段目前只有一个；PATCH 单字段语义更窄，未来加字段（如 locale）可平滑扩展 |
 | 未知字段沿用全局策略（忽略） | ✅ 已定 | 前端滚动升级期间更宽容，不额外收紧 |
 
-**交付物：** `UpdateProfileRequest`（新）/ `UserProfileService.updateDisplayName`（新方法，现有类是 Javadoc 声明的只读服务，需在类注释里同步其边界）/ `UserController` 新路由 / `AuditAction.PROFILE_UPDATED` / `UserProfileUpdateIntegrationTest`
+**交付物：** `UpdateProfileRequest`（新）/ **`UserService.updateDisplayName`（新方法）**——实施时的 ruling：写方法落在 `UserService`（"校验 + 持久化 + 审计 + 事务"的应用服务），**不改** `UserProfileService` 的只读保证（其类注释明文声明只读）/ `UserController` 新路由 / `AuditAction.PROFILE_UPDATED` / `UserProfileIntegrationTest` 扩用例
 
-**验收：**
+**实现状态：** ✅ 已交付 v0.80.0（代码 + 测试 + 文档）——**11 个用例**：3 服务 + 3 控制器切片 + 4 集成（真实 HTTP + 真实库）+ 1 限流加固；全量 1514 / 0 失败。
 
-- [ ] 改名后 `GET /users/me` 返回新名（同一请求的响应体也已是新名）
-- [ ] 非法值（1 字符 / 51 字符 / emoji / 空格开头）→ `400 COMMON_003`，库内不变
-- [ ] 提交同名 → 200 且 `audit_logs` 无新记录
-- [ ] 非激活账号（令牌签发时已非 ACTIVE）→ `403 AUTH_022`
-- [ ] 第 11 次/小时 → `429 RATE_LIMIT_001`
+**完成总结：** 按计划交付，**偏离初稿仅一处**——写方法落 `UserService` 而非 `UserProfileService`（理由见交付物行：后者的只读保证是写在类注释里的约束，不该为省一个方法而削弱）。计划预设的三条全部成立：零新增错误码、复用注册的校验常量、审计无需迁移（后者是先核实 `audit_logs.action` 无 CHECK 约束才确认的，不是假设）。实施期间另外发现并修掉两个既有问题（见下"顺带修复"），并把"给新路由配限流时逐条检查邻居路由"沉淀成领域实践。**明确未做**：不给 `GET /me` 加限流（理由见下）；两条未覆盖边界写成结论而非默认略过。R2 可直接沿用本项留下的三样东西：`@RequiresApiKeyScope` 的用法、`getActiveUserRequired()` 的接线方式、以及"限流是控制器属性"这条检查习惯。
+
+**验收（实测）：**
+
+- [x] 改名后 `GET /users/me` 返回新名（同一次请求的响应体也已是新名）——集成用例
+- [x] 非法值 → `400 COMMON_003` 且库内不变（用例取 1 字符；51 字符 / emoji / 空格同属该正则，走同一条拒绝路径）
+- [x] 提交同名 → 200 且 `audit_logs` 无新记录——集成用例
+- [x] 真实变更 → 一条 `PROFILE_UPDATED`，`details` 含字段名与新旧值——集成用例断言 JSONB 原文
+- [x] READ 权限 API key 调用 → `403 AUTH_020`——集成用例
+- [ ] 非激活账号（令牌签发时已非 ACTIVE）→ `403 AUTH_022`：该 gate 本身由 `ActiveAccountGateIntegrationTest` 逐状态覆盖，本路由复用它；组合场景未单独建例（与 `DELETE /me` 现状一致）
+- [ ] 第 11 次/小时 → `429 RATE_LIMIT_001`：测试默认关闭限流（既有约定），本路由未单独建例——**同机制已由 `DELETE /me` 的 429 用例证明可用**（见下）
+
+**R1 期间顺带修复的既有缺口（非本次引入，按"发现就解决"处理）：**
+
+- `DELETE /api/v1/users/me` **无限流** → 加 `@RateLimit(USER, 5, 3600)`：该端点每次请求都跑 bcrypt（strength 12）校验密码，无限流即 CPU 耗尽风险（DoS 面），与其它凭据端点不一致已一年。TDD 固化：新集成测试 `AccountDeletionRateLimitIntegrationTest`（第 6 次/小时 → `429 RATE_LIMIT_001`；RED 与 GREEN 各实跑一次）
+- `GET /api/v1/users/me` **判定为不加限流**：前端 AppHeader 每次渲染都会调用（其对接文档明示），实现零 bcrypt、一次主键查 —— 加了会破坏已确认的用法，收益不成比例
+- `memory-bank/domains/api-contract/references.md` 的错误码计数漂移（AUTH 写 24、实测 25）已修正，核对基线刷到 v0.80.0；经验沉淀进 `api-contract/practices.md`「限流是控制器属性」
 
 #### R2：登录会话列表与吊销
 

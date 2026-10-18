@@ -114,13 +114,14 @@ export function useCurrentUser() {
 - **不要在前端过滤 401**：401 是触发重新登录的明确信号，应统一处理（与现有 AuthContext 集成）
 - **敏感字段已脱敏**：后端已自动排除 `passwordHash`、`lastLoginIp`、`version` 等敏感字段，前端无需处理
 
-## 规划中的端点（阶段六「个人设置」，**尚未实现**）
+## 个人设置（阶段六）端点
 
-> 来源与完整设计见仓库 `.plans/ctt-server-development-plan.md` 的「👤 个人设置（账号自助与数据可携带）」。以下端点当前**不存在**，上线后本节替换为正式契约。
+**已实现（v0.80.0）**：`PATCH /api/v1/users/me` —— 修改显示名，请求体 `{"displayName": "..."}`（校验同注册：2–50，中日韩 / 拉丁 / 数字 / `_` / `-`），返回最新 `UserProfileResponse`。同名提交 = 成功且不写库不审计；`USER` 10 次/小时；JWT 或带 **WRITE** scope 的 API key。错误码零新增（`400 COMMON_003` / `403 AUTH_020` / `403 AUTH_022`）。
+
+**规划中（尚未实现）**：登录会话列表与吊销、数据导出。设计见仓库 `.plans/ctt-server-development-plan.md` 的「👤 个人设置（账号自助与数据可携带）」。
 
 | 方法 | 路径 | 用途 | 关键约束 |
 |---|---|---|---|
-| `PATCH` | `/api/v1/users/me` | 修改显示名，返回最新 `UserProfileResponse` | 请求体 `{"displayName": "..."}`；校验同注册（2–50；中日韩 / 拉丁 / 数字 / `_` / `-`）；显示名**不唯一**；限流 `USER` 10/小时 |
 | `GET` | `/api/v1/users/me/sessions` | 登录会话列表（含 `current` 标记） | `limit` 默认 20 / 上限 100；`current` 由后端判定——**前端不要传 refresh token 来比对**；每行另含 `userAgent`（原文、可空，供你们派生 "Chrome · macOS" 之类的显示名） |
 | `DELETE` | `/api/v1/users/me/sessions/{id}` | 吊销单个登录会话 | 成功 `204`；非本人或不存在 `404 COMMON_002`；允许删当前会话（等价登出） |
 | `GET` | `/api/v1/users/me/export` | 导出全部个人数据 | 响应 `application/x-ndjson` 流式；请逐行解析或直接落盘，勿对整段响应 `JSON.parse` |
