@@ -1,5 +1,22 @@
 # Active Context
 
+- [2026-10-18] - 阶段六《个人设置》后端计划（R1–R3，**未实施**）
+    - 触发: ctt-web 阶段六定稿（改显示名 / 登录会话列表与吊销 / 数据导出），要求逐条确认或反提案 + 排期回传
+    - **事实核实（只读全仓）**: 三项**全部不存在**（`@PatchMapping` / `/sessions` / `/export` 各 0 命中）；可复用底座齐备（`REGEX_DISPLAY_NAME`、`UserProfileResponse`、`AuditAction`/`ResourceType`、`@RateLimit`、`@RequiresApiKeyScope`）；**零新增错误码**
+    - **R1 裁决（接受）**: `PATCH /api/v1/users/me`；**不引入显示名唯一性**（列无唯一约束，且本产品无按显示名查找/登录路径，昵称非身份标识）；同名提交=幂等成功（不写库不审计）；`getActiveUserRequired` + `@RequiresApiKeyScope(WRITE)` + `USER 10/3600` + 新审计 `PROFILE_UPDATED`
+    - **R2 裁决（接受 + 反提案）**: 必须新增 `session_id`（独立迁移；轮换携带 ⇒ 一次登录 = 一条会话链）+ access token 增 `sid` claim（`CurrentUser` 加可空 `sessionId`）——否则"会话"在数据层不存在（轮换 = 旧行 revoked + 新行 INSERT），`current` 也无可判定（JWT 无会话标识）
+    - **R3 裁决（接受 + 反提案）**: `GET /users/me/export` 用 **NDJSON 流式**（`StreamingResponseBody` + 项目注入的 `ObjectMapper`；编码会话按 1000 行分页读取，不整表装配）；范围含编码会话本体与每日物化统计；绝不含密码/密钥/令牌/IP；审计 `DATA_EXPORTED`
+    - **顺带发现的真实缺陷（R2 前置修复）**: `TokenRefreshService` 轮换时硬编码 `issued_for = "WEB"` 且恒用 `refreshTokenTtlWeb()`（30d）——`refreshTokenTtlPlugin`（14d）**从未被使用** ⇒ 插件会话每刷新一次即被降级并续成 30 天
+    - **计划文件自身的记录漂移（按 R4 校正）**: OAuth 段 N 的错误码清单语义整体错位（AUTH_013–018 与现码不符 ✗）；P 段的枚举名 `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL` 不存在（实为 `AUTH_018`）→ 两处已改 + 附校正表
+    - 计划落地: `.plans/ctt-server-development-plan.md` 新增「👤 个人设置（账号自助与数据可携带）」节（事实基线 / 裁决摘要 / 三个子项含契约·决策台账·交付物·验收 / 排期与升级条件 / 反向要求 / 明确不做 / 校正记录）+ 3 张 plantuml 图；顺带把原有 `dot` 模块依赖图换成 plantuml（docu.md 渲染管线不认 dot ✗）
+    - 渲染验证: `npx @markdown-viewer/documd …--assets` → **7 diagrams / 0 失败**（退出码 0），并肉眼复核类图与活动图
+    - 状态: 计划定稿；**未动任何代码**（`.plans/` + `dev-docs/` 文档改动，未提交）
+    - **前端答复（2026-10-18）**: 无契约冲突、顺序无需重排、8 字段够用；**另提一条可选增强并已采纳** —— 会话列表增可空 `userAgent`（原文存储、服务端不解析、写入截断 512 字符、轮换沿用旧值），供前端派生 "Chrome · macOS" 类显示名。回源核实: 刷新与重置密码路径早已从请求头取 UA，**登录路径没有**（`UserLoginService.login(LoginRequest)` 单参 ✗）→ R2 一并补；`RequestInfo` record 已带 `userAgent` 可直接复用。同一迁移脚本加列 ⇒ 排期不变；R3 导出相应增加 `loginSession` 行类型（不含令牌哈希）
+    - 已同步更新: 计划 R2（迁移 / 取法 / 读取 / 验收）+ R3 行类型、`dev-docs` 对接文档、前端报告（文首同步清单 6 → 7 条 + 第七节改为"你们已答复"记录）
+    - **补充同步（同日复核后）**: 会话列表**排序 = `lastUsedAt` 倒序**、API key 调用时 `current` 恒为 false；**"踢会话"与"正在刷新"并发**的洞（刷新插入的新行躲过批量吊销 ⇒ 会话诈尸 ✗）→ 刷新与吊销都先按 `session_id` 取 `pg_advisory_xact_lock` 串行化（该竞态在既有 `logout` 上同样存在，一并覆盖，已加验收项）；给前端的报告新增**第八节五条接口细节**（导出无 JSON 外壳 / 三个端点的 scope 要求 / 插件会话也记 UA / 会话行不返回 `deviceId` / 导出含已删会话）
+    - **文件组织（用户裁定）**: 新反馈**单独成文**，不并进旧文件 ⇒ `.omp/settings-phase6-frontend-report.md` = **对接契约（滚动更新）**，`.omp/settings-phase6-frontend-report-2.md` = 第二轮通知（对前端答复的三问确认 + `userAgent` 采纳 + 六条细节 + 并发说明 + 无变化部分）；第二轮内容已从契约文件移出，只留索引行
+    - **第二轮回执（2026-10-18 同日）**: 前端"全部确认、**无冲突、无新增需求**" ⇒ 该轮往来闭环；`userAgent` 的显示名由前端派生（其设置页工作项，纯函数 + 单测，识别失败回退原文/未知）；前端按 **R1 → R2 → R3** 等待"端点已可用"通知（首个通知要等 R1 实施完成）
+
 - [2026-10-15] - hourly-days 端点（按日的每小时分布，v0.79.0，待提交）
     - 需求: 前端要在「Average hourly coding duration」面板里把**每天的曲线**叠画在平均曲线背后，并在含今天的窗口标出"当下时刻"
     - **回源核出的实质问题（前端报告未覆盖）**: `hourlyDistribution` 的 `activeDays` 是「**会话起始日**去重」而非领域文档定义的「**有编码的天数**」→ 跨本地午夜的会话只贡献 **1** 天分母，把平均值**抬高**；前端整套叠画假设（分母 = 有编码的天数、逐日数组之和 = 平均曲线的分子）因此不成立。裁决: **修缺陷**（对齐 `meta.md` 定义 + 前端语义 + 新端点需要同源），不做静默修改
@@ -11,7 +28,7 @@
     - **前端复核回执（2026-10-15）**: 分母修正与结构（唯一累加源、上限只在边界、`activeDays` 与截断无关）两项复核通过；raw 口径 / 31 上限 / 无服务端缓存 / 无"今天未结束"字段全部接受。三项顺手项**全部采纳**（均零行为变化）: ① `StatsCalculator` 类注释的时长语义清单校正（time-of-day 实为**合并**、两清单都缺的 week-hour 补入）+ README 合并清单补 week-hour ② `weekHourDistribution` 重复两遍的合并注释删一段 ③ 去掉 `hourlyDays` 的第二遍全量累加 —— 新增 `DayHourlyWindow` record（`days` 截断 / `activeDays` 全量），一次 `hourlyByDay` 同时产出两者
     - 顺带核实: `devices`/`IDEs` 分布经 `aggregateByLabel(sessions, …)` 逐会话聚合 = **raw**；已把「哪个面合并、哪个面原始」列为 `references.md` 新表（前端正是被同类清单误导过）
     - 验证: 计算器 **7/7**、集成 **22/22** 绿；全量 **1503 tests / 0 failures / 0 errors**（上批 1494，+9 = 计算器 7 + 集成 2）；jacoco INSTRUCTION **95%** / BRANCH **84%**（阈值 80/70）；`spotlessCheck` PASS
-    - 状态: 实施完成，**待授权提交**
+    - 状态: ✅ **已交付 v0.79.0**（develop `a98f662` / master `6a33c6a`，2026-10-15 提交并推送）
 
 - [2026-10-12] - 账号状态门控接线 + 生产侧 FQCN 清理（v0.78.1）
     - **先纠正我自己报错的数字**: 上批收尾我说"仓库还剩 9 处全限定类名 / 8 个文件"，实测是**生产 4 处 + 测试 91 处**（前后两次 grep 过滤条件不一致 ✗）。教训：规模必须用同一条命令复算，不能凭中间结果拼凑
