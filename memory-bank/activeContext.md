@@ -1,6 +1,6 @@
 # Active Context
 
-- [2026-10-18] - R1 修改显示名（`PATCH /api/v1/users/me`，v0.80.0，待授权提交）
+- [2026-10-18] - R1 修改显示名（`PATCH /api/v1/users/me`，v0.80.0）
     - 交付: `UpdateProfileRequest`（校验复用注册同一常量 `REGEX_DISPLAY_NAME`）+ `UserService.updateDisplayName` + `UserController` PATCH 路由（`getActiveUserRequired` + `@RequiresApiKeyScope(WRITE)` + `@RateLimit(USER,10,3600)`）+ 新审计 `PROFILE_UPDATED`（IAM 分组、`ResourceType.USER`）+ README / `dev-docs` 同步
     - **Ruling（偏离计划初稿）**: 写方法落 `UserService` 而**不**落 `UserProfileService` —— 后者类注释明文声明只读（"This service is read-only"），塞进写等于削弱一条已声明的约束；`UserService` 本就是"校验 + 持久化 + 审计 + 事务"的应用服务（与 `registerUser` 同形）。代价：若日后判定归 profile 域，移动一个方法
     - Ruling: 同名提交 = 幂等成功（不写库、不审计），审计只在真实变更时产生；`AuditDetails` 带 `field/oldValue/newValue`
@@ -10,9 +10,9 @@
     - 顺带修一处漂移（R25 回源）: `domains/api-contract/references.md` 的 AUTH 错误码计数写 24、**实测 25**（v0.77.0 新增的 `AUTH_025` 未回写），已改并把核对基线刷到 v0.80.0
     - **顺带修复的既有缺口（用户授权"发现就解决"）**: `DELETE /me` **无限流** → 加 `@RateLimit(USER,5,3600)` —— 该端点每次请求跑 bcrypt（strength 12）校验密码，无限流即 CPU 耗尽面（DoS），与其它凭据端点不一致已一年；TDD 固化（新集成测试 `AccountDeletionRateLimitIntegrationTest`：第 6 次/小时 → 429，RED→GREEN 各实跑）。`GET /me` **判定不加**：前端 AppHeader 每次渲染都会调用（其对接文档明示）、实现零 bcrypt、一次主键查 —— 加了会破坏已确认用法且收益不成比例。已成领域实践：`api-contract/practices.md`「Rate limits are a property of the controller」
     - 未覆盖的两条边界（已判断、已记账，非遗漏）: 非激活账号的组合场景（gate 本身由 `ActiveAccountGateIntegrationTest` 逐状态覆盖）、**PATCH 自身**的第 11 次/小时 429（限流默认关；同机制已由 `DELETE /me` 的 429 用例证明可用）
-    - 状态: 实施 + 验证完成，**待授权提交**（拟 1 批：代码+测试 → 版本号 → 记忆）
+    - 状态: ✅ **已交付 v0.80.0**（develop：`28daa85` 功能 + 测试 + README + api-governance / `69e4af3` 版本 / `79bba22` 计划与 dev-docs / `f635b93` 记忆；master 逐条 cherry-pick `649c484` + `35544fe`，纯净检查 0 命中、构建通过；两分支已推送）
 
-- [2026-10-18] - 阶段六《个人设置》后端计划（R1–R3，**未实施**）
+- [2026-10-18] - 阶段六《个人设置》后端计划（R1–R3；R1 已交付，R2/R3 未开工）
     - 触发: ctt-web 阶段六定稿（改显示名 / 登录会话列表与吊销 / 数据导出），要求逐条确认或反提案 + 排期回传
     - **事实核实（只读全仓）**: 三项**全部不存在**（`@PatchMapping` / `/sessions` / `/export` 各 0 命中）；可复用底座齐备（`REGEX_DISPLAY_NAME`、`UserProfileResponse`、`AuditAction`/`ResourceType`、`@RateLimit`、`@RequiresApiKeyScope`）；**零新增错误码**
     - **R1 裁决（接受）**: `PATCH /api/v1/users/me`；**不引入显示名唯一性**（列无唯一约束，且本产品无按显示名查找/登录路径，昵称非身份标识）；同名提交=幂等成功（不写库不审计）；`getActiveUserRequired` + `@RequiresApiKeyScope(WRITE)` + `USER 10/3600` + 新审计 `PROFILE_UPDATED`
