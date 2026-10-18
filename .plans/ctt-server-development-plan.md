@@ -46,6 +46,10 @@ left side
 *** 编码会话双向同步
 *** 统计聚合
 *** 排行榜与成就
+** 个人设置（账号自助）⬜
+*** 修改显示名
+*** 登录会话列表与吊销
+*** 数据导出（可携带）
 ** 运维与可观测性 ⬜
 *** 统计接口开放调用
 *** 个人统计 Card
@@ -71,42 +75,45 @@ ctt-server 是 code-time-tracker 的后端服务，负责用户认证、编码�
 - GitHub OAuth
 - API Key 生成与吊销
 
-```dot
-digraph ctt_server {
-    rankdir=TB;
-    node [shape=box, style=rounded, fontname="Helvetica"];
-    edge [color="#94a3b8"];
+```plantuml
+@startuml
+!pragma layout smetana
+skinparam componentStyle uml2
 
-    subgraph cluster_core {
-        label="公共底座";
-        color="#cbd5e1";
-        common [label="common\n响应/异常/错误码/上下文"];
-        audit  [label="audit\n审计事件与落库"];
-    }
-    subgraph cluster_identity {
-        label="身份与凭据";
-        color="#cbd5e1";
-        auth   [label="auth\nJWT/刷新/登出/锁定"];
-        user   [label="user\n账号/资料/密码"];
-        oauth  [label="auth/oauth\nGitHub 绑定"];
-        apikey [label="auth/apikey\nAPI Key 与 scope"];
-    }
-    subgraph cluster_data {
-        label="数据与派生";
-        color="#cbd5e1";
-        sync_   [label="sync\n会话同步 (Pull/Push)"];
-        device [label="device\n设备注册"];
-        stats  [label="stats\n统计聚合"];
-        leader [label="leaderboard\n排行 (Redis ZSet)"];
-        mail   [label="mail\nOutbox 邮件"];
-    }
-
-    auth -> common; user -> common; auth -> user;
-    oauth -> auth; oauth -> user; apikey -> auth; apikey -> device;
-    sync_ -> apikey; sync_ -> device; stats -> sync_;
-    leader -> sync_; leader -> stats; mail -> audit;
-    stats -> audit; sync_ -> audit;
+package "公共底座" {
+  [common\n响应/异常/错误码/上下文] as common
+  [audit\n审计事件与落库] as audit
 }
+package "身份与凭据" {
+  [auth\nJWT/刷新/登出/锁定] as auth
+  [user\n账号/资料/密码] as user
+  [auth/oauth\nGitHub 绑定] as oauth
+  [auth/apikey\nAPI Key 与 scope] as apikey
+}
+package "数据与派生" {
+  [sync\n会话同步 (Pull/Push)] as sync_
+  [device\n设备注册] as device
+  [stats\n统计聚合] as stats
+  [leaderboard\n排行 (Redis ZSet)] as leader
+  [mail\nOutbox 邮件] as mail
+}
+
+auth --> common
+user --> common
+auth --> user
+oauth --> auth
+oauth --> user
+apikey --> auth
+apikey --> device
+sync_ --> apikey
+sync_ --> device
+stats --> sync_
+leader --> sync_
+leader --> stats
+mail --> audit
+stats --> audit
+sync_ --> audit
+@enduml
 ```
 
 ### 1：工程骨架与统一规范
@@ -738,13 +745,13 @@ end note
 - [x] ⚠️ `OAUTH_TOKEN_REFRESHED` 暂不添加（GitHub token 不过期，Q 阶段不需要刷新逻辑）
 **错误码扩展：**
 
-- [x] 在 `ErrorCode` 枚举的 `AUTH` 分组追加 5 个错误码（AUTH_013-018，AUTH_014 已删除）：
-  - [x] `AUTH_013` / `OAUTH_PROVIDER_ERROR`（HTTP 502 BAD_GATEWAY）：Provider 返回异常（网络/授权失败）
-  - [x] ⚠️ `AUTH_014` 已删除（原 HTTP 401 → 设计错误，decrypt 失败应由 InternalServerErrorException 统一返回 500）
-  - [x] `AUTH_015` / `OAUTH_ACCOUNT_ALREADY_LINKED`（HTTP 409 CONFLICT）：该 Provider 账号已绑定其他用户
-  - [x] `AUTH_016` / `OAUTH_ACCOUNT_NOT_LINKED`（HTTP 404 NOT_FOUND）：用户尚未绑定该 Provider
-  - [x] `AUTH_017` / `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL`（HTTP 422 UNPROCESSABLE_ENTITY）：用户无密码且只剩一个 OAuth，拒绝解绑
-  - [x] `AUTH_018` / `OAUTH_STATE_INVALID`（HTTP 400 BAD_REQUEST）：CSRF state 校验失败
+- [x] 在 `ErrorCode` 枚举的 `AUTH` 分组追加 6 个错误码（`AUTH_013`–`AUTH_018`）——**以下为 2026-10-18 回源校正后的最终值**（原记录写于实施前，编号与语义错位 ✗，详见「个人设置」节的校正记录）：
+  - [x] `AUTH_013` "OAuth state validation failed"（HTTP 403 FORBIDDEN）：CSRF state 校验失败
+  - [x] `AUTH_014` "Token creation failed"（HTTP 409 CONFLICT）：token 落库失败（原计划"已删除 / 应返 500"的结论不成立，实际保留且为 409）
+  - [x] `AUTH_015` "OAuth provider error"（HTTP 502 BAD_GATEWAY）：Provider 返回异常（网络 / 授权失败）
+  - [x] `AUTH_016` "OAuth account already linked"（HTTP 409 CONFLICT）：该 Provider 账号已绑定其他用户
+  - [x] `AUTH_017` "OAuth account not linked"（HTTP 404 NOT_FOUND）：用户尚未绑定该 Provider
+  - [x] `AUTH_018` "Cannot unlink last credential"（HTTP 409 CONFLICT）：用户无密码且只剩一个 OAuth，拒绝解绑
 
 **交付物：** 无独立 Flyway 迁移（init 迁移已覆盖）/ `OAuthTokenEncryptor` + `AesGcmTokenEncryptor` / `OAuthTokenConverter`（JPA Converter）/ `UserOAuthAccount` Entity / `OAuthProvider` 枚举（仅 GITHUB）/ `UserOAuthAccountRepository` / `OAuthStatePayload` record + Action 枚举 / 审计事件 & 错误码扩展
 
@@ -845,7 +852,7 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 #### P：已有账号绑定 / 解绑 OAuth 提供方 ✅（已完成）
 
 > **实现状态：** ✅ **全部完成**（v0.28.0 BIND + v0.29.0 UNBIND）— 通过 `?action=bind` + `OAuthStatePayload.Action.BIND` + `attachToExistingUser/unbindFromExistingUser` + `OAuthAccountController` 实现。
-> 纯 OAuth 用户（无密码）解绑唯一 Provider → 返回 `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL`
+> 纯 OAuth 用户（无密码）解绑唯一 Provider → 返回 `AUTH_018`（"Cannot unlink last credential"，409）
 验收报告：`.sisyphus/oauth-binding-acceptance-report.md`
   **目标：** 已登录用户能在账号设置中主动绑定或解绑 OAuth Provider，安全边界清晰
   **绑定流程：**
@@ -1773,6 +1780,290 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 - GET /api/v1/stats/summary、/heatmap、/streaks、/distribution、/recent、/achievements
 - GET /api/v1/leaderboard（dimension=total/streak/nightOwl/earlyBird/growth，period=week/month/year/all）
+
+### 👤 个人设置（账号自助与数据可携带）
+
+> **来源与性质：** ctt-web 阶段六《个人设置》对接告知（2026-10-18，前端已定稿）。本节是后端对其 **R1–R3** 的逐条答复（确认 / 反提案）、**排期**与**反向要求**；决策由后端定案，前端按契约接入。
+> **执行契约：** 每批 = 代码 + 测试 + 版本号（AGENTS.md R15）+ 记忆（R2/R5），逐批独立提交（R6.5），master 逐条 cherry-pick（R17）。三项均**尚未实现**（下方复选框为空）。
+
+#### 事实基线（2026-10-18 回源核实，全部为源码证据）
+
+| # | 前端断言 | 核实结论 | 证据 |
+|---|---|---|---|
+| 1 | 无资料更新端点 | ✅ 属实 | `@PatchMapping` / `@PutMapping` / `updateProfile` / `updateDisplayName` 全仓各 0 命中；`displayName` 仅在注册（`UserService.java:104`）与 OAuth 建号（`OAuthLoginOrRegisterService.java:173`）写入 |
+| 2 | 无登录会话端点 | ✅ 属实 | `/sessions` 0 命中；`RefreshTokenRepository` 现有仅 `findByTokenHash` / `revokeAllUserTokens` / `revokeDeviceTokens` |
+| 3 | 无导出端点 | ✅ 属实 | `/export`、`StreamingResponseBody`、生产侧 `JsonGenerator` 均 0 命中 |
+| 4 | `REGEX_DISPLAY_NAME` 可复用 | ✅ 属实 | `ValidationConstants.java:29`（2–50；中日韩 / 拉丁 / 数字 / `_` / `-`） |
+| 5 | `UserProfileResponse` 可直接复用 | ✅ 属实 | `UserProfileResponse.java:31-56`（9 字段；`lastLoginAt` 显式 `@JsonInclude(ALWAYS)`） |
+| 6 | 前端把 `AUTH_018` 映射为"不能解绑最后一个凭证" | ✅ **与现码一致**（前端是对的，本计划文件曾写错） | `ErrorCode.java:48` → `AUTH_018` "Cannot unlink last credential"（409） |
+
+**既有缺陷（R2 顺带修，非本阶段引入）**：`TokenRefreshService.refresh()` 轮换新行时硬编码 `issuedFor = "WEB"` 且恒用 `refreshTokenTtlWeb()`（30d）——`refreshTokenTtlPlugin`（14d，`SecurityProperties.java:44`）**从未被使用** ✗ ⇒ 插件会话每次刷新都被降级为 WEB 并把有效期续成 30 天。用户会话列表一旦上线会把 PLUGIN 会话错标为 WEB，故该修复是 R2 的前置项。
+
+#### 裁决摘要
+
+| 请求 | 裁决 | 与前端提案的差异 |
+|---|---|---|
+| R1 修改显示名 | ✅ 接受 | 端点 / 字段 / 校验同提案；**不引入显示名唯一性**；补限流与审计（不新增错误码） |
+| R2 会话列表与吊销 | ✅ 接受，**反提案 1** | 必须新增 `session_id`（独立迁移）+ access token 增 `sid` claim，否则"会话"在数据层不存在（见下图）；顺带修上面那处缺陷 |
+| R3 数据导出 | ✅ 接受，**反提案 1** | 用 **NDJSON 流式**（而非一次性 JSON），范围含**编码会话本体**与每日物化统计；不新增错误码 |
+
+#### R1：修改显示名 —— `PATCH /api/v1/users/me`
+
+**目标：** 已登录用户修改自己的显示名，响应返回最新资料供前端同步本地状态。
+
+**接口契约（定案）：**
+
+| 项 | 值 |
+|---|---|
+| 方法 / 路径 | `PATCH /api/v1/users/me` |
+| 请求体 | `{"displayName": "..."}`（`UpdateProfileRequest`） |
+| 校验 | `@NotBlank(MSG_NOT_BLANK)` + `@Pattern(REGEX_DISPLAY_NAME, MSG_NAME_INVALID)`——**引用同一常量，不复制正则字面量** |
+| 响应 | `200` + `RestApiResponse<UserProfileResponse>`（复用 `UserProfileService.getCurrentUserProfile`，含 `emailChangePending` / `hasPassword`） |
+| 认证 | `getActiveUserRequired()`（与邮箱变更同族：身份类改动要求账号激活） |
+| API key | `@RequiresApiKeyScope(WRITE)`（JWT 用户天然通过，插件 key 需 WRITE） |
+| 限流 | `@RateLimit(type = USER, limit = 10, windowSeconds = 3600)`（对齐设备注册） |
+| 审计 | 新增 `AuditAction.PROFILE_UPDATED`（`ResourceType.USER` 已存在，**无需重建审计约束**），`details = {field, oldValue, newValue}` |
+| 错误码 | **零新增**：`400 COMMON_003`（校验）/ `403 AUTH_022`（非激活）/ `403 AUTH_020`（key 缺 WRITE）/ `401 AUTH_003` |
+
+**决策台账（R1）：**
+
+| 项 | 状态 | 依据 |
+|---|---|---|
+| 不做显示名唯一性 | ✅ 已定 | `users.display_name` 无唯一索引，且本产品没有按显示名查找 / 登录的路径（昵称非身份标识）。`USER_005`（Display name already taken）保持未使用，留待将来引入唯一句柄时启用 |
+| 提交同名值 = 幂等成功 | ✅ 已定 | 返回当前资料，**不写库、不记审计**，避免"无变化"刷审计噪声 |
+| 不做 PUT 全量替换 | ✅ 已定 | 可写字段目前只有一个；PATCH 单字段语义更窄，未来加字段（如 locale）可平滑扩展 |
+| 未知字段沿用全局策略（忽略） | ✅ 已定 | 前端滚动升级期间更宽容，不额外收紧 |
+
+**交付物：** `UpdateProfileRequest`（新）/ `UserProfileService.updateDisplayName`（新方法，现有类是 Javadoc 声明的只读服务，需在类注释里同步其边界）/ `UserController` 新路由 / `AuditAction.PROFILE_UPDATED` / `UserProfileUpdateIntegrationTest`
+
+**验收：**
+
+- [ ] 改名后 `GET /users/me` 返回新名（同一请求的响应体也已是新名）
+- [ ] 非法值（1 字符 / 51 字符 / emoji / 空格开头）→ `400 COMMON_003`，库内不变
+- [ ] 提交同名 → 200 且 `audit_logs` 无新记录
+- [ ] 非激活账号（令牌签发时已非 ACTIVE）→ `403 AUTH_022`
+- [ ] 第 11 次/小时 → `429 RATE_LIMIT_001`
+
+#### R2：登录会话列表与吊销
+
+**目标：** 用户看到"我在哪些客户端登录过"，可单独踢掉任一；`logout-all` 语义不变。
+
+**为什么需要一次迁移（反提案的依据）：** 现状 `refresh_tokens` 是"一次刷新一行"——轮换时旧行置 `revoked_at`、**另插新行**（`TokenRefreshService.java:113-127`）。因此"会话"这一实体在数据层**不存在**，第 N 次刷新就是一行新记录 ✗；且 access token 的 claims 里没有任何会话标识（`JwtTokenProvider.java:57-69`）✗ ⇒ 不做 `session_id`，"当前会话"无法判定、列表会把每次刷新当成一个会话。
+
+```plantuml
+@startuml
+hide empty members
+skinparam classAttributeIconSize 0
+
+class "refresh_tokens" as RT {
+  id : UUID <<PK>>
+  user_id : UUID
+  session_id : UUID  <<新增>>
+  token_hash : VARCHAR(64)
+  issued_for : WEB | PLUGIN
+  device_id : UUID (nullable)
+  expires_at / revoked_at / last_used_at / created_at
+}
+
+class "access token claims" as JWT {
+  iss / iat / exp
+  sub = userId
+  email / status / authorities / termsVersion
+  sid = session_id  <<新增>>
+}
+
+RT ..> JWT : 登录 / 刷新时签发
+note right of RT
+  轮换 = 旧行 revoked + 新行 INSERT
+  新行**携带同一 session_id**
+  ⇒ 一次登录 = 一条会话链（可归并）
+end note
+@enduml
+```
+
+**迁移（独立脚本，R22 —— init 迁移已应用，绝不修改）：** `V20261018120000__add_session_id_to_refresh_tokens.sql`
+
+```sql
+ALTER TABLE refresh_tokens ADD COLUMN session_id UUID;
+UPDATE refresh_tokens SET session_id = id WHERE session_id IS NULL;  -- 存量行各自成为一个会话
+ALTER TABLE refresh_tokens ALTER COLUMN session_id SET NOT NULL;
+ALTER TABLE refresh_tokens ALTER COLUMN session_id SET DEFAULT gen_random_uuid();
+CREATE INDEX idx_refresh_tokens_session ON refresh_tokens (user_id, session_id);
+-- 会话的客户端身份（可空：存量行与插件会话可以没有）；原文存储、服务端不解析
+ALTER TABLE refresh_tokens ADD COLUMN user_agent VARCHAR(512);
+```
+
+**实现（定案）：**
+
+- 登录（`UserLoginService`）与 OAuth 建号 / 登录：新会话说 `session_id = gen_random_uuid()`
+- **会话记录客户端 User-Agent（采纳前端可选建议，2026-10-18）**：列 `user_agent`（可空，写入前**截断到 512 字符**）。取法沿用既有惯例——刷新与重置密码路径早已从请求头取（`AuthController` 读 `USER_AGENT`），**登录路径目前没有取**（`UserLoginService.login(LoginRequest)` 是单参），本次补上；请求上下文 `RequestInfo` 里也已带 `userAgent` 可直接复用。轮换时**沿用旧行的值**（会话身份不随刷新变化），服务端**不解析** UA、原样返回，显示名（如 "Chrome · macOS"）由前端派生——与语言词表"原值存储、读取时归一"的既有决定一致
+- 轮换（`TokenRefreshService`）：新行**携带旧行的 `session_id`**；并修既有缺陷——`issued_for` 按旧行取值（不再硬编码 `"WEB"`）、TTL 按会话类型取（PLUGIN → 14d / WEB → 30d）
+- access token 增加 `sid` claim（= session_id）；`CurrentUser` record 增加可空 `UUID sessionId`（API key 认证为 null）；对客户端**完全透明**（token 仍是不透明串，客户端无需解析）
+- `GET /api/v1/users/me/sessions?limit=`：取 `revoked_at IS NULL AND expires_at > now()` 的行，按 `session_id` 归并——`createdAt = MIN(created_at)`（真实登录时刻）、`lastUsedAt = MAX(last_used_at)`、`expiresAt = MAX(expires_at)`、`kind = issued_for`、`deviceName/ideName`（`device_id` 非空时取设备注册信息）、`userAgent`（会话内各行的值一致，取活跃行的原文）、`current = (session_id == 当前 sid)`；排序按 `lastUsedAt` **倒序**（最近活动在前，当前会话自然靠前）；用 API key 调用时没有会话身份 ⇒ 所有 `current = false`
+- `DELETE /api/v1/users/me/sessions/{sessionId}`：该会话下所有未吊销行置 `revoked_at`；成功 `204`；非本人或不存在 → `404 COMMON_002`（不泄露存在性）；**允许吊销当前会话**（等价登出）
+- **并发保证（必须做，否则"踢掉"有洞）**：若用户踢出一个会话的**同一瞬间**该客户端正在刷新，两个事务会交错——刷新事务先把旧行置吊销、再插入新行，而吊销事务的批量更新看不到"尚未插入"的行 ⇒ 被踢的会话又活过来 ✗。做法：**刷新与吊销都先对 `session_id` 取数据库级排它锁**（`pg_advisory_xact_lock(hashtext(session_id))`），把两者串行化 ⇒ "踢了就一定失效"。同一竞态在既有 `logout`（按令牌哈希吊销）上也存在，本阶段不扩大改动范围，但加了锁即同时覆盖
+- 审计：新增 `AuditAction.SESSION_REVOKED`（`ResourceType.REFRESH_TOKEN`，`details = {sessionId, kind}`）
+- 限流：GET `USER 60/3600`；DELETE `USER 10/3600`
+
+```plantuml
+@startuml
+autonumber
+skinparam sequenceMessageAlign center
+
+actor "客户端（ctt-web / 插件）" as C
+participant "Auth / Session API" as A
+database "refresh_tokens" as DB
+
+C -> A : POST /auth/login
+A -> DB : INSERT（session_id = 新 UUID）
+A --> C : accessToken(sid) + refreshToken
+
+C -> A : POST /auth/refresh（旧 refreshToken）
+A -> DB : 旧行 revoked ＋ 新行 INSERT（同 session_id；TTL 按原 issued_for）
+A --> C : 新 accessToken(sid) ＋ 新 refreshToken
+
+C -> A : GET /users/me/sessions
+A -> DB : 未吊销行按 session_id 归并（MIN/MAX 聚合）
+A --> C : [{id, kind, createdAt, lastUsedAt, current = sid 命中}]
+
+C -> A : DELETE /users/me/sessions/{id}
+A -> DB : 该 session_id 全部置 revoked_at
+A --> C : 204
+
+note over C
+  已签发的 access token 仍有 ≤15 分钟窗口
+  —— 与 logout 同一取舍，记入 auth-lifecycle 领域文件
+end note
+@enduml
+```
+
+**不变量（写入 `memory-bank/domains/auth-lifecycle/`）：** 会话吊销只作用于**刷新令牌**；access token 是自包含凭据，吊销后 ≤15 分钟仍有效——与 `logout` 完全一致，不为此引入每请求查库。
+
+**交付物：** 迁移脚本 1 个 / `RefreshToken.sessionId` / `TokenUtils.createRefreshToken` 增参 / `TokenRefreshService` 缺陷修复 / `JwtTokenProvider.generateAccessToken(user, sessionId)` + `JwtToCurrentUserConverter` 读 `sid` / `CurrentUser.sessionId` / `SessionService`（新）/ `UserSessionController` 2 路由 / 审计事件 / `SessionServiceTest` + `SessionsIntegrationTest`
+
+**验收：**
+
+- [ ] 登录 1 次 → 列表 1 条且 `current = true`；第二个浏览器登录 → 2 条，各自 `current` 判定正确
+- [ ] 会话返回 `userAgent`（原文、写入即截断到 512；轮换后不变；缺失时为空），可据此区分多个网页会话
+- [ ] 连续刷新多次后仍是 **1 条**（`session_id` 跨轮换保持），`lastUsedAt` 随刷新前移、`createdAt` 保持首次登录时刻
+- [ ] 插件会话显示为 `PLUGIN` 且续期 TTL 为 14d（缺陷修复的可观察证据）
+- [ ] `DELETE` 某会话 → 该会话刷新立即 `401 AUTH_008`，其它会话不受影响
+- [ ] 并发：一边刷新一边吊销 → 该会话最终**没有任何未吊销行**（串行化生效，不会"诈尸"）
+- [ ] 删他人 / 不存在的会话 id → `404 COMMON_002`；未认证 → 401
+- [ ] `logout-all` → 列表变空
+
+#### R3：数据导出 —— `GET /api/v1/users/me/export`
+
+**目标：** 一键带走"我的全部数据"，补齐数据可携带能力。
+
+**契约（定案）：**
+
+| 项 | 值 |
+|---|---|
+| 方法 / 路径 | `GET /api/v1/users/me/export` |
+| 响应 | `200` + `application/x-ndjson`（**流式**，逐行一个 JSON 对象，UTF-8），`Content-Disposition: attachment; filename="ctt-export-<userId>-<yyyyMMdd>.ndjson"` |
+| 认证 | `getActiveUserRequired()` + `@RequiresApiKeyScope(READ)` |
+| 限流 | `@RateLimit(type = USER, limit = 3, windowSeconds = 3600)` |
+| 审计 | 新增 `AuditAction.DATA_EXPORTED`（`ResourceType.USER`，`details = {sections}`） |
+| 错误码 | 零新增（`401` / `403` / `429`） |
+
+**数据范围（每行带 `type` 判别；首行是头）：**
+
+| 行 `type` | 内容 | 排除 |
+|---|---|---|
+| `header` | `version: 1` / `generatedAt` / `userId` | — |
+| `account` | email / displayName / emailVerified / createdAt / lastLoginAt / termsVersion | `passwordHash`、`lastLoginIp` |
+| `device` | deviceName / platform / ideName / lastSeenAt / revokedAt | — |
+| `codingSession` | sessionUuid / startTime / endTime / projectName / language / clientVersion / isDeleted | —（软删的也带 `isDeleted: true` 导出，是忠实副本） |
+| `dailyStat` | date / mergedSeconds | — |
+| `achievement` | code / periodKey / unlockedAt | — |
+| `achievementProgress` | achievementType / progress | — |
+| `oauthAccount` | provider / providerLogin / providerEmail / createdAt | `accessToken` / `refreshToken`（即便已加密也不导出） |
+| `loginSession` | id / kind / createdAt / lastUsedAt / expiresAt / userAgent / deviceId | 刷新令牌哈希（会话本体是用户数据，凭据不是） |
+| `apiKey` | name / scopes / createdAt / lastUsedAt / revokedAt | `keyHash`、明文 |
+
+**实现要点：**
+
+- `StreamingResponseBody` + **注入项目的 `ObjectMapper`**（`JacksonConfig` 自定义过 mapper：`non_null` + JavaTimeModule；**不要** `new ObjectMapper()`）
+- 编码会话按 **1000 行分页**读取（现仓储无按用户分页方法，需新增 `Page<CodingSession> findByUserId(UUID userId, Pageable pageable)`），逐页写出、页间释放——**不做整表装配**（大用户不 OOM）
+- 不包 `RestApiResponse` 外壳（这是文件下载，不是 API 数据响应）；首字节之后失败只能中断流（记日志，前端表现为截断）
+- 异步任务 + 下载链接的方案**现在不做**，触发条件见下
+
+```plantuml
+@startuml
+start
+:校验：ACTIVE 账号 + READ scope + 限流;
+:写 header 行;
+:account / device / dailyStat / achievement / progress / oauthAccount / apiKey 元数据;
+repeat :编码会话分页读取（每页 1000，按 id 排序）;
+  :逐行 writeValueAsString + flush;
+repeat while (还有下一页?) is (是)
+->否;
+:结束流;
+stop
+note right
+  全程不装配整表
+  失败只能中断流（已发字节不可撤回）
+end note
+@enduml
+```
+
+**交付物：** `UserExportController`（新）/ `UserExportService`（新）/ `CodingSessionRepository.findByUserId(Pageable)` / `AuditAction.DATA_EXPORTED` / `ExportIntegrationTest`
+
+**验收：**
+
+- [ ] 导出 = header + 该用户各类记录；集成测试按 `type` 计数与库内一致
+- [ ] **否定断言**：响应体中不出现 `passwordHash` / `keyHash` / `tokenHash` / `accessToken` 字样
+- [ ] 1 万条会话的导出期间堆内存平稳（分页读取的证据）
+- [ ] 未认证 `401`；第 4 次/小时 `429`
+
+#### 排期与升级条件
+
+| 顺序 | 项 | 依赖 | 规模 | 可用信号 |
+|---|---|---|---|---|
+| 1 | R1 修改显示名 | 无 | 小（1 批：DTO + 服务方法 + 路由 + 测试） | 合并推送后通知前端联调 |
+| 2 | R2 会话列表与吊销 | 1 次独立迁移 + JWT 增 claim + 轮换缺陷修复 | 中（1–2 批） | 同上 |
+| 3 | R3 数据导出 | 无（可与 R2 并行评审） | 中（1 批） | 同上 |
+
+- 三项**彼此独立**；顺序只是交付顺序，前端如需重排（例如先要导出）告知即可。
+- 日历日期取决于本仓库所有者的提交/发布节奏；每批合并后由后端主动给出"端点已可用"通知。
+- **R3 升级为异步任务 + 下载链接**的触发条件（先记下，不提前实现）：导出 p99 > 30s 或单用户响应体 > 100MB。
+
+#### 给前端的反向要求
+
+| # | 要求 | 原因 |
+|---|---|---|
+| 1 | 会话列表**不要**自行比对当前会话（不要传 refresh token），`current` 由后端用 `sid` 判定 | refresh token 不应离开它唯一的用途（刷新）；在前端做比对会把秘密暴露给前端逻辑 |
+| 2 | 吊销当前会话 = 登出：前端清本地 token 并按登出 UI 处理 | 语义等价，避免"已登录但会话没了"的中间态 |
+| 3 | 导出请**逐行解析**（NDJSON）或直接落盘，不要对整段响应 `JSON.parse` | 响应可达数十 MB |
+| 4 | 会话被踢后，客户端下次刷新会拿到 `AUTH_008`（Refresh token revoked）→ 用它提示"该会话已被登出" | 复用现有错误码，无需新增 |
+| 5 | 错误码零新增：R1–R3 全部复用现有码（`COMMON_003` / `COMMON_002` / `AUTH_008` / `AUTH_020` / `AUTH_022`） | 保持前端错误码映射表稳定 |
+| 6 | 你们表里 `AUTH_018`（不能解绑最后一个凭证）**是对的**；跨端一律以 `ErrorCode.java` 为准 | 本计划文件的 OAuth 段曾写错，见下 |
+| 7 | 你们 §3「跨端对接纪律」的其余各条（条款版本以 `publicConfig.termsVersion` 为准、逐请求传 `timezoneOffset`、密码前端 base64 / 后端不解码、邮件模板本地化归后端、`GET /users/me` 等既有契约）**全部维持现状**，本阶段不做任何变更 | 本阶段不顺手改动已在运行的契约 |
+
+#### 明确不做
+
+- 通知 / 邮件偏好端点（缓至通知能力立项）
+- 2FA / TOTP（缓至发布后安全审计）
+- 头像上传（保持前端哈希种子头像的设计）
+- 密码移除端点（凭证规则保持"至少保留一个"，`AUTH_018`）
+- **（后端补充）** 不把登录会话并入 `/api/v1/devices`：设备是同步主体（插件），会话是凭据主体（浏览器 + 插件）；混用会让"踢设备"与"踢会话"互相误伤
+- **（后端补充）** 不做多格式导出（zip / CSV / XML）：NDJSON 一种够用且可流式
+
+#### 校正记录：本计划 OAuth 段（N）的错误码清单
+
+原清单写于 OAuth 实施之前且未回写，与现码不符 ✗。**以 `ErrorCode.java:43-48` 为准**：
+
+| 编号 | 现码语义 | HTTP | 原计划文件所写（✗） |
+|---|---|---|---|
+| `AUTH_013` | OAuth state validation failed | 403 | OAuth provider error |
+| `AUTH_014` | Token creation failed | 409 | （称已删除） |
+| `AUTH_015` | OAuth provider error | 502 | Account already linked |
+| `AUTH_016` | OAuth account already linked | 409 | Account not linked |
+| `AUTH_017` | OAuth account not linked | 404 | Cannot unlink last credential |
+| `AUTH_018` | Cannot unlink last credential | 409 | OAuth state invalid |
+
+（P 段出现的枚举名 `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL` 是同一漂移的产物：实际枚举名是 `AUTH_018`。）
 
 ### 🔍 运维与可观测性升级
 
