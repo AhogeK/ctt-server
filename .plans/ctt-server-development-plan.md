@@ -1836,9 +1836,9 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 **交付物：** `UpdateProfileRequest`（新）/ **`UserService.updateDisplayName`（新方法）**——实施时的 ruling：写方法落在 `UserService`（"校验 + 持久化 + 审计 + 事务"的应用服务），**不改** `UserProfileService` 的只读保证（其类注释明文声明只读）/ `UserController` 新路由 / `AuditAction.PROFILE_UPDATED` / `UserProfileIntegrationTest` 扩用例
 
-**实现状态：** ✅ 已交付 v0.80.0（代码 + 测试 + 文档）——**11 个用例**：3 服务 + 3 控制器切片 + 4 集成（真实 HTTP + 真实库）+ 1 限流加固；全量 1514 / 0 失败。
+**实现状态：** ✅ 已交付 **v0.80.1**（代码 + 测试 + 文档）——**13 个用例**：3 服务 + 3 控制器切片 + 4 集成（真实 HTTP + 真实库）+ 2 限流（`/users/me` 两条写路由）+ 1 门控（已删除账号改显示名）；全量 **1516 / 0 失败**。
 
-**完成总结：** 按计划交付，**偏离初稿仅一处**——写方法落 `UserService` 而非 `UserProfileService`（理由见交付物行：后者的只读保证是写在类注释里的约束，不该为省一个方法而削弱）。计划预设的三条全部成立：零新增错误码、复用注册的校验常量、审计无需迁移（后者是先核实 `audit_logs.action` 无 CHECK 约束才确认的，不是假设）。实施期间另外发现并修掉两个既有问题（见下"顺带修复"），并把"给新路由配限流时逐条检查邻居路由"沉淀成领域实践。**明确未做**：不给 `GET /me` 加限流（理由见下）；两条未覆盖边界写成结论而非默认略过。R2 可直接沿用本项留下的三样东西：`@RequiresApiKeyScope` 的用法、`getActiveUserRequired()` 的接线方式、以及"限流是控制器属性"这条检查习惯。
+**完成总结：** 按计划交付，**偏离初稿仅一处**——写方法落 `UserService` 而非 `UserProfileService`（理由见交付物行：后者的只读保证是写在类注释里的约束，不该为省一个方法而削弱）。计划预设的三条全部成立：零新增错误码、复用注册的校验常量、审计无需迁移（后者是先核实 `audit_logs.action` 无 CHECK 约束才确认的，不是假设）。实施期间另外发现并修掉两个既有问题（见下"顺带修复"），并把"给新路由配限流时逐条检查邻居路由"沉淀成领域实践。**明确未做**：不给 `GET /me` 加限流（理由见下）。两条边界初版只写成结论，**复核后补上了请求级用例**（见验收）——"没建例"不该以结论收场。R2 可直接沿用本项留下的三样东西：`@RequiresApiKeyScope` 的用法、`getActiveUserRequired()` 的接线方式、以及"限流是控制器属性"这条检查习惯。
 
 **验收（实测）：**
 
@@ -1847,8 +1847,8 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 - [x] 提交同名 → 200 且 `audit_logs` 无新记录——集成用例
 - [x] 真实变更 → 一条 `PROFILE_UPDATED`，`details` 含字段名与新旧值——集成用例断言 JSONB 原文
 - [x] READ 权限 API key 调用 → `403 AUTH_020`——集成用例
-- [ ] 非激活账号（令牌签发时已非 ACTIVE）→ `403 AUTH_022`：该 gate 本身由 `ActiveAccountGateIntegrationTest` 逐状态覆盖，本路由复用它；组合场景未单独建例（与 `DELETE /me` 现状一致）
-- [ ] 第 11 次/小时 → `429 RATE_LIMIT_001`：测试默认关闭限流（既有约定），本路由未单独建例——**同机制已由 `DELETE /me` 的 429 用例证明可用**（见下）
+- [x] 非激活账号持令牌调用 → `403` 对应状态码：`ActiveAccountGateIntegrationTest` 新增「**已删除账号改显示名 → `AUTH_022`**」（这正是门存在的理由：账号删除后旧令牌仍在 15 分钟窗口内有效）。门按**令牌携带的状态**映射：`LOCKED`→`AUTH_004`、`PENDING_VERIFICATION`→`AUTH_006`、`SUSPENDED`→`AUTH_005`、`DELETED`→`AUTH_022`——本节初稿只写了 `AUTH_022`，已按实况改准
+- [x] 第 11 次/小时 → `429 RATE_LIMIT_001`：`UserMeRateLimitsIntegrationTest` 新增「**第 11 次改显示名 → 429**」；同类同时覆盖 `DELETE /me` 的第 6 次 → 429（原为 `AccountDeletionRateLimitIntegrationTest`，因覆盖面扩展而更名）
 
 **R1 期间顺带修复的既有缺口（非本次引入，按"发现就解决"处理）：**
 
