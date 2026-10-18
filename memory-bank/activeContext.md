@@ -10,7 +10,7 @@
     - 顺带修一处漂移（R25 回源）: `domains/api-contract/references.md` 的 AUTH 错误码计数写 24、**实测 25**（v0.77.0 新增的 `AUTH_025` 未回写），已改并把核对基线刷到 v0.80.0
     - **顺带修复的既有缺口（用户授权"发现就解决"）**: `DELETE /me` **无限流** → 加 `@RateLimit(USER,5,3600)` —— 该端点每次请求跑 bcrypt（strength 12）校验密码，无限流即 CPU 耗尽面（DoS），与其它凭据端点不一致已一年；TDD 固化（新集成测试，后因扩面更名为 `UserMeRateLimitsIntegrationTest`：第 6 次/小时 → 429，RED→GREEN 各实跑）。`GET /me` **判定不加**：前端 AppHeader 每次渲染都会调用（其对接文档明示）、实现零 bcrypt、一次主键查 —— 加了会破坏已确认用法且收益不成比例。已成领域实践：`api-contract/practices.md`「Rate limits are a property of the controller」
     - **两条边界已补测（同日复核——用户点出 R1 仍有未打勾项）**: ① `ActiveAccountGateIntegrationTest` 新增「**已删除账号改显示名 → `403 AUTH_022`**」（门存在的理由：删除后旧令牌仍在 15 分钟窗口内有效）；② `UserMeRateLimitsIntegrationTest`（原 `AccountDeletionRateLimitIntegrationTest` 更名扩面）新增「**第 11 次改显示名 → 429**」⇒ 两类 6/6 与 2/2 通过。**Ruling 修正**：初版把这两条判为"可以不建例"被推翻——门与限流同属安全面，钉成用例比省一类测试重要；并修正计划写窄处（门的返回码随令牌状态：`LOCKED`/`PENDING`/`SUSPENDED`/`DELETED` → `AUTH_004`/`006`/`005`/`022`）
-    - 状态: ✅ **已交付 v0.80.0**（develop：`28daa85` 功能 + 测试 + README + api-governance / `69e4af3` 版本 / `79bba22` 计划与 dev-docs / `f635b93` 记忆；master 逐条 cherry-pick `649c484` + `35544fe`，纯净检查 0 命中、构建通过；两分支已推送）
+    - 状态: ✅ **已交付 v0.80.0 → v0.80.1**（develop：`28daa85` 功能+测试+README+api-governance、`69e4af3` 版本、`79bba22` 计划与 dev-docs、`f635b93`/`4379be4` 记忆；补测批 `0aa808c` 测试、`05f00b2` 版本、`a5d5a5b` 计划、`d23250a` 记忆 → **全部推送 ✓**；master 逐条 cherry-pick `649c484`+`35544fe`、`1155ec3`+`3a658bc`，纯净检查 0 命中、构建通过 ✓）
 
 - [2026-10-18] - 阶段六《个人设置》后端计划（R1–R3；R1 已交付，R2/R3 未开工）
     - 触发: ctt-web 阶段六定稿（改显示名 / 登录会话列表与吊销 / 数据导出），要求逐条确认或反提案 + 排期回传
