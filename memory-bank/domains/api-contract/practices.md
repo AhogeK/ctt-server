@@ -69,6 +69,21 @@ a case that cannot happen while hiding the one that does. When a field's value i
 the sample on the branch that is hardest to guess (here: the null belongs to the metric that has no
 baseline at all) and keep the other samples computed from reachable inputs.
 
+## Rate limits are a property of the controller, not of the route you just added
+
+The contract block above is also where a limiter belongs — and adding a route is the moment to read
+its neighbours instead of trusting that they already have one. A password-verifying endpoint is the
+sharp case: bcrypt at strength 12 costs a deliberate ~100-300ms of CPU per request, so an
+unthrottled one is a CPU-exhaustion vector, not merely a place to guess passwords. `DELETE
+/users/me` shipped without a limiter even though every other credential endpoint had one; the gap
+was invisible because nobody re-read the whole controller. It now carries `USER` 5/hour, pinned by a
+request-level test (rate limiting is off by default in the suite, so the test enables it).
+
+Give the new route its limiter, read the sibling routes for a missing one, then decide **per route**:
+a cheap read a client calls on every page render (`GET /users/me`) is better left unlimited — a limit
+there buys little and breaks a documented client usage — whereas a bcrypt-backed write has no
+legitimate high-frequency caller.
+
 ## Validation patterns
 
 - Path/query binding errors and bean-validation failures both surface as `400 COMMON_003` with a

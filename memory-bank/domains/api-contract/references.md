@@ -4,7 +4,7 @@
 
 | Prefix | Count | Area |
 | --- | --- | --- |
-| `AUTH_` | 24 | Authentication, API keys, OAuth, scopes |
+| `AUTH_` | 25 | Authentication, API keys, OAuth, scopes |
 | `USER_` | 14 | User profile, email change, password |
 | `MAIL_` | 8 | Outbox delivery, rate limits |
 | `SECURITY_` | 7 | Captcha, terms, request hardening |
@@ -14,7 +14,7 @@
 | `LEADERBOARD_` | 2 | Ranking |
 | `DEVICE_` | 1 | Device registration conflicts |
 
-Counts verified against `ErrorCode` on 2026-09-15 (v0.73.0).
+Counts verified against `ErrorCode` on 2026-10-18 (v0.80.0).
 
 ## Frequently used codes
 

@@ -1,5 +1,17 @@
 # Active Context
 
+- [2026-10-18] - R1 修改显示名（`PATCH /api/v1/users/me`，v0.80.0，待授权提交）
+    - 交付: `UpdateProfileRequest`（校验复用注册同一常量 `REGEX_DISPLAY_NAME`）+ `UserService.updateDisplayName` + `UserController` PATCH 路由（`getActiveUserRequired` + `@RequiresApiKeyScope(WRITE)` + `@RateLimit(USER,10,3600)`）+ 新审计 `PROFILE_UPDATED`（IAM 分组、`ResourceType.USER`）+ README / `dev-docs` 同步
+    - **Ruling（偏离计划初稿）**: 写方法落 `UserService` 而**不**落 `UserProfileService` —— 后者类注释明文声明只读（"This service is read-only"），塞进写等于削弱一条已声明的约束；`UserService` 本就是"校验 + 持久化 + 审计 + 事务"的应用服务（与 `registerUser` 同形）。代价：若日后判定归 profile 域，移动一个方法
+    - Ruling: 同名提交 = 幂等成功（不写库、不审计），审计只在真实变更时产生；`AuditDetails` 带 `field/oldValue/newValue`
+    - Ruling: 响应由控制器在写后调 `UserProfileService.getCurrentUserProfile` 取 —— 资料投影（含 `emailChangePending`）只应有一个来源；代价：多一次读
+    - 前置核实: `audit_logs.action` **无 CHECK 约束**（只有 `resource_type`/`severity`）⇒ 新审计动作**零迁移** ✓
+    - TDD: 先写 10 个用例 → `compileTestJava` 亲眼看它失败（缺 `updateDisplayName`×4 / `PROFILE_UPDATED`×1，失败原因正确）→ 实现 → 目标类全绿 → **全量 1513 / 0 failures / 0 errors**（上批 1503，+10 与本轮用例数一致）；`spotlessCheck` PASS
+    - 顺带修一处漂移（R25 回源）: `domains/api-contract/references.md` 的 AUTH 错误码计数写 24、**实测 25**（v0.77.0 新增的 `AUTH_025` 未回写），已改并把核对基线刷到 v0.80.0
+    - **顺带修复的既有缺口（用户授权"发现就解决"）**: `DELETE /me` **无限流** → 加 `@RateLimit(USER,5,3600)` —— 该端点每次请求跑 bcrypt（strength 12）校验密码，无限流即 CPU 耗尽面（DoS），与其它凭据端点不一致已一年；TDD 固化（新集成测试 `AccountDeletionRateLimitIntegrationTest`：第 6 次/小时 → 429，RED→GREEN 各实跑）。`GET /me` **判定不加**：前端 AppHeader 每次渲染都会调用（其对接文档明示）、实现零 bcrypt、一次主键查 —— 加了会破坏已确认用法且收益不成比例。已成领域实践：`api-contract/practices.md`「Rate limits are a property of the controller」
+    - 未覆盖的两条边界（已判断、已记账，非遗漏）: 非激活账号的组合场景（gate 本身由 `ActiveAccountGateIntegrationTest` 逐状态覆盖）、**PATCH 自身**的第 11 次/小时 429（限流默认关；同机制已由 `DELETE /me` 的 429 用例证明可用）
+    - 状态: 实施 + 验证完成，**待授权提交**（拟 1 批：代码+测试 → 版本号 → 记忆）
+
 - [2026-10-18] - 阶段六《个人设置》后端计划（R1–R3，**未实施**）
     - 触发: ctt-web 阶段六定稿（改显示名 / 登录会话列表与吊销 / 数据导出），要求逐条确认或反提案 + 排期回传
     - **事实核实（只读全仓）**: 三项**全部不存在**（`@PatchMapping` / `/sessions` / `/export` 各 0 命中）；可复用底座齐备（`REGEX_DISPLAY_NAME`、`UserProfileResponse`、`AuditAction`/`ResourceType`、`@RateLimit`、`@RequiresApiKeyScope`）；**零新增错误码**
@@ -10,7 +22,7 @@
     - **计划文件自身的记录漂移（按 R4 校正）**: OAuth 段 N 的错误码清单语义整体错位（AUTH_013–018 与现码不符 ✗）；P 段的枚举名 `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL` 不存在（实为 `AUTH_018`）→ 两处已改 + 附校正表
     - 计划落地: `.plans/ctt-server-development-plan.md` 新增「👤 个人设置（账号自助与数据可携带）」节（事实基线 / 裁决摘要 / 三个子项含契约·决策台账·交付物·验收 / 排期与升级条件 / 反向要求 / 明确不做 / 校正记录）+ 3 张 plantuml 图；顺带把原有 `dot` 模块依赖图换成 plantuml（docu.md 渲染管线不认 dot ✗）
     - 渲染验证: `npx @markdown-viewer/documd …--assets` → **7 diagrams / 0 失败**（退出码 0），并肉眼复核类图与活动图
-    - 状态: 计划定稿；**未动任何代码**（`.plans/` + `dev-docs/` 文档改动，未提交）
+    - 状态: 计划定稿（2026-10-18 提交并推送 develop：`62bd6f0` 计划 + `63223fa` 记忆；master 无内容）；**R1 已按本计划实施交付**（见上一条），R2 / R3 未开工
     - **前端答复（2026-10-18）**: 无契约冲突、顺序无需重排、8 字段够用；**另提一条可选增强并已采纳** —— 会话列表增可空 `userAgent`（原文存储、服务端不解析、写入截断 512 字符、轮换沿用旧值），供前端派生 "Chrome · macOS" 类显示名。回源核实: 刷新与重置密码路径早已从请求头取 UA，**登录路径没有**（`UserLoginService.login(LoginRequest)` 单参 ✗）→ R2 一并补；`RequestInfo` record 已带 `userAgent` 可直接复用。同一迁移脚本加列 ⇒ 排期不变；R3 导出相应增加 `loginSession` 行类型（不含令牌哈希）
     - 已同步更新: 计划 R2（迁移 / 取法 / 读取 / 验收）+ R3 行类型、`dev-docs` 对接文档、前端报告（文首同步清单 6 → 7 条 + 第七节改为"你们已答复"记录）
     - **补充同步（同日复核后）**: 会话列表**排序 = `lastUsedAt` 倒序**、API key 调用时 `current` 恒为 false；**"踢会话"与"正在刷新"并发**的洞（刷新插入的新行躲过批量吊销 ⇒ 会话诈尸 ✗）→ 刷新与吊销都先按 `session_id` 取 `pg_advisory_xact_lock` 串行化（该竞态在既有 `logout` 上同样存在，一并覆盖，已加验收项）；给前端的报告新增**第八节五条接口细节**（导出无 JSON 外壳 / 三个端点的 scope 要求 / 插件会话也记 UA / 会话行不返回 `deviceId` / 导出含已删会话）

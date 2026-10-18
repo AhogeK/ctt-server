@@ -54,6 +54,23 @@ error codes; provider unreachable → `BadGateway`, not a validation error (the 
 For local end-to-end probes, the provider's documented always-pass test key pair works without
 touching code.
 
+## Profile writes stay out of the read-only projection
+
+`UserProfileService` is read-only by contract (its class Javadoc says so) and stays that way: the
+display-name update lives in `UserService`, whose job is already "validate + persist + audit +
+transaction" — the shape `registerUser` and `acceptTermsAndIssueTokens` share. Any future profile
+write follows the same split, and the controller composes the two: write first, then read the
+projection from its single source, so the body a client syncs from matches what was persisted.
+
+- A submission equal to the stored value is a successful no-op — no write, **no audit row** — so the
+  trail contains only real changes.
+- A real change emits one `PROFILE_UPDATED` (IAM group, `ResourceType.USER`) carrying `field`,
+  `oldValue` and `newValue`. `audit_logs.action` has **no** CHECK constraint (only `resource_type`
+  and `severity` do), so a new action needs no migration.
+- Display names are **not unique**: the schema has no constraint and nothing resolves a user by name.
+  `USER_005` ("Display name already taken") therefore stays unused until a real identifier — not a
+  label — is introduced.
+
 ## Test recipe
 
 1. Flow ordering: a test per guard (each error code reachable independently).
