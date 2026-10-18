@@ -23,13 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
- * Rate-limit coverage for {@code DELETE /api/v1/users/me}.
+ * Rate-limit coverage for the two write routes under {@code /api/v1/users/me}.
  *
- * <p>The endpoint verifies the account password, and that verification is a deliberate CPU cost
- * (bcrypt, strength 12). Without a limiter, a stolen session — or simply a client stuck in a retry
- * loop — turns the endpoint into a CPU-exhaustion vector, so the limit is pinned by a request-level
- * test rather than assumed from the annotation. Rate limiting is off by default in tests (see the
- * project's test baseline), hence the property override here.
+ * <p>Both confirm the account password with bcrypt (strength 12) — a deliberate CPU cost per
+ * request — and the profile route additionally has no legitimate high-frequency caller. Without a
+ * limit, a stolen session or a client stuck in a retry loop turns either one into a CPU-exhaustion
+ * vector, so the limits are pinned by request-level tests rather than assumed from the annotations.
+ * Rate limiting is off by default in the suite (see the project's test baseline), hence the
+ * property override here.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-10-18
@@ -40,14 +41,15 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
             "ctt.security.rate-limit.enabled=true",
             "ctt.mail.outbox.poll-interval-ms=999999999"
         })
-@DisplayName("Account Deletion Rate Limit Integration Tests")
-class AccountDeletionRateLimitIntegrationTest {
+@DisplayName("User /me write route rate limits")
+class UserMeRateLimitsIntegrationTest {
 
     private static final String PASSWORD = "StrongPass123!";
     private static final String DISPLAY_NAME = "RateLimitUser";
     private static final Pattern TOKEN_PATTERN =
             Pattern.compile("verify-email\\?token=([A-Za-z0-9_-]+)");
-    private static final int ALLOWED_ATTEMPTS_PER_HOUR = 5;
+    private static final int ALLOWED_DELETIONS_PER_HOUR = 5;
+    private static final int ALLOWED_PROFILE_CHANGES_PER_HOUR = 10;
 
     @Autowired private MockMvcTester mvc;
     @Autowired private JdbcClient jdbcClient;
@@ -65,11 +67,11 @@ class AccountDeletionRateLimitIntegrationTest {
     @Test
     @DisplayName("Should reject the sixth password attempt within the hour with 429")
     void shouldRejectSixthAttempt_whenPasswordIsWrong() throws Exception {
-        String email = "rate-limit." + UUID.randomUUID() + "@test.example";
+        String email = uniqueEmail();
         String jwt = registerVerifyAndLogin(email);
         String wrongPassword = "{\"password\":\"WrongPass123!\"}";
 
-        for (int attempt = 1; attempt <= ALLOWED_ATTEMPTS_PER_HOUR; attempt++) {
+        for (int attempt = 1; attempt <= ALLOWED_DELETIONS_PER_HOUR; attempt++) {
             assertThat(
                             mvc.delete()
                                     .uri("/api/v1/users/me")
@@ -80,7 +82,7 @@ class AccountDeletionRateLimitIntegrationTest {
                                     .exchange())
                     .as(
                             "attempt %s of %s should still be allowed",
-                            attempt, ALLOWED_ATTEMPTS_PER_HOUR)
+                            attempt, ALLOWED_DELETIONS_PER_HOUR)
                     .hasStatus(401)
                     .bodyJson()
                     .extractingPath("$.code")
@@ -99,6 +101,43 @@ class AccountDeletionRateLimitIntegrationTest {
                 .bodyJson()
                 .extractingPath("$.code")
                 .isEqualTo("RATE_LIMIT_001");
+    }
+
+    @Test
+    @DisplayName("Should reject the eleventh profile change within the hour with 429")
+    void shouldRejectEleventhProfileChange_whenWithinTheHour() throws Exception {
+        String jwt = registerVerifyAndLogin(uniqueEmail());
+        String body = "{\"displayName\":\"RateLimitName\"}";
+
+        for (int attempt = 1; attempt <= ALLOWED_PROFILE_CHANGES_PER_HOUR; attempt++) {
+            assertThat(
+                            mvc.patch()
+                                    .uri("/api/v1/users/me")
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body)
+                                    .with(csrf())
+                                    .exchange())
+                    .as("attempt %s should still be allowed", attempt)
+                    .hasStatusOk();
+        }
+
+        assertThat(
+                        mvc.patch()
+                                .uri("/api/v1/users/me")
+                                .header("Authorization", "Bearer " + jwt)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body)
+                                .with(csrf())
+                                .exchange())
+                .hasStatus(429)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("RATE_LIMIT_001");
+    }
+
+    private String uniqueEmail() {
+        return "rate-limit." + UUID.randomUUID() + "@test.example";
     }
 
     private String registerVerifyAndLogin(String email) throws Exception {
