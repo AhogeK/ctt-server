@@ -89,6 +89,27 @@ class ActiveAccountGateIntegrationTest {
     }
 
     @Test
+    @DisplayName("Should reject a deleted account changing its display name")
+    void shouldRejectDeletedAccount_whenChangingDisplayName() {
+        // A deleted account keeps its already-issued access token for up to the 15-minute TTL, so
+        // this is the window the gate exists to close.
+        assertThat(
+                        mvc.patch()
+                                .uri("/api/v1/users/me")
+                                .header("Authorization", bearerFor(UserStatus.DELETED))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {"displayName": "RenamedUser"}
+                                        """)
+                                .exchange())
+                .hasStatus(403)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("AUTH_022");
+    }
+
+    @Test
     @DisplayName("Should reject an unverified account minting an API key")
     void shouldRejectPendingAccount_whenCreatingApiKey() {
         assertThat(
