@@ -204,4 +204,132 @@ class UserProfileIntegrationTest {
             assertThat(mvc.get().uri("/api/v1/users/me").exchange()).hasStatus(401);
         }
     }
+
+    @Nested
+    @DisplayName("PATCH /api/v1/users/me")
+    class UpdateProfileTests {
+
+        @Test
+        @DisplayName(
+                "Should persist the new display name, reflect it on GET, and audit both values")
+        void shouldPersistName_reflectOnGet_andAudit_whenNameChanges() throws Exception {
+            String[] jwtAndUserId = registerVerifyAndLogin(uniqueEmail());
+            String jwt = jwtAndUserId[0];
+            UUID userId = UUID.fromString(jwtAndUserId[1]);
+
+            var patched =
+                    mvc.patch()
+                            .uri("/api/v1/users/me")
+                            .header("Authorization", "Bearer " + jwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"displayName\":\"RenamedUser\"}")
+                            .with(csrf())
+                            .exchange();
+
+            assertThat(patched).hasStatusOk();
+            assertThat(patched)
+                    .bodyJson()
+                    .extractingPath("$.data.displayName")
+                    .isEqualTo("RenamedUser");
+
+            assertThat(
+                            mvc.get()
+                                    .uri("/api/v1/users/me")
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .exchange())
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.data.displayName")
+                    .isEqualTo("RenamedUser");
+
+            String details =
+                    jdbcClient
+                            .sql(
+                                    "SELECT details::text FROM audit_logs WHERE action = 'PROFILE_UPDATED' AND user_id = ?")
+                            .param(userId)
+                            .query(String.class)
+                            .single();
+            assertThat(details)
+                    .contains("displayName")
+                    .contains(DISPLAY_NAME)
+                    .contains("RenamedUser");
+        }
+
+        @Test
+        @DisplayName("Should treat a same-name submission as a no-op and not audit it")
+        void shouldNotAudit_whenNameUnchanged() throws Exception {
+            String[] jwtAndUserId = registerVerifyAndLogin(uniqueEmail());
+
+            var patched =
+                    mvc.patch()
+                            .uri("/api/v1/users/me")
+                            .header("Authorization", "Bearer " + jwtAndUserId[0])
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"displayName\":\"" + DISPLAY_NAME + "\"}")
+                            .with(csrf())
+                            .exchange();
+
+            assertThat(patched).hasStatusOk();
+            assertThat(
+                            jdbcClient
+                                    .sql(
+                                            "SELECT count(*) FROM audit_logs WHERE action = 'PROFILE_UPDATED'")
+                                    .query(Integer.class)
+                                    .single())
+                    .isZero();
+        }
+
+        @Test
+        @DisplayName("Should return 400 and leave the name untouched when it is invalid")
+        void shouldReturn400_andLeaveNameUntouched_whenInvalid() throws Exception {
+            String[] jwtAndUserId = registerVerifyAndLogin(uniqueEmail());
+            String jwt = jwtAndUserId[0];
+
+            var patched =
+                    mvc.patch()
+                            .uri("/api/v1/users/me")
+                            .header("Authorization", "Bearer " + jwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"displayName\":\"x\"}")
+                            .with(csrf())
+                            .exchange();
+
+            assertThat(patched)
+                    .hasStatus(400)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("COMMON_003");
+            assertThat(
+                            mvc.get()
+                                    .uri("/api/v1/users/me")
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .exchange())
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.data.displayName")
+                    .isEqualTo(DISPLAY_NAME);
+        }
+
+        @Test
+        @DisplayName("Should return 403 AUTH_020 when the API key lacks WRITE scope")
+        void shouldReturn403_whenApiKeyLacksWriteScope() throws Exception {
+            String[] jwtAndUserId = registerVerifyAndLogin(uniqueEmail());
+            String readOnlyKey = createApiKey(jwtAndUserId[0], "Read Key", "READ");
+
+            var patched =
+                    mvc.patch()
+                            .uri("/api/v1/users/me")
+                            .header("Authorization", "Bearer " + readOnlyKey)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"displayName\":\"RenamedUser\"}")
+                            .with(csrf())
+                            .exchange();
+
+            assertThat(patched)
+                    .hasStatus(403)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_020");
+        }
+    }
 }

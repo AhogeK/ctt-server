@@ -54,6 +54,9 @@ public enum AuditAction {
     /** Account deleted by its owner, with identity anonymized and credentials revoked. */
     ACCOUNT_DELETED("Account deleted by its owner"),
 
+    /** Display name changed by the account owner from the settings page. */
+    PROFILE_UPDATED("User profile display name updated by its owner"),
+
     // ==========================================
     // OAuth Integration
     // ==========================================

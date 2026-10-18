@@ -1,5 +1,8 @@
 package com.ahogek.cttserver.user.service;
 
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
+import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
@@ -30,6 +33,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -278,6 +282,75 @@ class UserServiceTest {
             verify(userRepository).findById(userId);
             verify(userRepository, never()).save(any());
             verify(userLoginService, never()).issueTokens(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("updateDisplayName() - Profile Update Flow")
+    class UpdateDisplayNameTests {
+
+        @Test
+        @DisplayName("Should persist the new name and audit the change when the name differs")
+        void shouldPersistNewName_andAudit_whenNameDiffers() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            User user = new User();
+            org.springframework.test.util.ReflectionTestUtils.setField(user, "id", userId);
+            user.setDisplayName("OldName");
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+            // When
+            userService.updateDisplayName(userId, "NewName");
+
+            // Then
+            assertThat(user.getDisplayName()).isEqualTo("NewName");
+            verify(userRepository).save(user);
+            verify(auditLogService)
+                    .log(
+                            eq(userId),
+                            eq(AuditAction.PROFILE_UPDATED),
+                            eq(ResourceType.USER),
+                            eq(userId.toString()),
+                            eq(SecuritySeverity.INFO),
+                            any());
+        }
+
+        @Test
+        @DisplayName("Should neither write nor audit when the submitted name is unchanged")
+        void shouldNeitherWriteNorAudit_whenNameUnchanged() {
+            // Given
+            UUID userId = UUID.randomUUID();
+            User user = new User();
+            org.springframework.test.util.ReflectionTestUtils.setField(user, "id", userId);
+            user.setDisplayName("SameName");
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+            // When
+            userService.updateDisplayName(userId, "SameName");
+
+            // Then
+            assertThat(user.getDisplayName()).isEqualTo("SameName");
+            verify(userRepository, never()).save(any());
+            verify(auditLogService, never()).log(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Should throw NotFoundException when the user does not exist")
+        void shouldThrowNotFoundException_whenUserMissing() {
+            // Given
+            UUID userId = UUID.randomUUID();
+
+            when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> userService.updateDisplayName(userId, "NewName"))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
+
+            verify(userRepository, never()).save(any());
+            verify(auditLogService, never()).log(any(), any(), any(), any(), any(), any());
         }
     }
 }
