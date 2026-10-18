@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.80.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.80.1`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth）、审计与限流 |
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.80.1` | 2026-10-18 | test(user): cover the profile rate limit and the deleted-account gate |
 | `0.80.0` | 2026-10-18 | feat(user): let users change their display name |
 | `0.79.0` | 2026-10-15 | feat(stats): expose the per-day hourly distribution |
 | `0.78.1` | 2026-10-12 | fix(auth): gate credential and identity changes on an active account |
