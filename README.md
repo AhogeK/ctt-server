@@ -294,6 +294,7 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 | `/api/v1/users/me`                         | DELETE | Delete the current user's account permanently (requires JWT, CSRF token) - see below                                      |
 | `/api/v1/users/me/sessions`                | GET    | List the account's login sessions, most recently used first - see below                                                    |
 | `/api/v1/users/me/sessions/{sessionId}`    | DELETE | Revoke one login session (204; a WRITE-scoped API key may call it too) - see below                                          |
+| `/api/v1/users/me/export`                  | GET    | Download everything the account holds as one JSON file, in the desktop client's import format - see below                    |
 
 **Display name update** (`PATCH /api/v1/users/me`): body `{"displayName": "..."}`, validated with
 the same rule as registration (2-50 characters: Chinese, Japanese, Korean, Latin letters, digits,
@@ -346,6 +347,23 @@ instant cannot keep the session alive — and a client that keeps presenting a r
 token gets `401 AUTH_003` for that session alone rather than taking every other session down with
 it. Already-issued access tokens stay valid until they expire: the 15-minute window logout leaves
 open, and the reason the list is the authority on "signed in where", not the tokens.
+
+**Data export** (`GET /api/v1/users/me/export?timezoneOffset=<minutes>`): streams everything the
+account holds as one JSON file. The shape is the desktop client's import format on purpose — a file
+nobody can import is not much of a portability feature: `exportVersion` is `1.0`, sessions sit under
+`sessions` with the client's field names, and every timestamp is written as a **local** date-time
+without a zone, converted with the `timezoneOffset` the caller passes (`480` for UTC+8). The
+importer parses those strings as local times, so a `Z` suffix would make the whole import fail;
+`timezoneOffset` is therefore required, not defaulted, and an out-of-range value is
+`400 COMMON_003`. A session whose device was never registered still reports empty strings, never
+`null`, because the client model rejects nulls. Soft-deleted sessions are left out: the importer
+inserts everything as live, so exporting them would resurrect rows the user deleted. Everything
+else rides in `serverExport` (account, devices, materialized statistics, achievements, login
+sessions, API key metadata, OAuth bindings), which the importer ignores by name — Gson skips
+unknown fields. No credentials of any kind are included: no password, no token, no key hash.
+Downloaded as `ctt-export-<yyyyMMdd>.json`; requires an active account, `READ` scope for an API
+key, and is rate limited to 3 exports/hour. Errors: `400 COMMON_003` (offset out of range),
+`403 AUTH_020` / `403 AUTH_022`, `429 RATE_LIMIT_001`. The export is audited as `DATA_EXPORTED`.
 
 **Response Fields**:
 - `id` (UUID)
