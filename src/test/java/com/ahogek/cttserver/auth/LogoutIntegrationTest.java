@@ -145,10 +145,10 @@ class LogoutIntegrationTest {
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(refreshTokenRequestJson(refreshToken)))
-                .hasStatus(403)
+                .hasStatus(401)
                 .bodyJson()
                 .extractingPath("$.code")
-                .isEqualTo("AUTH_009");
+                .isEqualTo("AUTH_003");
     }
 
     @Nested
@@ -181,7 +181,7 @@ class LogoutIntegrationTest {
             // Then 2: 0 active tokens
             assertThat(countActiveTokensForUser(user.getId())).isZero();
 
-            // Then 3: POST /refresh with same token returns 403 AUTH_009 (reuse detection)
+            // Then 3: POST /refresh with same token returns 401 AUTH_003 (session revoked)
             assertTokenRejected(tokens.refreshToken());
 
             // Then 4: Audit log contains LOGOUT_SUCCESS
@@ -384,7 +384,7 @@ class LogoutIntegrationTest {
             // Then 1: 0 active tokens
             assertThat(countActiveTokensForUser(user.getId())).isZero();
 
-            // Then 2: All 3 tokens rejected on /refresh (403 AUTH_009)
+            // Then 2: All 3 tokens rejected on /refresh (401 AUTH_003, sessions revoked)
             assertTokenRejected(tokens1.refreshToken());
             assertTokenRejected(tokens2.refreshToken());
             assertTokenRejected(tokens3.refreshToken());

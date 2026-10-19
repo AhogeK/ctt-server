@@ -48,6 +48,7 @@ class TokenRefreshServiceTest {
 
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID TOKEN_ID = UUID.randomUUID();
+    private static final UUID SESSION_ID = UUID.randomUUID();
     private static final UUID DEVICE_ID = UUID.randomUUID();
     private static final String RAW_TOKEN = "test-refresh-token-abc123";
     private static final String TOKEN_HASH = TokenUtils.hashToken(RAW_TOKEN);
@@ -161,9 +162,14 @@ class TokenRefreshServiceTest {
         @DisplayName("should throw AUTH_009 and revoke all tokens when reuse detected")
         void shouldThrowAuth009_andRevokeAllTokens_whenReuseDetected() {
             RefreshToken revokedToken = createRevokedRefreshToken();
+            RefreshToken liveToken = createValidRefreshToken();
 
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH))
                     .thenReturn(Optional.of(revokedToken));
+            when(refreshTokenRepository
+                            .findFirstByUserIdAndSessionIdAndRevokedAtIsNullOrderByCreatedAtDesc(
+                                    USER_ID, SESSION_ID))
+                    .thenReturn(Optional.of(liveToken));
 
             assertThatThrownBy(
                             () -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
@@ -178,6 +184,28 @@ class TokenRefreshServiceTest {
                             eq(ResourceType.REFRESH_TOKEN),
                             eq(TOKEN_ID.toString()),
                             any());
+        }
+
+        @Test
+        @DisplayName("should throw AUTH_003 without global revocation when session was revoked")
+        void shouldThrowAuth003_withoutGlobalRevocation_whenSessionRevoked() {
+            RefreshToken revokedToken = createRevokedRefreshToken();
+
+            when(refreshTokenRepository.findByTokenHash(TOKEN_HASH))
+                    .thenReturn(Optional.of(revokedToken));
+            when(refreshTokenRepository
+                            .findFirstByUserIdAndSessionIdAndRevokedAtIsNullOrderByCreatedAtDesc(
+                                    USER_ID, SESSION_ID))
+                    .thenReturn(Optional.empty());
+
+            assertThatThrownBy(
+                            () -> tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT))
+                    .isInstanceOf(UnauthorizedException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_003)
+                    .hasMessageContaining("Session has been revoked");
+
+            verify(refreshTokenRepository, never()).revokeAllUserTokens(any(), any(Instant.class));
+            verify(auditLogService, never()).logCritical(any(), any(), any(), any(), any());
         }
     }
 
@@ -271,6 +299,7 @@ class TokenRefreshServiceTest {
         token.setExpiresAt(Instant.now().plus(REFRESH_TOKEN_TTL));
         token.setIssuedFor("WEB");
         token.setDeviceId(DEVICE_ID);
+        token.setSessionId(SESSION_ID);
         return token;
     }
 

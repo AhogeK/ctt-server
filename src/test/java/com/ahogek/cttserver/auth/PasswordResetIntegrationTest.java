@@ -192,10 +192,10 @@ class PasswordResetIntegrationTest {
                                     .with(csrf())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content("{\"refreshToken\": \"" + refreshToken + "\"}"))
-                    .hasStatus(403)
+                    .hasStatus(401)
                     .bodyJson()
                     .extractingPath("$.code")
-                    .isEqualTo("AUTH_009");
+                    .isEqualTo("AUTH_003");
 
             // Then 5: Old password fails
             assertThat(

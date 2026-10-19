@@ -3,6 +3,7 @@ package com.ahogek.cttserver.user.controller;
 import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.auth.service.LoginSessionService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.idempotent.IdempotentAspect;
 import com.ahogek.cttserver.common.ratelimit.RateLimitAspect;
@@ -65,6 +66,7 @@ class UserControllerMockMvcTest {
     @MockitoBean private UserService userService;
     @MockitoBean private AccountDeletionService accountDeletionService;
     @MockitoBean private LeaderboardService leaderboardService;
+    @MockitoBean private LoginSessionService loginSessionService;
     @MockitoBean private CurrentUserProvider currentUserProvider;
 
     /**
