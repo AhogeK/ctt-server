@@ -71,6 +71,31 @@ projection from its single source, so the body a client syncs from matches what 
   `USER_005` ("Display name already taken") therefore stays unused until a real identifier — not a
   label — is introduced.
 
+## A session is a login, and its audience is decided by the registry
+
+`refresh_tokens.session_id` is minted once per login and carried by every row rotation produces, so
+"one login = one session" survives refreshing. The access token names its session through the `sid`
+claim, and `CurrentUser.sessionId` is null for API-key principals and for tokens minted outside a
+session (the claim is then omitted entirely).
+
+Audience (`WEB` / `PLUGIN`) and its TTL are decided **at issuance**, and the discriminator is the
+device registry — not the presence of a device id. `LoginRequest.deviceId` is `@NotBlank`, so every
+login carries one, and neither client sends the platform/IDE headers that `ClientIdentity` models.
+`devices` is the server-side statement of "this client is an IDE plugin", which is why
+`refreshTokenTtlPlugin` exists at all.
+
+**Rotation and every later re-issuance continue the session instead of re-deciding.** Rotation
+inherits audience, device binding, TTL and client User-Agent from the token being rotated, and
+`UserLoginService.issueTokens` — the path behind terms acceptance and OAuth callbacks — looks up the
+session's live row and carries the same four attributes. Only a session with no live row (a fresh
+login) decides from the registry. The regression that forced this rule: terms acceptance used to
+re-issue with a null device id, so a plugin session silently became a `WEB`/30-day row on the same
+`session_id`, which would have shown up in the session list as a browser session. Covered by
+`shouldKeepPluginAudience_whenAcceptingTerms`.
+
+Consequence worth knowing: a plugin that logs in **before** registering its device is recorded as a
+web session, and every later issuance on that session keeps that audience.
+
 ## Test recipe
 
 1. Flow ordering: a test per guard (each error code reachable independently).
