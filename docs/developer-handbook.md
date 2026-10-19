@@ -73,6 +73,12 @@ public enum ErrorCode {
 - `PASSWORD_RESET_REQUESTED` - Password reset token generated and requested
 - `PASSWORD_RESET_EMAIL_NOT_FOUND` - Password reset requested for non-existent or inactive email (anti-enumeration)
 
+### Login Session Audit Events
+
+| Audit Action      | Description                                                              | Trigger Point                      |
+|-------------------|--------------------------------------------------------------------------|------------------------------------|
+| `SESSION_REVOKED` | One login session revoked from the account's session list (resource id = session id, details carry `kind`) | `LoginSessionService.revokeSession` |
+
 ### API Key Audit Events
 
 | Audit Action        | Description                                                | Trigger Point                  |
