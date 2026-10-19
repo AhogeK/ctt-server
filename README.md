@@ -287,11 +287,13 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 
 ### User Profile
 
-| Endpoint                | Method | Description                                                                                                              |
-|-------------------------|--------|--------------------------------------------------------------------------------------------------------------------------|
-| `/api/v1/users/me`      | GET    | Get current authenticated user's profile (JWT or API key) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
-| `/api/v1/users/me`      | PATCH  | Change the display name (JWT or a WRITE-scoped API key) and return the updated profile - see below                          |
-| `/api/v1/users/me`      | DELETE | Delete the current user's account permanently (requires JWT, CSRF token) - see below                                      |
+| Endpoint                                   | Method | Description                                                                                                              |
+|--------------------------------------------|--------|--------------------------------------------------------------------------------------------------------------------------|
+| `/api/v1/users/me`                         | GET    | Get current authenticated user's profile (JWT or API key) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
+| `/api/v1/users/me`                         | PATCH  | Change the display name (JWT or a WRITE-scoped API key) and return the updated profile - see below                          |
+| `/api/v1/users/me`                         | DELETE | Delete the current user's account permanently (requires JWT, CSRF token) - see below                                      |
+| `/api/v1/users/me/sessions`                | GET    | List the account's login sessions, most recently used first - see below                                                    |
+| `/api/v1/users/me/sessions/{sessionId}`    | DELETE | Revoke one login session (204; a WRITE-scoped API key may call it too) - see below                                          |
 
 **Display name update** (`PATCH /api/v1/users/me`): body `{"displayName": "..."}`, validated with
 the same rule as registration (2-50 characters: Chinese, Japanese, Korean, Latin letters, digits,
@@ -326,6 +328,24 @@ Errors: `401` wrong password (`USER_014`) or missing/invalid JWT, `403` no passw
 account that has one (`USER_013`), or called with an API key (`AUTH_025`), `429 RATE_LIMIT_001` after
 5 attempts within an hour. The limit exists because confirming the password is a bcrypt verification:
 an unthrottled caller burns CPU rather than merely guessing.
+
+**Login sessions** (`GET` / `DELETE /api/v1/users/me/sessions`): one entry per login, not per
+refresh — rotation continues a session, so a client that refreshed ten times still has a single
+entry. Each entry carries `kind` (`WEB` or `PLUGIN`), `deviceName` and `ideName` for a device-bound
+session, the `userAgent` exactly as the client sent it, `createdAt` (when the login happened),
+`lastUsedAt` (the most recent refresh, null until one happens), `expiresAt`, and `current` — true
+for the session the calling access token belongs to. A call made with an API key has no session of
+its own, so every entry reports `current: false`. Sessions are sorted by last use, newest first;
+`GET` is rate limited to 60/hour and `DELETE` to 10/hour.
+
+`DELETE /api/v1/users/me/sessions/{sessionId}` revokes every live token of that session, so the
+client holding it must sign in again; revoking the calling session is allowed and equals a logout.
+A session that belongs to another account answers `404 COMMON_002`, exactly like one that does not
+exist. Revocation is serialized against rotation for that session, so a refresh running at the same
+instant cannot keep the session alive — and a client that keeps presenting a revoked session's
+token gets `401 AUTH_003` for that session alone rather than taking every other session down with
+it. Already-issued access tokens stay valid until they expire: the 15-minute window logout leaves
+open, and the reason the list is the authority on "signed in where", not the tokens.
 
 **Response Fields**:
 - `id` (UUID)

@@ -55,7 +55,10 @@ CTT Server implements a defense-in-depth security architecture following OWASP g
 
 ### JWT Token Architecture
 
-The system uses JSON Web Tokens (JWT) as the primary authentication mechanism. Sessions are fully stateless; no session data is stored server-side.
+The system uses JSON Web Tokens (JWT) as the primary authentication mechanism. Sessions are fully
+stateless; no session data is stored server-side. The "sessions" a user sees and revokes in the
+account UI are not server-side authentication state: each one is the chain of refresh-token rows one
+login produced, grouped by the `session_id` it carries.
 
 #### Token Types
 
@@ -133,7 +136,14 @@ Each refresh token is single-use. On refresh:
 2. A new access token and refresh token pair is issued
 3. New cookies are set in the response
 
-This prevents token replay attacks. If a stolen refresh token is used after the legitimate client has already refreshed, the server detects the reuse and can revoke all tokens for that user (Kill Switch).
+This prevents token replay attacks. A replay only counts as theft when the session it belongs to is
+still alive: the replayed token was then superseded by a rotation, so the server treats it as a
+breach and revokes every token the user holds (Kill Switch). A token whose session has no live row —
+the whole session was revoked by a logout, a password reset, or the user kicking it out of the
+session list — is answered `401 AUTH_003` for that session alone, because a client that does not yet
+know it was signed out would otherwise take every other session down with it. The account's sessions
+are listed and revoked through `GET` / `DELETE /api/v1/users/me/sessions`; revoking one is serialized
+against token rotation for that session, so it cannot be kept alive by a refresh racing it.
 
 ### Cookie Security
 
