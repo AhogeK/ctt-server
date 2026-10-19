@@ -127,3 +127,45 @@ export function useCurrentUser() {
 | `GET` | `/api/v1/users/me/export` | 导出全部个人数据 | 响应 `application/x-ndjson` 流式；请逐行解析或直接落盘，勿对整段响应 `JSON.parse` |
 
 **错误码零新增**（复用 `COMMON_002` / `COMMON_003` / `AUTH_008` / `AUTH_020` / `AUTH_022`）；跨端一律以 `ErrorCode.java` 为准 —— 例：`AUTH_018` = "Cannot unlink last credential"（409）；某个会话被吊销后，该客户端下次刷新会得到 `AUTH_008`（Refresh token revoked）。
+
+## 登录会话列表与吊销（v0.82.0）
+
+| 项 | 值 |
+|---|---|
+| HTTP 方法 | `GET` / `DELETE` |
+| 路径 | `/api/v1/users/me/sessions`、`/api/v1/users/me/sessions/{sessionId}` |
+| 鉴权 | **Bearer JWT 必填**（DELETE 也接受带 `WRITE` scope 的 API key） |
+| 限流 | GET 60/小时、DELETE 10/小时（超出 `429 RATE_LIMIT_001`） |
+| 响应（成功） | GET `200 OK` + `RestApiResponse<LoginSessionResponse[]>`；DELETE `204 No Content` |
+| 响应（错误） | `401`（无 JWT）、`403 AUTH_020`（API key 缺 WRITE scope）、`403 AUTH_022`（账号非活跃）、`404 COMMON_002`（会话不存在或不属于本人） |
+
+### 语义要点（对接前务必知道）
+
+- **一次登录 = 一条会话**，刷新不会新增条目：轮换只是同一 `session_id` 下换一行。
+- 每条会话的 `createdAt` 是**登录时刻**，`lastUsedAt` 是**最近一次刷新**（从未刷新则为 `null`），`expiresAt` 是该会话最新令牌的到期时间。
+- `current` 表示"这条会话就是当前这次请求所用的会话"；用 API key 调用时没有会话身份，所有条目 `current` 均为 `false`。
+- 排序按 `lastUsedAt` 倒序（最近活动在前），当前会话通常靠前但不保证第一。
+- `deviceName` / `ideName` 仅在设备绑定（`kind = "PLUGIN"`）会话上有值，浏览器会话为 `null`。
+- `userAgent` 是客户端原样上送的值（服务端不解析、按 512 字符截断），前端可自行派生 "Chrome · macOS" 这类显示名。
+- **可空字段的键始终存在**（值为 `null`），便于区分"该会话没有设备"与"前端不认识该字段"。
+
+### Response 字段
+
+| 字段 | 类型 | 说明 | 示例 |
+|---|---|---|---|
+| `id` | UUID | 会话标识（删除时的路径参数） | `"9f1c8f7a-2b4e-4d5a-9c3e-1a2b3c4d5e6f"` |
+| `kind` | String | 会话类型 `WEB` / `PLUGIN` | `"PLUGIN"` |
+| `deviceName` | String (nullable) | 设备注册名 | `"MacBook Pro"` |
+| `ideName` | String (nullable) | IDE 名称 | `"IntelliJ IDEA"` |
+| `userAgent` | String (nullable) | 客户端 UA 原值 | `"Mozilla/5.0 (Macintosh; ...)"` |
+| `createdAt` | Instant | 登录时刻 | `"2026-10-19T09:12:31Z"` |
+| `lastUsedAt` | Instant (nullable) | 最近刷新时刻 | `"2026-10-19T10:04:07Z"` |
+| `expiresAt` | Instant | 会话最新令牌到期时间 | `"2026-11-18T09:12:31Z"` |
+| `current` | boolean | 是否为当前请求所用会话 | `true` |
+
+### 吊销语义
+
+- 吊销会失效该会话**全部未过期令牌**，该客户端需重新登录；**允许吊销当前会话**（等价登出）。
+- 对非本人或不存在的会话统一返回 `404 COMMON_002`，不泄露会话是否存在。
+- 已签发的 access token 在到期前（≤15 分钟）仍然有效——与 `logout` 同一取舍，列表是"在哪登录过"的权威视图。
+- 被踢客户端若继续用旧 refresh token 刷新，只会得到该会话的 `401 AUTH_003`，**不会**连带吊销该账号其它会话。
