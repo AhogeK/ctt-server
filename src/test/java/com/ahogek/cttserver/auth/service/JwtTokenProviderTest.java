@@ -63,7 +63,7 @@ class JwtTokenProviderTest {
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
 
         // When
-        String token = provider.generateAccessToken(user);
+        String token = provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         assertThat(token).isEqualTo(TEST_TOKEN_VALUE);
@@ -79,7 +79,7 @@ class JwtTokenProviderTest {
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
 
         // When
-        provider.generateAccessToken(user);
+        provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         ArgumentCaptor<JwtEncoderParameters> captor =
@@ -100,7 +100,7 @@ class JwtTokenProviderTest {
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
 
         // When
-        provider.generateAccessToken(user);
+        provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         ArgumentCaptor<JwtEncoderParameters> captor =
@@ -121,7 +121,7 @@ class JwtTokenProviderTest {
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
 
         // When
-        provider.generateAccessToken(user);
+        provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         ArgumentCaptor<JwtEncoderParameters> captor =
@@ -143,7 +143,7 @@ class JwtTokenProviderTest {
         Instant beforeCall = Instant.now();
 
         // When
-        provider.generateAccessToken(user);
+        provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         ArgumentCaptor<JwtEncoderParameters> captor =
@@ -170,7 +170,7 @@ class JwtTokenProviderTest {
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
 
         // When
-        provider.generateAccessToken(user);
+        provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         ArgumentCaptor<JwtEncoderParameters> captor =
@@ -202,7 +202,7 @@ class JwtTokenProviderTest {
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
 
         // When
-        provider.generateAccessToken(user);
+        provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         ArgumentCaptor<JwtEncoderParameters> captor =
@@ -231,7 +231,7 @@ class JwtTokenProviderTest {
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
 
         // When
-        provider.generateAccessToken(user);
+        provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         ArgumentCaptor<JwtEncoderParameters> captor =
@@ -259,7 +259,7 @@ class JwtTokenProviderTest {
         when(jwtEncoder.encode(any(JwtEncoderParameters.class))).thenReturn(mockJwt);
 
         // When
-        provider.generateAccessToken(user);
+        provider.generateAccessToken(user, UUID.randomUUID());
 
         // Then
         ArgumentCaptor<JwtEncoderParameters> captor =

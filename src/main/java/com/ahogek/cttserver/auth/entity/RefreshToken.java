@@ -30,11 +30,23 @@ import java.util.UUID;
 @Table(name = "refresh_tokens")
 public class RefreshToken extends AbstractToken {
 
+    /** Audience of a browser login. */
+    public static final String AUDIENCE_WEB = "WEB";
+
+    /** Audience of a device-bound (plugin) login. */
+    public static final String AUDIENCE_PLUGIN = "PLUGIN";
+
     @Column(name = "issued_for", nullable = false)
-    private String issuedFor = "WEB";
+    private String issuedFor = AUDIENCE_WEB;
 
     @Column(name = "device_id")
     private UUID deviceId;
+
+    @Column(name = "session_id", nullable = false)
+    private UUID sessionId;
+
+    @Column(name = "user_agent", length = 512)
+    private String userAgent;
 
     @Column(name = "revoked_at")
     private Instant revokedAt;
@@ -99,6 +111,15 @@ public class RefreshToken extends AbstractToken {
         return issuedFor;
     }
 
+    /**
+     * Whether this token belongs to a device-bound (plugin) session.
+     *
+     * @return true when the audience is {@link #AUDIENCE_PLUGIN}
+     */
+    public boolean isPluginSession() {
+        return AUDIENCE_PLUGIN.equals(issuedFor);
+    }
+
     public void setIssuedFor(String issuedFor) {
         this.issuedFor = issuedFor;
     }
@@ -109,6 +130,22 @@ public class RefreshToken extends AbstractToken {
 
     public void setDeviceId(UUID deviceId) {
         this.deviceId = deviceId;
+    }
+
+    public UUID getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(UUID sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
     }
 
     public Instant getRevokedAt() {

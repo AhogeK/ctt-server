@@ -6,6 +6,7 @@ import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
+import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -52,6 +53,7 @@ class UserLoginServiceIssueTokensTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtTokenProvider jwtTokenProvider;
     @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Mock private DeviceRepository deviceRepository;
     @Mock private AuditLogService auditLogService;
     @Mock private LoginAttemptService loginAttemptService;
     @Mock private SecurityProperties securityProperties;
@@ -73,6 +75,7 @@ class UserLoginServiceIssueTokensTest {
                         passwordEncoder,
                         jwtTokenProvider,
                         refreshTokenRepository,
+                        deviceRepository,
                         auditLogService,
                         loginAttemptService,
                         securityProperties,
@@ -91,12 +94,12 @@ class UserLoginServiceIssueTokensTest {
             User user = createActiveUser();
             user.setTermsVersion(CURRENT_TERMS_VERSION);
 
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(ACCESS_TOKEN);
             when(refreshTokenRepository.save(any()))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
-            LoginResponse response = userLoginService.issueTokens(user);
+            LoginResponse response = userLoginService.issueTokens(user, UUID.randomUUID());
 
             // Then
             assertThat(response.userId()).isEqualTo(USER_ID);
@@ -114,12 +117,12 @@ class UserLoginServiceIssueTokensTest {
             User user = createActiveUser();
             user.setTermsVersion(null);
 
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(ACCESS_TOKEN);
             when(refreshTokenRepository.save(any()))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
-            LoginResponse response = userLoginService.issueTokens(user);
+            LoginResponse response = userLoginService.issueTokens(user, UUID.randomUUID());
 
             // Then
             assertThat(response.userId()).isEqualTo(USER_ID);
@@ -137,12 +140,12 @@ class UserLoginServiceIssueTokensTest {
             User user = createActiveUser();
             user.setTermsVersion("0.9.0");
 
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(ACCESS_TOKEN);
             when(refreshTokenRepository.save(any()))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
-            LoginResponse response = userLoginService.issueTokens(user);
+            LoginResponse response = userLoginService.issueTokens(user, UUID.randomUUID());
 
             // Then
             assertThat(response.userId()).isEqualTo(USER_ID);

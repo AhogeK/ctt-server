@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -464,8 +465,7 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
         return user;
     }
 
-    private PasswordResetToken createValidToken(
-            java.util.UUID userId, String email, String rawToken) {
+    private PasswordResetToken createValidToken(UUID userId, String email, String rawToken) {
         PasswordResetToken token = new PasswordResetToken();
         token.setUserId(userId);
         token.setEmail(email);
@@ -474,8 +474,7 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
         return token;
     }
 
-    private PasswordResetToken createExpiredToken(
-            java.util.UUID userId, String email, String rawToken) {
+    private PasswordResetToken createExpiredToken(UUID userId, String email, String rawToken) {
         PasswordResetToken token = new PasswordResetToken();
         token.setUserId(userId);
         token.setEmail(email);
@@ -484,8 +483,7 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
         return token;
     }
 
-    private PasswordResetToken createConsumedToken(
-            java.util.UUID userId, String email, String rawToken) {
+    private PasswordResetToken createConsumedToken(UUID userId, String email, String rawToken) {
         PasswordResetToken token = new PasswordResetToken();
         token.setUserId(userId);
         token.setEmail(email);
@@ -495,8 +493,7 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
         return token;
     }
 
-    private PasswordResetToken createRevokedToken(
-            java.util.UUID userId, String email, String rawToken) {
+    private PasswordResetToken createRevokedToken(UUID userId, String email, String rawToken) {
         PasswordResetToken token = new PasswordResetToken();
         token.setUserId(userId);
         token.setEmail(email);
@@ -506,11 +503,12 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
         return token;
     }
 
-    private RefreshToken createActiveRefreshToken(java.util.UUID userId, String rawToken) {
+    private RefreshToken createActiveRefreshToken(UUID userId, String rawToken) {
         RefreshToken token = new RefreshToken();
         token.setUserId(userId);
         token.setTokenHash(TokenUtils.hashToken(rawToken));
-        token.setIssuedFor("WEB");
+        token.setIssuedFor(RefreshToken.AUDIENCE_WEB);
+        token.setSessionId(UUID.randomUUID());
         token.setExpiresAt(Instant.now().plus(Duration.ofDays(30)));
         return token;
     }

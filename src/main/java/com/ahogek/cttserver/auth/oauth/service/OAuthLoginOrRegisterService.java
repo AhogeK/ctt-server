@@ -4,6 +4,7 @@ import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.oauth.entity.UserOAuthAccount;
 import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
 import com.ahogek.cttserver.auth.oauth.model.GitHubUserInfo;
@@ -12,6 +13,8 @@ import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
+import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
@@ -45,8 +48,6 @@ import java.util.UUID;
  */
 @Service
 public class OAuthLoginOrRegisterService {
-
-    private static final String ISSUED_FOR_WEB = "WEB";
 
     private final UserOAuthAccountRepository oauthAccountRepository;
     private final UserRepository userRepository;
@@ -236,8 +237,9 @@ public class OAuthLoginOrRegisterService {
 
     /** Creates LoginResponse with access and refresh tokens. */
     private LoginResponse createLoginResponse(User user) {
-        String accessToken = jwtTokenProvider.generateAccessToken(user);
-        String refreshToken = createRefreshToken(user.getId());
+        UUID sessionId = UUID.randomUUID();
+        String accessToken = jwtTokenProvider.generateAccessToken(user, sessionId);
+        String refreshToken = createRefreshToken(user.getId(), sessionId);
         boolean termsExpired = !termsProperties.currentVersion().equals(user.getTermsVersion());
 
         return new LoginResponse(
@@ -250,12 +252,18 @@ public class OAuthLoginOrRegisterService {
     }
 
     /** Creates refresh token for OAuth login. */
-    private String createRefreshToken(UUID userId) {
+    private String createRefreshToken(UUID userId, UUID sessionId) {
         Duration ttl = jwtProps.refreshTokenTtlWeb();
 
         TokenUtils.RefreshTokenPair tokenPair =
                 TokenUtils.createRefreshToken(
-                        userId, ISSUED_FOR_WEB, ttl, null, refreshTokenRepository);
+                        userId,
+                        RefreshToken.AUDIENCE_WEB,
+                        ttl,
+                        null,
+                        sessionId,
+                        RequestContext.current().map(RequestInfo::userAgent).orElse(null),
+                        refreshTokenRepository);
 
         return tokenPair.rawToken();
     }

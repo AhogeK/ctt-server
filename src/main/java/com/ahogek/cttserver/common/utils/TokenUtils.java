@@ -33,6 +33,9 @@ import java.util.UUID;
  */
 public final class TokenUtils {
 
+    /** Matches the {@code refresh_tokens.user_agent} column width. */
+    private static final int MAX_USER_AGENT_LENGTH = 512;
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private static final int TOKEN_BYTES = 32;
@@ -136,6 +139,10 @@ public final class TokenUtils {
      * @param issuedFor the token audience ("WEB" or "PLUGIN")
      * @param ttl time-to-live for the token
      * @param deviceId optional device ID for device binding
+     * @param sessionId the session this token belongs to (one login = one session id, kept across
+     *     rotations)
+     * @param userAgent the raw client User-Agent; the server never parses it, and it is truncated
+     *     to the column width on write
      * @param repository the repository for persisting tokens
      * @return RefreshTokenPair containing the persisted token and raw token
      */
@@ -144,6 +151,8 @@ public final class TokenUtils {
             String issuedFor,
             Duration ttl,
             UUID deviceId,
+            UUID sessionId,
+            String userAgent,
             RefreshTokenRepository repository) {
         String rawToken = generateRawToken();
         String tokenHash = hashToken(rawToken);
@@ -154,8 +163,25 @@ public final class TokenUtils {
         token.setIssuedFor(issuedFor);
         token.setExpiresAt(Instant.now().plus(ttl));
         token.setDeviceId(deviceId);
+        token.setSessionId(sessionId);
+        token.setUserAgent(truncateUserAgent(userAgent));
 
         repository.save(token);
         return new RefreshTokenPair(token, rawToken);
+    }
+
+    /**
+     * Bounds a client User-Agent to what the column holds.
+     *
+     * <p>The header is attacker-controlled and unbounded; the value is kept raw because nothing
+     * parses it server-side, but it never exceeds the column.
+     *
+     * @param userAgent the raw header value, possibly null
+     * @return the value, truncated to {@value #MAX_USER_AGENT_LENGTH} characters
+     */
+    private static String truncateUserAgent(String userAgent) {
+        return userAgent == null || userAgent.length() <= MAX_USER_AGENT_LENGTH
+                ? userAgent
+                : userAgent.substring(0, MAX_USER_AGENT_LENGTH);
     }
 }

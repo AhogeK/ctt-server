@@ -43,6 +43,20 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
     /**
+     * Finds the live token of one session.
+     *
+     * <p>A session is a chain of rows — rotation revokes the previous row and inserts the next — so
+     * the live row carries the attributes that belong to the session rather than to a single token:
+     * audience, device binding, TTL and client User-Agent.
+     *
+     * @param userId the owning user
+     * @param sessionId the session identity
+     * @return the live row when the session still has one
+     */
+    Optional<RefreshToken> findFirstByUserIdAndSessionIdAndRevokedAtIsNullOrderByCreatedAtDesc(
+            UUID userId, UUID sessionId);
+
+    /**
      * Batch revokes all valid refresh tokens for a user.
      *
      * <p>Used for high-risk scenarios: password change, account lock, or forced logout of all
