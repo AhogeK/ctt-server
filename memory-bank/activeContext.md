@@ -1,5 +1,18 @@
 # Active Context
 
+- [2026-10-19] - R2-b 会话列表与吊销端点（v0.82.0，待授权提交）
+    - 交付: `GET /api/v1/users/me/sessions`（按 `session_id` 归并一次登录一条；`current` 取自 access token 的 `sid`；`limit` 默认 20 / 上限 100；限流 60/h）+ `DELETE /api/v1/users/me/sessions/{sessionId}`（204；该会话全部未吊销行置 `revoked_at`；非本人或不存在统一 404 `COMMON_002`；限流 10/h；审计 `SESSION_REVOKED`，resource = 会话 id、details 带 `kind`）+ DTO `LoginSessionResponse` 九字段 + `RefreshTokenRepository` 增三条（归并查询 / 会话锁 / 按会话吊销）
+    - **并发保证（本批核心）**: 刷新与吊销**都先取会话级排它锁**（`pg_advisory_xact_lock(hashtext(session_id))`，事务级自动释放）⇒ "踢了就一定失效"；否则刷新事务可在批量吊销扫过之后插入新行，被踢会话复活 ✗
+    - **连带缺陷（R2 引入后才会暴露，已修）**: 吊销会话后该客户端仍会拿旧 refresh token 刷新 —— 原逻辑按**令牌重用**判（`AUTH_009`）并 `revokeAllUserTokens` ⇒ "踢一个会话"会变成"全端登出" ✗。改为先看该会话是否仍有活跃行：无 → 整个会话已被吊销 ⇒ `401 AUTH_003`（只影响该会话）；有 → 重放的是轮换后的旧令牌 ⇒ 才判重用
+    - **查询正确性（用例抓到）**: 会话跨度（`createdAt`=MIN、`lastUsedAt`=MAX、`expiresAt`=MAX）必须跨**该会话全部行**（轮换会吊销上一行），而"哪条会话在用、取谁作活跃行属性"只看**未吊销行** ⇒ 拆成 `session_span` + `live_session` 两个 CTE；只聚合活跃行会把刚刷新的会话报成"从未使用" ✗
+    - 契约细节: DTO 加 `@JsonInclude(ALWAYS)` —— 可空键（`deviceName`/`ideName`/`userAgent`/`lastUsedAt`）**始终出现**（R9 规则），断言必须按键做（本次被 `path(k).isNull()` 对**缺失键**也为 true 坑过一次 ⇒ 改用 `has(k)` + `get(k).isNull()`）
+    - 复用与补漏: 转换器 `sid → CurrentUser.sessionId` 此前**无任何断言**（R2-a 缺口，列表用例把空 sid 暴露出来）→ `JwtToCurrentUserConverterTest` 补"有 sid"/"无 sid"两例
+    - 测试: `LoginSessionEndpointsIntegrationTest` 4 例（一次登录一条目 + PLUGIN 带设备名 + 按最近活动排序 / 只停被踢会话且其余仍可刷新 / 允许吊销当前会话 / 不泄露他人会话且其会话不受影响）
+    - 文档: README（User Profile 表两行 + 会话语义段）；`dev-docs/user/frontend-integration.md` 增完整契约（字段表 + 可空键语义 + 吊销语义）；`docs/developer-handbook.md` 增 `SESSION_REVOKED` 审计动作
+    - **既有测试按新语义更新（5 个类）**: 全局吊销（logout / logout-all / 密码重置）后的刷新期望由 `403 AUTH_009` 改为 **`401 AUTH_003`**；`TokenRefreshServiceTest` 新增「会话仍有活跃行 ⇒ 才判重用（`AUTH_009` + `revokeAllUserTokens`）」与「会话已无活跃行 ⇒ `AUTH_003` 且**不**做全局吊销」两条并列用例；`UserControllerMockMvcTest` 补 `LoginSessionService` mock（构造器新增依赖）。未删测试、未削弱断言
+    - 验证: 全量 **1528 tests / 0 failures / 0 errors**（1 skipped 为既有；1521 + 7 = 4 端点用例 + 2 转换器 sid 用例 + 1 重用/吊销区分用例）；`spotlessApply` 后 `build` PASS。一次 `clean build` 以 `:test FAILED` 且**零结果**中止（无诊断输出），随后单独 `test` 与 `build` 均通过——与依赖升级批次同形的瞬时失败，非代码问题
+    - 状态: ✅ 实施完成，待授权提交
+
 - [2026-10-19] - R2-a 收尾：双轴独立审查与审查修复（并入 v0.81.0 批次，待授权提交）
     - 双轴独立审查（标准轴 / 规格轴，另加机械自检：spotlessCheck、jacoco 门禁、注释语言与全限定名扫描、diff 范围）
     - **两轴独立命中同一个真 bug**: terms 接受路径 `issueTokens` 以 `deviceId=null` 重建行 ⇒ 插件会话在**同一 `session_id`** 下变成 WEB/30 天并丢设备绑定——既违背刚写入领域文件的"续期沿用受众/设备"承诺，也会让 R2-b 的会话列表把插件会话显示成浏览器会话（验收"PLUGIN 才显示设备名"会失效）

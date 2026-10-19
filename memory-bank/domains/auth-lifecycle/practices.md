@@ -96,6 +96,26 @@ re-issue with a null device id, so a plugin session silently became a `WEB`/30-d
 Consequence worth knowing: a plugin that logs in **before** registering its device is recorded as a
 web session, and every later issuance on that session keeps that audience.
 
+### Revoking a session, and what it must not do
+
+`DELETE /users/me/sessions/{id}` revokes every live row of the session and is serialized against
+rotation by a session-scoped advisory lock (`pg_advisory_xact_lock`) that **both** writers take
+before touching rows — without it, a rotation starting mid-revocation inserts its successor after
+the revoking update has already scanned the session, and the kicked session survives. A foreign or
+unknown session is answered `404 COMMON_002` by the same user-scoped update, so the endpoint never
+confirms that somebody else's session exists.
+
+A kicked client does not know it was kicked and keeps refreshing. That must not read as theft:
+reuse detection fires only when the session still has a live row (the replayed token is then a
+rotated one), while a token whose session has no live row gets a plain `401 AUTH_003`. Getting this
+wrong turns "sign out one device" into a sign-out everywhere.
+
+Listing reports one entry per login: `createdAt` / `lastUsedAt` / `expiresAt` aggregate over
+**every** row of the session (rotation revokes the previous one, so a live-only aggregate would
+report a refreshed session as never used), while audience, device binding and User-Agent come from
+the newest live row. Nullable session fields are always serialized, so a client can tell "a browser
+session has no device" from "this client predates the field".
+
 ## Test recipe
 
 1. Flow ordering: a test per guard (each error code reachable independently).

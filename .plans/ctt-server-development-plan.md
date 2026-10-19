@@ -48,7 +48,7 @@ left side
 *** 排行榜与成就
 ** 个人设置（账号自助）— 部分交付
 *** 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）
-*** 登录会话列表与吊销 — R2-a ✅ 已交付（v0.81.0，会话身份）；R2-b ⬜ 端点未开工
+*** 登录会话列表与吊销 ✅ 已交付（R2-a v0.81.0 会话身份 · R2-b v0.82.0 两个端点）
 *** 数据导出（可携带）⬜ 未开工
 ** 运维与可观测性 ⬜
 *** 统计接口开放调用
@@ -1785,7 +1785,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 > **来源与性质：** ctt-web 阶段六《个人设置》对接告知（2026-10-18，前端已定稿）。本节是后端对其 **R1–R3** 的逐条答复（确认 / 反提案）、**排期**与**反向要求**；决策由后端定案，前端按契约接入。
 > **执行契约：** 每批 = 代码 + 测试 + 版本号（AGENTS.md R15）+ 记忆（R2/R5），逐批独立提交（R6.5），master 逐条 cherry-pick（R17）。
-> **交付进度（2026-10-19 回填）：** R1 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）· R2-a 会话身份与插件会话缺陷修复 ✅ 已交付（v0.81.0，无端点）· R2-b 两个端点 ⬜ 未开工 · R3 数据导出 ⬜ 未开工。
+> **交付进度（2026-10-19 回填）：** R1 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）· R2 登录会话列表与吊销 ✅ **已全部交付**（R2-a 会话身份 v0.81.0 · R2-b 两个端点 + 并发保证 v0.82.0）· R3 数据导出 ⬜ 未开工（唯一剩余项）。
 
 #### 事实基线（2026-10-18 回源核实，全部为源码证据）
 
@@ -1908,7 +1908,19 @@ CREATE INDEX idx_refresh_tokens_session ON refresh_tokens (user_id, session_id);
 ALTER TABLE refresh_tokens ADD COLUMN user_agent VARCHAR(512);
 ```
 
-**实现进度：R2-a ✅ 已交付 / R2-b ⬜ 未开工**
+- **R2-b ✅ 已交付（v0.82.0）：两个端点 + 并发保证** —— `GET /api/v1/users/me/sessions`（按 `session_id` 归并，一次登录一条；`current` 取自 access token 的 `sid`；`limit` 默认 20 / 上限 100；限流 60/h）与 `DELETE /api/v1/users/me/sessions/{sessionId}`（204；吊销该会话全部未吊销行；非本人或不存在统一 `404 COMMON_002`；限流 10/h；审计 `SESSION_REVOKED`）。DTO `LoginSessionResponse` 九字段 + `@JsonInclude(ALWAYS)`（可空键始终出现）。
+
+**并发保证（本批核心）**：刷新与吊销**都先取会话级排它锁** `pg_advisory_xact_lock(hashtext(session_id))`（事务级自动释放）⇒ 两者串行，"踢了就一定失效"；否则刷新事务可在批量吊销扫过之后插入新行，被踢会话复活 ✗。
+
+**连带修复（R2 引入后才会暴露）**：吊销会话后该客户端仍会拿旧 refresh token 刷新——原逻辑按**令牌重用**处理（`AUTH_009` + `revokeAllUserTokens`）⇒ "踢一个会话"会变成"全端登出" ✗。现按"该会话是否仍有活跃行"区分：无 ⇒ `401 AUTH_003`（只影响该会话）；有 ⇒ 重放的是轮换后的旧令牌 ⇒ 才判重用。相关既有测试已按新语义更新。
+
+**查询正确性（用例抓到 ✗）**：会话跨度 `createdAt`=MIN / `lastUsedAt`=MAX / `expiresAt`=MAX 必须跨**该会话全部行**（轮换会吊销上一行），而"哪条会话在用、取谁作活跃行属性"只看**未吊销行** ⇒ 拆 `session_span` + `live_session` 两个 CTE；只聚合活跃行会把刚刷新的会话报成"从未使用"。
+
+**测试**：`LoginSessionEndpointsIntegrationTest` 4 例（一次登录一条目 + PLUGIN 带设备名 + 最近活动排序 / 只停被踢会话且其余仍可刷新 / 允许吊销当前会话 / 不泄露他人会话且其会话不受影响）；`JwtToCurrentUserConverterTest` 补 `sid → sessionId` 两例（**R2-a 留下的缺口：该映射此前无任何断言**）。
+
+**文档**：README（User Profile 表 + 会话语义段）、`dev-docs/user/frontend-integration.md`（完整契约：字段表 / 可空键语义 / 吊销语义）、`docs/developer-handbook.md`（`SESSION_REVOKED` 审计动作）。
+
+- **R2 完成度：✅ 全部交付**（R2-a 会话身份 v0.81.0 / R2-b 端点与并发保证 v0.82.0）；下方"实现（定案）"一节为定稿规格，实际交付与之一致——仅两处按实现校正：① 会话跨度聚合跨**该会话全部行**（定稿只说 MIN/MAX，未点明"被吊销的前一行也必须计入"）；② 被吊销令牌的刷新按"会话是否仍有活跃行"分流（定稿只写了重用即全局吊销，实际补上了"整个会话已被吊销 ⇒ `401 AUTH_003`"这一分支，否则踢一个会话会变成全端登出）。
 
 **审查修复（2026-10-19，标准轴与规格轴独立审查）**：两轴的独立结论**收敛到同一处行为缺陷** —— terms 接受路径把插件会话按全新签发重建（`deviceId=null`），使同一 `session_id` 下出现 WEB/30 天行并丢失设备绑定：与"续期沿用会话属性"相冲突，且会让 R2-b 的会话列表把插件会话显示成浏览器会话（"PLUGIN 才显示设备名"的验收会失效）。已按 TDD 修复（RED：`SessionIdentityIntegrationTest` 5 用例 1 失败 → `issueTokens` 改为按会话查活动行、沿用受众/设备/UA/相应 TTL → GREEN 5/5），并在 `domains/auth-lifecycle/practices.md` 固化「**轮换与一切后续签发沿用会话属性**」。
 
