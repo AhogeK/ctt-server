@@ -46,10 +46,10 @@ left side
 *** 编码会话双向同步
 *** 统计聚合
 *** 排行榜与成就
-** 个人设置（账号自助）⬜
-*** 修改显示名
-*** 登录会话列表与吊销
-*** 数据导出（可携带）
+** 个人设置（账号自助）— 部分交付
+*** 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）
+*** 登录会话列表与吊销 — R2-a ✅ 已交付（v0.81.0，会话身份）；R2-b ⬜ 端点未开工
+*** 数据导出（可携带）⬜ 未开工
 ** 运维与可观测性 ⬜
 *** 统计接口开放调用
 *** 个人统计 Card
@@ -1784,7 +1784,8 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 ### 👤 个人设置（账号自助与数据可携带）
 
 > **来源与性质：** ctt-web 阶段六《个人设置》对接告知（2026-10-18，前端已定稿）。本节是后端对其 **R1–R3** 的逐条答复（确认 / 反提案）、**排期**与**反向要求**；决策由后端定案，前端按契约接入。
-> **执行契约：** 每批 = 代码 + 测试 + 版本号（AGENTS.md R15）+ 记忆（R2/R5），逐批独立提交（R6.5），master 逐条 cherry-pick（R17）。三项均**尚未实现**（下方复选框为空）。
+> **执行契约：** 每批 = 代码 + 测试 + 版本号（AGENTS.md R15）+ 记忆（R2/R5），逐批独立提交（R6.5），master 逐条 cherry-pick（R17）。
+> **交付进度（2026-10-19 回填）：** R1 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）· R2-a 会话身份与插件会话缺陷修复 ✅ 已交付（v0.81.0，无端点）· R2-b 两个端点 ⬜ 未开工 · R3 数据导出 ⬜ 未开工。
 
 #### 事实基线（2026-10-18 回源核实，全部为源码证据）
 
@@ -1798,6 +1799,8 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 | 6 | 前端把 `AUTH_018` 映射为"不能解绑最后一个凭证" | ✅ **与现码一致**（前端是对的，本计划文件曾写错） | `ErrorCode.java:48` → `AUTH_018` "Cannot unlink last credential"（409） |
 
 **既有缺陷（R2 顺带修，非本阶段引入）**：`TokenRefreshService.refresh()` 轮换新行时硬编码 `issuedFor = "WEB"` 且恒用 `refreshTokenTtlWeb()`（30d）——`refreshTokenTtlPlugin`（14d，`SecurityProperties.java:44`）**从未被使用** ✗ ⇒ 插件会话每次刷新都被降级为 WEB 并把有效期续成 30 天。用户会话列表一旦上线会把 PLUGIN 会话错标为 WEB，故该修复是 R2 的前置项。
+
+> **2026-10-19 修复完成，且根因比上面这段诊断更深一层**：硬编码只是表象——真相是全仓**从没有任何地方写 `PLUGIN`**（登录路径同样如此，`ISSUED_FOR_WEB` 是唯一常量），所以插件会话是**从登录起**就被记成 WEB/30 天，而不是刷新才降级。判别规则现定为「`deviceId` 已在 `devices` 注册 ⇒ PLUGIN」（依据：`LoginRequest.deviceId` 是 `@NotBlank`，所有登录都带，故"带 deviceId"不能区分；设备注册表才是服务端可核实的插件声明）。代价：插件**首次**登录（尚未注册设备）仍记 WEB，刷新沿用该受众。
 
 #### 裁决摘要
 
@@ -1893,7 +1896,7 @@ end note
 @enduml
 ```
 
-**迁移（独立脚本，R22 —— init 迁移已应用，绝不修改）：** `V20261018120000__add_session_id_to_refresh_tokens.sql`
+**迁移（独立脚本，R22 —— init 迁移已应用，绝不修改）：** 交付为 `V20261019120000__add_session_identity_to_refresh_tokens.sql`（**校正**：定稿时此处记为 `V20261018120000__add_session_id_…` ✗——实施日改期、并把 `user_agent` 并入同一脚本，故时间戳与文件名均不同，**以交付文件名为准**）。
 
 ```sql
 ALTER TABLE refresh_tokens ADD COLUMN session_id UUID;
@@ -1904,6 +1907,17 @@ CREATE INDEX idx_refresh_tokens_session ON refresh_tokens (user_id, session_id);
 -- 会话的客户端身份（可空：存量行与插件会话可以没有）；原文存储、服务端不解析
 ALTER TABLE refresh_tokens ADD COLUMN user_agent VARCHAR(512);
 ```
+
+**实现进度：R2-a ✅ 已交付 / R2-b ⬜ 未开工**
+
+**审查修复（2026-10-19，标准轴与规格轴独立审查）**：两轴的独立结论**收敛到同一处行为缺陷** —— terms 接受路径把插件会话按全新签发重建（`deviceId=null`），使同一 `session_id` 下出现 WEB/30 天行并丢失设备绑定：与"续期沿用会话属性"相冲突，且会让 R2-b 的会话列表把插件会话显示成浏览器会话（"PLUGIN 才显示设备名"的验收会失效）。已按 TDD 修复（RED：`SessionIdentityIntegrationTest` 5 用例 1 失败 → `issueTokens` 改为按会话查活动行、沿用受众/设备/UA/相应 TTL → GREEN 5/5），并在 `domains/auth-lifecycle/practices.md` 固化「**轮换与一切后续签发沿用会话属性**」。
+
+同批清理（两轴共同指出）：受众字面量统一到 `RefreshToken.AUDIENCE_*`（删 `UserLoginService` 与 `OAuthLoginOrRegisterService` 两处死常量）、`isPluginSession()` 接线到轮换路径、删除零调用的 2 参 `createRefreshToken`、迁移脚本中文注释改英文、4 个测试方法名规范化为 `shouldX_whenY`、测试文件全限定名改正。**判为不改并记录理由**：7 参静态工厂（单一入口、3 个调用点各一行，引入 Spec 类型收益不抵）｜`issueTokens` 无 `sid` 时自造会话（`issueTokens` 从不传 null，是 NOT NULL 列下的防御分支，令牌 claim 与响应自洽）。
+
+- **R2-a（v0.81.0，无端点）**：迁移 `V20261019120000__add_session_identity_to_refresh_tokens.sql`（`session_id` NOT NULL + 回填 = id + 默认 + `(user_id, session_id)` 索引；`user_agent` 可空）+ `RefreshToken` 的 `AUDIENCE_WEB/AUDIENCE_PLUGIN` 常量与 `isPluginSession()`；**四条签发路径**（登录 / 轮换 / OAuth / terms 接受）全部携带会话身份与 UA（写入前截断 512 字符）；access token 增 `sid` claim（无会话则省略）；`CurrentUser` 增可空 `sessionId`——用 5 参便捷构造器让 **37 处既有构造点零改动**。用例 `SessionIdentityIntegrationTest` 4 个：两次登录两条会话且各记 UA / 注册设备 ⇒ PLUGIN + 14d / 轮换沿用会话、受众与 TTL / `sid` 命中；审查后补第 5 个 `shouldKeepPluginAudience_whenAcceptingTerms`（接受条款后仍是 PLUGIN + 带设备），全量 **1521 / 0 失败**
+- **实施中的 Ruling 修正（证据驱动，非偏好）**：受众判别原定「带 deviceId 即插件」✗ 被 **`LoginRequest.deviceId` 的 `@NotBlank`** 证伪（所有登录都必须带），且实测**两侧客户端都不发**平台/IDE 头 ⇒ 改为 **deviceId 已在 `devices` 注册 ⇒ PLUGIN**（注册表是服务端可核实的"这是插件客户端"，也正是该表存在的意义）。代价：插件**首次**登录（尚未注册设备）仍记 WEB，刷新沿用该受众
+- **修正计划内一处表述错误**：受众缺陷不只在轮换——全仓**从没有任何地方写 `PLUGIN`**，登录路径同样如此；`refreshTokenTtlPlugin` 在本次之前是**死配置**
+- 连带更新的既有测试：`AuthControllerPasswordResetConfirmIntegrationTest` 的令牌助手补 `session_id`；6 个单元测试类的 mock 桩适配新签名
 
 **实现（定案）：**
 
