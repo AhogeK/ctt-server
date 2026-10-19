@@ -2,6 +2,8 @@ package com.ahogek.cttserver.sync.repository;
 
 import com.ahogek.cttserver.sync.entity.CodingSession;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -188,4 +190,18 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
             @Param("userId") UUID userId,
             @Param("start") Instant start,
             @Param("endExclusive") Instant endExclusive);
+
+    /**
+     * Reads one page of a user's live sessions, oldest id first.
+     *
+     * <p>Backs the data export, which walks the history page by page instead of assembling it
+     * whole: a long-running user can hold hundreds of thousands of rows, and the export streams
+     * them to the client as they arrive. Ordering by {@code id} keeps the page boundaries stable
+     * for the duration of the read.
+     *
+     * @param userId the owning user id
+     * @param pageable page request; the export fixes the size and the sort
+     * @return one page of live sessions
+     */
+    Page<CodingSession> findByUserIdAndIsDeletedFalse(UUID userId, Pageable pageable);
 }
