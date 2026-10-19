@@ -200,10 +200,10 @@ class AuthControllerPasswordResetConfirmIntegrationTest {
                                     .uri("/api/v1/auth/refresh")
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(refreshRequest))
-                    .hasStatus(403)
+                    .hasStatus(401)
                     .bodyJson()
                     .extractingPath("$.code")
-                    .isEqualTo("AUTH_009");
+                    .isEqualTo("AUTH_003");
         }
     }
 

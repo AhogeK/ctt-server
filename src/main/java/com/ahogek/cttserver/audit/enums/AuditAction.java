@@ -42,6 +42,9 @@ public enum AuditAction {
     /** User logged out from all devices successfully (Kill Switch). */
     LOGOUT_ALL_DEVICES("User logged out from all devices successfully"),
 
+    /** One login session revoked from the account's session list. */
+    SESSION_REVOKED("A login session was revoked"),
+
     /** Security alert triggered (e.g., unauthorized access attempt). */
     SECURITY_ALERT("Security alert triggered"),
 

@@ -187,6 +187,33 @@ class JwtToCurrentUserConverterTest {
         assertThat(currentUser.authorities()).isEmpty();
     }
 
+    @Test
+    @DisplayName("convert should carry the sid claim into the session identity")
+    void convert_shouldCarrySessionId_whenSidClaimIsPresent() {
+        // Given
+        UUID sessionId = UUID.randomUUID();
+        Jwt jwt = createMockJwt(Map.of("sid", sessionId.toString()), TEST_USER_ID.toString());
+
+        // When
+        UsernamePasswordAuthenticationToken authentication = converter.convert(jwt);
+
+        // Then
+        assertThat(((CurrentUser) authentication.getPrincipal()).sessionId()).isEqualTo(sessionId);
+    }
+
+    @Test
+    @DisplayName("convert should leave the session identity empty when the token carries no sid")
+    void convert_shouldLeaveSessionIdEmpty_whenSidClaimIsAbsent() {
+        // Given
+        Jwt jwt = createMockJwt(Map.of(), TEST_USER_ID.toString());
+
+        // When
+        UsernamePasswordAuthenticationToken authentication = converter.convert(jwt);
+
+        // Then
+        assertThat(((CurrentUser) authentication.getPrincipal()).sessionId()).isNull();
+    }
+
     private Jwt createMockJwt(Map<String, Object> claims, String subject) {
         return Jwt.withTokenValue(TEST_TOKEN_VALUE)
                 .header("alg", "HS256")

@@ -68,6 +68,20 @@ public class TokenRefreshService {
         TokenStatus status = oldToken.determineStatus();
 
         if (status == TokenStatus.REVOKED) {
+            // A revoked token is either a rotated one being replayed — theft — or a token of a
+            // session that was revoked as a whole. Only the first is an attack: a client whose
+            // session was kicked out keeps refreshing with the token it still holds, and answering
+            // that with a global revocation would sign the user out of every other session too. A
+            // session that has no live row is therefore reported as a plain ended session.
+            boolean sessionStillLive =
+                    refreshTokenRepository
+                            .findFirstByUserIdAndSessionIdAndRevokedAtIsNullOrderByCreatedAtDesc(
+                                    oldToken.getUserId(), oldToken.getSessionId())
+                            .isPresent();
+            if (!sessionStillLive) {
+                throw new UnauthorizedException(ErrorCode.AUTH_003, "Session has been revoked");
+            }
+
             refreshTokenRepository.revokeAllUserTokens(oldToken.getUserId(), Instant.now());
 
             auditLogService.logCritical(
@@ -105,6 +119,9 @@ public class TokenRefreshService {
         }
 
         Instant now = Instant.now();
+        // Rotation writes a new row of the same session, so it takes the session lock first: a
+        // revocation running at the same moment must not be outrun by this insert.
+        refreshTokenRepository.lockSession(oldToken.getSessionId());
         oldToken.setLastUsedAt(now);
         oldToken.revoke();
         refreshTokenRepository.save(oldToken);
