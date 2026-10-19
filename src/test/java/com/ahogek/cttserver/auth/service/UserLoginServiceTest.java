@@ -12,6 +12,7 @@ import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
@@ -56,6 +57,7 @@ class UserLoginServiceTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtTokenProvider jwtTokenProvider;
     @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Mock private DeviceRepository deviceRepository;
     @Mock private AuditLogService auditLogService;
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
@@ -77,6 +79,7 @@ class UserLoginServiceTest {
                         passwordEncoder,
                         jwtTokenProvider,
                         refreshTokenRepository,
+                        deviceRepository,
                         auditLogService,
                         loginAttemptService,
                         securityProperties,
@@ -101,7 +104,7 @@ class UserLoginServiceTest {
             User user = createActiveUser();
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(TEST_ACCESS_TOKEN);
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
             LoginResponse response = loginService.login(request);
@@ -118,7 +121,7 @@ class UserLoginServiceTest {
             User user = createActiveUser();
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(TEST_ACCESS_TOKEN);
 
             loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
 
@@ -131,7 +134,7 @@ class UserLoginServiceTest {
             User user = createActiveUser();
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(TEST_ACCESS_TOKEN);
 
             loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
 
@@ -144,7 +147,7 @@ class UserLoginServiceTest {
             User user = createActiveUser();
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.of(user));
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(TEST_ACCESS_TOKEN);
 
             loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
 

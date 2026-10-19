@@ -47,7 +47,7 @@ class JwtTokenProviderIntegrationTest {
         user.setPasswordHash("hashed-password");
 
         // When: Generate access token
-        String token = jwtTokenProvider.generateAccessToken(user);
+        String token = jwtTokenProvider.generateAccessToken(user, UUID.randomUUID());
 
         // And: Decode the token
         Jwt decoded = jwtDecoder.decode(token);

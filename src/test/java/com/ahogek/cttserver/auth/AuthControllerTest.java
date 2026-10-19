@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
@@ -398,7 +399,7 @@ class AuthControllerTest {
             LoginResponse mockResponse =
                     new LoginResponse(userId, "new-access-token", "new-refresh-token", 3600L);
 
-            BDDMockito.given(userService.acceptTermsAndIssueTokens(userId))
+            BDDMockito.given(userService.acceptTermsAndIssueTokens(any(), any()))
                     .willReturn(mockResponse);
 
             var result =
@@ -423,7 +424,7 @@ class AuthControllerTest {
                     .isEqualTo("new-refresh-token");
             assertThat(result).bodyJson().extractingPath("$.data.expiresIn").isEqualTo(3600);
 
-            BDDMockito.then(userService).should().acceptTermsAndIssueTokens(userId);
+            BDDMockito.then(userService).should().acceptTermsAndIssueTokens(any(), any());
         }
 
         @Test
@@ -431,7 +432,7 @@ class AuthControllerTest {
         void shouldReturn404_whenUserNotFound() {
             UUID userId = UUID.randomUUID();
 
-            BDDMockito.given(userService.acceptTermsAndIssueTokens(userId))
+            BDDMockito.given(userService.acceptTermsAndIssueTokens(any(), any()))
                     .willThrow(new NotFoundException(ErrorCode.USER_004));
 
             assertThat(

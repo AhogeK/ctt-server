@@ -109,12 +109,25 @@ public class TokenRefreshService {
         oldToken.revoke();
         refreshTokenRepository.save(oldToken);
 
-        String newAccessToken = jwtTokenProvider.generateAccessToken(user);
+        String newAccessToken = jwtTokenProvider.generateAccessToken(user, oldToken.getSessionId());
 
-        Duration rtTtl = jwtProps.refreshTokenTtlWeb();
+        // Rotation continues the session: audience, its TTL, the device binding and the client
+        // User-Agent all belong to the session rather than to the individual token, so the new row
+        // inherits them instead of defaulting back to a web session.
+        String issuedFor = oldToken.getIssuedFor();
+        Duration rtTtl =
+                oldToken.isPluginSession()
+                        ? jwtProps.refreshTokenTtlPlugin()
+                        : jwtProps.refreshTokenTtlWeb();
         RefreshTokenPair newRtPair =
                 TokenUtils.createRefreshToken(
-                        user.getId(), "WEB", rtTtl, oldToken.getDeviceId(), refreshTokenRepository);
+                        user.getId(),
+                        issuedFor,
+                        rtTtl,
+                        oldToken.getDeviceId(),
+                        oldToken.getSessionId(),
+                        oldToken.getUserAgent(),
+                        refreshTokenRepository);
 
         auditLogService.log(
                 user.getId(),

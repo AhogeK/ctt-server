@@ -251,10 +251,11 @@ class UserServiceTest {
             when(termsProperties.currentVersion()).thenReturn(currentVersion);
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(userRepository.save(any(User.class))).thenReturn(user);
-            when(userLoginService.issueTokens(user)).thenReturn(mockResponse);
+            when(userLoginService.issueTokens(any(), any())).thenReturn(mockResponse);
 
             // When
-            LoginResponse response = userService.acceptTermsAndIssueTokens(userId);
+            LoginResponse response =
+                    userService.acceptTermsAndIssueTokens(userId, UUID.randomUUID());
 
             // Then
             assertThat(response).isSameAs(mockResponse);
@@ -262,7 +263,7 @@ class UserServiceTest {
             assertThat(user.getTermsVersion()).isEqualTo(currentVersion);
             verify(userRepository).findById(userId);
             verify(userRepository).save(user);
-            verify(userLoginService).issueTokens(user);
+            verify(userLoginService).issueTokens(any(), any());
             verify(auditLogService).logSuccess(any(), any(), any(), any());
         }
 
@@ -275,13 +276,14 @@ class UserServiceTest {
             when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
             // When & Then
-            assertThatThrownBy(() -> userService.acceptTermsAndIssueTokens(userId))
+            assertThatThrownBy(
+                            () -> userService.acceptTermsAndIssueTokens(userId, UUID.randomUUID()))
                     .isInstanceOf(NotFoundException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
 
             verify(userRepository).findById(userId);
             verify(userRepository, never()).save(any());
-            verify(userLoginService, never()).issueTokens(any());
+            verify(userLoginService, never()).issueTokens(any(), any());
         }
     }
 

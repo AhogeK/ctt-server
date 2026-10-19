@@ -144,11 +144,12 @@ public class UserService {
      * </ol>
      *
      * @param userId the user ID
+     * @param sessionId the session the new tokens continue, or null to start one
      * @return LoginResponse containing new JWT tokens
      * @throws NotFoundException if user is not found
      */
     @Transactional
-    public LoginResponse acceptTermsAndIssueTokens(UUID userId) {
+    public LoginResponse acceptTermsAndIssueTokens(UUID userId, UUID sessionId) {
         User user =
                 userRepository
                         .findById(userId)
@@ -158,7 +159,7 @@ public class UserService {
         user.setTermsVersion(termsProperties.currentVersion());
         userRepository.save(user);
 
-        LoginResponse response = userLoginService.issueTokens(user);
+        LoginResponse response = userLoginService.issueTokens(user, sessionId);
 
         auditLogService.logSuccess(
                 user.getId(),

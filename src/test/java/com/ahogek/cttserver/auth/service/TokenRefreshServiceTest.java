@@ -97,7 +97,7 @@ class TokenRefreshServiceTest {
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH))
                     .thenReturn(Optional.of(refreshToken));
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(NEW_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(NEW_ACCESS_TOKEN);
             when(refreshTokenRepository.save(any(RefreshToken.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 

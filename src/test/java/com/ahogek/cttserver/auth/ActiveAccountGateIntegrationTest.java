@@ -47,7 +47,8 @@ class ActiveAccountGateIntegrationTest {
 
     private String bearerFor(UserStatus status) {
         User user = UserFixtures.regularUser().status(status).emailVerified(true).build();
-        return "Bearer " + jwtTokenProvider.generateAccessToken(userRepository.saveAndFlush(user));
+        return "Bearer "
+                + jwtTokenProvider.generateAccessToken(userRepository.saveAndFlush(user), null);
     }
 
     @Test

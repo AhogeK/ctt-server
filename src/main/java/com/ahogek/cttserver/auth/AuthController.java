@@ -849,7 +849,8 @@ public class AuthController {
     @PostMapping("/terms/accept")
     public ResponseEntity<RestApiResponse<LoginResponse>> acceptTerms(
             @AuthenticationPrincipal CurrentUser currentUser, HttpServletResponse httpResponse) {
-        LoginResponse response = userService.acceptTermsAndIssueTokens(currentUser.id());
+        LoginResponse response =
+                userService.acceptTermsAndIssueTokens(currentUser.id(), currentUser.sessionId());
 
         CookieHelper.addCookiesToResponse(
                 httpResponse, response.accessToken(), response.refreshToken(), refreshTokenPath());

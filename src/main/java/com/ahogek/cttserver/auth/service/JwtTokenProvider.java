@@ -11,12 +11,14 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * JWT Access Token provider.
  *
  * <p>Issues JWT access tokens using Nimbus JOSE + HMAC-SHA256. Tokens contain standard claims (iss,
- * sub, iat, exp) plus custom claims (email).
+ * sub, iat, exp) plus custom claims (email, status, authorities, termsVersion, and {@code sid} when
+ * the token belongs to a login session).
  *
  * <p><strong>Security Notes:</strong>
  *
@@ -46,13 +48,15 @@ public class JwtTokenProvider {
      * Generates a JWT access token for the specified user.
      *
      * @param user the user entity
+     * @param sessionId the login session this token belongs to, or {@code null} when the token is
+     *     minted outside one (the claim is then omitted and no session reports itself as current)
      * @return the encoded JWT token string
      */
-    public String generateAccessToken(User user) {
+    public String generateAccessToken(User user, UUID sessionId) {
         Instant now = Instant.now();
         Instant expiresAt = now.plus(jwtProps.accessTokenTtl());
 
-        JwtClaimsSet claims =
+        JwtClaimsSet.Builder claims =
                 JwtClaimsSet.builder()
                         .issuer(jwtProps.issuer())
                         .issuedAt(now)
@@ -63,10 +67,14 @@ public class JwtTokenProvider {
                         .claim("authorities", DEFAULT_ROLE)
                         .claim(
                                 "termsVersion",
-                                user.getTermsVersion() != null ? user.getTermsVersion() : "")
-                        .build();
+                                user.getTermsVersion() != null ? user.getTermsVersion() : "");
+        if (sessionId != null) {
+            claims.claim("sid", sessionId.toString());
+        }
 
         JwsHeader jwsHeader = JwsHeader.with(MacAlgorithm.HS256).build();
-        return jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, claims)).getTokenValue();
+        return jwtEncoder
+                .encode(JwtEncoderParameters.from(jwsHeader, claims.build()))
+                .getTokenValue();
     }
 }

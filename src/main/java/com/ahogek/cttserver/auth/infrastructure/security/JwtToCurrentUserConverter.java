@@ -44,6 +44,7 @@ public class JwtToCurrentUserConverter
         String email = jwt.getClaimAsString("email");
         String statusStr = jwt.getClaimAsString("status");
         String authoritiesStr = jwt.getClaimAsString("authorities");
+        String sessionIdStr = jwt.getClaimAsString("sid");
 
         UserStatus status = (statusStr != null) ? UserStatus.valueOf(statusStr) : UserStatus.ACTIVE;
 
@@ -63,7 +64,10 @@ public class JwtToCurrentUserConverter
                         email,
                         status,
                         authorityStrings,
-                        CurrentUser.AuthenticationType.WEB_SESSION);
+                        CurrentUser.AuthenticationType.WEB_SESSION,
+                        (sessionIdStr != null && !sessionIdStr.isBlank())
+                                ? UUID.fromString(sessionIdStr)
+                                : null);
 
         return new UsernamePasswordAuthenticationToken(
                 currentUser, jwt.getTokenValue(), grantedAuthorities);

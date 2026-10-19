@@ -123,7 +123,8 @@ class OAuthLoginOrRegisterServiceTest {
             when(oauthAccountRepository.findByProviderAndProviderUserId(
                             OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.of(account));
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
+                    .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
             LoginResponse response =
@@ -144,7 +145,8 @@ class OAuthLoginOrRegisterServiceTest {
             when(oauthAccountRepository.findByProviderAndProviderUserId(
                             OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.of(account));
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
+                    .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
             oauthLoginService.process(
@@ -168,7 +170,8 @@ class OAuthLoginOrRegisterServiceTest {
             when(oauthAccountRepository.findByProviderAndProviderUserId(
                             OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.of(account));
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
+                    .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             oauthLoginService.process(
                     OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, createGitHubUserInfo(), null);
@@ -184,7 +187,8 @@ class OAuthLoginOrRegisterServiceTest {
             when(oauthAccountRepository.findByProviderAndProviderUserId(
                             OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.of(account));
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
+                    .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             oauthLoginService.process(
                     OAuthProvider.GITHUB,
@@ -203,7 +207,8 @@ class OAuthLoginOrRegisterServiceTest {
             when(oauthAccountRepository.findByProviderAndProviderUserId(
                             OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.of(account));
-            when(jwtTokenProvider.generateAccessToken(user)).thenReturn(TEST_CTT_ACCESS_TOKEN);
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
+                    .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
             oauthLoginService.process(
@@ -231,7 +236,7 @@ class OAuthLoginOrRegisterServiceTest {
                     .thenReturn(Optional.empty());
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
                     .thenReturn(Optional.of(existingUser));
-            when(jwtTokenProvider.generateAccessToken(existingUser))
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
@@ -252,7 +257,7 @@ class OAuthLoginOrRegisterServiceTest {
                     .thenReturn(Optional.empty());
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
                     .thenReturn(Optional.of(existingUser));
-            when(jwtTokenProvider.generateAccessToken(existingUser))
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
@@ -279,7 +284,7 @@ class OAuthLoginOrRegisterServiceTest {
                             OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.empty());
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.empty());
-            when(jwtTokenProvider.generateAccessToken(any(User.class)))
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
@@ -301,7 +306,7 @@ class OAuthLoginOrRegisterServiceTest {
                             OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.empty());
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.empty());
-            when(jwtTokenProvider.generateAccessToken(any(User.class)))
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
@@ -326,7 +331,7 @@ class OAuthLoginOrRegisterServiceTest {
                             OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
                     .thenReturn(Optional.empty());
             when(userRepository.findByEmailIgnoreCase(TEST_EMAIL)).thenReturn(Optional.empty());
-            when(jwtTokenProvider.generateAccessToken(any(User.class)))
+            when(jwtTokenProvider.generateAccessToken(any(), any()))
                     .thenReturn(TEST_CTT_ACCESS_TOKEN);
 
             GitHubUserInfo userInfo =

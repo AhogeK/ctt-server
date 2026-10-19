@@ -16,6 +16,8 @@ import java.util.UUID;
  * @param status the user's account status
  * @param authorities the granted authorities/roles
  * @param authType the authentication mechanism used
+ * @param sessionId the login session the presented access token belongs to; null for API-key
+ *     principals and for tokens minted outside a session
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-17
  */
@@ -24,7 +26,26 @@ public record CurrentUser(
         String email,
         UserStatus status,
         Set<String> authorities,
-        AuthenticationType authType) {
+        AuthenticationType authType,
+        UUID sessionId) {
+
+    /**
+     * Builds an identity without a session, which is the case for every non-web authentication.
+     *
+     * @param id the unique user identifier
+     * @param email the user's email address
+     * @param status the user's account status
+     * @param authorities the granted authorities/roles
+     * @param authType the authentication mechanism used
+     */
+    public CurrentUser(
+            UUID id,
+            String email,
+            UserStatus status,
+            Set<String> authorities,
+            AuthenticationType authType) {
+        this(id, email, status, authorities, authType, null);
+    }
 
     /**
      * Checks if the user account is in ACTIVE state.
