@@ -79,6 +79,12 @@ public enum ErrorCode {
 |-------------------|--------------------------------------------------------------------------|------------------------------------|
 | `SESSION_REVOKED` | One login session revoked from the account's session list (resource id = session id, details carry `kind`) | `LoginSessionService.revokeSession` |
 
+### Data Export Audit Events
+
+| Audit Action    | Description                                                                 | Trigger Point           |
+|-----------------|-----------------------------------------------------------------------------|-------------------------|
+| `DATA_EXPORTED` | The account's data was exported (details carry the session count and the requested offset) | `UserExportService.writeExport` |
+
 ### API Key Audit Events
 
 | Audit Action        | Description                                                | Trigger Point                  |
