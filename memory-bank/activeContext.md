@@ -1,6 +1,17 @@
 # Active Context
 
-- [2026-10-19] - R2-b 会话列表与吊销端点（v0.82.0，待授权提交）
+- [2026-10-19] - R3 数据导出（**产物面向插件端无缝导入**，v0.83.0，已交付）
+    - 触发: 用户提出硬约束 —— "要是做导出就必须同步插件端的导入导出，web 导出的插件端一定要能无缝导入，不然这个功能就没有意义"
+    - **只读核实插件端真实导入器后推翻计划的 NDJSON 定案**：插件用 Gson 反序列化为固定模型（`exportVersion` 非 `"1.0"` 直接拒绝；`sessions[]` 字段名固定；时间用 `ISO_LOCAL_DATE_TIME` 解析 ⇒ **带 `Z` 会整体导入失败**；按 `sessionUuid` 去重；`INSERT OR IGNORE` 且一律 `is_deleted=0`；模型字段非空）⇒ 后端改为**单一 JSON 对象**、字段名与插件一致、时间按 `timezoneOffset`（**必填**、±720、超范围 400 `COMMON_003`）转成**无时区本地时间**、扩展数据收进 `serverExport`（Gson 忽略未知字段 ⇒ 扩展与可导入并存）、**不导出软删会话**（否则插件端"复活"已删记录）、无法提供的值写 `""` 绝不 `null`
+    - 交付: `UserExportService`（`JsonGenerator` 手写流式：先 `count` 再按 1000/页遍历 `findByUserIdAndIsDeletedFalse(Pageable)`，不整表装配）+ `GET /api/v1/users/me/export`（`@RequiresApiKeyScope(READ)` + 限流 3/h + `Content-Disposition: attachment; filename="ctt-export-<yyyyMMdd>.json"`）+ 审计 `DATA_EXPORTED`（details: 会话数 + 偏移）+ `CodingSessionRepository` 增分页读
+    - 导出范围: `sessions[]`（插件消费）+ `serverExport`（account / devices / dailyStats / achievements / achievementProgress / oauthAccounts / loginSessions / apiKeys —— **零凭据**：无密码、无令牌、无 key hash，已断言）
+    - 测试: `UserExportIntegrationTest` 3 例，**真实 HTTP 流式**（`StreamingResponseBody` 在 MockMvc 下不可观测）：用**插件端同构模型**反序列化 + 每条时间戳 `LocalDateTime.parse(ISO_LOCAL_DATE_TIME)` + 时区换算（00:30Z → 08:30 @+480）+ `platform`/`ideName` 取自设备注册表（未注册设备为 `""`）+ 软删排除 + 无凭据字符串 + 400/401
+    - 全量运行抓到测试自身一处**顺序假设** ✗：导出按 id 排序而 UUID 随机 ⇒ 断言不得取"第一条"，已改为按 `projectName` 定位（单独跑绿、全量跑红 = 典型隔离缺陷）
+    - 文档: README（端点行 + 导出语义段含"为什么必须是这个格式"）；`dev-docs/user/frontend-integration.md`（前端契约：**`timezoneOffset` 必填**、blob 原样存盘不要重编码、文件结构、导入路径）；`docs/developer-handbook.md`（`DATA_EXPORTED`）；`.plans` R3 段补「交付修订」对照表
+    - 已知缺口（诚实记录）: 插件端没有"从 URL 导入"，用户需先下载文件再经 `ImportDataAction` 选文件（插件端既有交互，无需其改动）；web 端尚无导出 UI，本批为其备好契约
+    - 验证: 全量 **1531 tests / 0 failures / 0 errors**（1 skipped 为既有；上批 1528 + 3）；`clean build` PASS（含 spotless 与覆盖率门禁）
+    - **交付形态评估（用户质疑"单 JSON 会不会是严重等待的接口"）**: 服务端**不是**先组装再发（`JsonGenerator` 逐页写、8KB 缓冲自动 flush，首字节约 = 首次查询）；但客户端必须等整份（插件导入器要完整文件 ⇒ "逐行"对该消费端零收益）。**实测生产库：2 用户 / 3641 行 / 707 kB**，最重真实用户 3639 行 ≈ 707 kB ⇒ 亚秒级、4 次分页。结论：**维持同步流式**（形态 A）；形态 B（一次性票据 + 原生下载 URL，解决内存/进度/重试，成本小）与 C（异步任务 + 产物存储，需项目当前没有的对象存储）都留待触发；并把计划的触发条件从"p99>30s 或 >100MB"**下调为"单用户 >10 MB 或 p95 >5 s"**（原线差两个数量级＝永不触发）。关键区分沉淀到 `systemPatterns`：**格式由消费端决定，通道才是可选的**
+    - 状态: ✅ 已交付（v0.83.0，本次提交）
     - 交付: `GET /api/v1/users/me/sessions`（按 `session_id` 归并一次登录一条；`current` 取自 access token 的 `sid`；`limit` 默认 20 / 上限 100；限流 60/h）+ `DELETE /api/v1/users/me/sessions/{sessionId}`（204；该会话全部未吊销行置 `revoked_at`；非本人或不存在统一 404 `COMMON_002`；限流 10/h；审计 `SESSION_REVOKED`，resource = 会话 id、details 带 `kind`）+ DTO `LoginSessionResponse` 九字段 + `RefreshTokenRepository` 增三条（归并查询 / 会话锁 / 按会话吊销）
     - **并发保证（本批核心）**: 刷新与吊销**都先取会话级排它锁**（`pg_advisory_xact_lock(hashtext(session_id))`，事务级自动释放）⇒ "踢了就一定失效"；否则刷新事务可在批量吊销扫过之后插入新行，被踢会话复活 ✗
     - **连带缺陷（R2 引入后才会暴露，已修）**: 吊销会话后该客户端仍会拿旧 refresh token 刷新 —— 原逻辑按**令牌重用**判（`AUTH_009`）并 `revokeAllUserTokens` ⇒ "踢一个会话"会变成"全端登出" ✗。改为先看该会话是否仍有活跃行：无 → 整个会话已被吊销 ⇒ `401 AUTH_003`（只影响该会话）；有 → 重放的是轮换后的旧令牌 ⇒ 才判重用
@@ -11,7 +22,7 @@
     - 文档: README（User Profile 表两行 + 会话语义段）；`dev-docs/user/frontend-integration.md` 增完整契约（字段表 + 可空键语义 + 吊销语义）；`docs/developer-handbook.md` 增 `SESSION_REVOKED` 审计动作
     - **既有测试按新语义更新（5 个类）**: 全局吊销（logout / logout-all / 密码重置）后的刷新期望由 `403 AUTH_009` 改为 **`401 AUTH_003`**；`TokenRefreshServiceTest` 新增「会话仍有活跃行 ⇒ 才判重用（`AUTH_009` + `revokeAllUserTokens`）」与「会话已无活跃行 ⇒ `AUTH_003` 且**不**做全局吊销」两条并列用例；`UserControllerMockMvcTest` 补 `LoginSessionService` mock（构造器新增依赖）。未删测试、未削弱断言
     - 验证: 全量 **1528 tests / 0 failures / 0 errors**（1 skipped 为既有；1521 + 7 = 4 端点用例 + 2 转换器 sid 用例 + 1 重用/吊销区分用例）；`spotlessApply` 后 `build` PASS。一次 `clean build` 以 `:test FAILED` 且**零结果**中止（无诊断输出），随后单独 `test` 与 `build` 均通过——与依赖升级批次同形的瞬时失败，非代码问题
-    - 状态: ✅ 实施完成，待授权提交
+    - 状态: ✅ 已交付（v0.83.0，与 R3 同批）
 
 - [2026-10-19] - R2-a 收尾：双轴独立审查与审查修复（并入 v0.81.0 批次，待授权提交）
     - 双轴独立审查（标准轴 / 规格轴，另加机械自检：spotlessCheck、jacoco 门禁、注释语言与全限定名扫描、diff 范围）

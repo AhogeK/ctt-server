@@ -87,3 +87,9 @@ X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP。
 - 重算复用在线写路径（同一把用户锁 + 单事务），与并发推送安全共存
 
 **测试约束**：写数据的后台任务在测试中必须被推离（`application-test.yaml` 把初始延迟设为 1 天）。理由与禁用限流一致——它会在断言进行时改写共享 Redis/DB，且每个 Spring 上下文拿到的是全新 Redis，标记挡不住。**任何新增的 `@Scheduled` 写数据任务照此处理。**
+
+## 导出/数据可携带: 格式由消费端决定，通道才是可选的
+
+导出内容的**格式**不是服务端可选的：它由唯一消费端（插件端导入器）的解析方式决定——`DataExportImportService` 用 Gson 读固定模型（`exportVersion` 硬校验、字段名固定、时间按 `ISO_LOCAL_DATE_TIME` 解析），故 NDJSON 与带 `Z` 的时间都会让**整份导入失败**（不是跳过一行）⇒ 后端产出必须是单 JSON 对象 + 无时区本地时间（`timezoneOffset` 必填）。
+
+有取舍的是**通道**（同步流式 / 一次性票据 + 原生下载 / 异步任务 + 产物存储），取舍依据是**实测规模**而非直觉：2026-10-19 实测全库会话负载 707 kB，故维持同步流式；升级触发条件 = **单用户 >10 MB 或导出 p95 >5 s**。详见 `.plans/ctt-server-development-plan.md` 的 R3 段。
