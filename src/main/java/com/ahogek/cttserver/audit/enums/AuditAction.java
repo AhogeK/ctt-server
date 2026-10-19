@@ -45,6 +45,9 @@ public enum AuditAction {
     /** One login session revoked from the account's session list. */
     SESSION_REVOKED("A login session was revoked"),
 
+    /** The account's data was exported. */
+    DATA_EXPORTED("Account data exported"),
+
     /** Security alert triggered (e.g., unauthorized access attempt). */
     SECURITY_ALERT("Security alert triggered"),
 

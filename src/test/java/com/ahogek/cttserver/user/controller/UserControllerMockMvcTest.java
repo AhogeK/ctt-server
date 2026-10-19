@@ -11,6 +11,7 @@ import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 import com.ahogek.cttserver.user.dto.UserProfileResponse;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.service.AccountDeletionService;
+import com.ahogek.cttserver.user.service.UserExportService;
 import com.ahogek.cttserver.user.service.UserProfileService;
 import com.ahogek.cttserver.user.service.UserService;
 
@@ -67,6 +68,7 @@ class UserControllerMockMvcTest {
     @MockitoBean private AccountDeletionService accountDeletionService;
     @MockitoBean private LeaderboardService leaderboardService;
     @MockitoBean private LoginSessionService loginSessionService;
+    @MockitoBean private UserExportService userExportService;
     @MockitoBean private CurrentUserProvider currentUserProvider;
 
     /**

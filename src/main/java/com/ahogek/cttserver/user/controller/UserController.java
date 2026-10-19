@@ -8,6 +8,7 @@ import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LoginSessionService;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
+import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
@@ -18,11 +19,14 @@ import com.ahogek.cttserver.user.dto.DeleteAccountRequest;
 import com.ahogek.cttserver.user.dto.UpdateProfileRequest;
 import com.ahogek.cttserver.user.dto.UserProfileResponse;
 import com.ahogek.cttserver.user.service.AccountDeletionService;
+import com.ahogek.cttserver.user.service.UserExportService;
 import com.ahogek.cttserver.user.service.UserProfileService;
 import com.ahogek.cttserver.user.service.UserService;
 
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,7 +36,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -65,6 +73,7 @@ public class UserController {
     private final AccountDeletionService accountDeletionService;
     private final LeaderboardService leaderboardService;
     private final LoginSessionService loginSessionService;
+    private final UserExportService userExportService;
     private final CurrentUserProvider currentUserProvider;
 
     public UserController(
@@ -73,12 +82,14 @@ public class UserController {
             AccountDeletionService accountDeletionService,
             LeaderboardService leaderboardService,
             LoginSessionService loginSessionService,
+            UserExportService userExportService,
             CurrentUserProvider currentUserProvider) {
         this.userProfileService = userProfileService;
         this.userService = userService;
         this.accountDeletionService = accountDeletionService;
         this.leaderboardService = leaderboardService;
         this.loginSessionService = loginSessionService;
+        this.userExportService = userExportService;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -125,6 +136,164 @@ public class UserController {
         UUID userId = currentUserProvider.getCurrentUserRequired().id();
         UserProfileResponse profile = userProfileService.getCurrentUserProfile(userId);
         return ResponseEntity.ok(RestApiResponse.ok(profile));
+    }
+
+    @Operation(
+            summary = "Export the current user's data",
+            description =
+                    """
+                    Streams one JSON document holding everything the account owns. The shape is the \
+                    desktop client's import format, because a file nobody can import is not much \
+                    of a portability feature: `exportVersion` is `1.0`, sessions sit under \
+                    `sessions` with the client's own field names, and every timestamp is written as \
+                    a *local* date-time without a zone, converted with the `timezoneOffset` the \
+                    caller passes — the importer parses them as local times, so a `Z` suffix would \
+                    make the whole import fail. Values the client model requires but the server \
+                    cannot supply (a session whose device was never registered) are written as \
+                    empty strings, never null. Soft-deleted sessions are left out: the importer \
+                    inserts everything as live, so exporting them would resurrect rows the user \
+                    deleted. Everything else the server knows — account, devices, materialized \
+                    statistics, achievements, login sessions, API key metadata and OAuth bindings \
+                    — rides in `serverExport`, which the importer ignores. No credentials of any \
+                    kind are included: no password, no token, no key hash.
+                    """)
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Export document streamed as a file attachment",
+                        content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE)),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "Missing or out-of-range timezoneOffset",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "badOffset",
+                                                        summary =
+                                                                "timezoneOffset beyond ±720 minutes",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "timezoneOffset must be within ±720 minutes",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-07-01T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Unauthorized - missing or invalid credentials",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "unauthorized",
+                                                        summary = "Missing or invalid JWT",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_003",
+                                                                  "message": "Token invalid",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 401,
+                                                                  "timestamp": "2026-07-01T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description =
+                                "Forbidden - API key without READ scope, or the account is not active",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples = {
+                                            @ExampleObject(
+                                                    name = "missingScope",
+                                                    summary = "API key without READ scope",
+                                                    value =
+                                                            """
+                                                            {
+                                                              "code": "AUTH_020",
+                                                              "message": "Insufficient API key scope",
+                                                              "details": [],
+                                                              "traceId": "abc-123",
+                                                              "httpStatus": 403,
+                                                              "timestamp": "2026-07-01T10:00:00Z"
+                                                            }
+                                                            """),
+                                            @ExampleObject(
+                                                    name = "accountNotActive",
+                                                    summary =
+                                                            "Account deleted after the token was issued",
+                                                    value =
+                                                            """
+                                                            {
+                                                              "code": "AUTH_022",
+                                                              "message": "Account is deleted",
+                                                              "details": [],
+                                                              "traceId": "abc-123",
+                                                              "httpStatus": 403,
+                                                              "timestamp": "2026-07-01T10:00:00Z"
+                                                            }
+                                                            """)
+                                        })),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "Rate limit exceeded",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rateLimited",
+                                                        summary = "More than 3 exports in an hour",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "RATE_LIMIT_001",
+                                                                  "message": "Too many requests",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 429,
+                                                                  "timestamp": "2026-07-01T10:00:00Z"
+                                                                }
+                                                                """)))
+            })
+    @SecurityRequirement(name = "bearerAuth")
+    @RequiresApiKeyScope(ApiKeyScope.READ)
+    @RateLimit(type = RateLimitType.USER, limit = 3, windowSeconds = 3600)
+    @GetMapping(value = "/me/export", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<StreamingResponseBody> exportCurrentUserData(
+            @Parameter(
+                            description = "Caller's offset from UTC in minutes, e.g. 480 for UTC+8",
+                            example = "480")
+                    @RequestParam(name = "timezoneOffset")
+                    int timezoneOffset) {
+        if (timezoneOffset < -UserExportService.MAX_TIMEZONE_OFFSET_MINUTES
+                || timezoneOffset > UserExportService.MAX_TIMEZONE_OFFSET_MINUTES) {
+            throw new ValidationException(
+                    ErrorCode.COMMON_003, "timezoneOffset must be within ±720 minutes");
+        }
+
+        CurrentUser currentUser = currentUserProvider.getActiveUserRequired();
+        UUID userId = currentUser.id();
+        ZoneOffset offset = ZoneOffset.ofTotalSeconds(timezoneOffset * 60);
+        StreamingResponseBody body =
+                out -> userExportService.writeExport(userId, timezoneOffset, out);
+
+        return ResponseEntity.ok()
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"ctt-export-" + LocalDate.now(offset) + ".json\"")
+                .contentType(new MediaType(MediaType.APPLICATION_JSON, StandardCharsets.UTF_8))
+                .body(body);
     }
 
     @Operation(
