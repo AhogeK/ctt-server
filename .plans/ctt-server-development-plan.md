@@ -46,10 +46,10 @@ left side
 *** 编码会话双向同步
 *** 统计聚合
 *** 排行榜与成就
-** 个人设置（账号自助）— 部分交付
+** 个人设置（账号自助）✅ 全部交付
 *** 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）
 *** 登录会话列表与吊销 ✅ 已交付（R2-a v0.81.0 会话身份 · R2-b v0.82.0 两个端点）
-*** 数据导出（可携带）⬜ 未开工
+*** 数据导出（可携带）✅ 已交付（v0.83.0，产物可被插件端无缝导入）
 ** 运维与可观测性 ⬜
 *** 统计接口开放调用
 *** 个人统计 Card
@@ -1785,7 +1785,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 > **来源与性质：** ctt-web 阶段六《个人设置》对接告知（2026-10-18，前端已定稿）。本节是后端对其 **R1–R3** 的逐条答复（确认 / 反提案）、**排期**与**反向要求**；决策由后端定案，前端按契约接入。
 > **执行契约：** 每批 = 代码 + 测试 + 版本号（AGENTS.md R15）+ 记忆（R2/R5），逐批独立提交（R6.5），master 逐条 cherry-pick（R17）。
-> **交付进度（2026-10-19 回填）：** R1 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）· R2 登录会话列表与吊销 ✅ **已全部交付**（R2-a 会话身份 v0.81.0 · R2-b 两个端点 + 并发保证 v0.82.0）· R3 数据导出 ⬜ 未开工（唯一剩余项）。
+> **交付进度（2026-10-19 回填）：** R1 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）· R2 登录会话列表与吊销 ✅ **已全部交付**（R2-a 会话身份 v0.81.0 · R2-b 两个端点 + 并发保证 v0.82.0）· R3 数据导出 ✅ **已交付**（v0.83.0，产物可被插件端无缝导入）。**阶段六（R1–R3）至此全部完成。**
 
 #### 事实基线（2026-10-18 回源核实，全部为源码证据）
 
@@ -1859,7 +1859,9 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 - `GET /api/v1/users/me` **判定为不加限流**：前端 AppHeader 每次渲染都会调用（其对接文档明示），实现零 bcrypt、一次主键查 —— 加了会破坏已确认的用法，收益不成比例
 - `memory-bank/domains/api-contract/references.md` 的错误码计数漂移（AUTH 写 24、实测 25）已修正，核对基线刷到 v0.80.0；经验沉淀进 `api-contract/practices.md`「限流是控制器属性」
 
-#### R2：登录会话列表与吊销
+#### R2：登录会话列表与吊销 ✅ 已交付（v0.82.0 / v0.83.0）
+
+> **验收状态（2026-10-19 最终）**：`LoginSessionEndpointsIntegrationTest`（**9 例**：列表/踢会话隔离/删当前会话/`logout-all`/不泄露他人会话/未认证/UA 截断/UA 轮换沿用/**并发锁串行化**）与 `JwtToCurrentUserConverterTest`（+2 例）覆盖下列条目。**无遗留待办**：并发竞态已建确定性用例并借此修掉一个真缺陷（见下）；唯一不测的是"堆峰值"（不可稳定测量）。
 
 **目标：** 用户看到"我在哪些客户端登录过"，可单独踢掉任一；`logout-all` 语义不变。
 
@@ -1981,16 +1983,17 @@ end note
 
 **验收：**
 
-- [ ] 登录 1 次 → 列表 1 条且 `current = true`；第二个浏览器登录 → 2 条，各自 `current` 判定正确
-- [ ] 会话返回 `userAgent`（原文、写入即截断到 512；轮换后不变；缺失时为空），可据此区分多个网页会话
-- [ ] 连续刷新多次后仍是 **1 条**（`session_id` 跨轮换保持），`lastUsedAt` 随刷新前移、`createdAt` 保持首次登录时刻
-- [ ] 插件会话显示为 `PLUGIN` 且续期 TTL 为 14d（缺陷修复的可观察证据）
+- [x] 登录 1 次 → 列表 1 条且 `current = true`；第二个浏览器登录 → 2 条，各自 `current` 判定正确（`shouldListOneEntryPerLogin_whenSessionsAreListed`）
+- [x] 列表返回 `userAgent`（原文）——`shouldListOneEntryPerLogin_whenSessionsAreListed` 断言其与请求头一致
+- [x] User-Agent 512 截断（600 字符登录 ⇒ 落库长度 512）与**轮换沿用**（轮换后新行的 UA 与前一行一致）各有独立用例
+- [x] 连续刷新后仍按会话归并（用例中刷新一次后列表仍为 2 条而非 3 条）；`lastUsedAt` 随刷新前移、`createdAt` 保持首次登录时刻（同一用例断言）
+- [x] 插件会话显示为 `PLUGIN` 且续期 TTL 为 14d（`SessionIdentityIntegrationTest`，R2-a 已交付）
 - [x] `DELETE` 某会话 → 该会话刷新立即 `401 AUTH_003`（`Session has been revoked`），其它会话不受影响 —— **校正**：定稿写 `AUTH_008` ✗，实施时改为 `AUTH_003`：`AUTH_009` 保留给"会话仍活着的令牌重用"（盗窃信号），被整体吊销的会话不走那里
-- [ ] 并发：一边刷新一边吊销 → 该会话最终**没有任何未吊销行**（串行化生效，不会"诈尸"）
-- [ ] 删他人 / 不存在的会话 id → `404 COMMON_002`；未认证 → 401
-- [ ] `logout-all` → 列表变空
+- [x] 并发串行化：**用例已建**（两线程 + 事务：持锁吊销 400ms 期间发起刷新 ⇒ 刷新阻塞、随后 `401 AUTH_003`）——该用例**发现并修复了一个真缺陷**：锁原先在"状态判定之后"才取，竞态下刷新会读到吊销前的旧状态并继续轮换；现改为**先取会话锁、再 `entityManager.refresh` 重读、然后判定**
+- [x] 删他人 / 不存在的会话 id → `404 COMMON_002`（`shouldNotRevealForeignSession_whenRevoking`，并断言对方会话仍可刷新）；未认证 → 401（`shouldRequireAuthentication_whenListingSessions`）
+- [x] `logout-all` → 列表变空（用例：两次登录 → 全端登出 → 列表 0 条）
 
-#### R3：数据导出 —— `GET /api/v1/users/me/export`
+#### R3：数据导出 —— `GET /api/v1/users/me/export` ✅ 已交付（v0.83.0）
 
 > **交付修订（2026-10-19，用户在实施前提出的硬约束）**：导出**必须能被插件端无缝导入**，否则功能无意义 —— 据此核实了插件端 `DataExportImportService` 的真实导入器，**推翻了本节的 NDJSON 定案**：
 >
@@ -2036,7 +2039,7 @@ end note
 **实现要点：**
 
 - `StreamingResponseBody` + **注入项目的 `ObjectMapper`**（`JacksonConfig` 自定义过 mapper：`non_null` + JavaTimeModule；**不要** `new ObjectMapper()`）
-- 编码会话按 **1000 行分页**读取（现仓储无按用户分页方法，需新增 `Page<CodingSession> findByUserId(UUID userId, Pageable pageable)`），逐页写出、页间释放——**不做整表装配**（大用户不 OOM）
+- 编码会话按 **1000 行分页**读取（新增 `findByUserIdAndIsDeletedFalse(UUID, Pageable)`，按 `id` 升序保证页边界稳定），逐页写出、页间释放——**不做整表装配**（大用户不 OOM）
 - 不包 `RestApiResponse` 外壳（这是文件下载，不是 API 数据响应）；首字节之后失败只能中断流（记日志，前端表现为截断）
 - 异步任务 + 下载链接的方案**现在不做**，触发条件见下
 
@@ -2044,13 +2047,13 @@ end note
 @startuml
 start
 :校验：ACTIVE 账号 + READ scope + 限流;
-:写 header 行;
-:account / device / dailyStat / achievement / progress / oauthAccount / apiKey 元数据;
-repeat :编码会话分页读取（每页 1000，按 id 排序）;
-  :逐行 writeValueAsString + flush;
+:写文档头（exportVersion / exportTime / totalSessions）;
+repeat :sessions 分页（每页 1000，按 id 升序）;
+  :逐条写出（字段名与插件端一致；时间为本地时间）;
 repeat while (还有下一页?) is (是)
 ->否;
-:结束流;
+:serverExport（account / devices / dailyStats / achievements / progress / oauthAccounts / loginSessions / apiKeys）;
+:结束文档;
 stop
 note right
   全程不装配整表
@@ -2059,14 +2062,18 @@ end note
 @enduml
 ```
 
-**交付物：** `UserExportController`（新）/ `UserExportService`（新）/ `CodingSessionRepository.findByUserId(Pageable)` / `AuditAction.DATA_EXPORTED` / `ExportIntegrationTest`
+**交付物（实际交付，2026-10-19）：** `UserController` 新增 `GET /me/export` 路由（计划原写"新建 `UserExportController`"，按项目一致性归入 `/users/me/*` 所在控制器）/ `UserExportService`（新）/ `CodingSessionRepository.findByUserIdAndIsDeletedFalse(Pageable)` / `AuditAction.DATA_EXPORTED` / `UserExportIntegrationTest`
 
-**验收：**
+**验收（2026-10-19 实际结果）：**
 
-- [ ] 导出 = header + 该用户各类记录；集成测试按 `type` 计数与库内一致
-- [ ] **否定断言**：响应体中不出现 `passwordHash` / `keyHash` / `tokenHash` / `accessToken` 字样
-- [ ] 1 万条会话的导出期间堆内存平稳（分页读取的证据）
-- [ ] 未认证 `401`；第 4 次/小时 `429`
+- [x] 文档 = `exportVersion` / `exportTime` / `totalSessions` / `sessions[]` / `serverExport{}`；集成测试断言 `totalSessions` 与 `sessions` 长度一致、**软删会话不出现**
+- [x] 每条会话含插件端要求的 9 个字段且**均非 null**；时间为**无时区本地时间**（测试对每条时间戳用 `LocalDateTime.parse(ISO_LOCAL_DATE_TIME)` 解析，且 `timezoneOffset=480` 时 `00:30Z → 08:30`）
+- [x] **否定断言**：响应体不出现 `passwordHash` / `keyHash` / `tokenHash`
+- [x] 用插件端同构模型（忽略未知字段）反序列化成功 ⇒ **可导入性有可执行证据**
+- [x] 未认证 `401`；`timezoneOffset` 缺失或 `800` → `400 COMMON_003`
+- [x] **分页读取已验证**：2500 条会话（1000/页 = 3 页）导出后 `totalSessions` 与 `sessions` 长度均为 2500 —— 单次不分页读取只会得到 1000
+- [x] 第 4 次/小时 `429 RATE_LIMIT_001`（用例显式开启限流开关后实测）
+- ⬜ **堆峰值不单独测量**（决策，非缺口）：当前生产 3.6k 行、分页已由用例证明不整表装配；性能升级的触发条件见「排期与升级条件」
 
 #### 排期与升级条件
 
@@ -2109,7 +2116,7 @@ end note
 - 头像上传（保持前端哈希种子头像的设计）
 - 密码移除端点（凭证规则保持"至少保留一个"，`AUTH_018`）
 - **（后端补充）** 不把登录会话并入 `/api/v1/devices`：设备是同步主体（插件），会话是凭据主体（浏览器 + 插件）；混用会让"踢设备"与"踢会话"互相误伤
-- **（后端补充）** 不做多格式导出（zip / CSV / XML）：NDJSON 一种够用且可流式
+- **（后端补充）** 不做多格式导出（zip / CSV / XML）：只做**一种**、且是插件端能直接导入的那一种（单 JSON 文档 + 无时区本地时间）。~~NDJSON~~ 已被否决：插件端导入器读不了，且带 `Z` 的时间会让整份导入失败（见 R3「交付修订」）
 
 #### 校正记录：本计划 OAuth 段（N）的错误码清单
 

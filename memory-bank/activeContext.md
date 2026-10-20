@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-10-19] - 对接报告约定固化：每轮新建、旧文件不改
+    - 用户指示: "每次新报告都要新起文件避免旧内容的混淆"。此前我**原地更新**了 `settings-phase6-frontend-report.md`（10-18 的"滚动契约"）✗ —— `.omp/` 无版本控制，原文无法还原；现已保留该文件并加顶部横幅标注为**历史文件**，最新口径以 `-3.md` 为准
+    - 落地: `AGENTS.md` R26 增「对接/变更报告：每轮新建文件、旧文件不改，新文件自述取代范围」；`-3.md` 增「口径唯一性」说明（与旧文件冲突处一律以最新轮次为准）
+    - 状态: ✅ 约定已固化（AGENTS + 记忆），随下批 AI 提交
+
 - [2026-10-19] - R3 数据导出（**产物面向插件端无缝导入**，v0.83.0，已交付）
     - 触发: 用户提出硬约束 —— "要是做导出就必须同步插件端的导入导出，web 导出的插件端一定要能无缝导入，不然这个功能就没有意义"
     - **只读核实插件端真实导入器后推翻计划的 NDJSON 定案**：插件用 Gson 反序列化为固定模型（`exportVersion` 非 `"1.0"` 直接拒绝；`sessions[]` 字段名固定；时间用 `ISO_LOCAL_DATE_TIME` 解析 ⇒ **带 `Z` 会整体导入失败**；按 `sessionUuid` 去重；`INSERT OR IGNORE` 且一律 `is_deleted=0`；模型字段非空）⇒ 后端改为**单一 JSON 对象**、字段名与插件一致、时间按 `timezoneOffset`（**必填**、±720、超范围 400 `COMMON_003`）转成**无时区本地时间**、扩展数据收进 `serverExport`（Gson 忽略未知字段 ⇒ 扩展与可导入并存）、**不导出软删会话**（否则插件端"复活"已删记录）、无法提供的值写 `""` 绝不 `null`
@@ -9,11 +14,12 @@
     - 全量运行抓到测试自身一处**顺序假设** ✗：导出按 id 排序而 UUID 随机 ⇒ 断言不得取"第一条"，已改为按 `projectName` 定位（单独跑绿、全量跑红 = 典型隔离缺陷）
     - 文档: README（端点行 + 导出语义段含"为什么必须是这个格式"）；`dev-docs/user/frontend-integration.md`（前端契约：**`timezoneOffset` 必填**、blob 原样存盘不要重编码、文件结构、导入路径）；`docs/developer-handbook.md`（`DATA_EXPORTED`）；`.plans` R3 段补「交付修订」对照表
     - 已知缺口（诚实记录）: 插件端没有"从 URL 导入"，用户需先下载文件再经 `ImportDataAction` 选文件（插件端既有交互，无需其改动）；web 端尚无导出 UI，本批为其备好契约
-    - 验证: 全量 **1531 tests / 0 failures / 0 errors**（1 skipped 为既有；上批 1528 + 3）；`clean build` PASS（含 spotless 与覆盖率门禁）
+    - 验证: 全量 **1538 tests / 0 failures / 0 errors**（1 skipped 为既有）；新增 7 个验收用例全部通过（`LoginSessionEndpointsIntegrationTest` 9/9、`UserExportIntegrationTest` 5/5、`SessionIdentityIntegrationTest` 5/5、`TokenRefreshService*` 12/12）；`build` PASS（含 spotless 与覆盖率自动检查）
     - **交付形态评估（用户质疑"单 JSON 会不会是严重等待的接口"）**: 服务端**不是**先组装再发（`JsonGenerator` 逐页写、8KB 缓冲自动 flush，首字节约 = 首次查询）；但客户端必须等整份（插件导入器要完整文件 ⇒ "逐行"对该消费端零收益）。**实测生产库：2 用户 / 3641 行 / 707 kB**，最重真实用户 3639 行 ≈ 707 kB ⇒ 亚秒级、4 次分页。结论：**维持同步流式**（形态 A）；形态 B（一次性票据 + 原生下载 URL，解决内存/进度/重试，成本小）与 C（异步任务 + 产物存储，需项目当前没有的对象存储）都留待触发；并把计划的触发条件从"p99>30s 或 >100MB"**下调为"单用户 >10 MB 或 p95 >5 s"**（原线差两个数量级＝永不触发）。关键区分沉淀到 `systemPatterns`：**格式由消费端决定，通道才是可选的**
-    - 状态: ✅ 已交付（v0.83.0，本次提交）
+    - **补测（v0.83.1）**: 计划里的验收项全部落实——新增 **7 例**（分页 2500 行跨 3 页 / 导出第 4 次 `429` / `logout-all` 后列表为空 / 会话列表未认证 401 / User-Agent 512 截断 / 轮换后 UA 沿用 / **并发锁串行化**）；仅"堆峰值"一项保留为决策（不可稳定测量，且分页已由用例证明）
+    - 状态: ✅ 已交付（v0.83.0，验收补测于 v0.83.1）
     - 交付: `GET /api/v1/users/me/sessions`（按 `session_id` 归并一次登录一条；`current` 取自 access token 的 `sid`；`limit` 默认 20 / 上限 100；限流 60/h）+ `DELETE /api/v1/users/me/sessions/{sessionId}`（204；该会话全部未吊销行置 `revoked_at`；非本人或不存在统一 404 `COMMON_002`；限流 10/h；审计 `SESSION_REVOKED`，resource = 会话 id、details 带 `kind`）+ DTO `LoginSessionResponse` 九字段 + `RefreshTokenRepository` 增三条（归并查询 / 会话锁 / 按会话吊销）
-    - **并发保证（本批核心）**: 刷新与吊销**都先取会话级排它锁**（`pg_advisory_xact_lock(hashtext(session_id))`，事务级自动释放）⇒ "踢了就一定失效"；否则刷新事务可在批量吊销扫过之后插入新行，被踢会话复活 ✗
+    - **并发保证（本批核心）**: 刷新与吊销**都先取会话级排它锁**（`pg_advisory_xact_lock(hashtext(session_id))`，事务级自动释放）⇒ "踢了就一定失效"。**补测时发现并修复一个真缺陷**：锁原先在"状态判定之后"才取，竞态下刷新读到的是吊销前的旧状态 ⇒ 仍会轮换成功（用例实测 200 而非 401）；现改为**先取锁 → `entityManager.refresh` 重读 → 再判定**，用例转为 401 `AUTH_003`。教训：并发保证必须"锁→重读→判定"，只加锁不复读等于没加
     - **连带缺陷（R2 引入后才会暴露，已修）**: 吊销会话后该客户端仍会拿旧 refresh token 刷新 —— 原逻辑按**令牌重用**判（`AUTH_009`）并 `revokeAllUserTokens` ⇒ "踢一个会话"会变成"全端登出" ✗。改为先看该会话是否仍有活跃行：无 → 整个会话已被吊销 ⇒ `401 AUTH_003`（只影响该会话）；有 → 重放的是轮换后的旧令牌 ⇒ 才判重用
     - **查询正确性（用例抓到）**: 会话跨度（`createdAt`=MIN、`lastUsedAt`=MAX、`expiresAt`=MAX）必须跨**该会话全部行**（轮换会吊销上一行），而"哪条会话在用、取谁作活跃行属性"只看**未吊销行** ⇒ 拆成 `session_span` + `live_session` 两个 CTE；只聚合活跃行会把刚刷新的会话报成"从未使用" ✗
     - 契约细节: DTO 加 `@JsonInclude(ALWAYS)` —— 可空键（`deviceName`/`ideName`/`userAgent`/`lastUsedAt`）**始终出现**（R9 规则），断言必须按键做（本次被 `path(k).isNull()` 对**缺失键**也为 true 坑过一次 ⇒ 改用 `has(k)` + `get(k).isNull()`）

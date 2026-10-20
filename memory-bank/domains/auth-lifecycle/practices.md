@@ -116,6 +116,15 @@ report a refreshed session as never used), while audience, device binding and Us
 the newest live row. Nullable session fields are always serialized, so a client can tell "a browser
 session has no device" from "this client predates the field".
 
+### Locking is about visibility, not just ordering
+
+Taking the lock first is not enough. If a refresh decides the token's status **before** acquiring
+the session lock, it may act on a snapshot that predates a revocation committing right then; the
+lock only serializes the writes, not the decision. The order is always **lock → re-read → decide →
+write** — re-reading (`entityManager.refresh`) after the lock is what makes a kick final. Measured
+on 2026-10-19: with the lock but without the re-read, a refresh racing a revocation still succeeded
+(200 instead of `401 AUTH_003`); the deterministic two-thread test now pins the corrected order.
+
 ## Test recipe
 
 1. Flow ordering: a test per guard (each error code reachable independently).
