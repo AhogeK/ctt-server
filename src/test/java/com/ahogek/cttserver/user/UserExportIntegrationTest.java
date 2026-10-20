@@ -47,7 +47,11 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
  * @since 2026-10-19
  */
 @BaseIntegrationTest
-@TestPropertySource(properties = {"ctt.mail.outbox.poll-interval-ms=999999999"})
+@TestPropertySource(
+        properties = {
+            "ctt.mail.outbox.poll-interval-ms=999999999",
+            "ctt.security.rate-limit.enabled=true"
+        })
 @DisplayName("Account data export")
 class UserExportIntegrationTest {
 
@@ -175,6 +179,57 @@ class UserExportIntegrationTest {
                 .doesNotContain("passwordHash")
                 .doesNotContain("keyHash")
                 .doesNotContain("tokenHash");
+    }
+
+    @Test
+    @DisplayName("Should read every session across pages when the history exceeds one page")
+    void shouldPageThroughAllSessions_whenHistoryExceedsOnePage() throws Exception {
+        UUID userId = register(userEmail());
+        String accessToken = login(userId, UUID.randomUUID().toString())[0];
+
+        // 2500 rows is two and a half pages at the 1000-row page size: a single un-paged read
+        // would return 1000 and the count would betray it.
+        jdbcClient
+                .sql(
+                        """
+                        INSERT INTO coding_sessions
+                            (id, user_id, session_uuid, project_name, language, start_time,
+                             end_time, client_modified_at, client_version, server_version, is_deleted)
+                        SELECT gen_random_uuid(), ?, gen_random_uuid(), 'bulk-' || g, 'Java',
+                               timestamptz '2026-10-01 00:00:00+00' + (g * interval '1 minute'),
+                               timestamptz '2026-10-01 00:00:30+00' + (g * interval '1 minute'),
+                               timestamptz '2026-10-01 00:00:30+00' + (g * interval '1 minute'),
+                               0, 0, false
+                        FROM generate_series(1, 2500) AS g
+                        """)
+                .param(userId)
+                .update();
+
+        ResponseEntity<String> response = export(accessToken, 480);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode document = objectMapper.readTree(response.getBody());
+        assertThat(document.path("totalSessions").asInt()).isEqualTo(2500);
+        assertThat(document.path("sessions")).hasSize(2500);
+    }
+
+    @Test
+    @DisplayName("Should rate limit the fourth export within an hour")
+    void shouldRateLimitFourthExport_whenExportingRepeatedly() throws Exception {
+        UUID userId = register(userEmail());
+        String accessToken = login(userId, UUID.randomUUID().toString())[0];
+
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            assertThat(export(accessToken, 480).getStatusCode())
+                    .as("export %d of 3", attempt)
+                    .isEqualTo(HttpStatus.OK);
+        }
+
+        ResponseEntity<String> limited = export(accessToken, 480);
+
+        assertThat(limited.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(objectMapper.readTree(limited.getBody()).path("code").asText())
+                .isEqualTo("RATE_LIMIT_001");
     }
 
     @Test
