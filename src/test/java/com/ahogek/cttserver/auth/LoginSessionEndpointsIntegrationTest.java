@@ -2,6 +2,7 @@ package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
+import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
 
 import org.junit.jupiter.api.AfterEach;
@@ -12,10 +13,14 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,6 +54,8 @@ class LoginSessionEndpointsIntegrationTest {
     @Autowired private MockMvcTester mvc;
     @Autowired private JdbcClient jdbcClient;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private RefreshTokenRepository refreshTokenRepository;
+    @Autowired private TransactionTemplate transactionTemplate;
 
     @AfterEach
     void tearDown() {
@@ -142,6 +149,74 @@ class LoginSessionEndpointsIntegrationTest {
     }
 
     @Test
+    @DisplayName("Should require authentication when listing sessions")
+    void shouldRequireAuthentication_whenListingSessions() {
+        assertThat(mvc.get().uri("/api/v1/users/me/sessions").exchange()).hasStatus(401);
+    }
+
+    @Test
+    @DisplayName("Should serialize a refresh against a revocation that is in flight")
+    void shouldSerializeRefresh_whenRevocationIsInFlight() throws Exception {
+        UUID userId = register(userEmail());
+        String[] tokens = login(userId, UUID.randomUUID().toString());
+        UUID sessionId = UUID.fromString(currentSessionId(tokens[0]));
+
+        CountDownLatch lockHeld = new CountDownLatch(1);
+        Thread revoker =
+                new Thread(
+                        () ->
+                                transactionTemplate.executeWithoutResult(
+                                        status -> {
+                                            refreshTokenRepository.lockSession(sessionId);
+                                            lockHeld.countDown();
+                                            try {
+                                                Thread.sleep(400);
+                                            } catch (InterruptedException e) {
+                                                Thread.currentThread().interrupt();
+                                            }
+                                            refreshTokenRepository.revokeSession(
+                                                    userId, sessionId, Instant.now());
+                                        }));
+        revoker.start();
+        assertThat(lockHeld.await(5, TimeUnit.SECONDS)).as("lock not taken").isTrue();
+
+        // Blocks on the session lock until the revocation commits, so it must observe the revoked
+        // row rather than rotate it — the exact interleaving the lock exists to prevent.
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/auth/refresh")
+                                .with(csrf())
+                                .header("User-Agent", USER_AGENT)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"refreshToken\":\"" + tokens[1] + "\"}")
+                                .exchange())
+                .hasStatus(401)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("AUTH_003");
+        revoker.join(5000);
+    }
+
+    @Test
+    @DisplayName("Should leave no sessions when logging out everywhere")
+    void shouldLeaveNoSessions_whenLoggingOutEverywhere() throws Exception {
+        UUID userId = register(userEmail());
+        String[] first = login(userId, UUID.randomUUID().toString());
+        login(userId, UUID.randomUUID().toString());
+        assertThat(listSessions(first[0])).hasSize(2);
+
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/auth/logout-all")
+                                .with(csrf())
+                                .header("Authorization", "Bearer " + first[0])
+                                .exchange())
+                .hasStatusOk();
+
+        assertThat(listSessions(first[0])).isEmpty();
+    }
+
+    @Test
     @DisplayName("Should not reveal a session owned by another account")
     void shouldNotRevealForeignSession_whenRevoking() throws Exception {
         UUID ownerId = register(userEmail());
@@ -199,6 +274,56 @@ class LoginSessionEndpointsIntegrationTest {
             }
         }
         throw new AssertionError("expected a session that is not the caller's own");
+    }
+
+    @Test
+    @DisplayName("Should truncate an oversized User-Agent to the stored width")
+    void shouldTruncateUserAgent_whenItExceedsTheColumnWidth() throws Exception {
+        UUID userId = register(userEmail());
+        String email =
+                jdbcClient
+                        .sql("SELECT email FROM users WHERE id = ?")
+                        .param(userId)
+                        .query(String.class)
+                        .single();
+        LoginRequest request =
+                new LoginRequest(email, PASSWORD, UUID.randomUUID().toString(), null);
+
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/auth/login")
+                                .with(csrf())
+                                .header("User-Agent", "x".repeat(600))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                .hasStatus(200);
+
+        Integer stored =
+                jdbcClient
+                        .sql("SELECT length(user_agent) FROM refresh_tokens WHERE user_id = ?")
+                        .param(userId)
+                        .query(Integer.class)
+                        .single();
+        assertThat(stored).isEqualTo(512);
+    }
+
+    @Test
+    @DisplayName("Should keep the session User-Agent across rotation")
+    void shouldKeepUserAgent_whenTokenRotates() throws Exception {
+        UUID userId = register(userEmail());
+        String[] tokens = login(userId, UUID.randomUUID().toString());
+
+        String rotated = refresh(tokens[1]);
+
+        String stored =
+                jdbcClient
+                        .sql(
+                                "SELECT user_agent FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 1")
+                        .param(userId)
+                        .query(String.class)
+                        .single();
+        assertThat(rotated).isNotBlank();
+        assertThat(stored).isEqualTo(USER_AGENT);
     }
 
     /** Reads the session id out of the access token's {@code sid} claim without verifying it. */

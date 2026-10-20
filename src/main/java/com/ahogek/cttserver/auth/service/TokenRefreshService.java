@@ -18,6 +18,8 @@ import com.ahogek.cttserver.common.utils.TokenUtils.RefreshTokenPair;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
+import jakarta.persistence.EntityManager;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ public class TokenRefreshService {
     private final AuditLogService auditLogService;
     private final SecurityProperties.JwtProperties jwtProps;
     private final TermsProperties termsProperties;
+    private final EntityManager entityManager;
 
     public TokenRefreshService(
             RefreshTokenRepository refreshTokenRepository,
@@ -42,13 +45,15 @@ public class TokenRefreshService {
             JwtTokenProvider jwtTokenProvider,
             AuditLogService auditLogService,
             SecurityProperties securityProperties,
-            TermsProperties termsProperties) {
+            TermsProperties termsProperties,
+            EntityManager entityManager) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.auditLogService = auditLogService;
         this.jwtProps = securityProperties.jwt();
         this.termsProperties = termsProperties;
+        this.entityManager = entityManager;
     }
 
     /** Execute token refresh with rotation. Includes reuse detection for security. */
@@ -64,6 +69,12 @@ public class TokenRefreshService {
                                 () ->
                                         new UnauthorizedException(
                                                 ErrorCode.AUTH_003, "Invalid refresh token"));
+
+        // Take the session lock before deciding anything: a revocation that commits while this
+        // refresh waits for the lock must be visible to the decision, not hidden by the state read
+        // a moment earlier. Re-reading after the lock is what makes "kicked out" final.
+        refreshTokenRepository.lockSession(oldToken.getSessionId());
+        entityManager.refresh(oldToken);
 
         TokenStatus status = oldToken.determineStatus();
 
@@ -119,9 +130,6 @@ public class TokenRefreshService {
         }
 
         Instant now = Instant.now();
-        // Rotation writes a new row of the same session, so it takes the session lock first: a
-        // revocation running at the same moment must not be outrun by this insert.
-        refreshTokenRepository.lockSession(oldToken.getSessionId());
         oldToken.setLastUsedAt(now);
         oldToken.revoke();
         refreshTokenRepository.save(oldToken);
