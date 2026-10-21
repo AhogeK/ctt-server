@@ -1781,7 +1781,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 - GET /api/v1/stats/summary、/heatmap、/streaks、/distribution、/recent、/achievements
 - GET /api/v1/leaderboard（dimension=total/streak/nightOwl/earlyBird/growth，period=week/month/year/all）
 
-### 👤 个人设置（账号自助与数据可携带）
+### 👤 个人设置（账号自助与数据可携带）✅ 全部交付（v0.80.0 → v0.83.1）
 
 > **来源与性质：** ctt-web 阶段六《个人设置》对接告知（2026-10-18，前端已定稿）。本节是后端对其 **R1–R3** 的逐条答复（确认 / 反提案）、**排期**与**反向要求**；决策由后端定案，前端按契约接入。
 > **执行契约：** 每批 = 代码 + 测试 + 版本号（AGENTS.md R15）+ 记忆（R2/R5），逐批独立提交（R6.5），master 逐条 cherry-pick（R17）。
