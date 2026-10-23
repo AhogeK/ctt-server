@@ -584,7 +584,7 @@ per day.
 | `/api/v1/leaderboard` | GET | Global ranking by coding duration / streak / night-owl / early-bird / growth / active-days dimensions, over a lifetime or current period, with the calling user's rank and the size of the ranking | READ |
 
 **Parameters**: `dimension` (`TOTAL` | `STREAK` | `NIGHT_OWL` | `EARLY_BIRD` | `GROWTH` |
-`ACTIVE_DAYS` | `LANGUAGE`), `period` (`ALL` | `WEEK` | `MONTH` | `YEAR`, defaults to the dimension's default:
+`ACTIVE_DAYS` | `LANGUAGE`), `period` (`ALL` | `WEEK` | `MONTH` | `QUARTER` | `HALF_YEAR` | `YEAR`, defaults to the dimension's default:
 `ALL` for every dimension except `GROWTH`, which defaults to `WEEK`), `limit` (default 20, max
 100), `offset` (zero-based). Rankings are backed by Redis ZSets; a user's scores are recomputed
 from the database after each successful push, so the ranking reflects new sessions immediately
@@ -606,15 +606,21 @@ page. Tied members have no defined order between them.
 
 | Dimension | Periods | Score |
 |-----------|---------|-------|
-| `TOTAL` | `ALL`/`WEEK`/`MONTH`/`YEAR` | Merged overlap-collapsed duration in seconds |
+| `TOTAL` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Merged overlap-collapsed duration in seconds |
 | `STREAK` | `ALL` | Longest consecutive coding-day streak (UTC) |
-| `NIGHT_OWL` | `ALL`/`WEEK`/`MONTH`/`YEAR` | Merged 22:00-05:00 window duration (UTC) |
-| `EARLY_BIRD` | `ALL`/`WEEK`/`MONTH`/`YEAR` | Merged 06:00-09:00 window duration (UTC) |
-| `GROWTH` | `WEEK`/`MONTH`/`YEAR` | Net growth against the immediately preceding period (can be negative) |
-| `ACTIVE_DAYS` | `ALL`/`WEEK`/`MONTH`/`YEAR` | Number of distinct coding days |
-| `LANGUAGE` | `ALL`/`WEEK`/`MONTH`/`YEAR` | Merged duration in **one** language, selected by the required `language` parameter |
+| `NIGHT_OWL` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Merged 22:00-05:00 window duration (UTC) |
+| `EARLY_BIRD` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Merged 06:00-09:00 window duration (UTC) |
+| `GROWTH` | `WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Net growth against the immediately preceding period (can be negative) |
+| `ACTIVE_DAYS` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Number of distinct coding days |
+| `LANGUAGE` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Merged duration in **one** language, selected by the required `language` parameter |
 
-`STREAK` is lifetime-only because every period window is shorter than the runs it rewards, and
+`STREAK` ranks the lifetime longest run only. A windowed streak is **defined but not enabled**: its
+score would be the longest run of consecutive coding days **fully inside** the window, computed by
+cutting runs at both boundaries. The alternative — the streak as of the window's close — is rejected
+because it is undefined while the current period is still running and would change retroactively.
+A Redis member holds one number, so enabling it also means wiring that inner-run reducer through the
+score write path; this release does not do that, and a windowed `STREAK` still answers
+`400 COMMON_003` instead of ranking a lifetime score under a windowed key.
 `GROWTH` excludes `ALL` because an unbounded history has no preceding period to compare against.
 `LANGUAGE` is the only partitioned dimension: there is no single "language" board, so a request must
 name one (`dimension=LANGUAGE&language=Java`), and the parameter is required there and rejected for
