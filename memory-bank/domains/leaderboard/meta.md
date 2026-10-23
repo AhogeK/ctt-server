@@ -29,11 +29,11 @@ calculators), sync ingestion (`sync-protocol`).
 | Term | Meaning here |
 | --- | --- |
 | Dimension | What is being measured (`TOTAL`, `STREAK`, `NIGHT_OWL`, `EARLY_BIRD`, `GROWTH`, `ACTIVE_DAYS`) |
-| Period | The window the measurement is taken over (`ALL`, `WEEK`, `MONTH`, `YEAR`) |
+| Period | The window the measurement is taken over (`ALL`, `WEEK`, `MONTH`, `QUARTER`, `HALF_YEAR`, `YEAR`) |
 | Competition rank | Ties share a rank; the next distinct score skips the gap (1, 2, 2, 4) |
 | Physical position | 0-based index inside the ZSet, ties broken by member id — **not** the public rank |
 | Score | The raw measured value stored in the ZSet, in the dimension's own unit (seconds, days, or a signed delta) |
-| Legal pair | A (dimension, period) combination the enum admits — 20 of the 24 possible |
+| Legal pair | A (dimension, period) combination the enum admits — 30 of the 36 possible (periods × the six unpartitioned dimensions; LANGUAGE counted per language board) |
 
 ## Where to start
 

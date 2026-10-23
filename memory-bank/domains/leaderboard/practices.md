@@ -41,7 +41,7 @@ Never use `reverseRank` for a public rank, and never `offset + 1` for a page hea
 | `keySuffix(LocalDate)` | `""` for `ALL`; `":week:<ISO Monday>"`, `":month:<1st>"`, `":year:<Jan 1>"` otherwise |
 
 Weeks are ISO (Monday start) via `date.with(DayOfWeek.MONDAY)`, which keeps week-bucketing consistent
-across year boundaries. `WEEK`/`MONTH`/`YEAR` shift with `plusWeeks`/`plusMonths`/`plusYears`, never
+across year boundaries. `WEEK` shifts with `plusWeeks`; `MONTH`/`YEAR` with `plusMonths`/`plusYears`; `QUARTER` and `HALF_YEAR` as `plusMonths(3N)` / `plusMonths(6N)` — never
 by adding a day count (`GROWTH` compares adjacent windows, so a 30-day "month" would drift).
 
 For an unbounded dimension use `periodStartOrMin` / `periodEndOrMax` rather than hand-writing

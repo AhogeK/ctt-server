@@ -1,5 +1,13 @@
 # Active Context
 
+- [2026-10-20] - 排行榜新增季度/半年周期（v0.84.0，待授权提交）
+    - 需求来源: ctt-web「longer leaderboard periods」——周/月榜在用户增长后失去区分度，季度与半年是恢复区分度的最小增量
+    - 交付: `LeaderboardPeriod` 增 `QUARTER`（1/4/7/10 月首日）与 `HALF_YEAR`（1/7 月首日），`start`/`endExclusive`/`keySuffix`（`:quarter:` / `:half-year:`）与 `shift`/TTL（93 / 185 天）同步；`supports()` 对 TOTAL/NIGHT_OWL/EARLY_BIRD/ACTIVE_DAYS/LANGUAGE 全周期，GROWTH 自动获得；不支持组合仍 `400 COMMON_003`
+    - **窗口化 STREAK：已定义、未启用** —— 分数 = **完全落在窗口内的最长连续编码天数**（两端切断 run）；否决"窗口结束时的连续天数"（当前周期未结束时无定义、且会随窗口回溯变化）。Redis 每成员单值 ⇒ 启用须先把该 reducer 接到写分路径，本轮不做；`STREAK` + 周期继续 400，避免把终身分数塞进窗口 key
+    - 顺带修两处**脆断言**: `LeaderboardServiceTest` 的「20 个 key / 15 个 TTL」硬编码改为按枚举推导——这类枚举清单式断言每次扩展都会误报，已改成一条公式
+    - 验证: `LeaderboardPeriodTest` 4 例；排行榜测试 49 例全绿（集成矩阵由枚举驱动，自动覆盖 6×7 组合与 400 分支）
+    - 状态: ✅ 实施完成，待授权提交
+
 - [2026-10-19] - 对接报告约定固化：每轮新建、旧文件不改
     - 用户指示: "每次新报告都要新起文件避免旧内容的混淆"。此前我**原地更新**了 `settings-phase6-frontend-report.md`（10-18 的"滚动契约"）✗ —— `.omp/` 无版本控制，原文无法还原；现已保留该文件并加顶部横幅标注为**历史文件**，最新口径以 `-3.md` 为准
     - 落地: `AGENTS.md` R26 增「对接/变更报告：每轮新建文件、旧文件不改，新文件自述取代范围」；`-3.md` 增「口径唯一性」说明（与旧文件冲突处一律以最新轮次为准）
