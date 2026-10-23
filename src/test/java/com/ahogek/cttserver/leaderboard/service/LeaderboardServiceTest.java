@@ -25,7 +25,9 @@ import org.springframework.data.redis.core.ZSetOperations;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -130,31 +132,29 @@ class LeaderboardServiceTest {
             service.updateUserScores(userId);
 
             ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-            // 20 legal dimension/period pairs: TOTAL 4, STREAK 1, NIGHT_OWL 4, EARLY_BIRD 4,
-            // GROWTH 3 (no ALL), ACTIVE_DAYS 4.
-            verify(zsetOps, times(20)).add(keyCaptor.capture(), anyString(), anyDouble());
-            assertThat(keyCaptor.getAllValues())
-                    .containsExactlyInAnyOrder(
-                            "leaderboard:total",
-                            "leaderboard:total:week:2026-08-31",
-                            "leaderboard:total:month:2026-08-01",
-                            "leaderboard:total:year:2026-01-01",
-                            "leaderboard:streak",
-                            "leaderboard:night_owl",
-                            "leaderboard:night_owl:week:2026-08-31",
-                            "leaderboard:night_owl:month:2026-08-01",
-                            "leaderboard:night_owl:year:2026-01-01",
-                            "leaderboard:early_bird",
-                            "leaderboard:early_bird:week:2026-08-31",
-                            "leaderboard:early_bird:month:2026-08-01",
-                            "leaderboard:early_bird:year:2026-01-01",
-                            "leaderboard:active_days",
-                            "leaderboard:active_days:week:2026-08-31",
-                            "leaderboard:active_days:month:2026-08-01",
-                            "leaderboard:active_days:year:2026-01-01",
-                            "leaderboard:growth:week:2026-08-31",
-                            "leaderboard:growth:month:2026-08-01",
-                            "leaderboard:growth:year:2026-01-01");
+            // Derived from the enums rather than pinned: the fixture carries no language, so
+            // LANGUAGE boards are absent, and the legal set is "every period each dimension
+            // supports". Adding a period must not require editing this test again.
+            LocalDate today = LocalDate.of(2026, 8, 31);
+            List<String> expectedKeys =
+                    Arrays.stream(LeaderboardDimension.values())
+                            .filter(dimension -> dimension != LeaderboardDimension.LANGUAGE)
+                            .flatMap(
+                                    dimension ->
+                                            Arrays.stream(LeaderboardPeriod.values())
+                                                    .filter(dimension::supports)
+                                                    .map(
+                                                            period ->
+                                                                    "leaderboard:"
+                                                                            + dimension
+                                                                                    .name()
+                                                                                    .toLowerCase()
+                                                                            + period.keySuffix(
+                                                                                    today)))
+                            .toList();
+            verify(zsetOps, times(expectedKeys.size()))
+                    .add(keyCaptor.capture(), anyString(), anyDouble());
+            assertThat(keyCaptor.getAllValues()).containsExactlyInAnyOrderElementsOf(expectedKeys);
         }
 
         @Test
@@ -277,9 +277,18 @@ class LeaderboardServiceTest {
 
             service.updateUserScores(userId);
 
-            // 15 of the 20 legal pairs carry a period: TOTAL 3, NIGHT_OWL 3, EARLY_BIRD 3,
-            // ACTIVE_DAYS 3, GROWTH 3. The five ALL keys never expire.
-            verify(redisTemplate, times(15)).expire(anyString(), any(Duration.class));
+            // Derived from the enums: every legal pair that carries a period expires; the ALL keys
+            // never do.
+            long periodKeys =
+                    Arrays.stream(LeaderboardDimension.values())
+                            .filter(dimension -> dimension != LeaderboardDimension.LANGUAGE)
+                            .flatMap(
+                                    dimension ->
+                                            Arrays.stream(LeaderboardPeriod.values())
+                                                    .filter(dimension::supports))
+                            .filter(period -> period != LeaderboardPeriod.ALL)
+                            .count();
+            verify(redisTemplate, times((int) periodKeys)).expire(anyString(), any(Duration.class));
         }
 
         @Test

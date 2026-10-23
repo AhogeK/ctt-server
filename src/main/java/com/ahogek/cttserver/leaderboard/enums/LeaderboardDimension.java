@@ -99,6 +99,11 @@ public enum LeaderboardDimension {
      * @return {@code true} for a legal dimension/period combination
      */
     public boolean supports(LeaderboardPeriod period) {
+        // A windowed streak is defined (longest run fully inside the window, i.e. runs are cut at
+        // both boundaries) but not enabled yet: the score is a single Redis value, so enabling it
+        // requires the inner-run reducer to be wired through the write path first. Until then a
+        // windowed STREAK keeps answering 400 COMMON_003 rather than ranking an ALL-time score
+        // under a windowed key.
         return switch (this) {
             case TOTAL, NIGHT_OWL, EARLY_BIRD, ACTIVE_DAYS, LANGUAGE -> true;
             case STREAK -> period == LeaderboardPeriod.ALL;

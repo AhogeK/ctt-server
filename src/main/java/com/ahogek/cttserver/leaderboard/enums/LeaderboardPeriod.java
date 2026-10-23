@@ -9,9 +9,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * Time window for a leaderboard dimension.
  *
  * <p>{@link #ALL} is the lifetime global ranking (the S2 keys {@code leaderboard:total} / {@code
- * leaderboard:streak}), while {@link #WEEK}, {@link #MONTH} and {@link #YEAR} rank users within the
- * current calendar period. Period keys are bucketed by their period start (ISO Monday for weeks)
- * and expire after the period closes.
+ * leaderboard:streak}), while every other period ranks users within the current calendar window:
+ * weeks start on ISO Monday, months on the 1st, quarters on the first day of Jan/Apr/Jul/Oct, half
+ * years on the first day of Jan/Jul and years on Jan 1 (all UTC). Period keys are bucketed by their
+ * period start and expire after the period closes.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-08-31
@@ -24,6 +25,10 @@ public enum LeaderboardPeriod {
     WEEK,
     /** Current calendar month (UTC). */
     MONTH,
+    /** Current calendar quarter (Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec, UTC). */
+    QUARTER,
+    /** Current calendar half year (Jan–Jun, Jul–Dec, UTC). */
+    HALF_YEAR,
     /** Current calendar year (UTC). */
     YEAR;
 
@@ -41,6 +46,9 @@ public enum LeaderboardPeriod {
             case ALL -> null;
             case WEEK -> today.with(DayOfWeek.MONDAY);
             case MONTH -> today.withDayOfMonth(1);
+            case QUARTER ->
+                    today.withDayOfMonth(1).withMonth(((today.getMonthValue() - 1) / 3) * 3 + 1);
+            case HALF_YEAR -> today.withDayOfMonth(1).withMonth(today.getMonthValue() <= 6 ? 1 : 7);
             case YEAR -> today.withDayOfYear(1);
         };
     }
@@ -64,6 +72,8 @@ public enum LeaderboardPeriod {
             case ALL -> null;
             case WEEK -> start.plusWeeks(1);
             case MONTH -> start.plusMonths(1);
+            case QUARTER -> start.plusMonths(3);
+            case HALF_YEAR -> start.plusMonths(6);
             case YEAR -> start.plusYears(1);
         };
     }
@@ -87,6 +97,8 @@ public enum LeaderboardPeriod {
             case ALL -> "";
             case WEEK -> ":week:" + start;
             case MONTH -> ":month:" + start;
+            case QUARTER -> ":quarter:" + start;
+            case HALF_YEAR -> ":half-year:" + start;
             case YEAR -> ":year:" + start;
         };
     }

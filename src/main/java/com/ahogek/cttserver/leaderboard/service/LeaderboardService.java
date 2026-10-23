@@ -692,6 +692,8 @@ public class LeaderboardService {
             case ALL -> date;
             case WEEK -> date.plusWeeks(periods);
             case MONTH -> date.plusMonths(periods);
+            case QUARTER -> date.plusMonths(3L * periods);
+            case HALF_YEAR -> date.plusMonths(6L * periods);
             case YEAR -> date.plusYears(periods);
         };
     }
@@ -786,6 +788,8 @@ public class LeaderboardService {
             case ALL -> null;
             case WEEK -> Duration.ofDays(8);
             case MONTH -> Duration.ofDays(32);
+            case QUARTER -> Duration.ofDays(93);
+            case HALF_YEAR -> Duration.ofDays(185);
             case YEAR -> Duration.ofDays(370);
         };
     }
