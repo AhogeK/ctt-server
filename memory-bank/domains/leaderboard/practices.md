@@ -108,3 +108,12 @@ for (LeaderboardDimension d : LeaderboardDimension.values())
 - Lock release in this service historically used `redisTemplate.delete(lockKey)`, bypassing
   `RedisLockService.release()`. It is functionally equivalent today but diverges from the
   documented "always release in a finally block" contract — align it if the lock code is touched.
+
+## Windowed streak is the inner run, not the run at the close
+
+`STREAK` ranks the longest run of consecutive coding days **fully inside** the window
+(`longestRunInside`): days come from `secondsByDay`, a run advances when `previous.plusDays(1)`
+equals the day, and it restarts otherwise — so both boundaries cut. `ALL` keeps
+`StatsCalculator.streaks(...).max()`. The rejected alternative (streak as of the window's close) is
+undefined while the period is still running and would change retroactively. Weeks saturate at 7 by
+definition; whether the UI offers them is a product choice, not a server one.

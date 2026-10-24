@@ -32,10 +32,16 @@ dimension" true by construction rather than by convention.
 
 The judgements behind the matrix:
 
-- **A measurement can be windowed; a run cannot.** `TOTAL`, `NIGHT_OWL`, `EARLY_BIRD`, `ACTIVE_DAYS`
-  are quantities accumulated inside a window, so every period is meaningful. `STREAK` is a run
-  length, and every period window is shorter than the runs it rewards — ranking it weekly is
-  incoherent, so it is `ALL` only.
+- **A run can be windowed only by cutting both ends.** `TOTAL`, `NIGHT_OWL`, `EARLY_BIRD`,
+  `ACTIVE_DAYS` are quantities accumulated inside a window, so every period is meaningful.
+  `STREAK` is a run length, and a window that merely *contains* a run is ambiguous: the same seven
+  days could be credited to the week it started in, the week it ended in, or both. The definition
+  that resolves this is "the longest run **fully inside** the window" — days outside are cut, so a
+  window's score can never exceed the window's length, and the same sessions produce exactly one
+  answer per period. The rejected reading, "the streak as of the window's close", is undefined
+  while the period is still running and changes retroactively as the window advances.
+  Enabling it was a wiring change, not new math: the reducer had to join the score-writing path for
+  windowed keys (see `practices.md`), because a ZSet member holds one number per key.
 - **A comparison needs a predecessor.** `GROWTH` compares a window against the one before it; an
   unbounded history (`ALL`) has no predecessor, so `GROWTH` excludes `ALL`.
 - **Do not lock a capability that already generalizes.** `GROWTH`'s delta is the same

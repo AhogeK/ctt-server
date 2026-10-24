@@ -1,12 +1,32 @@
 # Active Context
 
-- [2026-10-20] - 排行榜新增季度/半年周期（v0.84.0，待授权提交）
+- [2026-10-23] - `.omp` 全量分类归档（用户要求：时间只做文件夹，不进文件名；一个需求一个文件）
+    - 结构: `.omp/<category>/<YYYY-MM-DD>/<kebab-topic>.md`；类别 = reports / acceptance / requirements / research / plans / notes；顶层不再有散文件
+    - 迁移 35 个 .md（原顶层 30 + plans/ 5 + reports/ 2，去重 2 份后），`skill-graph-zh.json` 移入 `data/`；旧的 `reports/2026-10-2X-*.md` 命名已并入日期文件夹
+    - 规则: `AGENTS.md` R26 两处过时行同步修正（plans 路径带日期文件夹、报告行指向类别目录），并把「每轮新建」与「分类归档」两条合并表述，消除命名冲突
+    - 状态: ✅ 已完成（随本批 AI 提交）
+
+- [2026-10-23] - 数据库连不上诊断（**第二次复发，非代码问题**）
+    - 现象: IDEA 内启动应用 ⇒ `flywayInitializer` 取连接失败，根因 `java.net.NoRouteToHostException`（EHOSTUNREACH，SQLState 08001）
+    - 证据: 本批未改任何数据源配置；**系统 shell** 到 `192.168.5.178:5432` 的 `ping` 0% 丢包、`nc -z` 成功；系统日志反复出现 `LocalNetwork: found bundle id com.jetbrains.intellij`
+    - 结论: macOS「本地网络」权限挡住 **IDEA 进程**（同一地址外部 Terminal 可连）；处置 = 关开该权限 + `Cmd+Q` 完全重启 IDEA，或在系统 Terminal `./gradlew bootRun`
+    - 沉淀: `AGENTS.md` R8 新增「环境类故障先对照再怀疑代码」（异常类型对照表 + 用系统 shell 对照）；详细报告 `.omp/reports/2026-10-23/db-unreachable-diagnosis.md`
+
+- [2026-10-23] - 窗口化 STREAK 启用（v0.85.0）
+    - 需求: ctt-web「启用窗口化的连续天数排行」——上一轮已定义口径（窗口内最长 run），本轮接线
+    - 交付: `LeaderboardService.longestRunInside`（从 `secondsByDay` 取窗口内日期，按 `prev+1` 计连续段、取最大）；`STREAK` 分支按 `period == ALL` 分流（终身走 `StatsCalculator.streaks`，窗口走新 reducer）；`supports()` 放行 `STREAK` 全部周期 ⇒ 现在**唯一**非法组合是 `GROWTH + ALL`
+    - 测试: 新增用例「连续 5 天跨月/周边界」——`ALL`=5、`WEEK`=3、`MONTH`=3、`QUARTER`=5（证明两端切断）；两处"非法组合"样例由 `STREAK+WEEK` 改为 `GROWTH+ALL`（枚举矩阵仍由枚举驱动）
+    - **事故记录**: 我用 `open(p,'w').write(open(p).read().replace(...))` 把 `gradle/libs.versions.toml` 写空（先截断再读）——已从 HEAD 恢复并用 `sed` 重做；教训：读写同一文件必须先读完再写，禁止一行式截断写入
+    - 前端: 新报告 `.omp/leaderboard-streak-window-frontend-report.md`（选择器补五项、删"待接入"说明）
+    - 状态: ✅ 已交付 v0.85.0（2026-10-23；全量 1543 tests / 0 failures）
+
+- [2026-10-20] - 排行榜新增季度/半年周期（v0.84.0）
     - 需求来源: ctt-web「longer leaderboard periods」——周/月榜在用户增长后失去区分度，季度与半年是恢复区分度的最小增量
     - 交付: `LeaderboardPeriod` 增 `QUARTER`（1/4/7/10 月首日）与 `HALF_YEAR`（1/7 月首日），`start`/`endExclusive`/`keySuffix`（`:quarter:` / `:half-year:`）与 `shift`/TTL（93 / 185 天）同步；`supports()` 对 TOTAL/NIGHT_OWL/EARLY_BIRD/ACTIVE_DAYS/LANGUAGE 全周期，GROWTH 自动获得；不支持组合仍 `400 COMMON_003`
     - **窗口化 STREAK：已定义、未启用** —— 分数 = **完全落在窗口内的最长连续编码天数**（两端切断 run）；否决"窗口结束时的连续天数"（当前周期未结束时无定义、且会随窗口回溯变化）。Redis 每成员单值 ⇒ 启用须先把该 reducer 接到写分路径，本轮不做；`STREAK` + 周期继续 400，避免把终身分数塞进窗口 key
     - 顺带修两处**脆断言**: `LeaderboardServiceTest` 的「20 个 key / 15 个 TTL」硬编码改为按枚举推导——这类枚举清单式断言每次扩展都会误报，已改成一条公式
     - 验证: `LeaderboardPeriodTest` 4 例；排行榜测试 49 例全绿（集成矩阵由枚举驱动，自动覆盖 6×7 组合与 400 分支）
-    - 状态: ✅ 实施完成，待授权提交
+    - 状态: ✅ 已交付 v0.84.0（2026-10-20）——其中"窗口化 STREAK 未启用"已被 v0.85.0 取代
 
 - [2026-10-19] - 对接报告约定固化：每轮新建、旧文件不改
     - 用户指示: "每次新报告都要新起文件避免旧内容的混淆"。此前我**原地更新**了 `settings-phase6-frontend-report.md`（10-18 的"滚动契约"）✗ —— `.omp/` 无版本控制，原文无法还原；现已保留该文件并加顶部横幅标注为**历史文件**，最新口径以 `-3.md` 为准
@@ -38,7 +58,7 @@
     - 验证: 全量 **1528 tests / 0 failures / 0 errors**（1 skipped 为既有；1521 + 7 = 4 端点用例 + 2 转换器 sid 用例 + 1 重用/吊销区分用例）；`spotlessApply` 后 `build` PASS。一次 `clean build` 以 `:test FAILED` 且**零结果**中止（无诊断输出），随后单独 `test` 与 `build` 均通过——与依赖升级批次同形的瞬时失败，非代码问题
     - 状态: ✅ 已交付（v0.83.0，与 R3 同批）
 
-- [2026-10-19] - R2-a 收尾：双轴独立审查与审查修复（并入 v0.81.0 批次，待授权提交）
+- [2026-10-19] - R2-a 收尾：双轴独立审查与审查修复（并入 v0.81.0，已交付）
     - 双轴独立审查（标准轴 / 规格轴，另加机械自检：spotlessCheck、jacoco 门禁、注释语言与全限定名扫描、diff 范围）
     - **两轴独立命中同一个真 bug**: terms 接受路径 `issueTokens` 以 `deviceId=null` 重建行 ⇒ 插件会话在**同一 `session_id`** 下变成 WEB/30 天并丢设备绑定——既违背刚写入领域文件的"续期沿用受众/设备"承诺，也会让 R2-b 的会话列表把插件会话显示成浏览器会话（验收"PLUGIN 才显示设备名"会失效）
     - TDD 修复: 新增集成用例 `shouldKeepPluginAudience_whenAcceptingTerms`（断言 `issued_for=PLUGIN` + `device_id` + 13~15 天 TTL）→ RED（5 用例 1 失败）→ `issueTokens` 改为**按会话查活动行并沿用受众/设备/UA/相应 TTL**（`RefreshTokenRepository.findFirstByUserIdAndSessionIdAndRevokedAtIsNullOrderByCreatedAtDesc`）→ GREEN（5/5）
@@ -46,9 +66,9 @@
     - 判为不改的 3 项（理由入账）: `TokenUtils.createRefreshToken` 7 参（单一静态工厂、3 调用点各一行；引入 Spec 类型收益不抵）｜`issueTokens` 在无 sid 时自造会话（`issueTokens` 从不传 null，NOT NULL 列下属防御分支，令牌 claim 与响应一致）｜R2-b 两端点（下一批）
     - 领域知识同步: `domains/auth-lifecycle/practices.md` 增「轮换与一切后续签发沿用会话属性」条款 + 记录该回归与其用例名
     - 验证: `clean build` **1521 tests / 0 failures / 0 errors**（1 skipped 为既有）；`SessionIdentityIntegrationTest` 5/5、`AuthControllerPasswordResetConfirmIntegrationTest` 13/13；spotless + 覆盖率门禁通过
-    - 状态: ✅ 修复完成，**待授权提交**（与 R2-a 同批）
+    - 状态: ✅ 修复完成，已交付 v0.81.0（2026-10-19）
 
-- [2026-10-19] - R2-a 会话身份与插件会话缺陷修复（v0.81.0，待授权提交）
+- [2026-10-19] - R2-a 会话身份与插件会话缺陷修复（v0.81.0，已交付）
     - 交付: 迁移 `V20261019120000__add_session_identity_to_refresh_tokens.sql`（`session_id` NOT NULL + 回填=id + 默认 + `(user_id, session_id)` 索引；`user_agent` 可空）+ `RefreshToken` 增两列与 `AUDIENCE_WEB/AUDIENCE_PLUGIN` 常量 + `isPluginSession()`；`TokenUtils.createRefreshToken` 增会话/UA 参数（UA 写入前截断 512）；**四条签发路径全部带会话身份**（登录/轮换/OAuth/terms 接受）；access token 增 `sid` claim（无会话则省略）+ `CurrentUser` 增可空 `sessionId`（**5 参便捷构造器 ⇒ 37 处既有构造点零改动**）+ 转换器读取 `sid`
     - **修掉一个存在已久的缺陷**: 全仓**从没有任何地方写 `PLUGIN`**（`ISSUED_FOR_WEB` 是唯一常量、`refreshTokenTtlPlugin` 是死配置）⇒ 插件会话从**登录**起就被记成 WEB/30 天，刷新后依旧
     - **Ruling 修正（证据驱动，非猜测）**: 判别信号原定"带 deviceId 即插件" ✗ —— 被 `LoginRequest.deviceId` 的 **`@NotBlank`** 证伪（所有登录都必须带 ✓），且实测**两侧客户端都不发**平台/IDE 头 ✓ ⇒ 改为 **deviceId 已在 `devices` 注册 ⇒ PLUGIN**（注册表是服务端可核实的"这是插件客户端"，也正是该表存在的意义）。代价：插件**首次**登录（尚未注册）仍记 WEB、刷新沿用旧受众，已在用例中按"注册后"验证
@@ -84,7 +104,7 @@
     - **文件组织（用户裁定）**: 新反馈**单独成文**，不并进旧文件 ⇒ `.omp/settings-phase6-frontend-report.md` = **对接契约（滚动更新）**，`.omp/settings-phase6-frontend-report-2.md` = 第二轮通知（对前端答复的三问确认 + `userAgent` 采纳 + 六条细节 + 并发说明 + 无变化部分）；第二轮内容已从契约文件移出，只留索引行
     - **第二轮回执（2026-10-18 同日）**: 前端"全部确认、**无冲突、无新增需求**" ⇒ 该轮往来闭环；`userAgent` 的显示名由前端派生（其设置页工作项，纯函数 + 单测，识别失败回退原文/未知）；前端按 **R1 → R2 → R3** 等待"端点已可用"通知（首个通知要等 R1 实施完成）
 
-- [2026-10-15] - hourly-days 端点（按日的每小时分布，v0.79.0，待提交）
+- [2026-10-15] - hourly-days 端点（按日的每小时分布，v0.79.0，已交付）
     - 需求: 前端要在「Average hourly coding duration」面板里把**每天的曲线**叠画在平均曲线背后，并在含今天的窗口标出"当下时刻"
     - **回源核出的实质问题（前端报告未覆盖）**: `hourlyDistribution` 的 `activeDays` 是「**会话起始日**去重」而非领域文档定义的「**有编码的天数**」→ 跨本地午夜的会话只贡献 **1** 天分母，把平均值**抬高**；前端整套叠画假设（分母 = 有编码的天数、逐日数组之和 = 平均曲线的分子）因此不成立。裁决: **修缺陷**（对齐 `meta.md` 定义 + 前端语义 + 新端点需要同源），不做静默修改
     - 结构决策（防止两套口径漂移）: 抽出 `hourlyByDay(..., maxDays)` 单一累加器（`TreeMap<LocalDate, long[24]>`），`hourlyDistribution` 改为**由同一份日桶派生**（小时和 = 逐日相加，分母 = 日桶数）；31 天上限只施加在 `hourlySecondsByDay` 边缘 → 「逐日之和 ÷ 分母 = 平均曲线」由**构造**保证而非约定。集成测试断言该不变量（`average×N ≤ sum < (average+1)×N`，因平均值按整数向下取整）
@@ -108,7 +128,7 @@
     - 验证: `spotlessCheck` + 全量 **1494 tests / 0 failures / 0 errors** + 覆盖率 **95.25% / 84.60%**（阈值 80/70 通过）+ 生产代码 FQCN 终扫 **0** ✓
     - 状态: ✅ 已交付 v0.78.1（代码 + 测试 + 文档 + 领域知识；AI 记忆独立提交）
 
-- [2026-10-12] - summary 涨跌对比（对比上一完整周期，v0.78.0，待提交）
+- [2026-10-12] - summary 涨跌对比（对比上一完整周期，v0.78.0，已交付）
     - 触发: 前端交来需求报告（自称已回源核对）。逐条复核其 **6 项断言: 5 属实、1 不实** —— 报告称"沿用 60s 缓存"，实际 `src/main` 全无 `@Cacheable`/`Cache-Control`/`CacheManager`，60s 只是**限速窗口**；端点本就无缓存，稳定性来自纯计算（故其验收 7「重复请求稳定」天然成立）
     - **报告未覆盖、却决定实现的三个事实**: ①全局 `spring.jackson.default-property-inclusion: non_null`（`application.yaml:29`）会**整键丢弃 null**，与需求「五个键恒在、`changePercent` 用 null 表达」**直接冲突** → 组件级 `@JsonInclude(ALWAYS)` 覆盖（项目已有先例: `StatsIntegrationTest` 注释「字段是 primitive 才能在 non_null 下存活」）②两路径对**未来日期**上界本就不同（物化开放 / 实时截到本周期末）—— 既有行为，不特判（基期窗口都是有界历史区间，不受影响）③`StatsCalculator.Summary` 仅 `liveSummary` 与测试使用、测试只读访问器 → 加字段安全
     - 口径决策（报告缺口处由我定）: 首日 `dailyAverage.previousSeconds` 取 **0**（首日无"昨天"；实践上 `total == today` 与报告公式同值，仅在未来日期数据时更诚实，且自然落入「previous == 0 → null」免特例）；四舍五入用 `BigDecimal` **HALF_UP（远离零）**（中文"四舍五入"语义；JSON 里 double 写 `-100.0`，解析后与 `-100.00` 同值）；**现有周期口径一律不动**（当前值是回归红线）
@@ -118,7 +138,7 @@
     - 我自己的三处算错（跑出来才发现，非逻辑错）: ①"上一周"用例当前周也有值 → 应为 +20.0 ②`dailyAverage` 基线**不受基期窗口影响**（800 天历史时上一日均值非 0，断言不能是 null）③实跑脚本按 30 分钟写 C 却推了 1 小时 → 期望应为 −50% 而非 −33.33%（**系统对、我的期望过期**）
     - 领域沉淀: `stats-aggregation/principles.md` §10（口径闭环 + 基期必须与主值同源 + 三条易错点）；`stats-aggregation/references.md` 响应字段表；`api-contract/practices.md`「null 字段默认缺失，契约要求键在时须 opt out」+ 断言陷阱
     - 顺带: 实跑也走了销号（`DELETE /users/me` 200 → 再登录 401、旧令牌 `/users/me` 404）；**旧令牌 `GET /stats/summary` 仍 200** 属上一批已裁决的 15 分钟窗口（无害空读），非回归。8080 上另有一个**你 9/30 启动的实例**（非我产生，未动）
-    - 状态: 实施 + 验证完成；**接口已与前端逐条确认通过**（前端按源码复核属实；首日 `dailyAverage.previousSeconds = 0` 与"物化/实时 ≤1s/天"差异**两项均获接受**；§7 三条事实修正已被其文档吸收并据以改正自身注释），**待授权提交**
+    - 状态: 实施 + 验证完成；**接口已与前端逐条确认通过**（前端按源码复核属实；首日 `dailyAverage.previousSeconds = 0` 与"物化/实时 ≤1s/天"差异**两项均获接受**；§7 三条事实修正已被其文档吸收并据以改正自身注释），已交付 v0.78.0
 
 - [2026-09-19] - 依赖更新分析与升级（v0.77.1）
     - 策略: 一律直接升到最新稳定版（含主版本），兼容性由编译 + 全量测试验证，不做逐项风险评估

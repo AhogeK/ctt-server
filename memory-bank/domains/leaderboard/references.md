@@ -13,8 +13,9 @@
 
 | Param | Type | Default | Bounds |
 | --- | --- | --- | --- |
-| `dimension` | enum | required | `TOTAL` \| `STREAK` \| `NIGHT_OWL` \| `EARLY_BIRD` \| `GROWTH` \| `ACTIVE_DAYS` |
-| `period` | enum | `dimension.defaultPeriod()` | `ALL` \| `WEEK` \| `MONTH` \| `YEAR` |
+| `dimension` | enum | required | `TOTAL` \| `STREAK` \| `NIGHT_OWL` \| `EARLY_BIRD` \| `GROWTH` \| `ACTIVE_DAYS` \| `LANGUAGE` |
+| `period` | enum | `dimension.defaultPeriod()` | `ALL` \| `WEEK` \| `MONTH` \| `QUARTER` \| `HALF_YEAR` \| `YEAR` |
+| `language` | string | — | required for `LANGUAGE`, ignored nowhere else (supplying it elsewhere is a `400`) |
 | `limit` | int | 20 | 1..100 |
 | `offset` | int | 0 | ≥ 0 |
 
@@ -40,20 +41,20 @@
 
 ## Dimension → score → supported periods
 
-| Dimension | Score | Unit | `ALL` | `WEEK` | `MONTH` | `YEAR` | Default |
-| --- | --- | --- | :-: | :-: | :-: | :-: | --- |
-| `TOTAL` | Merged overlap-collapsed duration | seconds | ✓ | ✓ | ✓ | ✓ | `ALL` |
-| `STREAK` | Longest consecutive coding-day streak | days | ✓ | — | — | — | `ALL` |
-| `NIGHT_OWL` | Merged duration inside 22:00–05:00 | seconds | ✓ | ✓ | ✓ | ✓ | `ALL` |
-| `EARLY_BIRD` | Merged duration inside 06:00–09:00 | seconds | ✓ | ✓ | ✓ | ✓ | `ALL` |
-| `GROWTH` | Current period minus immediately preceding period | signed seconds | — | ✓ | ✓ | ✓ | `WEEK` |
-| `ACTIVE_DAYS` | Distinct coding days | days | ✓ | ✓ | ✓ | ✓ | `ALL` |
-| `LANGUAGE` | Merged duration in one language | seconds | ✓ | ✓ | ✓ | ✓ | `ALL` |
+| Dimension | Score | Unit | `ALL` | `WEEK` | `MONTH` | `QUARTER` | `HALF_YEAR` | `YEAR` | Default |
+| --- | --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | --- |
+| `TOTAL` | Merged overlap-collapsed duration | seconds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
+| `STREAK` | Longest run of consecutive coding days **fully inside** the window | days | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
+| `NIGHT_OWL` | Merged duration inside 22:00–05:00 | seconds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
+| `EARLY_BIRD` | Merged duration inside 06:00–09:00 | seconds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
+| `GROWTH` | Current period minus immediately preceding period | signed seconds | — | ✓ | ✓ | ✓ | ✓ | ✓ | `WEEK` |
+| `ACTIVE_DAYS` | Distinct coding days | days | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
+| `LANGUAGE` | Merged duration in one language | seconds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
 
-20 legal pairs of 24 possible for the non-partitioned dimensions; 15 carry a TTL (every pair
-except the five `ALL` keys). `LANGUAGE` is partitioned: one board per language a user has used, so
-its key count grows with the caller's languages rather than being fixed — and shrinks again when they
-stop using one.
+35 legal pairs of 36 possible for the six unpartitioned dimensions (all periods, except `GROWTH` +
+`ALL`); 30 of them carry a TTL — every legal pair except the five `ALL` keys. `LANGUAGE` is
+partitioned: one board per language a user has used, so its key count grows with the caller's
+languages rather than being fixed — and shrinks again when they stop using one.
 
 ## Redis keys
 
@@ -62,6 +63,8 @@ stop using one.
 | `leaderboard:<dimension>` | `leaderboard:total` (`ALL`) |
 | `leaderboard:<dimension>:week:<ISO Monday>` | `leaderboard:total:week:2026-08-31` |
 | `leaderboard:<dimension>:month:<1st>` | `leaderboard:total:month:2026-08-01` |
+| `leaderboard:<dimension>:quarter:<1st of Jan/Apr/Jul/Oct>` | `leaderboard:total:quarter:2026-10-01` |
+| `leaderboard:<dimension>:half-year:<1st of Jan/Jul>` | `leaderboard:total:half-year:2026-07-01` |
 | `leaderboard:<dimension>:year:<Jan 1>` | `leaderboard:total:year:2026-01-01` |
 | `leaderboard:language:<name>[<period suffix>]` | `leaderboard:language:Java:week:2026-08-31` |
 | `leaderboard:lock:<userId>` | per-user recompute lock |
@@ -95,6 +98,6 @@ member-id tie-breaking, which disagrees with competition ranking.
 | "Rank 12 of 340" | `currentUserRank` + `totalParticipants` |
 | Percentile | `(totalParticipants - currentUserRank) / totalParticipants` |
 | Language selector | `/leaderboard/languages` (boards that hold someone); add `includeEmpty=true` to browse the vocabulary |
-| Period leaderboard tabs | Same endpoint, `period=WEEK\|MONTH\|YEAR`; `STREAK` is `ALL`-only, `GROWTH` has no `ALL` |
+| Period leaderboard tabs | Same endpoint, `period=WEEK\|MONTH\|QUARTER\|HALF_YEAR\|YEAR`; `STREAK` supports every period, `GROWTH` has no `ALL` |
 | Consistency-flavored board | `ACTIVE_DAYS` (favors regular users over high-volume ones) |
 | Detect end of list | Fewer than `limit` entries returned for a stable key (there is no `hasMore` field) |

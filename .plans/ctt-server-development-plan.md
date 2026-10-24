@@ -2149,6 +2149,30 @@ end note
 | 新增周期 | `QUARTER`（自然季度，1/4/7/10 月首日）与 `HALF_YEAR`（自然半年，1/7 月首日），全部 UTC |
 | 适用维度 | `TOTAL` / `NIGHT_OWL` / `EARLY_BIRD` / `ACTIVE_DAYS` / `LANGUAGE` 全周期可用；`GROWTH` 自动获得（非 `ALL` 即支持） |
 | Key 与过期 | 按周期起点分桶：`:quarter:<start>` / `:half-year:<start>`；TTL 93 / 185 天（覆盖最长 92/184 天后自然过期） |
-| 不支持的组合 | 仍返回 `400 COMMON_003`（如 `STREAK` + 任一周期，见下） |
+| 不支持的组合 | 仍返回 `400 COMMON_003`（本轮时点：`STREAK` + 任一周期仍不支持；**已被 v0.85.0 推翻**，见下节） |
 | **窗口化 STREAK（已定义、未启用）** | 分数 = **完全落在窗口内的最长连续编码天数**（在两端切断 run）。**否决**"窗口结束时的连续天数"：当前周期未结束时它无定义，且会随窗口推进回溯变化。Redis 每个成员只存一个数，启用还须把该 reducer 接到写分更新路径——本轮不做，窗口化 `STREAK` 继续 `400 COMMON_003`，而不是把终身分数塞进窗口 key |
 | 测试 | `LeaderboardPeriodTest`（窗口算术/Key 命名 4 例）+ 既有 `LeaderboardServiceTest` 的组合数与 TTL 断言**改为按枚举推导**（不再硬编码 20/15，避免下次扩展再被打破）+ 集成矩阵由枚举驱动自动覆盖 6×7 组合 |
+
+## 窗口化 STREAK（已启用，2026-10-23，v0.85.0）
+
+> 来源：ctt-web `# 需求：启用窗口化的连续天数排行`。上一轮只定义了口径，本轮把它接到写分路径。
+
+| 项 | 结论 |
+|---|---|
+| 算法 | `LeaderboardService.longestRunInside`：取窗口内计过时的日期，按 `前一日+1` 递推连续段并取最大；两端切断（跨窗部分不计） |
+| 分流 | `period == ALL` → 既有 `StatsCalculator.streaks(...).max()`（终身，行为不变）；其它周期 → 新 reducer |
+| 放行 | `STREAK` 支持全部周期；**唯一**非法组合变为 `GROWTH + ALL`（仍 `400 COMMON_003`） |
+| 键 | `ALL` 仍为 `leaderboard:streak`；窗口键沿用 `:streak:<period>:<start>`，随窗口过期 |
+| 测试 | 新用例：连续 5 天跨周/月边界 ⇒ `ALL`=5、`WEEK`=3、`MONTH`=3、`QUARTER`=5；非法组合样例改为 `GROWTH+ALL` |
+| 前端 | 选择器补五项、删除"待接入"说明（`.omp/reports/2026-10-23/leaderboard-streak-window-frontend-report.md`） |
+
+### 完成总结（2026-10-23）
+
+| 项 | 结论 |
+|---|---|
+| 状态 | ✅ **已交付 v0.85.0**；无遗留项（窗口分数在每次推送时重算，窗口键到期自然消失，无需数据迁移） |
+| 验证 | 全量 **1543 tests / 0 failures**（新增 1 例窗口化用例）；`build` 含 spotless 与覆盖率门禁通过；`LeaderboardServiceTest`、`LeaderboardIntegrationTest`、`LeaderboardPeriodTest` 全绿 |
+| 让实现变简单的两个决定 | ① 只在 `period != ALL` 分流，终身路径一行未动 —— 既有分数与键名天然不变；② 非法组合判定仍由 `supports()` 单点决定，测试矩阵按 `values() × supports()` 推导，扩展时无需改断言 |
+| 漂移修正（同批） | 领域文件四处仍写着"`STREAK` 仅 `ALL`"：`principles.md` §3（判断被推翻）、`scenarios.md`（扩周期判断行）、`references.md`（参数表/矩阵/键表/客户端配方/组合计数 20→35、15→30）、`meta.md`（术语与核对基线升到 v0.85.0） |
+| 事故与教训 | 更新 `gradle/libs.versions.toml` 时用了 `open(p,'w').write(open(p).read()…)`，**先截断再读**导致文件被写空、编译失败；已 `git checkout` 恢复并重做。规则已入 `AGENTS.md` R8：读写同一文件必须先完整读取再写 |
+| 与上一轮的边界 | v0.84.0 的"窗口化 STREAK 已定义未启用"已被本条取代；那条记录保留为历史，不再作为口径 |

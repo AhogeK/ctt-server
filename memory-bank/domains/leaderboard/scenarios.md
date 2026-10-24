@@ -16,7 +16,7 @@ Trigger → judgement → action.
 | Trigger | Judgement | Action |
 | --- | --- | --- |
 | New dimension proposed | Does the score have a unit distinct from existing ones? Is it reachable by users with modest volume? | `ACTIVE_DAYS` was added because every prior dimension rewarded accumulated volume, which structurally favors long-tenured users |
-| Widening a dimension to more periods | Does a windowed value still mean something? | Measurements can be windowed (`TOTAL`/`NIGHT_OWL`/`EARLY_BIRD`/`ACTIVE_DAYS`); a run cannot (`STREAK` stays `ALL`); a comparison needs a predecessor (`GROWTH` excludes `ALL`) |
+| Widening a dimension to more periods | Does a windowed value still mean something? | Measurements can be windowed (`TOTAL`/`NIGHT_OWL`/`EARLY_BIRD`/`ACTIVE_DAYS`); a run can be windowed only when both boundaries cut it — `STREAK` = longest run **fully inside** the window, opened to every period in v0.85.0; a comparison needs a predecessor (`GROWTH` excludes `ALL`) |
 | A dimension gains/loses a period | The legal set and the default are decided in one place | Update `supports()` and check `defaultPeriod()` still returns a legal value — they live together for this reason |
 | Legal combination rejected at runtime | `supports()` and the controller disagree | The controller must not re-derive the rule; call `dimension.supports(period)` / `dimension.defaultPeriod()` |
 | Key set changes | Old keys must not orphan | `keySuffix()` returns `""` for `ALL` so existing keys stay byte-identical; a *changed* suffix is a data migration |

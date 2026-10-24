@@ -28,12 +28,12 @@ calculators), sync ingestion (`sync-protocol`).
 
 | Term | Meaning here |
 | --- | --- |
-| Dimension | What is being measured (`TOTAL`, `STREAK`, `NIGHT_OWL`, `EARLY_BIRD`, `GROWTH`, `ACTIVE_DAYS`) |
+| Dimension | What is being measured (`TOTAL`, `STREAK`, `NIGHT_OWL`, `EARLY_BIRD`, `GROWTH`, `ACTIVE_DAYS`, `LANGUAGE`) |
 | Period | The window the measurement is taken over (`ALL`, `WEEK`, `MONTH`, `QUARTER`, `HALF_YEAR`, `YEAR`) |
 | Competition rank | Ties share a rank; the next distinct score skips the gap (1, 2, 2, 4) |
 | Physical position | 0-based index inside the ZSet, ties broken by member id — **not** the public rank |
 | Score | The raw measured value stored in the ZSet, in the dimension's own unit (seconds, days, or a signed delta) |
-| Legal pair | A (dimension, period) combination the enum admits — 30 of the 36 possible (periods × the six unpartitioned dimensions; LANGUAGE counted per language board) |
+| Legal pair | A (dimension, period) combination the enum admits — 35 of the 36 possible (six periods × the six unpartitioned dimensions; `GROWTH` + `ALL` is the only rejection; `LANGUAGE` counted per language board); 30 of the legal pairs carry a TTL, `ALL` never expires |
 
 ## Where to start
 
@@ -54,8 +54,8 @@ share the calculators and nothing else.
 
 | | |
 | --- | --- |
-| Checked against source | 2026-09-15 · v0.73.0 |
-| Coverage | Full domain: `service/LeaderboardService`, `controller/LeaderboardController`, `enums/LeaderboardDimension`, `enums/LeaderboardPeriod`, `dto/LeaderboardResponse` read end to end |
-| Known drift | None — this domain was written in the change that produced v0.73.0 |
+| Checked against source | 2026-10-23 · v0.85.0 |
+| Coverage | Full domain: `service/LeaderboardService`, `controller/LeaderboardController`, `enums/LeaderboardDimension`, `enums/LeaderboardPeriod`, `dto/LeaderboardResponse` read end to end; re-checked when `STREAK` gained every period |
+| Known drift | None — the `STREAK`-is-`ALL`-only statements in `principles.md`, `scenarios.md` and `references.md` were corrected in the same change (v0.85.0) |
 
 Re-check the specific file you are about to rely on if the code has moved since this date.
