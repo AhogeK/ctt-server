@@ -588,7 +588,10 @@ public class LeaderboardService {
             }
             case ACTIVE_DAYS -> activeDaysIn(views, period, today);
             case LANGUAGE -> languageSeconds(views, language, period);
-            case STREAK -> StatsCalculator.streaks(views.sessions(), utc, today).max();
+            case STREAK ->
+                    period == LeaderboardPeriod.ALL
+                            ? StatsCalculator.streaks(views.sessions(), utc, today).max()
+                            : longestRunInside(views, period, today);
             case NIGHT_OWL, EARLY_BIRD ->
                     StatsCalculator.mergedDurationInDailyWindow(
                             views.sessions(),
@@ -684,6 +687,44 @@ public class LeaderboardService {
                                         && !entry.getKey().isBefore(start)
                                         && entry.getKey().isBefore(end))
                 .count();
+    }
+
+    /**
+     * Longest run of consecutive coding days fully inside the window.
+     *
+     * <p>Runs are cut at both boundaries: a streak that began before the window or continues past
+     * it contributes only the days inside it. This is the windowed form of the {@code STREAK}
+     * dimension — a member holds one Redis score, so the reducer is the inner run length rather
+     * than the streak as of the window's close, which would be undefined while the period is still
+     * running.
+     *
+     * @param views the user's precomputed views
+     * @param period the window (never {@code ALL} here)
+     * @param today the reference date
+     * @return the longest in-window run, 0 when the window holds no coding day
+     */
+    private static long longestRunInside(
+            SessionViews views, LeaderboardPeriod period, LocalDate today) {
+        LocalDate start = period.start(today);
+        LocalDate end = period.endExclusive(today);
+        long longest = 0;
+        long run = 0;
+        LocalDate previous = null;
+        for (LocalDate day :
+                views.secondsByDay().entrySet().stream()
+                        .filter(
+                                entry ->
+                                        entry.getValue() > 0
+                                                && !entry.getKey().isBefore(start)
+                                                && entry.getKey().isBefore(end))
+                        .map(Map.Entry::getKey)
+                        .sorted()
+                        .toList()) {
+            run = previous != null && previous.plusDays(1).equals(day) ? run + 1 : 1;
+            longest = Math.max(longest, run);
+            previous = day;
+        }
+        return longest;
     }
 
     /** Shifts a date by a whole number of periods (positive forward, negative back). */

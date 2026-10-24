@@ -590,7 +590,7 @@ class LeaderboardIntegrationTest {
 
             assertThat(
                             mvc.get()
-                                    .uri("/api/v1/leaderboard?dimension=STREAK&period=WEEK")
+                                    .uri("/api/v1/leaderboard?dimension=GROWTH&period=ALL")
                                     .header("Authorization", "Bearer " + readKey)
                                     .exchange())
                     .hasStatus(400);

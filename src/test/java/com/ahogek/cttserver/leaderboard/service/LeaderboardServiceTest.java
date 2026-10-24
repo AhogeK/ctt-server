@@ -158,6 +158,30 @@ class LeaderboardServiceTest {
         }
 
         @Test
+        @DisplayName("should score a windowed streak as the longest run inside the window")
+        void shouldScoreWindowedStreak_whenRunCrossesTheBoundary() {
+            // Five consecutive coding days spanning two weeks and two months: 08-29 .. 09-02, with
+            // the clock at 08-31 (the start of the current week). The week sees three of them, the
+            // month sees the three before 09-01, and the lifetime score keeps all five.
+            List<CodingSession> sessions =
+                    List.of(
+                            session(at("2026-08-29T10:00:00"), at("2026-08-29T11:00:00")),
+                            session(at("2026-08-30T10:00:00"), at("2026-08-30T11:00:00")),
+                            session(at("2026-08-31T10:00:00"), at("2026-08-31T11:00:00")),
+                            session(at("2026-09-01T10:00:00"), at("2026-09-01T11:00:00")),
+                            session(at("2026-09-02T10:00:00"), at("2026-09-02T11:00:00")));
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(sessions);
+
+            service.updateUserScores(userId);
+
+            verify(zsetOps).add("leaderboard:streak", userId.toString(), 5.0);
+            verify(zsetOps).add("leaderboard:streak:week:2026-08-31", userId.toString(), 3.0);
+            verify(zsetOps).add("leaderboard:streak:month:2026-08-01", userId.toString(), 3.0);
+            verify(zsetOps).add("leaderboard:streak:quarter:2026-07-01", userId.toString(), 5.0);
+        }
+
+        @Test
         @DisplayName("should write merged total per period key")
         void shouldWriteMergedTotal_whenSessionsSpanPeriods() {
             // 1h in the current week (09-01) and 1h in the previous week (08-25)
@@ -581,16 +605,6 @@ class LeaderboardServiceTest {
         @Test
         @DisplayName("should reject an illegal dimension/period combination")
         void shouldRejectCombination_whenPeriodUnsupported() {
-            assertThatThrownBy(
-                            () ->
-                                    service.getLeaderboard(
-                                            LeaderboardDimension.STREAK,
-                                            LeaderboardPeriod.WEEK,
-                                            null,
-                                            20,
-                                            0,
-                                            userId))
-                    .isInstanceOf(ValidationException.class);
             assertThatThrownBy(
                             () ->
                                     service.getLeaderboard(
