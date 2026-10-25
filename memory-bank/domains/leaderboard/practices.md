@@ -116,6 +116,24 @@ Verification: `ZCARD leaderboard:streak:<period>:<start>` must cover `ZCARD lead
 after the sweep; the sweep runs `ctt.leaderboard.backfill-initial-delay-ms` (default 60s) after
 startup.
 
+## Zero is not a rank
+
+`writeScore` removes a member instead of storing `0` when `dimension.ranksOnlyPositiveScores()`.
+Three consequences worth knowing before touching the write path:
+
+- The `ZREM` must live in the **write** path, not in the read path: a zero stored in the key still
+  counts towards `totalParticipants`, still occupies a page slot, and still shares a rank. Filtering
+  on read would leave three numbers disagreeing.
+- TTL is set only when a score is written. A remove returns early, which is fine: if the key becomes
+  empty it is gone, and any surviving member's own write set the TTL for that key.
+- `LANGUAGE` tracks its boards separately: a language whose merged duration is zero is neither added
+  to `leaderboard:languages` nor carried into `leaderboard:user:languages:<id>`, so the reconciliation
+  removes its boards instead of indexing a board nobody is on.
+
+Stored zeros predate the rule, so flipping it is a rule-generation change: bump
+`SCORE_RULE_GENERATION` and let the sweep remove them. `GROWTH` is exempt — a delta of `0` means "no
+change", and excluding it would delete a real measurement.
+
 ## Traps
 
 - `Score` is stored as a `double` (ZSet requirement) but exposed as `long`; a `GROWTH` score may be

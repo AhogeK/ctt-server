@@ -34,7 +34,7 @@
 | --- | --- | --- |
 | `entries[].userId` | string | UUID |
 | `entries[].displayName` | string \| null | null when the user row is missing |
-| `entries[].score` | long | Dimension's unit; may be negative for `GROWTH` |
+| `entries[].score` | long | Dimension's unit; always positive except `GROWTH`, which may be `0` or negative |
 | `entries[].rank` | long | Competition rank; ties share it, next skips the gap |
 | `currentUserRank` | long \| null | null when the caller has no score in this key; key omitted |
 | `totalParticipants` | long | ZCARD for this key; always present (primitive) |
@@ -50,6 +50,10 @@
 | `GROWTH` | Current period minus immediately preceding period | signed seconds | — | ✓ | ✓ | ✓ | ✓ | ✓ | `WEEK` |
 | `ACTIVE_DAYS` | Distinct coding days | days | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
 | `LANGUAGE` | Merged duration in one language | seconds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
+
+Membership rule: a key holds only members whose score is positive, except `GROWTH` (zero and
+negative are measurements). `totalParticipants` is therefore the count of active members, not of
+accounts.
 
 41 of the 42 possible pairs are legal once `LANGUAGE` is counted (one pair, realized as one board
 per language); the single rejection is `GROWTH` + `ALL`. Excluding the partitioned dimension, 35 of

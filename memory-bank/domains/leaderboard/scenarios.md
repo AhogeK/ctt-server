@@ -34,6 +34,7 @@ Trigger → judgement → action.
 
 | Trigger | Judgement | Action |
 | --- | --- | --- |
+| A user has no activity in the window (or stops coding) | A zero would tie them with every other idle account and count towards `totalParticipants` | Activity dimensions remove the member (`writeScore` → `ZREM`) instead of writing `0`; `GROWTH` still writes `0`/negative because a delta is a measurement. Changing this write rule also means bumping `SCORE_RULE_GENERATION` so the sweep clears stored zeros |
 | A session is pushed | The ranking must reflect it without a rebuild | `recomputeAndWriteAll` runs on push, covering every legal pair |
 | Multiple keys need the same underlying data | Rebuilding per pair repeats the expensive work | Build `SessionViews` once per recompute (intervals, per-day seconds, lifetime total) and share it |
 | A key's window closes | It must not accumulate stale members forever | `ttlFor(period)` expires period keys; `ALL` never expires |

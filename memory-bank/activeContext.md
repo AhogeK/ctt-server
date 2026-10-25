@@ -1,5 +1,13 @@
 # Active Context
 
+- [2026-10-25] - 排行榜排除 0 分成员（v0.86.0，待授权提交）
+    - 前端需求核实: `leaderboard:total`/`streak`/`active_days` 各 9 成员其中 7 个 0 分，`night_owl`/`early_bird` 各 8 个 0 分；7 个 AutoTest 账号 `coding_sessions` 为 0 条 ⇒ **不是精度问题，是写入规则**
+    - 根因: `writeScore` 无条件 `ZADD`，`recomputeAndWriteAll` 对每个维度×周期都写 ⇒ 无活动账号以 0 分入榜，并计入 `totalParticipants` 与并列名次
+    - 修复: `LeaderboardDimension.ranksOnlyPositiveScores()`（除 `GROWTH` 外全部为真）；`writeScore` 在 `score <= 0` 时 `ZREM` 并返回（只查层过滤不行：`totalParticipants`、分页、名次仍会带上 0 分成员）；`LANGUAGE` 的榜索引与 `user:languages` 记录只在正分时维护，零时长语言不建榜；回填代次 3 → 4 以清理存量 0 分成员
+    - 口径: `GROWTH` 保留 0/负分（是度量不是缺失），按前端要求单独定策、本次不绑定
+    - 测试: 零会话用户只移除不写入（仅 `growth` 键可写 0）、负增长与零增长仍写入、零时长语言不建榜、TTL 只在写分时设置；集成用例「无活动用户不在榜上且 `totalParticipants` = 1」
+    - 状态: 实施完成，待授权提交
+
 - [2026-10-25] - 窗口化 STREAK 回填缺失修复（v0.85.1，待授权提交）
     - 前端报告核实: **五项断言全部属实**。Redis 实测（192.168.5.178:6379）：`leaderboard:streak`=2，`month/quarter/half-year/year` 四个窗口各 1；`leaderboard:recompute:g2:vocab2` 存在；代码 `SCORE_RULE_GENERATION` 仍为 2
     - 根因: 标记键只有「代次 + 词表版本」，0.85.0 放开 `STREAK` 全部周期既没提升代次、标记也不含矩阵信息 ⇒ 旧标记命中，`backfillScores()` 首次判断即 return，未推送过的用户没有窗口键；查不存在的 ZSet 返回 200 + 空列表，前端显示空态而非错误

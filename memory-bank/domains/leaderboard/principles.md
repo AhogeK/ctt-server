@@ -170,3 +170,18 @@ catalogue describes the boards that exist rather than the boards that ever did.
 The deletion is not the only path here, which is why the fix sits in the recompute rather than at the
 deletion: a session whose language changes strands the old language's score just as completely, and
 the recompute is the one place that sees the user's data as it is now.
+
+## 13. A board ranks activity, not accounts
+
+Every dimension except `GROWTH` writes a score only when it is positive; a user who did none of the
+measured activity inside the window is removed from the key instead of being stored at `0`.
+
+The zero was a defect that looked like data. An idle account sat at the bottom of the board tied with
+every other idle account, counted towards `totalParticipants` ("rank 3 of 9" describing seven
+accounts with nothing to show), and needed the client to filter it out by inspecting the score — a
+rule no client was told about. Absence is the answer the API already gives for anyone outside a
+board: `currentUserRank` is `null`, which is also what a client renders as "not ranked".
+
+`GROWTH` keeps zero and negative values because its score is a delta: `0` means "no change" and a
+negative number means "less than the period before". Neither is missing activity, so the exclusion
+is a property of the dimension, not of the write path.
