@@ -419,34 +419,40 @@ public class LeaderboardService {
                 codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId);
         LocalDate today = LocalDate.now(clock);
         SessionViews views = buildViews(sessions, today);
+        Set<String> rankedLanguages = new HashSet<>();
         for (LeaderboardDimension dimension : LeaderboardDimension.values()) {
             for (LeaderboardPeriod period : LeaderboardPeriod.values()) {
                 if (!dimension.supports(period)) {
                     continue;
                 }
                 if (dimension.requiresLanguage()) {
-                    // One board per language the user actually used; the reconciliation after this
-                    // loop is what makes a user with no sessions in a language absent from its
-                    // board
-                    // rather than ranked there at their old score.
+                    // One board per language the user actually coded in during this window; a
+                    // language whose merged duration is zero earns no place, and the reconciliation
+                    // after this loop is what removes boards the user has left entirely.
                     for (String language : views.intervalsByLanguage().keySet()) {
+                        long score = computeScore(views, dimension, period, language);
                         writeScore(
                                 key(dimension, period, today, language),
                                 userId,
-                                computeScore(views, dimension, period, language),
-                                period);
-                        redisTemplate.opsForSet().add(LANGUAGE_BOARDS_KEY, language);
+                                score,
+                                period,
+                                dimension);
+                        if (score > 0) {
+                            rankedLanguages.add(language);
+                            redisTemplate.opsForSet().add(LANGUAGE_BOARDS_KEY, language);
+                        }
                     }
                 } else {
                     writeScore(
                             key(dimension, period, today, null),
                             userId,
                             computeScore(views, dimension, period, null),
-                            period);
+                            period,
+                            dimension);
                 }
             }
         }
-        reconcileLanguageBoards(userId, views, today);
+        reconcileLanguageBoards(userId, rankedLanguages, today);
     }
 
     /**
@@ -461,11 +467,10 @@ public class LeaderboardService {
      * walking the vocabulary on every push.
      *
      * @param userId the user being recomputed
-     * @param views the user's current sessions, grouped
+     * @param current the languages the user is ranked in after this recompute (positive only)
      * @param today the day the recompute runs, for the period keys
      */
-    private void reconcileLanguageBoards(UUID userId, SessionViews views, LocalDate today) {
-        Set<String> current = views.intervalsByLanguage().keySet();
+    private void reconcileLanguageBoards(UUID userId, Set<String> current, LocalDate today) {
         String trackedKey = userLanguagesKey(userId);
         String recorded = redisTemplate.opsForValue().get(trackedKey);
         Set<String> stale = new HashSet<>();
@@ -551,7 +556,19 @@ public class LeaderboardService {
         return USER_LANGUAGES_PREFIX + userId;
     }
 
-    private void writeScore(String key, UUID userId, long score, LeaderboardPeriod period) {
+    private void writeScore(
+            String key,
+            UUID userId,
+            long score,
+            LeaderboardPeriod period,
+            LeaderboardDimension dimension) {
+        if (dimension.ranksOnlyPositiveScores() && score <= 0) {
+            // Absence from the board is the answer, not a zero at the bottom: a member who did none
+            // of the measured activity would tie every other such account at one rank and count
+            // towards totalParticipants. Unwritten is also how a user who stops coding leaves.
+            redisTemplate.opsForZSet().remove(key, userId.toString());
+            return;
+        }
         redisTemplate.opsForZSet().add(key, userId.toString(), score);
         Duration ttl = ttlFor(period);
         if (ttl != null) {

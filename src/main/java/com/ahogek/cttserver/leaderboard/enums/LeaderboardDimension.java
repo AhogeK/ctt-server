@@ -125,6 +125,26 @@ public enum LeaderboardDimension {
     }
 
     /**
+     * Returns whether only positive scores earn a place on this dimension's boards.
+     *
+     * <p>Every dimension except {@link #GROWTH} measures activity, so a score of zero means the
+     * user did none of it inside the window. Ranking them anyway is not a neutral default: it puts
+     * accounts that never coded on the board at the bottom, ties them all at the same rank, and
+     * counts them in {@code totalParticipants}, so "rank 3 of 9" describes eight accounts that have
+     * nothing to show. A user with no activity is absent from the board rather than ranked at zero,
+     * which also makes their {@code currentUserRank} {@code null} — the same answer the API already
+     * gives for anyone outside a board.
+     *
+     * <p>{@link #GROWTH} is the exception: its score is a delta, and zero (or a negative value) is
+     * a measurement — "no change" or "less than the period before" — not the absence of one.
+     *
+     * @return {@code true} for every dimension but {@link #GROWTH}
+     */
+    public boolean ranksOnlyPositiveScores() {
+        return this != GROWTH;
+    }
+
+    /**
      * Returns whether this dimension needs a language to be named.
      *
      * <p>Checked by the controller rather than assumed, so a caller that forgets the parameter

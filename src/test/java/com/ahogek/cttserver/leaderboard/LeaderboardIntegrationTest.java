@@ -259,6 +259,36 @@ class LeaderboardIntegrationTest {
         }
 
         @Test
+        @DisplayName("Should leave a user with no activity off the board")
+        void shouldOmitInactiveUser_whenTheyHaveNoSessions() throws Exception {
+            RegisteredUser active = registerAndLogin(uniqueEmail());
+            RegisteredUser idle = registerAndLogin(uniqueEmail());
+            insertSession(
+                    active.id(), "2026-08-30T10:00:00Z", "2026-08-30T12:00:00Z", "ctt-server");
+            updateScore(active.id());
+            updateScore(idle.id());
+
+            RegisteredUser viewer = registerAndLogin(uniqueEmail());
+            String readKey = createReadApiKey(viewer.jwt());
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/leaderboard?dimension=TOTAL&limit=10&offset=0")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            // The idle account is absent rather than ranked at zero: it would otherwise tie every
+            // other idle account and count towards totalParticipants.
+            assertThat(result).bodyJson().extractingPath("$.data.entries.length()").isEqualTo(1);
+            assertThat(result)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[0].userId")
+                    .isEqualTo(active.id().toString());
+            assertThat(result).bodyJson().extractingPath("$.data.totalParticipants").isEqualTo(1);
+        }
+
+        @Test
         @DisplayName("Should rank by streak dimension")
         void shouldRankByStreak() throws Exception {
             RegisteredUser threeDays = registerAndLogin(uniqueEmail());

@@ -115,7 +115,7 @@ class LeaderboardScoreBackfillTest {
         // needed recompute be skipped as "already done".
         assertThat(key.getValue())
                 .contains("recompute")
-                .contains(":g3:")
+                .contains(":g4:")
                 .containsPattern("cov[0-9a-f]{8}")
                 .containsPattern("vocab\\d+");
     }
