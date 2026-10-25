@@ -140,6 +140,7 @@ ctt-server/
 - [Time Strategy](docs/time-strategy.md) - UTC-first time handling specification for distributed systems
 - [Case Normalization](docs/case-normalization.md) - Email case normalization strategy for identity systems
 - [API Governance](docs/api-governance.md) - API security tiers, rate limiting, and idempotency guidelines
+- [Derived Score Invalidation](docs/derived-score-invalidation.md) - When and how to invalidate stored scores and materialized statistics
 
 ## Getting Started
 
@@ -588,9 +589,12 @@ per day.
 `ALL` for every dimension except `GROWTH`, which defaults to `WEEK`), `limit` (default 20, max
 100), `offset` (zero-based). Rankings are backed by Redis ZSets; a user's scores are recomputed
 from the database after each successful push, so the ranking reflects new sessions immediately
-without a full rebuild. When the scoring rule itself changes, a one-off backfill recomputes every
-user's scores shortly after startup: its marker key encodes both the rule and the vocabulary
-version, so a rule change forces exactly one recompute, and a run interrupted by a restart simply
+without a full rebuild. When the scores themselves change, a one-off backfill recomputes every
+user's scores shortly after startup: its marker key encodes the rule generation, a fingerprint of the
+legal dimension/period matrix, and the vocabulary version. The fingerprint is derived from the enums,
+so adding a dimension or opening one to more periods invalidates the marker on its own; only a
+changed formula needs the generation bumped by hand. A change therefore forces exactly one
+recompute, and a run interrupted by a restart simply
 retries on the next start. Period keys are bucketed by their period start (ISO Monday for weeks) and
 expire once the period closes (`ALL` never expires). An unsupported dimension/period combination
 returns 400 `COMMON_003`. Endpoint is rate-limited to 60 req/min (`RATE_LIMIT_001`).
