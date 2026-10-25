@@ -1,6 +1,8 @@
 package com.ahogek.cttserver.leaderboard.service;
 
 import com.ahogek.cttserver.language.LanguageVocabulary;
+import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
+import com.ahogek.cttserver.leaderboard.enums.LeaderboardPeriod;
 import com.ahogek.cttserver.user.repository.UserRepository;
 
 import org.slf4j.Logger;
@@ -9,7 +11,14 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.UUID;
 
 /**
@@ -20,11 +29,17 @@ import java.util.UUID;
  * added since their last push has no score at all. For a new dimension that gap is every existing
  * user, so the board reads as empty for reasons that have nothing to do with the data.
  *
- * <p>A marker guards the work, and its key carries the two things that invalidate scores: the rule
- * generation, bumped by hand when a dimension or a formula changes, and the vocabulary version,
- * which moves on its own when the language table changes because canonical names are part of the
- * score. Both are in the key rather than in a comment so that forgetting to bump something cannot
- * silently skip a needed recompute.
+ * <p>A marker guards the work, and its key carries the three things that invalidate scores: the
+ * rule generation, bumped by hand when a formula changes; a fingerprint of the score matrix — every
+ * legal (dimension, period) pair — which moves on its own when a dimension or period is added, so
+ * that change can never be forgotten; and the vocabulary version, which moves on its own when the
+ * language table changes because canonical names are part of the score. All three are in the key
+ * rather than in a comment so that a needed recompute cannot be silently skipped.
+ *
+ * <p>The matrix fingerprint was added after a real miss: opening {@code STREAK} to every period
+ * left the generation at 2, so the marker written by the previous release still matched and the
+ * sweep skipped every user who had not pushed since — their windowed boards read as empty while the
+ * lifetime one looked healthy.
  *
  * <p>The marker is a Redis key, so a flushed Redis brings the work back — which is the right
  * outcome, since the scores it guards were in Redis too. A missing marker therefore means "scores
@@ -41,12 +56,55 @@ public class LeaderboardScoreBackfill {
     /**
      * Bumped by hand whenever a score stops meaning what it meant.
      *
-     * <p>Adding a dimension, changing a formula, or altering which sessions count all leave
-     * existing scores wrong while looking perfectly healthy.
+     * <p>A changed formula, or a change to which sessions count, leaves existing scores wrong while
+     * looking perfectly healthy. Adding a dimension or opening one to more periods does not need a
+     * bump: the matrix fingerprint in the marker moves on its own.
      */
-    private static final int SCORE_RULE_GENERATION = 2;
+    private static final int SCORE_RULE_GENERATION = 3;
 
     private static final String MARKER_PREFIX = "leaderboard:recompute:";
+
+    /**
+     * Fingerprint of every score the write path produces, derived from the enums.
+     *
+     * <p>Derived rather than hand-written: adding a dimension, or opening one to more periods,
+     * changes the set of keys a recompute writes, and scores the marker still calls current would
+     * then be missing from boards nobody had pushed to since. Deriving the fingerprint makes that
+     * invalidation automatic instead of a checklist item.
+     */
+    static String coverageToken() {
+        return coverageToken(legalPairs());
+    }
+
+    static List<String> legalPairs() {
+        List<String> pairs = new ArrayList<>();
+        for (LeaderboardDimension dimension : LeaderboardDimension.values()) {
+            for (LeaderboardPeriod period : LeaderboardPeriod.values()) {
+                if (dimension.supports(period)) {
+                    pairs.add(dimension.name() + ":" + period.name());
+                }
+            }
+        }
+        return pairs;
+    }
+
+    /**
+     * First 8 hex characters of the SHA-256 over the sorted pairs.
+     *
+     * <p>Sorted so the order the enums happen to declare cannot change the fingerprint, and hashed
+     * so a growing matrix does not push the key towards Redis' length limit.
+     */
+    static String coverageToken(Collection<String> pairs) {
+        String joined = String.join(",", new TreeSet<>(pairs));
+        try {
+            byte[] hash =
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(joined.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash, 0, 4);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required of every JVM", e);
+        }
+    }
 
     private final UserRepository userRepository;
     private final LeaderboardService leaderboardService;
@@ -79,6 +137,8 @@ public class LeaderboardScoreBackfill {
                 MARKER_PREFIX
                         + "g"
                         + SCORE_RULE_GENERATION
+                        + ":cov"
+                        + coverageToken()
                         + ":vocab"
                         + languageVocabulary.version();
         if (Boolean.TRUE.equals(redisTemplate.hasKey(marker))) {
