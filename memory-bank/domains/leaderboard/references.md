@@ -51,10 +51,11 @@
 | `ACTIVE_DAYS` | Distinct coding days | days | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
 | `LANGUAGE` | Merged duration in one language | seconds | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `ALL` |
 
-35 legal pairs of 36 possible for the six unpartitioned dimensions (all periods, except `GROWTH` +
-`ALL`); 30 of them carry a TTL — every legal pair except the five `ALL` keys. `LANGUAGE` is
-partitioned: one board per language a user has used, so its key count grows with the caller's
-languages rather than being fixed — and shrinks again when they stop using one.
+41 of the 42 possible pairs are legal once `LANGUAGE` is counted (one pair, realized as one board
+per language); the single rejection is `GROWTH` + `ALL`. Excluding the partitioned dimension, 35 of
+36 pairs are legal, and 30 of those carry a TTL — every legal pair except the five `ALL` keys.
+`LANGUAGE` is partitioned: its key count grows with the caller's languages rather than being fixed
+— and shrinks again when they stop using one.
 
 ## Redis keys
 

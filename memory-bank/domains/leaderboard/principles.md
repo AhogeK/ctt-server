@@ -123,11 +123,17 @@ push has no number at all. For a new dimension that is every existing user, and 
 as empty for reasons unrelated to the data.
 
 Recomputation is therefore a first-class step of any scoring change, not an operational afterthought,
-and it is guarded by a marker whose key names both the rule generation and the vocabulary version:
-the generation covers a changed formula, the version covers canonical names shifting underneath the
-scores. Keeping them in the key rather than in a comment means a needed sweep cannot be skipped by
+and it is guarded by a marker whose key names the rule generation, a fingerprint of the score matrix
+and the vocabulary version: the generation covers a changed formula, the fingerprint covers a
+dimension or period appearing (it is derived from the enums, so it cannot be forgotten the way a
+hand-bumped number can), and the version covers canonical names shifting underneath the scores.
+Keeping them in the key rather than in a comment means a needed sweep cannot be skipped by
 forgetting to bump something. The marker lives in Redis because the scores do, so losing both
 together restores the work instead of hiding a gap.
+
+The fingerprint was added after the hand-bumped generation missed exactly the case it was supposed
+to cover: opening `STREAK` to every period left the number at 2, the previous release's marker still
+matched, and every user who had not pushed since kept a lifetime score with no windowed score.
 
 ## 10. Key naming must not orphan existing data
 

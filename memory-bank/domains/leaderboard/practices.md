@@ -99,6 +99,23 @@ for (LeaderboardDimension d : LeaderboardDimension.values())
             .hasStatus(d.supports(p) ? 200 : 400);
 ```
 
+## The backfill marker must move when the score matrix does
+
+The sweep is guarded by `leaderboard:recompute:g{n}:cov{hash}:vocab{v}`. The `cov` component is
+derived from `LeaderboardDimension.values() × supports()`, so adding a dimension or opening one to
+more periods invalidates the marker automatically. Only a changed **formula** (or a change to which
+sessions count) still needs `SCORE_RULE_GENERATION` bumped by hand.
+
+Why it is derived: v0.85.0 opened `STREAK` to every period, left the generation at 2, and the
+marker written by v0.84.0 still matched — so the startup sweep returned immediately and every user
+who had not pushed since kept a lifetime score with no windowed score. The symptom is not an error
+but an empty board: a missing ZSet answers `200` with an empty page, so the client renders the
+empty state.
+
+Verification: `ZCARD leaderboard:streak:<period>:<start>` must cover `ZCARD leaderboard:streak`
+after the sweep; the sweep runs `ctt.leaderboard.backfill-initial-delay-ms` (default 60s) after
+startup.
+
 ## Traps
 
 - `Score` is stored as a `double` (ZSet requirement) but exposed as `long`; a `GROWTH` score may be

@@ -1,5 +1,13 @@
 # Active Context
 
+- [2026-10-25] - 窗口化 STREAK 回填缺失修复（v0.85.1，待授权提交）
+    - 前端报告核实: **五项断言全部属实**。Redis 实测（192.168.5.178:6379）：`leaderboard:streak`=2，`month/quarter/half-year/year` 四个窗口各 1；`leaderboard:recompute:g2:vocab2` 存在；代码 `SCORE_RULE_GENERATION` 仍为 2
+    - 根因: 标记键只有「代次 + 词表版本」，0.85.0 放开 `STREAK` 全部周期既没提升代次、标记也不含矩阵信息 ⇒ 旧标记命中，`backfillScores()` 首次判断即 return，未推送过的用户没有窗口键；查不存在的 ZSet 返回 200 + 空列表，前端显示空态而非错误
+    - 修复: 代次 2 → 3；标记改为 `g{n}:cov{8位}:vocab{v}`，其中 `cov` 由 `LeaderboardDimension.values() × supports()` 排序后 SHA-256 现算 ⇒ **新增维度或放开周期自动失效**；改公式仍需人工提升代次。新标记 `leaderboard:recompute:g3:covbdc93f7f:vocab2`（41 个合法组合）
+    - 测试: 断言不再复用 `g2:vocab2`、矩阵增删即改变指纹、枚举顺序无关；排行榜相关 49 例全绿
+    - **刻意未做**: 不在你的真实 Redis 上手工执行回填（会改动共享环境数据）；部署后由 `ctt.leaderboard.backfill-initial-delay-ms`（默认 60s）触发。验收 = 四个窗口 `ZCARD` 覆盖 `leaderboard:streak` 的成员数
+    - 状态: 实施完成，待授权提交
+
 - [2026-10-23] - `.omp` 全量分类归档（用户要求：时间只做文件夹，不进文件名；一个需求一个文件）
     - 结构: `.omp/<category>/<YYYY-MM-DD>/<kebab-topic>.md`；类别 = reports / acceptance / requirements / research / plans / notes；顶层不再有散文件
     - 迁移 35 个 .md（原顶层 30 + plans/ 5 + reports/ 2，去重 2 份后），`skill-graph-zh.json` 移入 `data/`；旧的 `reports/2026-10-2X-*.md` 命名已并入日期文件夹
