@@ -60,7 +60,7 @@ public class LeaderboardScoreBackfill {
      * looking perfectly healthy. Adding a dimension or opening one to more periods does not need a
      * bump: the matrix fingerprint in the marker moves on its own.
      */
-    private static final int SCORE_RULE_GENERATION = 3;
+    private static final int SCORE_RULE_GENERATION = 4;
 
     private static final String MARKER_PREFIX = "leaderboard:recompute:";
 

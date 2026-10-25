@@ -42,6 +42,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -122,10 +123,13 @@ class LeaderboardServiceTest {
         @Test
         @DisplayName("should write every supported dimension/period key")
         void shouldWriteAllKeys_whenUserHasSessions() {
+            // One session inside the night-owl window and one inside the early-bird window, both in
+            // the current week, so every activity dimension scores above zero; a dimension that
+            // scored zero would be absent from its board by design.
             List<CodingSession> sessions =
                     List.of(
-                            session(at("2026-08-30T10:00:00"), at("2026-08-30T12:00:00")),
-                            session(at("2026-08-30T11:00:00"), at("2026-08-30T13:00:00")));
+                            session(at("2026-08-31T00:30:00"), at("2026-08-31T02:30:00")),
+                            session(at("2026-08-31T07:00:00"), at("2026-08-31T08:00:00")));
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
                     .thenReturn(sessions);
 
@@ -294,10 +298,78 @@ class LeaderboardServiceTest {
         }
 
         @Test
+        @DisplayName("should keep nobody on the board when the user has no sessions")
+        void shouldRankNobody_whenUserHasNoSessions() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of());
+
+            service.updateUserScores(userId);
+
+            // No activity means no place on an activity board. A written zero would tie every idle
+            // account at the bottom and inflate totalParticipants; removing is also how an account
+            // that stops coding leaves the board. GROWTH keeps its zero on purpose: a delta of zero
+            // is a measurement ("no change"), so the decision there is separate.
+            ArgumentCaptor<String> added = ArgumentCaptor.forClass(String.class);
+            verify(zsetOps, atLeastOnce()).add(added.capture(), anyString(), anyDouble());
+            assertThat(added.getAllValues()).allMatch(key -> key.startsWith("leaderboard:growth:"));
+            verify(zsetOps).remove("leaderboard:total", userId.toString());
+            verify(zsetOps).remove("leaderboard:streak:year:2026-01-01", userId.toString());
+        }
+
+        @Test
+        @DisplayName("should write a negative growth score")
+        void shouldWriteNegativeGrowth_whenThisWeekIsBehind() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(session(at("2026-08-25T10:00:00"), at("2026-08-25T12:00:00"))));
+
+            service.updateUserScores(userId);
+
+            // Activity dimensions drop a zero, but a delta is a measurement: "less than last week"
+            // has to stay ranked.
+            verify(zsetOps).add("leaderboard:growth:week:2026-08-31", userId.toString(), -7200.0);
+        }
+
+        @Test
+        @DisplayName("should write a zero growth score")
+        void shouldWriteZeroGrowth_whenThisWeekMatchesLastWeek() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session(at("2026-08-31T10:00:00"), at("2026-08-31T11:00:00")),
+                                    session(at("2026-08-25T10:00:00"), at("2026-08-25T11:00:00"))));
+
+            service.updateUserScores(userId);
+
+            verify(zsetOps).add("leaderboard:growth:week:2026-08-31", userId.toString(), 0.0);
+        }
+
+        @Test
+        @DisplayName("should not build a language board whose merged duration is zero")
+        void shouldSkipLanguageBoard_whenLanguageHasNoDuration() {
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(
+                            List.of(
+                                    session(
+                                            at("2026-08-31T10:00:00"),
+                                            at("2026-08-31T10:00:00"),
+                                            "Java")));
+
+            service.updateUserScores(userId);
+
+            verify(zsetOps, never())
+                    .add(startsWith("leaderboard:language:"), anyString(), anyDouble());
+            verify(setOps, never()).add(eq("leaderboard:languages"), anyString());
+        }
+
+        @Test
         @DisplayName("should set TTL only on period keys")
         void shouldSetTtl_whenWritingPeriodKeys() {
             when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
-                    .thenReturn(List.of());
+                    .thenReturn(
+                            List.of(
+                                    session(at("2026-08-31T00:30:00"), at("2026-08-31T02:30:00")),
+                                    session(at("2026-08-31T07:00:00"), at("2026-08-31T08:00:00"))));
 
             service.updateUserScores(userId);
 
