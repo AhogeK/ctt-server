@@ -34,9 +34,10 @@ recomputed on their next push.
 
 1. **Added a dimension, or opened one to more periods?** Nothing to bump — the fingerprint changes
    with the enums. Confirm with a unit test that the marker differs from the previous format.
-2. **Changed a formula, a threshold, or which sessions count?** Increment
-   `SCORE_RULE_GENERATION` in `LeaderboardScoreBackfill`. The recompute is the first-class step, not
-   an operational afterthought.
+2. **Changed a formula, a threshold, which sessions count, or which scores are written at all?**
+   Increment `SCORE_RULE_GENERATION` in `LeaderboardScoreBackfill`. The recompute is the first-class
+   step, not an operational afterthought. Excluding zero-score members, for example, is a write-rule
+   change: the sweep is what removes the members already stored at `0`.
 3. **Changed the language vocabulary?** Nothing to bump — its version is already in the key.
 4. **Deploy**, then wait for `ctt.leaderboard.backfill-initial-delay-ms` (default 60 s) before
    checking boards.
