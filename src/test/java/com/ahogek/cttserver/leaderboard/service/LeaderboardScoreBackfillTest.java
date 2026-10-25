@@ -10,6 +10,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -96,8 +98,9 @@ class LeaderboardScoreBackfillTest {
     }
 
     @Test
-    @DisplayName("should key the marker on both the rule generation and the vocabulary version")
-    void shouldKeyMarker_onRulesAndVocabulary() {
+    @DisplayName(
+            "should key the marker on the rule generation, the score matrix and the vocabulary")
+    void shouldKeyMarker_onRulesMatrixAndVocabulary() {
         when(redisTemplate.hasKey(anyString())).thenReturn(false);
         when(userRepository.findAllIds()).thenReturn(List.of());
 
@@ -106,12 +109,58 @@ class LeaderboardScoreBackfillTest {
         ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
         verify(valueOps).set(key.capture(), any());
 
-        // Both inputs are in the key on purpose: a hand-bumped generation covers a changed formula,
-        // and the vocabulary version covers canonical names changing underneath the scores. Any
-        // mechanism that dropped one would let a needed recompute be skipped as "already done".
+        // All three inputs are in the key on purpose: the generation covers a changed formula, the
+        // matrix fingerprint covers a dimension or period appearing, and the vocabulary version
+        // covers canonical names changing underneath the scores. Dropping any one would let a
+        // needed recompute be skipped as "already done".
         assertThat(key.getValue())
                 .contains("recompute")
-                .containsPattern("g\\d+")
+                .contains(":g3:")
+                .containsPattern("cov[0-9a-f]{8}")
                 .containsPattern("vocab\\d+");
+    }
+
+    @Test
+    @DisplayName("should not reuse the marker written before the score matrix grew")
+    void shouldNotReuseMarker_whenTheScoreMatrixGrew() {
+        when(redisTemplate.hasKey(anyString())).thenReturn(false);
+        when(userRepository.findAllIds()).thenReturn(List.of());
+
+        backfill.backfillScores();
+
+        ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
+        verify(valueOps).set(key.capture(), any());
+
+        // The marker this release replaced: it was written when STREAK was lifetime-only. Reusing
+        // it skipped every user who had not pushed since, leaving the windowed boards empty while
+        // the lifetime board looked healthy.
+        assertThat(key.getValue()).isNotEqualTo("leaderboard:recompute:g2:vocab2");
+    }
+
+    @Test
+    @DisplayName("should move the fingerprint when the score matrix changes")
+    void shouldMoveFingerprint_whenTheMatrixChanges() {
+        List<String> pairs = LeaderboardScoreBackfill.legalPairs();
+
+        assertThat(LeaderboardScoreBackfill.coverageToken(pairs))
+                .isEqualTo(LeaderboardScoreBackfill.coverageToken(pairs));
+
+        List<String> narrowed = new ArrayList<>(pairs);
+        narrowed.remove("STREAK:WEEK");
+
+        assertThat(LeaderboardScoreBackfill.coverageToken(narrowed))
+                .isNotEqualTo(LeaderboardScoreBackfill.coverageToken(pairs));
+    }
+
+    @Test
+    @DisplayName("should ignore the order the matrix is enumerated in")
+    void shouldIgnorePairOrder() {
+        List<String> pairs = new ArrayList<>(LeaderboardScoreBackfill.legalPairs());
+        Collections.reverse(pairs);
+
+        assertThat(LeaderboardScoreBackfill.coverageToken(pairs))
+                .isEqualTo(
+                        LeaderboardScoreBackfill.coverageToken(
+                                LeaderboardScoreBackfill.legalPairs()));
     }
 }
