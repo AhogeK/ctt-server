@@ -606,6 +606,14 @@ separately. `totalParticipants` reports the number of ranked members for the req
 dimension/period, letting a client render "rank N of M" without inferring the size from a full
 page. Tied members have no defined order between them.
 
+**Only activity earns a place**: every dimension except `GROWTH` ranks positive scores alone, so a
+user who did none of the measured activity inside the window is **absent** from that board rather
+than listed at `0` — absence keeps them out of `totalParticipants` and out of the ranks below them,
+and their `currentUserRank` is `null`. `GROWTH` is the exception on purpose: its score is a delta,
+and `0` ("no change") or a negative value ("less than the period before") are measurements, not
+missing ones. A user who stops coding loses their place on the next recompute, exactly as they do
+when their sessions are deleted.
+
 **Dimensions and supported periods**:
 
 | Dimension | Periods | Score |
