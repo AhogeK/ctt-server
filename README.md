@@ -366,6 +366,13 @@ Downloaded as `ctt-export-<yyyyMMdd>.json`; requires an active account, `READ` s
 key, and is rate limited to 3 exports/hour. Errors: `400 COMMON_003` (offset out of range),
 `403 AUTH_020` / `403 AUTH_022`, `429 RATE_LIMIT_001`. The export is audited as `DATA_EXPORTED`.
 
+**IDE attribution**: each session carries its own `ideName` / `ideVersion` — the IDE that produced
+it, which is not the same thing as the device that pushed it (one installation shares a device id
+across every IDE on it). Rows pushed by older clients, and rows written before the field existed,
+carry none and fall back to the origin device's registration. `serverExport.devices` mirrors
+`GET /api/v1/devices`: the IDE the device most recently used, with the registration value as the
+fallback.
+
 **Response Fields**:
 - `id` (UUID)
 - `email` (String)
@@ -481,6 +488,12 @@ anyway). The write is a single statement that leaves the entity version untouche
 the same installation cannot collide into an optimistic-lock failure. Clients derive "active" from
 this timestamp (the dashboard treats seven days as the threshold) and need no other field.
 
+**Reported IDE** (`ideName` / `ideVersion`): both name the IDE this device most recently used,
+derived from its newest session that carries one. A device with no such session reports its
+registration values, and the endpoint still returns one row per device. Registration keeps storing
+the IDE of the registering process, so the two can differ after the user switches products on the
+same machine; per-session attribution is authoritative (see Sync Engine).
+
 **Error Codes**:
 
 | Scenario | Code | HTTP |
@@ -497,7 +510,7 @@ this timestamp (the dashboard treats seven days as the threshold) and need no ot
 
 **Protocol**:
 - `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `sessionUuid`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot, plus `nextCursor` and a `hasMore` flag. Responses are paged (`ctt.sync.pull-batch-size`, default 1000): clients continue pulling with the returned cursor until `hasMore` is false. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent).
-- `push` accepts `{ deviceId, sessions[] }`, routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Returns `nextCursor` for the next pull.
+- `push` accepts `{ deviceId, sessions[] }`, routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Sessions may carry an optional `ideName`/`ideVersion` describing the IDE that produced them (length-bounded, blank treated as absent); older clients omit both and their rows stay null, which statistics read as "use the origin device's registration". Returns `nextCursor` for the next pull.
 - `deviceId` ownership is validated (404 `COMMON_002` on mismatch, including devices that have been revoked); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
 
 ### Statistics & Analytics
@@ -514,17 +527,20 @@ this timestamp (the dashboard treats seven days as the threshold) and need no ot
 | `/api/v1/stats/heatmap-months` | GET | Months (`yyyy-MM`) with coding activity, descending | READ |
 | `/api/v1/stats/week-hour` | GET | Weekly coding heatmap: average seconds per weekday-hour cell | READ |
 | `/api/v1/stats/recent` | GET | Most recent coding sessions (default 20, max 100) | READ |
-| `/api/v1/stats/ide-filters` | GET | Distinct registered IDE names for filter dropdowns | READ |
+| `/api/v1/stats/ide-filters` | GET | Distinct IDE names for filter dropdowns (session-reported plus registered) | READ |
 | `/api/v1/stats/achievements` | GET | Achievement badges with unlock state and progress, unlocking newly reached badges | READ |
 
 **Parameters**: `timezoneOffset` (minutes, e.g. `480` for UTC+8) shifts day/week/month/hour
 boundaries to the caller's timezone; heatmap, hourly, hourly-days and distribution accept `start` /
 `end` dates (ISO, inclusive, full history when omitted); every endpoint
 except achievements accepts an optional `deviceId` (origin-device filter) or `ideName` (exact
-IDE-name filter against the device registry; mutually exclusive with deviceId, unknown IDE names
-yield 404); the distribution endpoint additionally supports `type=DEVICES` / `type=IDES`
-(per-device / per-IDE seconds; IDE buckets derive from the origin device's registered IDE name);
-`GET /api/v1/stats/ide-filters` lists the distinct registered IDE names for the dashboard filter and
+IDE-name filter, matched against each session's own IDE and falling back to its origin device's
+registration; mutually exclusive with deviceId, unknown IDE names yield 404); the distribution
+endpoint additionally supports `type=DEVICES` / `type=IDES` (per-device / per-IDE seconds; IDE
+buckets use the session's IDE, falling back to the origin device's registered name);
+`GET /api/v1/stats/ide-filters` lists the distinct IDE names for the dashboard filter, taken from
+both the sessions and the device registrations, so a name stays selectable after the user switched
+products on one installation; and
 `GET /api/v1/stats/heatmap-years` and `GET /api/v1/stats/heatmap-months` list the years and
 `yyyy-MM` months that contain at least one non-zero coding day in the requested timezone
 (`timezoneOffset`), newest first, for the heatmap year/month dropdowns — both derive from the
