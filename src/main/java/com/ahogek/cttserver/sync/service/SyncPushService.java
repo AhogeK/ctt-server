@@ -125,6 +125,10 @@ public class SyncPushService {
         if (device.getRevokedAt() != null) {
             throw new NotFoundException(ErrorCode.COMMON_002, "Device not found or access denied");
         }
+        // Success is recorded only if the rest of the transaction commits: a push that fails after
+        // this point rolls the heartbeat back with it, so a device never looks active because of a
+        // request that did not do anything.
+        deviceRepository.touchLastSeen(userId, deviceId, Instant.now());
 
         List<CodingSession> existingBatch =
                 codingSessionRepository.findAllByUserIdAndSessionUuidIn(

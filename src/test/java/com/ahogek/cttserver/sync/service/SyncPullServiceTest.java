@@ -22,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -157,6 +158,39 @@ class SyncPullServiceTest {
                             AuditAction.SYNC_PULL,
                             ResourceType.CODING_SESSION,
                             deviceId.toString());
+        }
+
+        @Test
+        @DisplayName("should record the device as seen on a successful pull")
+        void shouldTouchLastSeen_whenPullSucceeds() {
+            when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
+                    .thenReturn(Optional.of(cursor(10)));
+            when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
+                            eq(10L), eq(userId), any()))
+                    .thenReturn(List.of());
+
+            service.pull(userId, deviceId, 10);
+
+            // The pull is the plugin's heartbeat: it runs every round, including rounds with
+            // nothing
+            // to push, so it is what keeps a device from looking abandoned after its registration.
+            ArgumentCaptor<Instant> seenAt = ArgumentCaptor.forClass(Instant.class);
+            verify(deviceRepository).touchLastSeen(eq(userId), eq(deviceId), seenAt.capture());
+            assertThat(seenAt.getValue()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("should not touch the device when it is revoked")
+        void shouldNotTouchLastSeen_whenDeviceRevoked() {
+            Device revoked = new Device();
+            revoked.setRevokedAt(Instant.now());
+            when(deviceRepository.findByIdAndUserId(deviceId, userId))
+                    .thenReturn(Optional.of(revoked));
+
+            assertThatThrownBy(() -> service.pull(userId, deviceId, 0))
+                    .isInstanceOf(NotFoundException.class);
+
+            verify(deviceRepository, never()).touchLastSeen(any(), any(), any());
         }
 
         @Test

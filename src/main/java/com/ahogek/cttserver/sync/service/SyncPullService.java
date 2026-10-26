@@ -25,6 +25,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -128,6 +129,10 @@ public class SyncPullService {
         if (device.getRevokedAt() != null) {
             throw new NotFoundException(ErrorCode.COMMON_002, "Device not found or access denied");
         }
+        // A pull is the plugin's heartbeat: it happens every round, including rounds with nothing
+        // to push. Recording it here is what keeps the device from looking abandoned after its
+        // registration day.
+        deviceRepository.touchLastSeen(userId, deviceId, Instant.now());
 
         long persistedCursor =
                 syncCursorRepository

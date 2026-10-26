@@ -14,12 +14,15 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -249,6 +252,56 @@ class DeviceRegistrationIntegrationTest {
                                     .content(pullBody(deviceId))
                                     .exchange())
                     .hasStatusOk();
+        }
+
+        @Test
+        @DisplayName("Should refresh lastSeenAt on a successful pull")
+        void shouldRefreshLastSeenAt_whenPullSucceeds() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+            String rawKey = createApiKey(jwt, "Sync Key", "SYNC");
+            UUID deviceId = UUID.randomUUID();
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/devices")
+                                    .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(registerDeviceBody(deviceId))
+                                    .exchange())
+                    .hasStatusOk();
+
+            // The shape of the reported defect: a device whose last activity is its registration
+            // day,
+            // even though the plugin keeps syncing.
+            jdbcClient
+                    .sql(
+                            "UPDATE devices SET last_seen_at = now() - interval '13 days',"
+                                    + " updated_at = now() - interval '13 days' WHERE id = ?")
+                    .param(deviceId)
+                    .update();
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/pull")
+                                    .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pullBody(deviceId))
+                                    .exchange())
+                    .hasStatusOk();
+
+            String lastSeen =
+                    JsonPath.read(
+                            mvc.get()
+                                    .uri("/api/v1/devices")
+                                    .header("Authorization", "Bearer " + rawKey)
+                                    .exchange()
+                                    .getResponse()
+                                    .getContentAsString(),
+                            "$.data[0].lastSeenAt");
+            assertThat(Instant.parse(lastSeen))
+                    .as("a successful pull is device activity")
+                    .isAfter(Instant.now().minus(1, ChronoUnit.MINUTES));
         }
 
         @Test
