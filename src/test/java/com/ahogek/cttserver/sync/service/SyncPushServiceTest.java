@@ -344,6 +344,58 @@ class SyncPushServiceTest {
         }
 
         @Test
+        @DisplayName("should record the device as seen on a successful push")
+        void shouldTouchLastSeen_whenPushSucceeds() {
+            when(codingSessionRepository.saveAll(any()))
+                    .thenAnswer(
+                            inv -> {
+                                List<CodingSession> sessions = inv.getArgument(0);
+                                for (CodingSession s : sessions) {
+                                    if (s.getId() == null) {
+                                        ReflectionTestUtils.setField(s, "id", UUID.randomUUID());
+                                    }
+                                }
+                                return sessions;
+                            });
+
+            service.push(
+                    userId,
+                    deviceId,
+                    List.of(
+                            dto(
+                                    UUID.randomUUID(),
+                                    1,
+                                    Instant.parse("2026-08-25T10:00:00Z"),
+                                    false)));
+
+            verify(deviceRepository).touchLastSeen(eq(userId), eq(deviceId), any(Instant.class));
+        }
+
+        @Test
+        @DisplayName("should not touch the device when it is revoked")
+        void shouldNotTouchLastSeen_whenDeviceRevoked() {
+            Device revoked = new Device();
+            revoked.setRevokedAt(Instant.now());
+            when(deviceRepository.findByIdAndUserId(deviceId, userId))
+                    .thenReturn(Optional.of(revoked));
+
+            assertThatThrownBy(
+                            () ->
+                                    service.push(
+                                            userId,
+                                            deviceId,
+                                            List.of(
+                                                    dto(
+                                                            UUID.randomUUID(),
+                                                            1,
+                                                            Instant.parse("2026-08-25T10:00:00Z"),
+                                                            false))))
+                    .isInstanceOf(NotFoundException.class);
+
+            verify(deviceRepository, never()).touchLastSeen(any(), any(), any());
+        }
+
+        @Test
         @DisplayName("should throw NotFoundException when device is revoked")
         void shouldThrowNotFoundException_whenDeviceRevoked() {
             Device revoked = new Device();
