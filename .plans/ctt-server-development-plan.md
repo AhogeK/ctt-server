@@ -2153,6 +2153,19 @@ end note
 | **窗口化 STREAK（已定义、未启用）** | 分数 = **完全落在窗口内的最长连续编码天数**（在两端切断 run）。**否决**"窗口结束时的连续天数"：当前周期未结束时它无定义，且会随窗口推进回溯变化。Redis 每个成员只存一个数，启用还须把该 reducer 接到写分更新路径——本轮不做，窗口化 `STREAK` 继续 `400 COMMON_003`，而不是把终身分数塞进窗口 key |
 | 测试 | `LeaderboardPeriodTest`（窗口算术/Key 命名 4 例）+ 既有 `LeaderboardServiceTest` 的组合数与 TTL 断言**改为按枚举推导**（不再硬编码 20/15，避免下次扩展再被打破）+ 集成矩阵由枚举驱动自动覆盖 6×7 组合 |
 
+## 设备最后活跃时间修复（前端 Bug，2026-10-26，v0.86.1）
+
+> 来源：ctt-web《设备管理显示 Inactive、lastSeenAt 停在注册日》。定位准确：`last_seen_at` 的语义是「设备最后一次活动」，但只有注册会写它。
+
+| 项 | 结论 |
+|---|---|
+| 根因 | `setLastSeenAt` 在生产代码中仅 `DeviceService.registerDevice` 一处；pull/push 只校验归属与吊销 |
+| 修复 | 新增 `DeviceRepository.touchLastSeen(userId, deviceId, seenAt)`：单条 JPQL update，写 `lastSeenAt` + `updatedAt`，谓词含 `userId` 与 `revokedAt is null` |
+| 为何不 save 实体 | `Device` 带 `@Version`，同安装多插件并发同步会撞乐观锁；整行 update 不递增版本，心跳不影响并发注册 |
+| 覆盖范围 | pull 与 push 各一次（pull 是没有新会话轮次的心跳）；调用位于 `@Transactional` 内，后续失败回滚，不算活动 |
+| 测试 | 单测 4 例（成功刷新 ×2、吊销不刷新 ×2）+ 集成「13 天前 → pull → GET /devices 一分钟内」 |
+| 不做 | 不回填历史时间点；`lastIp` 不在本次范围；7 天阈值仍由前端决定 |
+
 ## 排行榜排除 0 分成员（前端需求，2026-10-25，v0.86.0）
 
 > 来源：ctt-web《需求：排行榜排除 0 分成员》。5 个榜单各 9 名成员，其中 7–8 名分数为 0（7 个 AutoTest 账号在 `coding_sessions` 中 0 条记录）。

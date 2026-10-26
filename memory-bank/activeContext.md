@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-10-26] - 设备最后活跃时间停摆修复（v0.86.1，待授权提交）
+    - 前端报告核实: **属实**。`setLastSeenAt` 在生产代码中只有 `DeviceService.registerDevice` 一处；`SyncPullService`/`SyncPushService` 只校验归属与吊销，不写回 ⇒ 每天同步的设备 `last_seen_at` 停在注册日，前端 7 天阈值判成 Inactive
+    - 修复: `DeviceRepository.touchLastSeen(userId, deviceId, seenAt)` —— 单条 JPQL update（`lastSeenAt` + `updatedAt`，谓词含 `revokedAt is null`，`@Modifying(clearAutomatically, flushAutomatically)`）；pull 与 push 在归属/吊销校验通过后各调一次。用整行 update 而非实体 save 的原因：`Device` 有 `@Version`，同一安装的多插件并发同步会撞乐观锁，而心跳没有业务含义
+    - 事务语义: 调用点都在 `@Transactional` 的 `pull`/`push` 内 ⇒ 后续失败会随事务回滚，不会把失败请求记成活动
+    - 测试: 单测 4 例（成功 pull/push 刷新；吊销时不刷新 ×2）；集成用例「把 last_seen_at 改成 13 天前 → pull → `GET /devices` 的 lastSeenAt 在一分钟内」
+    - 状态: 实施 + 验证完成，待授权提交
+
 - [2026-10-25] - 排行榜排除 0 分成员（v0.86.0，待授权提交）
     - 前端需求核实: `leaderboard:total`/`streak`/`active_days` 各 9 成员其中 7 个 0 分，`night_owl`/`early_bird` 各 8 个 0 分；7 个 AutoTest 账号 `coding_sessions` 为 0 条 ⇒ **不是精度问题，是写入规则**
     - 根因: `writeScore` 无条件 `ZADD`，`recomputeAndWriteAll` 对每个维度×周期都写 ⇒ 无活动账号以 0 分入榜，并计入 `totalParticipants` 与并列名次

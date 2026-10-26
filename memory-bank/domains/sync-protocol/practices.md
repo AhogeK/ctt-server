@@ -52,3 +52,23 @@ materialization hiccup can never roll back accepted session data.
 4. Paging: set a small `pull-batch-size`, push more than one page, drain with `hasMore` and assert no
    duplicates, ascending ids, and a final cursor equal to the push cursor.
 5. Device boundaries: foreign/revoked device → 404 `COMMON_002` on both endpoints.
+
+## A sync is device activity, and the device record has to say so
+
+`devices.last_seen_at` is documented as the last activity from that device, but for a long time only
+registration wrote it. The plugin syncs every round and the field stayed at the registration day, so
+the device page reported a machine that pushes daily as inactive after seven days.
+
+Both `pull` and `push` now call `DeviceRepository.touchLastSeen(userId, deviceId, now)` right after
+the ownership and revocation checks:
+
+- **Pull matters as much as push.** A round with nothing to push still pulls, so the heartbeat has to
+  hang off pull; hanging it off push alone leaves an idle-but-syncing device looking abandoned.
+- **One statement, not a save.** `Device` carries `@Version`; a read-modify-write from two syncs of
+  the same installation (the device id is shared by every plugin in that install) would raise an
+  optimistic-lock failure for a heartbeat with no business meaning. The bulk update also leaves the
+  version untouched, so a heartbeat cannot invalidate a concurrent registration.
+- **Revoked devices do not advance.** The update's predicate excludes `revokedAt is not null`, and
+  the caller has already answered 404 for them; a revoked device stays visibly revoked.
+- **Only successful requests count.** The touch runs inside the service transaction, so a push that
+  fails later rolls the heartbeat back with everything else.
