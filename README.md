@@ -1,785 +1,226 @@
-# CTT Server
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="CTT Server — sync and analytics backend for Code Time Tracker">
+</p>
 
-Cloud-based synchronization backend for Code Time Tracker (CTT) - a JetBrains IDE plugin that tracks coding activities
-and provides personal analytics dashboards.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3DA639.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/Java-25-E76F00?logo=openjdk&logoColor=white" alt="Java 25">
+  <img src="https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 4.1">
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white" alt="Redis">
+</p>
 
-## Overview
+**CTT Server is the cloud backend for [Code Time Tracker](https://github.com/AhogeK/code-time-tracker).**
+The JetBrains plugin keeps a local SQLite database; this service synchronizes it across
+installations and turns the history into statistics, achievements and a global leaderboard.
 
-CTT Server provides:
+**Stack:** Java 25 · Spring Boot 4.1 · Spring Security 7 · PostgreSQL + Flyway · Redis ·
+springdoc-openapi · Thymeleaf · JUnit 6 + Testcontainers.
 
-- **Email Verification**: One-time token-based verification with 24h expiration and SHA-256 token hashing
-- **Transactional Email Queue**: Outbox pattern with retry scheduling, exponential backoff, and audit logging
-- **Bidirectional Sync Engine**: Multi-device data synchronization with LWW conflict resolution
-- **API Key Management**: Product-grade authentication with device-binding, revocation, and scope-based authorization
-- **Statistics & Analytics**: Time-series aggregation queries with device and IDE filtering
-- **Global Leaderboard**: Redis-powered real-time ranking system
-- **Soft Delete Architecture**: Safe data handling with `is_deleted` flags for sync integrity
-- **OWASP Security Headers**: X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP
-- **Account Lockout Strategy**: Brute-force attack protection with automatic temporary lockout
-- **Password Reset**: Token-based password recovery with mail outbox delivery, session revocation (Kill Switch), and automatic account unlock
-- **Terms Acceptance**: Users must accept current terms version before accessing protected endpoints; version tracked in JWT
-- **Email Change**: Secure email address change with verification, cancellation, and brute-force protection
+## What it does
 
-## Tech Stack
+- **Sync that survives reinstalls.** The plugin's local database stays the source of truth. The
+  server resolves conflicts with last-write-wins, records every accepted change in a monotonic log,
+  and keeps a cursor per device — so a new machine pulls the whole history and an idle one catches up
+  without duplicated rows.
+- **Statistics that match the plugin.** The same merge rules, timezone-aware day boundaries and
+  per-session accumulations the desktop view uses, served from materialized per-UTC-day rows for the
+  common reads.
+- **A leaderboard that only lists activity.** Rankings live in Redis, update on every push, and use
+  competition ordering (1, 2, 2, 4). A user who did none of the measured activity is absent rather
+  than listed at zero — except on the growth board, where zero ("no change") is a measurement.
+- **A security model, not a demo.** Short-lived JWTs for the dashboard, device-bound API keys with
+  scopes for plugins, SHA-256 token storage, declarative rate limits, account lockout and an
+  append-only audit trail.
 
-| Layer          | Technology                           |
-|----------------|--------------------------------------|
-| Language       | Java 25 (Virtual Threads)            |
-| Framework      | Spring Boot 4+ (MVC)                 |
-| Authentication | Spring Security 7 + JWT + API Key    |
-| Database       | PostgreSQL (latest)                  |
-| Migration      | Flyway                               |
-| Cache          | Redis (latest)                       |
-| API Docs       | springdoc-openapi                    |
-| Templates      | Thymeleaf (email rendering)          |
-| Testing        | JUnit 6 + Testcontainers             |
-| Configuration  | @ConfigurationProperties (Type-safe) |
+## How it works
 
-## Architecture
+```mermaid
+flowchart LR
+    subgraph clients[Clients]
+        A["JetBrains plugin<br/>SQLite"]
+        B["JetBrains plugin<br/>SQLite"]
+        W["Vue dashboard"]
+    end
 
-### System Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ JetBrains Plugin                                                 │
-│ - Local SQLite storage                                           │
-│ - Time tracking & idle detection                                 │
-│ - Bidirectional sync (Pull → Push with conflict resolution)      │
-└───────────────────┬─────────────────────────────────────────────┘
-                    │ HTTPS (Authorization: Bearer <api_key>)
-                    ▼
-┌─────────────────────────────────────────────────────────────────┐
-│ CTT Cloud API (Spring Boot) - Package-by-Feature Architecture    │
-│ ├── auth/          - JWT authentication (Web users)              │
-│ ├── apikey/        - API Key management (Device auth)            │
-│ ├── sync/          - Bidirectional sync engine (LWW strategy)    │
-│ ├── stats/         - Time-series aggregation queries             │
-│ └── leaderboard/   - Redis ZSet ranking system                   │
-└───────────────────┬─────────────────────────────────────────────┘
-                    │
-        ┌───────────┴───────────┐
-        ▼                       ▼
-┌──────────────────┐  ┌──────────────────┐
-│ PostgreSQL       │  │ Redis            │
-│ - users          │  │ - key cache      │
-│ - api_keys       │  │ - rate limiting  │
-│ - sessions       │  │ - leaderboard    │
-│ - sync_cursors   │  │                  │
-└──────────────────┘  └──────────────────┘
-
-# Web Dashboard (Vue.js) - Planned in separate project
-# Frontend development will be handled in: github.com/AhogeK/ctt-web
+    A -- "push: LWW, one transaction" --> API["CTT Server<br/>Spring Boot"]
+    API -- "pull: change log + cursor" --> B
+    W -- "JWT" --> API
+    API --> PG[("PostgreSQL<br/>sessions · changes · audit")]
+    API --> RD[("Redis<br/>leaderboard · rate limits")]
 ```
 
-### Database Schema
+An accepted push writes four things in one transaction: the session row, its change-log entry, the
+materialized UTC day, and the leaderboard scores. The change log is the only pull source, so every
+device converges on the same state — including soft deletes.
 
-**PostgreSQL Tables** (`src/main/resources/db/migration/V20260303210000__init_base_schema.sql`):
+A pull delivers the winning snapshot of each change, including the IDE that produced the session:
 
-| Table                   | Description                        | Key Columns                                                            |
-|-------------------------|------------------------------------|------------------------------------------------------------------------|
-| `users`                 | User accounts (Web & OAuth)        | `id`, `email`, `github_id`, `status`, `last_login_at`                  |
-| `devices`               | Client device registration         | `id`, `user_id`, `platform`, `ide_name`, `last_seen_at`                |
-| `api_keys`              | Authentication keys (device-bound) | `id`, `key_hash`, `revoked_at`, `last_used_at`                         |
-| `coding_sessions`       | Core time-tracking data            | `session_uuid`, `start_time`, `end_time`, `client_version`             |
-| `session_changes`       | Sync change log (watermark base)   | `change_id`, `op`, `server_version`, `happened_at`                     |
-| `sync_cursors`          | Per-device sync state              | `last_pulled_change_id`, `last_push_at`                                |
-| `audit_logs`            | Security audit trail               | `action`, `resource_type`, `details (JSONB)`, `ip_address`             |
-| `mail_outbox`           | Transactional email queue          | `id`, `recipient`, `status`, `retry_count`, `trace_id`                 |
-| `login_attempts`        | Brute-force protection audit trail | `id`, `email_hash` (SHA-256), `ip_hash`, `attempt_at`                  |
-| `password_reset_tokens` | Password reset token storage       | `id`, `email`, `token_hash`, `expires_at`, `consumed_at`, `revoked_at` |
-
-**Key Design Features**:
-
-- **Soft Delete**: `coding_sessions` uses `is_deleted` flag for sync integrity
-- **LWW Sync**: `client_version` + `server_version` for conflict resolution
-- **Audit Trail**: `audit_logs` with JSONB for flexible querying
-- **OAuth Ready**: `github_id`/`github_login` columns in `users` table
-
-### Package Structure (Package-by-Feature)
-
-```
-ctt-server/
-├── audit/               # Security audit events & persistence
-│   ├── entity/          # AuditLog JPA entity (JSONB support)
-│   ├── enums/           # AuditAction, ResourceType, SecuritySeverity
-│   ├── listener/        # Async AuditEventListener
-│   ├── model/           # AuditDetails (strongly-typed JSONB carrier)
-│   ├── repository/      # AuditLogRepository
-│   └── service/         # AuditLogService (facade for business layer)
-├── auth/                # JWT authentication module
-│   ├── dto/             # Auth request/response DTOs
-│   ├── entity/          # Token entities (EmailVerificationToken, RefreshToken)
-│   ├── enums/           # TokenStatus enum
-│   └── AuthController.java  # Authentication REST endpoints
-├── user/                # User management module
-│   ├── entity/          # User JPA entity with state machine
-│   ├── enums/           # UserStatus state machine enum
-│   ├── repository/      # UserRepository
-│   ├── service/         # UserService (application service)
-│   └── validator/       # UserValidator (domain rules)
-├── common/              # Shared utilities and cross-cutting concerns
-│   ├── context/         # Request context (ClientIdentity, RequestInfo, ScopedValue)
-│   ├── config/          # Global configuration (Jackson, Security, etc)
-│   ├── exception/       # Global exception handling
-│   ├── ratelimit/       # Declarative rate limiting framework (@RateLimit)
-│   ├── idempotent/      # Declarative idempotency framework (@Idempotent)
-│   ├── response/        # Unified response models (ApiResponse, ErrorResponse)
-│   ├── logging/         # Structured logging (LogRecord)
-│   └── utils/           # Utility classes (IpUtils, SpelExpressionResolver)
-├── mail/                # Email infrastructure
-│   ├── config/          # MailTemplateConfig (standalone TemplateEngine)
-│   ├── entity/          # MailOutbox entity (transactional outbox pattern)
-│   ├── enums/           # MailOutboxStatus (delivery state machine)
-│   ├── repository/      # MailOutboxRepository
-│   └── template/        # MailTemplateRenderer (Thymeleaf), DTOs (sealed interface + records)
+```json
+{
+  "changes": [
+    {
+      "changeId": 1042,
+      "sessionUuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "op": "UPSERT",
+      "serverVersion": 3,
+      "projectName": "ctt-server",
+      "language": "Java",
+      "ideName": "IntelliJ IDEA",
+      "ideVersion": "2026.1",
+      "startTime": "2026-08-25T09:00:00Z",
+      "endTime": "2026-08-25T10:00:00Z"
+    }
+  ],
+  "nextCursor": 1042,
+  "hasMore": false
+}
 ```
 
-## Documentation
+## Quick start
 
-- [Developer Handbook](docs/developer-handbook.md) - Standard operations guide for error codes, audit events, exceptions, and protected APIs
-- [Time Strategy](docs/time-strategy.md) - UTC-first time handling specification for distributed systems
-- [Case Normalization](docs/case-normalization.md) - Email case normalization strategy for identity systems
-- [API Governance](docs/api-governance.md) - API security tiers, rate limiting, and idempotency guidelines
-- [Derived Score Invalidation](docs/derived-score-invalidation.md) - When and how to invalidate stored scores and materialized statistics
+Requires **JDK 25** and **Docker** (PostgreSQL, Redis and Mailpit run in containers).
 
-## Getting Started
+```bash
+cp .env.example .env          # set passwords and secrets
+docker compose up -d --build
+```
 
-### Prerequisites
+| Service | URL |
+| --- | --- |
+| API | <http://localhost:8080/ctt-server> |
+| Swagger UI | <http://localhost:8080/ctt-server/swagger-ui.html> |
+| Mailpit (verification emails) | <http://localhost:8025> |
 
-- Java 25+
-- PostgreSQL (latest)
-- Redis (latest)
+To run the application from source against the containers:
+
+```bash
+docker compose up -d postgres redis mailpit
+./gradlew bootRun
+```
+
+`bootRun` loads `application-local.yaml`; the container setup uses the environment variables from
+`.env`. Host ports are overridable via `APP_EXTERNAL_PORT`, `POSTGRES_EXTERNAL_PORT`,
+`REDIS_EXTERNAL_PORT`, `MAIL_SMTP_EXTERNAL_PORT` and `MAIL_UI_EXTERNAL_PORT`.
 
 ### Configuration
 
-This project follows **12-Factor App** methodology with configuration layering:
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE` | Active profile (`local`, `dev`, `prod`) | `local` |
+| `DB_HOST`, `DB_PORT`, `DB_NAME` | PostgreSQL endpoint | `localhost`, `5432`, `ctt_server` |
+| `DB_USERNAME`, `DB_PASSWORD` | Database credentials | required |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Redis endpoint | `localhost`, `6379`, required |
+| `JWT_SECRET_KEY` | JWT signing key, 256+ bits | required in production |
+| `RESEND_API_KEY` | Email delivery key | required in production |
+| `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Sender identity | required, `CTT` |
 
+`.env` and `application-local.yaml` are gitignored; never commit secrets.
+
+## API at a glance
+
+| Area | Base path | What it covers |
+| --- | --- | --- |
+| Authentication | `/api/v1/auth` | register, verify email, login, refresh, logout, password reset, GitHub OAuth |
+| API keys | `/api/v1/auth/api-keys` | create, list, revoke and delete device-bound keys |
+| Users | `/api/v1/users/me` | profile, display name, password, email change, login sessions, export, account deletion |
+| Devices | `/api/v1/devices` | register, list and revoke installations; reports the most recently used IDE |
+| Sync | `/api/v1/sync/pull`, `/api/v1/sync/push` | change-log pull with cursors, LWW batch push |
+| Statistics | `/api/v1/stats` | summary, heatmap, streaks, distributions, hourly views, recent sessions, achievements |
+| Leaderboard | `/api/v1/leaderboard` | total, streak, night-owl, early-bird, growth, active-days and per-language boards |
+| Configuration | `/api/v1/config/public` | terms version and other public settings |
+
+Full request/response shapes, error codes and rate limits: **[API Reference](docs/api-reference.md)**.
+The running service serves OpenAPI at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`.
+
+## Data model
+
+| Table | Holds |
+| --- | --- |
+| `users`, `devices`, `api_keys` | accounts, installations and their credentials |
+| `coding_sessions` | session history; soft deletes keep the change log consistent |
+| `session_changes` | append-only change log, the pull source of truth |
+| `sync_cursors` | per-device pull watermark |
+| `daily_stats` | materialized per-user per-UTC-day seconds |
+| `audit_logs` | security events with JSONB details |
+| `mail_outbox` | transactional email queue with retry state |
+
+Schema history lives in [`src/main/resources/db/migration`](src/main/resources/db/migration);
+migrations are append-only.
+
+## Project layout
+
+```text
+src/main/java/com/ahogek/cttserver/
+├── auth/         JWT, refresh tokens, OAuth, API keys, terms, password reset
+├── user/         accounts, email change, sessions, data export
+├── device/       registration, revocation, last-seen activity
+├── sync/         LWW resolver, change log, pull/push, materialization
+├── stats/        aggregations, achievements
+├── leaderboard/  Redis ZSets, periods, backfill
+├── language/     canonical language vocabulary
+├── audit/        audit events and persistence
+├── mail/         outbox, templates, delivery
+└── common/       security, rate limits, idempotency, error handling
 ```
-src/main/resources/
-├── application.yaml              # Global baseline (in Git)
-├── application-dev.yaml          # Dev/Test environment (env vars)
-├── application-prod.yaml          # Production (env vars)
-└── application-local.yaml        # Local development (.gitignore)
-```
-
-**Setup for Local Development:**
-
-1. Copy `.env.example` to `.env` and customize passwords:
-   ```bash
-   cp .env.example .env
-   ```
-
-   Edit `.env` with your preferred passwords (default values are examples).
-
-2. Start local infrastructure and application (PostgreSQL + Redis + Mailpit + CTT Server):
-    ```bash
-    docker compose up -d --build
-    ```
-
-3. Access Mailpit Web UI to view emails: http://localhost:8025
-4. Access CTT Server API: http://localhost:8080/ctt-server
-5. Access Swagger UI: http://localhost:8080/ctt-server/swagger-ui.html
-
-> **Security Note**: Both `.env` and `application-local.yaml` are gitignored. Never commit sensitive data.
-
-**Environment Variables (Dev/Prod):**
-
-| Variable                 | Description                 | Default             |
-|--------------------------|-----------------------------|---------------------|
-| `DB_HOST`                | Database host               | `localhost`         |
-| `DB_PORT`                | Database port               | `5432`              |
-| `DB_NAME`                | Database name               | `ctt_server`        |
-| `DB_USERNAME`            | Database username           | (required)          |
-| `DB_PASSWORD`            | Database password           | (required)          |
-| `REDIS_HOST`             | Redis host                  | `localhost`         |
-| `REDIS_PORT`             | Redis port                  | `6379`              |
-| `REDIS_PASSWORD`         | Redis password              | (required)          |
-| `RESEND_API_KEY`         | Resend SMTP API key         | (required for prod) |
-| `JWT_SECRET_KEY`         | JWT signing key (256+ bits) | (required for prod) |
-| `MAIL_FROM_ADDRESS`      | Sender email address        | (required for prod) |
-| `MAIL_FROM_NAME`         | Sender display name         | `CTT`               |
-| `SPRING_PROFILES_ACTIVE` | Active Spring profile       | `local`             |
-
-**Docker Compose Port Mappings (Local):**
-
-| Variable                  | Description               | Default |
-|---------------------------|---------------------------|---------|
-| `APP_PORT`                | CTT Server container port | `8080`  |
-| `APP_EXTERNAL_PORT`       | CTT Server host port      | `8080`  |
-| `POSTGRES_EXTERNAL_PORT`  | PostgreSQL host port      | `15432` |
-| `REDIS_EXTERNAL_PORT`     | Redis host port           | `16379` |
-| `MAIL_SMTP_EXTERNAL_PORT` | Mailpit SMTP host port    | `1025`  |
-| `MAIL_UI_EXTERNAL_PORT`   | Mailpit Web UI host port  | `8025`  |
-
-> **Note**: Production environment requires all variables to be set. Local development uses sensible defaults from `application-local.yaml`.
-
-### Run
-
-```bash
-# Local development (auto-loads application-local.yaml)
-./gradlew bootRun
-
-# Dev/Test environment
-SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun
-
-# Production environment
-SPRING_PROFILES_ACTIVE=prod \
-  DB_HOST=prod-db.example.com \
-  DB_PASSWORD=secret \
-  REDIS_HOST=prod-redis.example.com \
-  REDIS_PASSWORD=secret \
-  RESEND_API_KEY=re_xxx \
-  JWT_SECRET_KEY=your-secret-key \
-  ./gradlew bootRun
-```
-
-**Production Deployment:**
-
-For production deployments (Kubernetes, Docker, Railway, etc.), set environment variables via your platform's secret management:
-
-```bash
-# Example: Docker Compose production override
-docker compose -f docker-compose.prod.yml up -d
-
-# Example: Kubernetes Secrets
-kubectl create secret generic ctt-mail-secret \
-  --from-literal=RESEND_API_KEY=re_xxx
-
-# Example: Railway / Fly.io
-railway variables set RESEND_API_KEY=re_xxx
-```
-
-## API Endpoints
-
-### Authentication
-
-| Endpoint                              | Method | Description                                                                |
-|---------------------------------------|--------|----------------------------------------------------------------------------|
-| `/api/v1/auth/register`               | POST   | Register new user (rate limited: 60/hour per IP)                           |
-| `/api/v1/auth/login`                  | POST   | User login with JWT tokens (rate limited: 30/hour per IP)                  |
-| `/api/v1/auth/refresh`                | POST   | Refresh access token using refresh token (rotation)                        |
-| `/api/v1/auth/verify-email`           | GET    | Verify email with token param (public, 24h token TTL)                      |
-| `/api/v1/auth/resend-verification`    | POST   | Resend verification email (rate limited: 3/1min per email)                 |
-| `/api/v1/auth/logout`                 | POST   | Logout user and revoke refresh token (idempotent, BOLA-protected)          |
-| `/api/v1/auth/logout-all`             | POST   | **Kill Switch**: Revoke all active sessions (requires JWT, 5/min per user) |
-| `/api/v1/auth/password-reset/request` | POST   | Request password reset (rate limited: 3/10min per email)                   |
-| `/api/v1/auth/password-reset/confirm` | POST   | Confirm password reset (rate limited: 15/10min per IP)                     |
-| `/api/v1/auth/terms/accept`           | POST   | Accept current terms version (requires JWT)                                |
-
-### GitHub OAuth
-
-| Endpoint                                 | Method | Description                                                                                                                                            |
-|------------------------------------------|--------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `/api/v1/auth/oauth/github/authorize`    | GET    | Generate CSRF state, return GitHub authorization URL. Use `?action=login` (default, public) or `?action=bind` (requires JWT)                           |
-| `/api/v1/auth/oauth/github/callback`     | GET    | Handle OAuth callback: validate state → exchange token → login/register → 302 redirect to frontend with tokens (public, 60/hour)                       |
-| `/api/v1/auth/oauth/accounts`            | GET    | List current user's OAuth account bindings (requires JWT) — never exposes tokens, returns empty array when no bindings                                 |
-| `/api/v1/auth/oauth/accounts/{provider}` | DELETE | Unbind an OAuth provider from the current user (requires JWT) — 204 on success, 409 if it would leave the user with no login method, 404 if not linked |
-
-**OAuth Flow**:
-```
-Client → GET /authorize → {authUrl: "https://github.com/..."}
-Client → redirect user to GitHub → user authorizes
-GitHub → redirect to /callback?code=xxx&state=xxx
-Server → validate state → exchange code → get user info → login/register
-Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshToken=...
-```
-
-**Error Handling**: All OAuth errors redirect to `{frontendUrl}/oauth/error?code={errorCode}`.
-
-### User Profile
-
-| Endpoint                                   | Method | Description                                                                                                              |
-|--------------------------------------------|--------|--------------------------------------------------------------------------------------------------------------------------|
-| `/api/v1/users/me`                         | GET    | Get current authenticated user's profile (JWT or API key) - excludes sensitive fields (passwordHash, lastLoginIp, version) |
-| `/api/v1/users/me`                         | PATCH  | Change the display name (JWT or a WRITE-scoped API key) and return the updated profile - see below                          |
-| `/api/v1/users/me`                         | DELETE | Delete the current user's account permanently (requires JWT, CSRF token) - see below                                      |
-| `/api/v1/users/me/sessions`                | GET    | List the account's login sessions, most recently used first - see below                                                    |
-| `/api/v1/users/me/sessions/{sessionId}`    | DELETE | Revoke one login session (204; a WRITE-scoped API key may call it too) - see below                                          |
-| `/api/v1/users/me/export`                  | GET    | Download everything the account holds as one JSON file, in the desktop client's import format - see below                    |
-
-**Display name update** (`PATCH /api/v1/users/me`): body `{"displayName": "..."}`, validated with
-the same rule as registration (2-50 characters: Chinese, Japanese, Korean, Latin letters, digits,
-underscores, hyphens). The response is the same profile shape `GET /users/me` returns. Submitting
-the name the account already has is a successful no-op — nothing is written and no audit event is
-recorded — and a real change emits one `PROFILE_UPDATED` audit event carrying the old and new
-values. Display names are not unique: they are a label, never an identifier. Rate limited to
-10 changes/hour per user. Errors: `400 COMMON_003` (rule violation), `403 AUTH_020` (API key
-without WRITE scope), `403 AUTH_022` (account not active).
-
-**Account deletion** (`DELETE /api/v1/users/me`): permanent and irreversible, confirmed with the
-account password in the request body (`{"password": "..."}`). Requires a signed-in session — an API
-key cannot delete the account it was issued for (`AUTH_025`). Accounts created through an OAuth
-provider have no password; for them the session is the whole of the available proof.
-
-What happens:
-
-- The user row is **deleted**, and the schema's cascade removes what hung off it: coding sessions,
-  statistics, achievements, sync state, devices, API keys, refresh tokens and OAuth links.
-- The account is removed from every leaderboard it was ranked in (`totalParticipants` drops).
-- The email address is freed and can be registered again as a new, unrelated account.
-- The audit trail survives: `audit_logs` keeps the events with the account reference cleared, and the
-  `ACCOUNT_DELETED` event carries the deleted id as its resource.
-- Already-issued access tokens stay valid until they expire — the 15-minute access-token TTL, the
-  same window logout leaves open — because a JWT carries the status from when it was minted. Nothing
-  can be obtained in that window: no credential exists to authenticate with, and none can be minted.
-
-Clients should treat this as losing the server copy: the plugin's local database is the source of
-truth for the user's history, and a new registration re-pushes it.
-
-Errors: `401` wrong password (`USER_014`) or missing/invalid JWT, `403` no password supplied for an
-account that has one (`USER_013`), or called with an API key (`AUTH_025`), `429 RATE_LIMIT_001` after
-5 attempts within an hour. The limit exists because confirming the password is a bcrypt verification:
-an unthrottled caller burns CPU rather than merely guessing.
-
-**Login sessions** (`GET` / `DELETE /api/v1/users/me/sessions`): one entry per login, not per
-refresh — rotation continues a session, so a client that refreshed ten times still has a single
-entry. Each entry carries `kind` (`WEB` or `PLUGIN`), `deviceName` and `ideName` for a device-bound
-session, the `userAgent` exactly as the client sent it, `createdAt` (when the login happened),
-`lastUsedAt` (the most recent refresh, null until one happens), `expiresAt`, and `current` — true
-for the session the calling access token belongs to. A call made with an API key has no session of
-its own, so every entry reports `current: false`. Sessions are sorted by last use, newest first;
-`GET` is rate limited to 60/hour and `DELETE` to 10/hour.
-
-`DELETE /api/v1/users/me/sessions/{sessionId}` revokes every live token of that session, so the
-client holding it must sign in again; revoking the calling session is allowed and equals a logout.
-A session that belongs to another account answers `404 COMMON_002`, exactly like one that does not
-exist. Revocation is serialized against rotation for that session, so a refresh running at the same
-instant cannot keep the session alive — and a client that keeps presenting a revoked session's
-token gets `401 AUTH_003` for that session alone rather than taking every other session down with
-it. Already-issued access tokens stay valid until they expire: the 15-minute window logout leaves
-open, and the reason the list is the authority on "signed in where", not the tokens.
-
-**Data export** (`GET /api/v1/users/me/export?timezoneOffset=<minutes>`): streams everything the
-account holds as one JSON file. The shape is the desktop client's import format on purpose — a file
-nobody can import is not much of a portability feature: `exportVersion` is `1.0`, sessions sit under
-`sessions` with the client's field names, and every timestamp is written as a **local** date-time
-without a zone, converted with the `timezoneOffset` the caller passes (`480` for UTC+8). The
-importer parses those strings as local times, so a `Z` suffix would make the whole import fail;
-`timezoneOffset` is therefore required, not defaulted, and an out-of-range value is
-`400 COMMON_003`. A session whose device was never registered still reports empty strings, never
-`null`, because the client model rejects nulls. Soft-deleted sessions are left out: the importer
-inserts everything as live, so exporting them would resurrect rows the user deleted. Everything
-else rides in `serverExport` (account, devices, materialized statistics, achievements, login
-sessions, API key metadata, OAuth bindings), which the importer ignores by name — Gson skips
-unknown fields. No credentials of any kind are included: no password, no token, no key hash.
-Downloaded as `ctt-export-<yyyyMMdd>.json`; requires an active account, `READ` scope for an API
-key, and is rate limited to 3 exports/hour. Errors: `400 COMMON_003` (offset out of range),
-`403 AUTH_020` / `403 AUTH_022`, `429 RATE_LIMIT_001`. The export is audited as `DATA_EXPORTED`.
-
-**IDE attribution**: each session carries its own `ideName` / `ideVersion` — the IDE that produced
-it, which is not the same thing as the device that pushed it (one installation shares a device id
-across every IDE on it). Rows pushed by older clients, and rows written before the field existed,
-carry none and fall back to the origin device's registration. `serverExport.devices` mirrors
-`GET /api/v1/devices`: the IDE the device most recently used, with the registration value as the
-fallback.
-
-**Response Fields**:
-- `id` (UUID)
-- `email` (String)
-- `displayName` (String)
-- `emailVerified` (boolean, derived from `emailVerifiedAt != null`)
-- `createdAt` (Instant, ISO 8601)
-- `lastLoginAt` (Instant, ISO 8601, nullable)
-- `termsVersion` (String)
-
-**Avatar**: Avatar is not stored on the backend. Frontend should generate avatars from `md5(userId)` or similar client-side logic.
-
-**Response Fields** (v0.31.0+):
-- `emailChangePending` (boolean) — whether an email change request is pending
-
-**Response Fields** (v0.34.0+):
-- `hasPassword` (boolean) — whether the user has a password set (false for OAuth-only users)
-
-### Email Change
-
-| Endpoint                                     | Method | Description                                                                                              |
-|----------------------------------------------|--------|----------------------------------------------------------------------------------------------------------|
-| `/api/v1/users/me/email/change-request`      | POST   | Request email change — sends verification to new address (requires JWT, rate limited: 3/10min per email) |
-| `/api/v1/users/me/email/change-confirm`      | POST   | Confirm email change via verification token (public, rate limited: 15/10min per IP)                      |
-| `/api/v1/users/me/email/change-request`      | DELETE | Cancel pending email change request (requires JWT)                                                       |
-| `/api/v1/users/me/email/resend-verification` | POST   | Resend verification for pending email change (requires JWT, rate limited: 1/60s per user)                |
-| `/api/v1/users/me/email/status`              | GET    | Get email status including pending change info (requires JWT)                                            |
-
-**Email Change Flow**:
-```
-User → POST /change-request {newEmail, password?} → System sends verification to new email
-                                                          ↓
-                                                  User clicks link
-                                                          ↓
-                                    POST /change-confirm {token} → Email changed, verification reset
-```
-
-**Security**: Password required if user has password set. OAuth-only users skip password verification. Token expires in 1 hour, max 5 attempts per token.
-
-### Password Management
-
-| Endpoint                           | Method | Description                                                                                          |
-|------------------------------------|--------|------------------------------------------------------------------------------------------------------|
-| `/api/v1/users/me/password/set`    | POST   | First-time password setup for users without a password (requires JWT, rate limited: 5/min per user)  |
-| `/api/v1/users/me/password/change` | POST   | Change password for users who already have one (requires JWT, rate limited: 5/min per user)          |
-
-**Request**: `{"currentPassword": "...", "newPassword": "..."}` — passwords are base64-encoded by the frontend; the server stores and compares them as-is.
-
-**Error Codes**:
-
-| Scenario                         | Code                 | HTTP |
-|----------------------------------|----------------------|------|
-| User not found                   | `USER_004`           | 404  |
-| Current password wrong           | `USER_014`           | 401  |
-| New password same as old         | `PASSWORD_SAME_AS_OLD` | 409  |
-| User has no password (defensive) | `USER_015`           | 409  |
-| Weak new password                | `COMMON_003`         | 400  |
-
-### API Key Management
-
-| Endpoint                        | Method | Description                                                                                                |
-|---------------------------------|--------|------------------------------------------------------------------------------------------------------------|
-| `/api/v1/auth/api-keys`         | POST   | Create API key (rate limited: 10/hour per user) — raw key returned once, then only hash is stored          |
-| `/api/v1/auth/api-keys`         | GET    | List user's API keys (metadata only, no raw key/hash exposure)                                             |
-| `/api/v1/auth/api-keys/{id}`    | GET    | Get single API key metadata (BOLA-protected: 401 if not owned by caller)                                   |
-| `/api/v1/auth/api-keys/{id}`    | DELETE | Revoke API key (BOLA-protected, idempotent) — key remains in DB for audit, authentication is blocked       |
-| `/api/v1/auth/api-keys/{id}/delete` | DELETE | Permanently delete a revoked or expired API key (BOLA-protected) — physically removed from DB, 409 if still active |
-
-**Key Format**: `cttak_<prefix>_<secret>` — prefix is 8-char visible identifier, secret is 32-char URL-safe Base64.
-
-**Security**: Raw key shown only at creation time; SHA-256 hash stored at rest. Per-user limit: 20 active keys.
-
-**Authentication**: API keys authenticate via `Authorization: Bearer cttak_<prefix>_<secret>` header.
-`ApiKeyAuthenticationFilter` validates the key, checks expiration/revocation status, and updates
-`last_used_at` synchronously. The filter is registered **before** `BearerTokenAuthenticationFilter` in
-the security chain, and a dedicated `ApiKeyAwareBearerTokenResolver` ensures the JWT filter never sees
-an API key value (it returns `null` for `cttak_*`). After authentication succeeds, `ApiKeyPrincipal`
-embeds the populated `CurrentUser` so downstream `getCurrentUserRequired()` calls work for both
-authentication types without an extra database lookup.
-
-**Scope Enforcement**: API keys are granted specific scopes (READ, WRITE, SYNC, ADMIN). Protected endpoints enforce scope requirements via `@RequiresApiKeyScope` annotation. API keys without the required scope receive 403 (AUTH_020). JWT-authenticated users bypass scope checks.
-
-**Error Codes**:
-
-| Scenario                              | Code      | HTTP |
-|--------------------------------------|-----------|------|
-| API key invalid / not found / BOLA    | `AUTH_010` | 401  |
-| API key expired                       | `AUTH_011` | 401  |
-| API key revoked                       | `AUTH_012` | 403  |
-| API key header malformed              | `AUTH_021` | 401  |
-| Per-user key limit exceeded           | `AUTH_024` | 409  |
-| Missing required scope                | `AUTH_020` | 403  |
-| Active keys must be revoked before deletion | `AUTH_023` | 409  |
-| Authentication rate limit exceeded    | `RATE_LIMIT_001` | 429 |
-
-### Device Management
-
-| Endpoint | Method | Description | Required Scope |
-|----------|--------|-------------|----------------|
-| `/api/v1/devices` | POST | Register or update a device; binds the authenticating API key to it | SYNC |
-| `/api/v1/devices` | GET | List the authenticated user's devices | READ or SYNC |
-| `/api/v1/devices/{deviceId}` | DELETE | Revoke a device and its sessions | WRITE |
-
-**Registration semantics**: device registration is the sync prerequisite — a plugin registers
-its local device identifier with a SYNC-scoped API key so subsequent pull/push calls pass the
-ownership check. Device queries accept either READ or SYNC scope (plugin device-status checks use SYNC). Registering an existing `deviceId` refreshes metadata; a `deviceId` owned by
-another user is rejected with 409 `DEVICE_001`; API-key registration binds the key to the device
-(`api_keys.device_id`). Revocation stamps `revokedAt` on the device (visible to clients); re-registering the device clears it. The endpoint is rate-limited to 10/hour per user.
-
-**Last seen** (`lastSeenAt`): every successful `/sync/pull` and `/sync/push` advances it — a pull is
-the plugin's heartbeat, so it moves on rounds that carry no new sessions too. Registration counts as
-activity; a revoked device stops advancing while it stays revoked (a revoked device cannot sync
-anyway). The write is a single statement that leaves the entity version untouched, so two syncs from
-the same installation cannot collide into an optimistic-lock failure. Clients derive "active" from
-this timestamp (the dashboard treats seven days as the threshold) and need no other field.
-
-**Reported IDE** (`ideName` / `ideVersion`): both name the IDE this device most recently used,
-derived from its newest session that carries one. A device with no such session reports its
-registration values, and the endpoint still returns one row per device. Registration keeps storing
-the IDE of the registering process, so the two can differ after the user switches products on the
-same machine; per-session attribution is authoritative (see Sync Engine).
-
-**Error Codes**:
-
-| Scenario | Code | HTTP |
-|----------|------|------|
-| Device not found / not owned | `COMMON_002` | 404 |
-| Device already registered to another user | `DEVICE_001` | 409 |
-
-### Sync Engine
-
-| Endpoint | Method | Description | Required Scope |
-|----------|--------|-------------|----------------|
-| `/api/v1/sync/pull` | POST | Pull changes since the device's watermark | SYNC |
-| `/api/v1/sync/push` | POST | Push a batch of session states (LWW) | SYNC |
-
-**Protocol**:
-- `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `sessionUuid`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot — including the session's `ideName`/`ideVersion` (null when the row has none) — plus `nextCursor` and a `hasMore` flag. Responses are paged (`ctt.sync.pull-batch-size`, default 1000): clients continue pulling with the returned cursor until `hasMore` is false. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent).
-- `push` accepts `{ deviceId, sessions[] }`, routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Sessions may carry an optional `ideName`/`ideVersion` describing the IDE that produced them (length-bounded, blank treated as absent); older clients omit both and their new rows stay null, which statistics read as "use the origin device's registration". An update that omits them leaves the stored values untouched, so a client that cannot report an IDE cannot erase one a newer client recorded; a client that starts reporting one fills it in. Returns `nextCursor` for the next pull.
-- `deviceId` ownership is validated (404 `COMMON_002` on mismatch, including devices that have been revoked); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
-
-### Statistics & Analytics
-
-| Endpoint | Method | Description | Required Scope |
-|----------|--------|-------------|----------------|
-| `/api/v1/stats/summary` | GET | Today / daily average / this week / month / year / lifetime totals (seconds), each with its change against the previous complete period | READ |
-| `/api/v1/stats/heatmap` | GET | Per-day coding seconds over a date range (default: this year) | READ |
-| `/api/v1/stats/streaks` | GET | Current and longest consecutive coding day streaks | READ |
-| `/api/v1/stats/distribution` | GET | Duration distribution by languages / projects / time-of-day / weekday / devices / IDEs | READ |
-| `/api/v1/stats/hourly` | GET | Per-hour average coding seconds across active days | READ |
-| `/api/v1/stats/hourly-days` | GET | Per-day hourly coding seconds behind that average (at most the 31 most recent days, oldest first) | READ |
-| `/api/v1/stats/heatmap-years` | GET | Years with coding activity (timezone-aware), descending | READ |
-| `/api/v1/stats/heatmap-months` | GET | Months (`yyyy-MM`) with coding activity, descending | READ |
-| `/api/v1/stats/week-hour` | GET | Weekly coding heatmap: average seconds per weekday-hour cell | READ |
-| `/api/v1/stats/recent` | GET | Most recent coding sessions (default 20, max 100) | READ |
-| `/api/v1/stats/ide-filters` | GET | Distinct IDE names for filter dropdowns (session-reported plus registered) | READ |
-| `/api/v1/stats/achievements` | GET | Achievement badges with unlock state and progress, unlocking newly reached badges | READ |
-
-**Parameters**: `timezoneOffset` (minutes, e.g. `480` for UTC+8) shifts day/week/month/hour
-boundaries to the caller's timezone; heatmap, hourly, hourly-days and distribution accept `start` /
-`end` dates (ISO, inclusive, full history when omitted); every endpoint
-except achievements accepts an optional `deviceId` (origin-device filter) or `ideName` (exact
-IDE-name filter, matched against each session's own IDE and falling back to its origin device's
-registration; mutually exclusive with deviceId, unknown IDE names yield 404); the distribution
-endpoint additionally supports `type=DEVICES` / `type=IDES` (per-device / per-IDE seconds; IDE
-buckets use the session's IDE, falling back to the origin device's registered name);
-`GET /api/v1/stats/ide-filters` lists the distinct IDE names for the dashboard filter, taken from
-both the sessions and the device registrations, so a name stays selectable after the user switched
-products on one installation; and
-`GET /api/v1/stats/heatmap-years` and `GET /api/v1/stats/heatmap-months` list the years and
-`yyyy-MM` months that contain at least one non-zero coding day in the requested timezone
-(`timezoneOffset`), newest first, for the heatmap year/month dropdowns — both derive from the
-same activity rule as the heatmap, so a session crossing a month or year boundary contributes
-to both and no listed option renders empty; `GET /api/v1/stats/week-hour` renders the plugin's
-"Weekly Coding Activity by Hour" heatmap: weekday-hour cells (ISO weekday 1=Monday..7=Sunday)
-averaged over the days each weekday appears in the window, optional `start`/`end` bounds
-(inclusive, full history when omitted), only exercised cells returned;
-achievements evaluate window-based badges (early bird 06:00-09:00, night owl 22:00-05:00, perfect
-month) in the requested timezone. Aggregations merge overlapping sessions into unions (earliest
-start to latest end) for summary/heatmap/streaks, the TIME_OF_DAY distribution and the week-hour
-heatmap; TIME_OF_DAY
-buckets follow the plugin's statistics (Night 00:00-05:59, Morning 06:00-11:59, Daytime 12:00-17:59,
-Evening 18:00-23:59) and slice bucket-spanning sessions at bucket boundaries, so its entries sum to
-the summary total; other distributions accumulate raw durations per session, matching the plugin
-StatisticsView semantics. `GET /api/v1/stats/summary` also measures the first five metrics against
-the previous **complete** period — yesterday, last week, last month, last year — so a change is
-stated against a finished baseline rather than the same period to date: each comparison carries
-`previousSeconds` and a two-decimal `changePercent`, which is `null` when that period holds no
-coding (and for `dailyAverage`, which compares against its own value at the end of yesterday, on
-the first coding day). All five keys are always present and `total` has no comparison. Badges
-are unlocked lazily on query — 67 badges: 51 perpetual ones across seven families (streak 8, total
-duration 8, language count 9, early bird 8, night owl 8, daily burst 5, perfect month 5) plus 16
-windowed ones that reset every period (daily 3, weekly 5, monthly 4, yearly 4) — and unlock records
-are idempotent (one `ACHIEVEMENT_UNLOCKED` audit event per badge per period). `unlockedAt` is
-the instant the badge was **earned**, back-inferred from the session history by the same
-computation that produced the progress (the third consecutive day, the moment a cumulative total
-crossed its threshold), not the moment the page was opened; evaluation is lazy, so stamping the
-observation time would misdate every badge a user collects before visiting. Reported progress is
-monotonic: the highest value ever measured per family is persisted in `achievement_progress`, so
-deleting sessions cannot make an awarded badge read "3 of 10" — the reported number is floored by
-the stored mark and by the highest rung already earned for that family. Each badge carries
-its family (`type`) and its 1-based rung within that family (`tier`), so a client groups badges into
-ladders without maintaining its own code-to-family table; `window` (`LIFETIME` / `DAY` / `WEEK` /
-`MONTH` / `YEAR`) says whether the badge resets, with `windowStart` / `windowEnd` giving the current
-local period bounds (`null` for `LIFETIME`), and rungs are numbered per family *and* window, so a
-day's 2-hour goal is not compared against the lifetime ladder's thresholds. Thresholds step up per
-family so the gap
-between consecutive unlocks grows, and `PERFECT_MONTH` measures the best calendar month's coverage
-as a percentage of that month's own length (`progress` 0-100, `unit` `percent`), so a fully coded
-28-day February scores 100 rather than being penalised for being short. Achievements responses are
-cached in Redis for 60s under a format-versioned key and invalidated on push. Every badge also
-carries its period history: `totalUnlocks` is how many periods it has been attained in and
-`periodStreak` is how many periods in a row, ending with the current one. Those two are recomputed
-from the session history rather than counted from the unlock rows, because evaluation is lazy — a
-user who meets a weekly goal every week but only opens the page once would otherwise be told they
-attained it once; the stored rows are unioned in so a period whose sessions were later deleted still
-counts. A `LIFETIME` badge reports 0 or 1 and a streak of 0. All stats endpoints
-are rate-limited to 60 req/min (`RATE_LIMIT_001`).
-
-**Materialization**: per-user per-UTC-day coding statistics are materialized in the
-`daily_stats` table and maintained incrementally on every push (only the touched UTC dates are
-recomputed); a user's first UTC read bootstraps the full history once under a per-user lock.
-UTC statistics reads (summary / heatmap / streaks) are served from the materialized rows;
-timezone-shifted requests aggregate live because a session crossing local midnight contributes
-to two local days while living on a single UTC day. The summary's comparison windows follow the
-same source as the values they compare against, so a multi-day baseline served from these rows can
-differ from the live aggregation by up to one second per day it spans — the rows hold whole seconds
-per day.
-
-### Global Leaderboard
-
-| Endpoint | Method | Description | Required Scope |
-|----------|--------|-------------|----------------|
-| `/api/v1/leaderboard` | GET | Global ranking by coding duration / streak / night-owl / early-bird / growth / active-days dimensions, over a lifetime or current period, with the calling user's rank and the size of the ranking | READ |
-
-**Parameters**: `dimension` (`TOTAL` | `STREAK` | `NIGHT_OWL` | `EARLY_BIRD` | `GROWTH` |
-`ACTIVE_DAYS` | `LANGUAGE`), `period` (`ALL` | `WEEK` | `MONTH` | `QUARTER` | `HALF_YEAR` | `YEAR`, defaults to the dimension's default:
-`ALL` for every dimension except `GROWTH`, which defaults to `WEEK`), `limit` (default 20, max
-100), `offset` (zero-based). Rankings are backed by Redis ZSets; a user's scores are recomputed
-from the database after each successful push, so the ranking reflects new sessions immediately
-without a full rebuild. When the scores themselves change, a one-off backfill recomputes every
-user's scores shortly after startup: its marker key encodes the rule generation, a fingerprint of the
-legal dimension/period matrix, and the vocabulary version. The fingerprint is derived from the enums,
-so adding a dimension or opening one to more periods invalidates the marker on its own; only a
-changed formula needs the generation bumped by hand. A change therefore forces exactly one
-recompute, and a run interrupted by a restart simply
-retries on the next start. Period keys are bucketed by their period start (ISO Monday for weeks) and
-expire once the period closes (`ALL` never expires). An unsupported dimension/period combination
-returns 400 `COMMON_003`. Endpoint is rate-limited to 60 req/min (`RATE_LIMIT_001`).
-
-**Ranking semantics**: ranks use competition ordering — tied scores share a rank and the next
-distinct score resumes after the gap (1, 2, 2, 4). `entries[].rank` and `currentUserRank` are
-computed from the same rule, so a caller's rank inside a page always agrees with the rank reported
-separately. `totalParticipants` reports the number of ranked members for the requested
-dimension/period, letting a client render "rank N of M" without inferring the size from a full
-page. Tied members have no defined order between them.
-
-**Only activity earns a place**: every dimension except `GROWTH` ranks positive scores alone, so a
-user who did none of the measured activity inside the window is **absent** from that board rather
-than listed at `0` — absence keeps them out of `totalParticipants` and out of the ranks below them,
-and their `currentUserRank` is `null`. `GROWTH` is the exception on purpose: its score is a delta,
-and `0` ("no change") or a negative value ("less than the period before") are measurements, not
-missing ones. A user who stops coding loses their place on the next recompute, exactly as they do
-when their sessions are deleted.
-
-**Dimensions and supported periods**:
-
-| Dimension | Periods | Score |
-|-----------|---------|-------|
-| `TOTAL` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Merged overlap-collapsed duration in seconds |
-| `STREAK` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Longest run of consecutive coding days **fully inside** the window (UTC) |
-| `NIGHT_OWL` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Merged 22:00-05:00 window duration (UTC) |
-| `EARLY_BIRD` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Merged 06:00-09:00 window duration (UTC) |
-| `GROWTH` | `WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Net growth against the immediately preceding period (can be negative) |
-| `ACTIVE_DAYS` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Number of distinct coding days |
-| `LANGUAGE` | `ALL`/`WEEK`/`MONTH`/`QUARTER`/`HALF_YEAR`/`YEAR` | Merged duration in **one** language, selected by the required `language` parameter |
-
-`STREAK` ranks the longest run of consecutive coding days **fully inside** the requested window:
-runs are cut at both boundaries, so a streak that began before the window or continues past it
-contributes only the days inside it (`ALL` keeps the lifetime definition). The alternative — the
-streak as of the window's close — is rejected because it is undefined while the current period is
-still running and would change retroactively as the window advances.
-`GROWTH` excludes `ALL` because an unbounded history has no preceding period to compare against.
-`LANGUAGE` is the only partitioned dimension: there is no single "language" board, so a request must
-name one (`dimension=LANGUAGE&language=Java`), and the parameter is required there and rejected for
-every other dimension rather than silently ignored. The score is merged duration in that language, so
-two overlapping sessions in it count once, and a user with no sessions in a language is simply absent
-from its board. Boards exist only for languages the vocabulary recognizes and does not classify as
-`Other`, which keeps the key space bounded by the vocabulary rather than by whatever strings clients
-submit — an unrecognized value is still stored and reported for classification, it simply has no board
-until classified. `GET /api/v1/leaderboard/languages` lists the boards a caller can rank inside — the
-languages that hold someone, so that a selector built from it cannot offer a board that answers with
-an empty page. `includeEmpty=true` returns the whole vocabulary instead, for a client that wants to
-browse which boards exist at all; every entry carries its category, and a `hasMembers` flag in that
-form. A language appears in the directory when someone is first ranked in it, and leaves when its last
-member stops coding in it — which also happens to the score: a user whose last session in a language
-is deleted (or whose session changes language) is removed from that board on the next recompute
-rather than staying ranked at the score they had.
-
-`ACTIVE_DAYS` measures consistency rather than volume, so it stays reachable for users with
-limited hours.
-
-**Language vocabulary**: sessions carry whatever identifier the originating IDE reports — JetBrains a
-file type name (`JAVA`, `GitIgnore file`), VS Code a language id (`typescript`, `shellscript`) — and
-the two disagree on naming and casing. Language statistics therefore normalize every raw value to a
-canonical name before grouping, following GitHub Linguist, so one language occupies one bucket across
-clients. The stored value is left as the client sent it: the canonical name is derived when it is
-read, which keeps the raw fact recoverable and the mapping fixable without a migration. A value the
-vocabulary does not recognize is preserved rather than folded into an "Other" bucket, and reported, so
-a genuinely new language surfaces instead of disappearing.
-
-### Public Configuration
-
-| Endpoint                | Method | Description                                          |
-|-------------------------|--------|------------------------------------------------------|
-| `/api/v1/config/public` | GET    | Get public app config (current terms version, etc.)  |
-
-### Email Verification Flow
-
-```
-User registers → System sends verification email
-                      ↓
-              User clicks link
-                      ↓
-GET /verify-email?token=xxx → User status: ACTIVE
-```
-
-**Security**: Tokens are SHA-256 hashed before storage. Raw tokens never stored in database.
-
-### Account Lockout Strategy
-
-Protects against brute-force attacks with automatic temporary lockout:
-
-- **Max Failed Attempts**: 5 (configurable)
-- **Sliding Window**: 15 minutes (configurable)
-- **Lockout Duration**: 30 minutes (configurable)
-- **Storage**: DB (default) — login attempts stored in `login_attempts` table with SHA-256 hashed email/IP
-- **Hybrid Unlock**:
-  - **Lazy unlock**: On next login attempt, precise sliding window check unlocks if lockout expired
-  - **Scheduled sweep**: Hourly background task unlocks abandoned locked accounts (no recent attempts in window)
-- **Audit Trail**: All lock/unlock events emit `ACCOUNT_LOCKED` / `ACCOUNT_UNLOCKED` audit actions
-- **Locked Response**: Returns HTTP 403 with `retryAfter` timestamp in response body
-  and `Retry-After` header (seconds until unlock) for frontend countdown UI
-- **Rate Limit Response**: All rate-limited endpoints (429) return a `retryAfter`
-  ISO-8601 timestamp in the response body and a `Retry-After` header with the
-  remaining seconds until the window resets (read atomically from the Redis TTL)
-
-Locked accounts are automatically unlocked after lockout period expires, either on next login or via scheduled cleanup.
-
-## API Documentation
-
-Once running, access OpenAPI docs at: `http://localhost:8080/swagger-ui.html`
 
 ## Development
 
 ```bash
-# Run tests
-./gradlew test
-
-# Build
-./gradlew build
-
-# Code formatting
-./gradlew spotlessApply
-
-# Coverage verification
+./gradlew test                          # unit + integration tests
+./gradlew build                         # compile, format check, tests
+./gradlew spotlessApply                 # apply formatting
 ./gradlew test jacocoTestCoverageVerification
 ```
 
-### Test Baseline
+Integration tests use Testcontainers, so the first run pulls PostgreSQL and Redis images. The suite
+is layered:
 
-This project uses a layered testing strategy with Testcontainers for integration tests.
+| Base class | Layer | Schema |
+| --- | --- | --- |
+| `@BaseControllerSliceTest` | controller slice | Mock MVC, no database |
+| `@BaseRepositoryTest` | repository slice | Hibernate create-drop + Testcontainers |
+| `@BaseIntegrationTest` | end-to-end | Flyway migrations + full context |
 
-**Test Base Classes:**
+Enabling Testcontainers reuse (`testcontainers.reuse.enable=true` in `~/.testcontainers.properties`)
+keeps the containers alive between runs. A new environment can verify its setup with
+`./gradlew test --tests "*TestBaselineSmokeTest"`.
 
-| Annotation                 | Layer      | Schema Strategy              | Context                    |
-|----------------------------|------------|------------------------------|----------------------------|
-| `@BaseControllerSliceTest` | Controller | Mock MVC, no DB              | Web slice only             |
-| `@BaseRepositoryTest`      | Repository | Hibernate create-drop        | JPA slice + Testcontainers |
-| `@BaseIntegrationTest`     | E2E        | Flyway migrations + validate | Full ApplicationContext    |
+## Documentation
 
-**Smoke Test (New Developer Setup):**
+| Document | What it explains |
+| --- | --- |
+| [API Reference](docs/api-reference.md) | every endpoint, its contract, errors and limits |
+| [Developer Handbook](docs/developer-handbook.md) | standard operations: error codes, audit events, exceptions, protected interfaces |
+| [API Governance](docs/api-governance.md) | security tiers, rate limiting and idempotency rules |
+| [Security Architecture](docs/security-architecture.md) | authentication, authorization and threat boundaries |
+| [Time Strategy](docs/time-strategy.md) | UTC-first time handling across the system |
+| [Case Normalization](docs/case-normalization.md) | email identity normalization |
+| [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |
+| [Audit Boundary Spec](docs/audit-boundary-spec.md) | what is audited and what is deliberately not |
+| [Terms Acceptance Guide](docs/terms-acceptance-frontend-guide.md) | frontend contract for the terms gate |
 
-```bash
-# Verify test infrastructure is working
-./gradlew test --tests "*TestBaselineSmokeTest"
-```
+## Related projects
 
-**Testcontainers Reuse (Optional but Recommended):**
-
-Enable container reuse for faster local test cycles:
-
-```properties
-# ~/.testcontainers.properties
-testcontainers.reuse.enable=true
-```
-
-This keeps PostgreSQL and Redis containers running between test runs, significantly reducing startup time. Containers are automatically reused in local development (disabled in CI environments).
+- [Code Time Tracker](https://github.com/AhogeK/code-time-tracker) — JetBrains plugin (Kotlin)
+- [CTT Web](https://github.com/AhogeK/ctt-web) — Vue dashboard
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
 
-## Related Projects
+<div align="center">
 
-- [CTT JetBrains Plugin](https://github.com/AhogeK/code-time-tracker) - JetBrains IDE plugin
-- [CTT Web](https://github.com/AhogeK/ctt-web) - Vue.js dashboard frontend
+## 💖 Support
 
----
+**Free and open source. No paid tiers.**
 
-Built with ☕ by [AhogeK](https://link.ahogek.com/)
+If CTT helps you see where your time goes, you can support its development:
+
+<a href="https://ko-fi.com/ahogek"><img src="https://img.shields.io/badge/Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white" alt="Ko-fi"></a>&nbsp;<a href="https://afdian.com/a/AhogeK"><img src="https://img.shields.io/badge/Afdian-946ce6?style=flat-square&logo=github-sponsors&logoColor=white" alt="Afdian"></a>&nbsp;<a href="https://solscan.io/account/55XnqvGKwH6LamJB7tSwUbrmJikEU2zwP3k1FjsdyEys"><img src="https://img.shields.io/badge/Solana-14F195?style=flat-square&logo=solana&logoColor=white" alt="Solana"></a>
+
+<sub>Donations are optional and carry no rewards or privileges.</sub>
+
+Made with ❤️ for developers who care where their time goes.
+
+</div>
