@@ -20,7 +20,7 @@
 | `op` | `UPSERT` or `DELETE` |
 | `serverVersion` | Session version after the change |
 | `happenedAt` | Change timestamp (ISO-8601) |
-| `projectName`, `language`, `startTime`, `endTime`, `clientModifiedAt`, `clientVersion`, `deleted` | Winning session snapshot |
+| `projectName`, `language`, `startTime`, `endTime`, `clientModifiedAt`, `clientVersion`, `ideName`, `ideVersion`, `deleted` | Winning session snapshot (`ideName`/`ideVersion` are null when the row has none) |
 
 ## Session fields relevant to sync
 

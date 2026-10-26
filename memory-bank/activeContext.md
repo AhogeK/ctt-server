@@ -1,13 +1,17 @@
 # Active Context
 
-- [2026-10-26] - 会话级 IDE 归属（v0.87.0）
-    - 需求核实: 报告属实 —— deviceId 是安装级（同机所有 IDE 共享），`devices.ide_name` 只在注册时写，`coding_sessions` 不存 IDE，统计按设备归属 ⇒ 一台机器的多 IDE 被合并成同一个、IDE 升级不更新；插件端 `SyncSessionMapper` 已按会话发送 IDE
-    - 契约: 新迁移 `V20261026120000` 加 `coding_sessions.ide_name/ide_version`（可空、不回填）+ 部分索引 `(user_id, ide_name) WHERE is_deleted = FALSE`；`SyncSessionDto` 加可选 `ideName`/`ideVersion`（≤100/≤50，空白归一 null）；批量 INSERT 16 → 18 列
-    - 统计: IDE 过滤 = 会话 `ide_name` ∪ 旧行回退 origin 设备注册值（同一条 JPQL）；`IDES` 分布按会话、回退设备、再回退 `Unknown IDE`；`ide-filters` = 会话 distinct ∪ 设备注册值；404 仅当两者都无该名字；物化门禁不变
-    - 设备: `DeviceResponse.ideName/ideVersion` 改为「最近使用」投影（`DISTINCT ON` 单查询，无 N+1），无带 IDE 会话时回退注册值；注册响应语义不变
-    - 导出: 会话行写会话级 IDE（旧行回退设备），`serverExport.devices` 镜像 `GET /devices`
-    - 不做: 不建 `device_ides`、不拆 device id、不回填旧会话、IDE 不进 `ConflictResolver.sameContent`（否则每次重推都变成修改）
-    - 验证: 定向单测 + 集成（同设备双 IDE → 两个桶、筛选各自命中、设备仍一行且取最近 IDE、旧客户端无字段仍 200）
+- [2026-10-26] - 会话 IDE 复核补齐（v0.87.1，已提交推送）
+    - 前端复核两项属实: pull 的 `SyncChangeDto` 未带 IDE ⇒ 跨设备本地副本回退成拉取方 IDE；`applyIncomingFields` 无条件写 ⇒ 缺少字段的更新把已有 IDE 清成 null
+    - 修复: `SyncChangeDto` 加 `ideName`/`ideVersion`，`toChangeDto` 的正常分支与 `session == null` 分支都显式传值；IDE 只在传入非空时写入（旧客户端不清空、升级客户端可补值）
+    - 测试: 单测（pull 映射、缺会话为 null、更新不清空、升级补值）+ 集成（A 推带 IDE → B 拉取得到来源 IDE → 旧式更新后仍保留）
+    - 验证: 定向测试通过；全量构建 1567 tests / 0 failures
+
+- [2026-10-26] - 会话级 IDE 归属（v0.87.0，已提交推送）
+    - 需求核实: 报告属实 —— deviceId 是安装级（同机所有 IDE 共享），`devices.ide_name` 只在注册时写，`coding_sessions` 不存 IDE，统计按设备归属 ⇒ 多 IDE 被合并、IDE 升级不更新；插件端 `SyncSessionMapper` 已按会话发送 IDE
+    - 契约: 迁移 `V20261026120000` 加 `coding_sessions.ide_name/ide_version`（可空、不回填）+ 部分索引 `(user_id, ide_name) WHERE is_deleted = FALSE`；`SyncSessionDto` 可选 `ideName`/`ideVersion`（≤100/≤50，空白归一 null）；批量 INSERT 16 → 18 列
+    - 统计与设备: 过滤 = 会话 `ide_name` ∪ 旧行回退 origin 设备注册值；`IDES` 桶会话优先、回退设备、再 `Unknown IDE`；`ide-filters` = 两者并集；404 仅当两者都无；设备响应改「最近使用」（`DISTINCT ON` 单查询、无 N+1、回退注册值）；每日汇总表不参与 IDE 筛选
+    - 导出与不做: 会话行写会话级 IDE（旧行回退设备）；不建 `device_ides`、不拆 device id、不回填旧会话、IDE 不进 `ConflictResolver.sameContent`
+    - 验证: 单测 + 集成（同设备双 IDE → 两桶、筛选各自命中、设备一行取最近 IDE、旧客户端无字段仍 200）
 
 - [2026-10-26] - 设备最后活跃时间停摆修复（v0.86.1，已提交推送）
     - 前端报告核实: **属实**。`setLastSeenAt` 在生产代码中只有 `DeviceService.registerDevice` 一处；`SyncPullService`/`SyncPushService` 只校验归属与吊销，不写回 ⇒ 每天同步的设备 `last_seen_at` 停在注册日，前端 7 天阈值判成 Inactive
@@ -16,7 +20,7 @@
     - 测试: 单测 4 例（成功 pull/push 刷新；吊销时不刷新 ×2）；集成用例「把 last_seen_at 改成 13 天前 → pull → `GET /devices` 的 lastSeenAt 在一分钟内」
     - 状态: 已提交推送（6a83f7f → master 77cc619）
 
-- [2026-10-25] - 排行榜排除 0 分成员（v0.86.0，待授权提交）
+- [2026-10-25] - 排行榜排除 0 分成员（v0.86.0，已提交推送）
     - 前端需求核实: `leaderboard:total`/`streak`/`active_days` 各 9 成员其中 7 个 0 分，`night_owl`/`early_bird` 各 8 个 0 分；7 个 AutoTest 账号 `coding_sessions` 为 0 条 ⇒ **不是精度问题，是写入规则**
     - 根因: `writeScore` 无条件 `ZADD`，`recomputeAndWriteAll` 对每个维度×周期都写 ⇒ 无活动账号以 0 分入榜，并计入 `totalParticipants` 与并列名次
     - 修复: `LeaderboardDimension.ranksOnlyPositiveScores()`（除 `GROWTH` 外全部为真）；`writeScore` 在 `score <= 0` 时 `ZREM` 并返回（只查层过滤不行：`totalParticipants`、分页、名次仍会带上 0 分成员）；`LANGUAGE` 的榜索引与 `user:languages` 记录只在正分时维护，零时长语言不建榜；回填代次 3 → 4 以清理存量 0 分成员

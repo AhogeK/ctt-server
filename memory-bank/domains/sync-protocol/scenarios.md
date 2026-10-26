@@ -10,6 +10,8 @@ Trigger → judgement → action.
 | New request field | Old clients omit it | Give it a server-side default that reproduces previous behaviour |
 | Behaviour change for existing clients | Backward compatibility is a hard constraint | Ship it behind a new optional param, or verify the old path degrades identically |
 | Contract change that the plugin must mirror | The plugin is read-only from here | Write a requirement/bug report (现状 / 期望 / 理由 / 影响面 / 对接方配合) per R3 |
+| New session field (push **and** pull) | A field written by push but missing from pull desynchronizes every other device: the copy is built without it and falls back to the pulling device | Update `SyncSessionDto`, `SyncChangeDto`, the entity, the multi-row INSERT column list/count, every reader, and assert both directions (push stores it, pull delivers it); mirror in README and `references.md` |
+| Optional field on an update | Absence means "this client cannot report it", not "clear it" | Write only non-blank incoming values: an older client must not erase what a newer one stored, and a client that starts reporting it fills it in |
 
 ## Diagnosing sync reports
 

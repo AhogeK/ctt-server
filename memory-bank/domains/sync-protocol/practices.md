@@ -79,8 +79,15 @@ A device id is installation-scoped: every JetBrains IDE on one machine shares it
 `devices.ide_name` can only name whichever IDE registered last. The push payload therefore carries
 `ideName`/`ideVersion` per session, stored in `coding_sessions`.
 
-- **Optional and nullable.** Older plugins send neither; the column stays null and readers fall back
+- **Optional and nullable.** Older plugins send neither; a new row stays null and readers fall back
   to the origin device's registration. Never reject a push because the IDE is missing.
+- **An update only writes a reported IDE.** Absence means "this client cannot report it", not
+  "unknown": a blank or missing value must not erase what a newer client stored, so
+  `applyIncomingFields` sets the columns only when the incoming value is non-blank. A client that
+  starts reporting one fills the field in on its next winning update.
+- **Pull carries it.** `SyncChangeDto` includes the winning snapshot's `ideName`/`ideVersion` (null
+  when the row has none), so another device builds its local copy with the source IDE instead of the
+  pulling IDE.
 - **Blank means absent.** `applyIncomingFields` normalizes whitespace-only values to null, otherwise
   an empty string becomes a bucket of its own in the IDE distribution and an entry in the filter list.
 - **Not part of LWW content identity.** `ConflictResolver.sameContent` deliberately ignores the IDE:
