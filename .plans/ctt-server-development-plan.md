@@ -2140,6 +2140,20 @@ end note
 后续可能加的功能：1. 通过KEY直接调用统计接口供用户使用接口获取个人统计数据 2.提供统计Card方便用户像是Github个人页使用 2.通过绑定Github连通Github获取用户提交信息做相关的统计与展示card
 
 
+## README 重构（文档，2026-10-27）
+
+> 目标：首页一屏回答「这是什么、怎么用、去哪看细节」；长尾契约沉到 `docs/`，不改任何接口。
+
+| 项 | 结果 |
+|---|---|
+| 结构 | 785 → 226 行：Hero SVG + 徽章、4 条能力、mermaid 机制图、Quick start、API 总览、数据模型、测试分层、文档索引、Related projects、License、Support |
+| 契约拆分 | 原 `## API Endpoints` 全部内容迁入 `docs/api-reference.md`（481 行）；逐行比对仅标题由 `## API Endpoints` 改为 `## Endpoints` |
+| 视觉 | `assets/readme/hero.svg`（1200×300，纯 SVG，自带深色底；`Plugin A —push→ change_log —pull→ Plugin B`） |
+| 支持区 | `<div align="center">` 包裹标题与内容；flat-square 三个徽章（Ko-fi / Afdian / Solana→Solscan）；保留「无付费层级」「赞助可选」两句；不展示裸地址 |
+| 渲染校准 | GitHub `/markdown` API 实测：标题、徽章、页脚都在居中容器内；徽章必须写成**同一行**，源码换行会被渲染成 `<br>` 导致竖排 |
+| 验证 | `audit_readme.py` 通过；相对链接全部存在；表格列数一致；JSON 示例可解析 |
+| 不做 | 不改接口、不改版本号（纯文档）、不动 `docs/` 既有页面 |
+
 ## 🧭 排行榜周期扩展（前端需求，2026-10-20，v0.84.0）
 
 > 来源：ctt-web 提出的 `# Requirement: longer leaderboard periods, and a windowed streak`。周/月榜在用户增长后失去区分度，要求增加季度与半年。

@@ -34,6 +34,8 @@
 
 **文档里对机制的声明必须与代码一致**：发现文档声明了代码并未实现的机制时，按 R25 的漂移处置 —— 那是**缺陷**，正确做法是补上实现、或把声明明确改写为实际机制，**不得**只把文档改成"现状"了事。实例：`docs/api-governance.md` Tier 3 声称以 `getActiveUserRequired()` 作为 Gate，而该方法全仓**无任何生产调用** ✗ —— 处理方式是接线（v0.78.1），不是删掉那句话。
 
+**README 的视觉块按 GitHub 实际渲染写**：居中区块用 `<div align="center">` 包裹 Markdown 标题与段落（GitHub 会嵌套，实测）；徽章若要求横排，必须写在**同一行**并用 `&nbsp;` 分隔——源码换行会被渲染成 `<br>`，徽章会竖排（2026-10-27 两次返工）。改完用 `POST https://api.github.com/markdown` 或本地渲染核对，不要只看源码。
+
 **枚举清单是漂移高发区（同一处声明散在多个文件）**：「哪些统计面合并重叠会话、哪些按会话原始累加」同时写在 `StatsCalculator` 类注释、`README.md`、`memory-bank/domains/stats-aggregation/references.md` 三处。曾出现类注释把 time-of-day 列进原始累加（实为合并）、两处清单都缺 week-hour（实为合并），**对接方据此差点误判统计语义**（v0.79.0）。规矩：**三处必须同批对齐**，权威版本是领域文件里的 "Duration semantics per surface" 表；新增/改动统计面时以该表为准并同步另两处。
 
 ### R5: 记忆同步（强制）

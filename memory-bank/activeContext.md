@@ -1,10 +1,12 @@
 # Active Context
 
+- [2026-10-27] - README 重设计（文档，未提交）
+    - 785 → 226 行：Hero SVG + 徽章、机制图（mermaid）、快速开始、API 总览、数据模型、测试、文档索引；API 细节零丢失迁至 `docs/api-reference.md`（仅标题由 `## API Endpoints` 改为 `## Endpoints`）；新增 `assets/readme/hero.svg`；底部 Support 用 `<div align="center">` + 单行 flat-square 徽章（源码换行会变竖排）
+
 - [2026-10-26] - 会话 IDE 复核补齐（v0.87.1，已提交推送）
     - 前端复核两项属实: pull 的 `SyncChangeDto` 未带 IDE ⇒ 跨设备本地副本回退成拉取方 IDE；`applyIncomingFields` 无条件写 ⇒ 缺少字段的更新把已有 IDE 清成 null
     - 修复: `SyncChangeDto` 加 `ideName`/`ideVersion`，`toChangeDto` 的正常分支与 `session == null` 分支都显式传值；IDE 只在传入非空时写入（旧客户端不清空、升级客户端可补值）
-    - 测试: 单测（pull 映射、缺会话为 null、更新不清空、升级补值）+ 集成（A 推带 IDE → B 拉取得到来源 IDE → 旧式更新后仍保留）
-    - 验证: 定向测试通过；全量构建 1567 tests / 0 failures
+    - 验证: 单测覆盖 pull 映射、缺会话为 null、更新不清空、升级补值；集成覆盖跨设备保留；全量 1567 tests / 0 failures
 
 - [2026-10-26] - 会话级 IDE 归属（v0.87.0，已提交推送）
     - 需求核实: 报告属实 —— deviceId 是安装级（同机所有 IDE 共享），`devices.ide_name` 只在注册时写，`coding_sessions` 不存 IDE，统计按设备归属 ⇒ 多 IDE 被合并、IDE 升级不更新；插件端 `SyncSessionMapper` 已按会话发送 IDE
@@ -17,8 +19,7 @@
     - 前端报告核实: **属实**。`setLastSeenAt` 在生产代码中只有 `DeviceService.registerDevice` 一处；`SyncPullService`/`SyncPushService` 只校验归属与吊销，不写回 ⇒ 每天同步的设备 `last_seen_at` 停在注册日，前端 7 天阈值判成 Inactive
     - 修复: `DeviceRepository.touchLastSeen(userId, deviceId, seenAt)` —— 单条 JPQL update（`lastSeenAt` + `updatedAt`，谓词含 `revokedAt is null`，`@Modifying(clearAutomatically, flushAutomatically)`）；pull 与 push 在归属/吊销校验通过后各调一次。用整行 update 而非实体 save 的原因：`Device` 有 `@Version`，同一安装的多插件并发同步会撞乐观锁，而心跳没有业务含义
     - 事务语义: 调用点都在 `@Transactional` 的 `pull`/`push` 内 ⇒ 后续失败会随事务回滚，不会把失败请求记成活动
-    - 测试: 单测 4 例（成功 pull/push 刷新；吊销时不刷新 ×2）；集成用例「把 last_seen_at 改成 13 天前 → pull → `GET /devices` 的 lastSeenAt 在一分钟内」
-    - 状态: 已提交推送（6a83f7f → master 77cc619）
+    - 验证: 单测 4 例 + 集成「13 天前的 last_seen_at → pull → 一分钟内」；已推送（6a83f7f → master 77cc619）
 
 - [2026-10-25] - 排行榜排除 0 分成员（v0.86.0，已提交推送）
     - 前端需求核实: `leaderboard:total`/`streak`/`active_days` 各 9 成员其中 7 个 0 分，`night_owl`/`early_bird` 各 8 个 0 分；7 个 AutoTest 账号 `coding_sessions` 为 0 条 ⇒ **不是精度问题，是写入规则**
