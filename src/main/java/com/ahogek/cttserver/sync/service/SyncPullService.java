@@ -200,6 +200,8 @@ public class SyncPullService {
                     null,
                     null,
                     0,
+                    null,
+                    null,
                     true);
         }
         return new SyncChangeDto(
@@ -215,6 +217,8 @@ public class SyncPullService {
                 session.getEndTime(),
                 session.getClientModifiedAt(),
                 session.getClientVersion(),
+                session.getIdeName(),
+                session.getIdeVersion(),
                 session.isDeleted());
     }
 

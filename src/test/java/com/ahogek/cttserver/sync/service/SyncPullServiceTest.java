@@ -129,8 +129,11 @@ class SyncPullServiceTest {
                             List.of(
                                     change(11, sessionId1, ChangeOp.UPSERT, 3),
                                     change(12, sessionId2, ChangeOp.DELETE, 4)));
+            CodingSession live = session(sessionId1, false);
+            live.setIdeName("IntelliJ IDEA");
+            live.setIdeVersion("2026.1");
             when(codingSessionRepository.findAllByIdIn(any()))
-                    .thenReturn(List.of(session(sessionId1, false), session(sessionId2, true)));
+                    .thenReturn(List.of(live, session(sessionId2, true)));
 
             SyncPullResponse response = service.pull(userId, deviceId, 10);
 
@@ -144,6 +147,8 @@ class SyncPullServiceTest {
             assertThat(first.serverVersion()).isEqualTo(3);
             assertThat(first.projectName()).isEqualTo("ctt-server");
             assertThat(first.language()).isEqualTo("Java");
+            assertThat(first.ideName()).isEqualTo("IntelliJ IDEA");
+            assertThat(first.ideVersion()).isEqualTo("2026.1");
             assertThat(first.deleted()).isFalse();
             SyncChangeDto second = response.changes().get(1);
             assertThat(second.changeId()).isEqualTo(12);
@@ -243,6 +248,8 @@ class SyncPullServiceTest {
 
             assertThat(response.changes()).hasSize(1);
             assertThat(response.changes().getFirst().sessionUuid()).isNull();
+            assertThat(response.changes().getFirst().ideName()).isNull();
+            assertThat(response.changes().getFirst().ideVersion()).isNull();
         }
 
         @Test
