@@ -268,6 +268,66 @@ class SyncPushServiceTest {
         }
 
         @Test
+        @DisplayName("should keep the stored IDE when a winning update omits it")
+        void shouldKeepStoredIde_whenIncomingOmitsIt() {
+            UUID sessionUuid = UUID.randomUUID();
+            CodingSession existing =
+                    existingSession(UUID.randomUUID(), 1, Instant.parse("2026-08-25T09:30:00Z"), 5);
+            existing.setSessionUuid(sessionUuid);
+            existing.setIdeName("PyCharm");
+            existing.setIdeVersion("2026.1");
+            when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
+                    .thenReturn(List.of(existing));
+
+            // An older client wins LWW on language, but cannot report an IDE at all.
+            service.push(
+                    userId,
+                    deviceId,
+                    List.of(
+                            dto(
+                                    sessionUuid,
+                                    "other",
+                                    "Kotlin",
+                                    2,
+                                    Instant.parse("2026-08-25T10:00:00Z"),
+                                    false)));
+
+            assertThat(existing.getLanguage()).isEqualTo("Kotlin");
+            assertThat(existing.getIdeName()).isEqualTo("PyCharm");
+            assertThat(existing.getIdeVersion()).isEqualTo("2026.1");
+        }
+
+        @Test
+        @DisplayName("should fill the IDE when an upgraded client reports one for a stored row")
+        void shouldFillIde_whenUpgradedClientReportsOne() {
+            UUID sessionUuid = UUID.randomUUID();
+            CodingSession existing =
+                    existingSession(UUID.randomUUID(), 1, Instant.parse("2026-08-25T09:30:00Z"), 5);
+            existing.setSessionUuid(sessionUuid);
+            when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
+                    .thenReturn(List.of(existing));
+
+            service.push(
+                    userId,
+                    deviceId,
+                    List.of(
+                            new SyncSessionDto(
+                                    sessionUuid,
+                                    "ctt-server",
+                                    "Kotlin",
+                                    Instant.parse("2026-08-25T09:00:00Z"),
+                                    Instant.parse("2026-08-25T10:00:00Z"),
+                                    Instant.parse("2026-08-25T10:00:00Z"),
+                                    2,
+                                    "GoLand",
+                                    "2026.1",
+                                    false)));
+
+            assertThat(existing.getIdeName()).isEqualTo("GoLand");
+            assertThat(existing.getIdeVersion()).isEqualTo("2026.1");
+        }
+
+        @Test
         @DisplayName("should apply incoming state and bump version when incoming wins LWW")
         void shouldApplyIncoming_whenIncomingWinsLww() {
             UUID sessionUuid = UUID.randomUUID();

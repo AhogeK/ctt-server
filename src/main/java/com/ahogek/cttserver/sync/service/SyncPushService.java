@@ -363,10 +363,17 @@ public class SyncPushService {
         session.setEndTime(dto.endTime());
         session.setClientModifiedAt(dto.clientModifiedAt());
         session.setClientVersion(dto.clientVersion());
-        // A blank IDE is absence, not a name: it would otherwise become a bucket of its own in the
-        // IDE distribution and a bogus entry in the filter list.
-        session.setIdeName(normalize(dto.ideName()));
-        session.setIdeVersion(normalize(dto.ideVersion()));
+        // Absence means "this client cannot report the IDE", not "the IDE is unknown": a blank or
+        // missing value must not erase what a newer client already stored for this session. Only a
+        // reported name is written, which also lets an upgraded client fill the field in later.
+        String ideName = normalize(dto.ideName());
+        if (ideName != null) {
+            session.setIdeName(ideName);
+        }
+        String ideVersion = normalize(dto.ideVersion());
+        if (ideVersion != null) {
+            session.setIdeVersion(ideVersion);
+        }
     }
 
     private static String normalize(String value) {

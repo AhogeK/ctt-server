@@ -232,6 +232,29 @@ class SyncIntegrationTest {
                         deleted);
     }
 
+    private String sessionJsonWithIde(
+            String sessionUuid,
+            String language,
+            int clientVersion,
+            String clientModifiedAt,
+            String ideName) {
+        return """
+                {
+                  "sessionUuid": "%s",
+                  "projectName": "ctt-server",
+                  "language": "%s",
+                  "startTime": "2026-08-25T09:00:00Z",
+                  "endTime": "2026-08-25T10:00:00Z",
+                  "clientModifiedAt": "%s",
+                  "clientVersion": %d,
+                  "ideName": "%s",
+                  "ideVersion": "2026.1",
+                  "deleted": false
+                }
+                """
+                .formatted(sessionUuid, language, clientModifiedAt, clientVersion, ideName);
+    }
+
     private JsonNode pull(String authHeader, UUID deviceId, long cursor) throws Exception {
         String response =
                 mvc.post()
@@ -305,6 +328,81 @@ class SyncIntegrationTest {
             JsonNode secondPull = pull("Bearer " + jwt, deviceId, pushCursor);
             assertThat(secondPull.path("changes")).isEmpty();
             assertThat(secondPull.path("nextCursor").asLong()).isEqualTo(pushCursor);
+        }
+
+        @Test
+        @DisplayName(
+                "Should carry the session's IDE to another device and keep it on a later update")
+        void shouldCarryIdeToOtherDevice_andKeepIt_whenUpdateOmitsIt() throws Exception {
+            String email = uniqueEmail();
+            String jwt = registerVerifyAndLogin(email);
+            UUID userId =
+                    jdbcClient
+                            .sql("SELECT id FROM users WHERE email = ?")
+                            .param(email)
+                            .query(UUID.class)
+                            .single();
+            UUID originDevice = insertDevice(userId);
+            UUID otherDevice = insertDevice(userId);
+            String sessionUuid = UUID.randomUUID().toString();
+
+            assertThat(
+                            mvc.post()
+                                    .uri(PUSH_ENDPOINT)
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(
+                                            pushBody(
+                                                    originDevice,
+                                                    sessionJsonWithIde(
+                                                            sessionUuid,
+                                                            "Java",
+                                                            1,
+                                                            "2026-08-25T10:00:00Z",
+                                                            "PyCharm")))
+                                    .exchange())
+                    .hasStatusOk();
+
+            JsonNode firstPull = pull("Bearer " + jwt, otherDevice, 0);
+            assertThat(firstPull.path("changes")).hasSize(1);
+            assertThat(firstPull.path("changes").get(0).path("ideName").asText())
+                    .isEqualTo("PyCharm");
+            assertThat(firstPull.path("changes").get(0).path("ideVersion").asText())
+                    .isEqualTo("2026.1");
+
+            // An update that wins LWW but carries no IDE (an older client) must not erase the
+            // attribution the first push established.
+            assertThat(
+                            mvc.post()
+                                    .uri(PUSH_ENDPOINT)
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + jwt)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(
+                                            pushBody(
+                                                    originDevice,
+                                                    sessionJson(
+                                                            sessionUuid,
+                                                            "ctt-server",
+                                                            "Kotlin",
+                                                            "2026-08-25T09:00:00Z",
+                                                            "2026-08-25T10:00:00Z",
+                                                            2,
+                                                            "2026-08-25T11:00:00Z",
+                                                            false)))
+                                    .exchange())
+                    .hasStatusOk();
+
+            JsonNode secondPull =
+                    pull("Bearer " + jwt, otherDevice, firstPull.path("nextCursor").asLong());
+            assertThat(secondPull.path("changes")).hasSize(1);
+            assertThat(secondPull.path("changes").get(0).path("language").asText())
+                    .isEqualTo("Kotlin");
+            assertThat(secondPull.path("changes").get(0).path("ideName").asText())
+                    .isEqualTo("PyCharm");
+            assertThat(secondPull.path("changes").get(0).path("ideVersion").asText())
+                    .isEqualTo("2026.1");
         }
 
         @Test

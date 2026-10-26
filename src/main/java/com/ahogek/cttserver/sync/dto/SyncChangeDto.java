@@ -37,5 +37,14 @@ public record SyncChangeDto(
                         example = "2026-08-25T10:00:00Z")
                 Instant clientModifiedAt,
         @Schema(description = "Client-side version counter", example = "2") int clientVersion,
+        @Schema(
+                        description =
+                                "IDE that produced this session; null for rows pushed before the"
+                                        + " field existed or by clients that do not report it",
+                        example = "IntelliJ IDEA",
+                        nullable = true)
+                String ideName,
+        @Schema(description = "Version of that IDE", example = "2026.1", nullable = true)
+                String ideVersion,
         @Schema(description = "Whether the session is soft-deleted", example = "false")
                 boolean deleted) {}
