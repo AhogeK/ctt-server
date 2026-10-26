@@ -17,6 +17,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * an oversized value passes validation and fails inside the batched insert, and because the batch
  * is one multi-row statement the whole push is rejected rather than the offending session — the
  * client sees a server error it cannot act on, and retrying reproduces it.
+ *
+ * <p>{@code ideName}/{@code ideVersion} are optional and describe the IDE that produced the
+ * session, not the device that pushed it: a device id is installation-scoped, so every IDE on one
+ * machine shares it. Clients older than this field send neither, and their sessions stay null —
+ * readers fall back to the origin device's registration.
  */
 @Schema(description = "A coding session state submitted by the client for push")
 public record SyncSessionDto(
@@ -47,5 +52,18 @@ public record SyncSessionDto(
         @Schema(description = "Client-side version counter for LWW resolution", example = "2")
                 @PositiveOrZero(message = "clientVersion must be zero or positive")
                 int clientVersion,
+        @Schema(
+                        description =
+                                "IDE that produced this session; null for clients that do not report it",
+                        example = "IntelliJ IDEA",
+                        nullable = true)
+                @Size(max = 100, message = "ideName must not exceed 100 characters")
+                String ideName,
+        @Schema(
+                        description = "IDE build version that produced this session",
+                        example = "2026.1",
+                        nullable = true)
+                @Size(max = 50, message = "ideVersion must not exceed 50 characters")
+                String ideVersion,
         @Schema(description = "Whether the client deleted this session", example = "false")
                 boolean deleted) {}

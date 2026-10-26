@@ -276,6 +276,8 @@ class SyncPushBatchIntegrationTest {
                 base.plusSeconds(index * 60L + 1200),
                 base.plusSeconds(index * 60L),
                 index + 1,
+                null,
+                null,
                 false);
     }
 

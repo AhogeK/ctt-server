@@ -14,6 +14,7 @@ import com.ahogek.cttserver.device.dto.DeviceResponse;
 import com.ahogek.cttserver.device.dto.RegisterDeviceRequest;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
+import com.ahogek.cttserver.sync.repository.CodingSessionRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Device management service.
@@ -40,16 +43,19 @@ public class DeviceService {
     private final DeviceRepository deviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final ApiKeyRepository apiKeyRepository;
+    private final CodingSessionRepository codingSessionRepository;
     private final AuditLogService auditLogService;
 
     public DeviceService(
             DeviceRepository deviceRepository,
             RefreshTokenRepository refreshTokenRepository,
             ApiKeyRepository apiKeyRepository,
+            CodingSessionRepository codingSessionRepository,
             AuditLogService auditLogService) {
         this.deviceRepository = deviceRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.apiKeyRepository = apiKeyRepository;
+        this.codingSessionRepository = codingSessionRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -121,13 +127,33 @@ public class DeviceService {
     /**
      * Lists all devices for a user, ordered by last activity.
      *
+     * <p>{@code ideName}/{@code ideVersion} describe the IDE the device most recently used, not the
+     * one it registered with: a device id is installation-scoped, so every IDE on one machine
+     * shares it and the registration value can only name the last one. The projection comes from
+     * one aggregate query for the whole list, and a device that has not pushed a session carrying
+     * an IDE falls back to its registration value.
+     *
      * @param userId the user ID
      * @return list of device responses
      */
     @Transactional(readOnly = true)
     public List<DeviceResponse> listUserDevices(UUID userId) {
+        Map<UUID, CodingSessionRepository.LatestIdeProjection> latestIdeByDevice =
+                codingSessionRepository.findLatestSessionIdePerOriginDevice(userId).stream()
+                        .collect(
+                                Collectors.toMap(
+                                        CodingSessionRepository.LatestIdeProjection::getDeviceId,
+                                        projection -> projection,
+                                        (first, _) -> first));
         return deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
-                .map(DeviceResponse::fromEntity)
+                .map(
+                        device -> {
+                            var latest = latestIdeByDevice.get(device.getId());
+                            return latest == null
+                                    ? DeviceResponse.fromEntity(device)
+                                    : DeviceResponse.of(
+                                            device, latest.getIdeName(), latest.getIdeVersion());
+                        })
                 .toList();
     }
 

@@ -207,9 +207,10 @@ public class StatsController {
             @Parameter(
                             name = "ideName",
                             description =
-                                    "Optional exact IDE-name filter against the device registry; omitted"
-                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
-                                            + " unknown IDE names yield 404 COMMON_002.")
+                                    "Optional exact IDE-name filter, matched per session with a fallback to"
+                                            + " the origin device's registration; omitted aggregates all sessions."
+                                            + " Mutually exclusive with deviceId; unknown IDE names yield 404"
+                                            + " COMMON_002.")
                     @RequestParam(name = "ideName", required = false)
                     String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -298,9 +299,10 @@ public class StatsController {
             @Parameter(
                             name = "ideName",
                             description =
-                                    "Optional exact IDE-name filter against the device registry; omitted"
-                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
-                                            + " unknown IDE names yield 404 COMMON_002.")
+                                    "Optional exact IDE-name filter, matched per session with a fallback to"
+                                            + " the origin device's registration; omitted aggregates all sessions."
+                                            + " Mutually exclusive with deviceId; unknown IDE names yield 404"
+                                            + " COMMON_002.")
                     @RequestParam(name = "ideName", required = false)
                     String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -397,9 +399,10 @@ public class StatsController {
             @Parameter(
                             name = "ideName",
                             description =
-                                    "Optional exact IDE-name filter against the device registry; omitted"
-                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
-                                            + " unknown IDE names yield 404 COMMON_002.")
+                                    "Optional exact IDE-name filter, matched per session with a fallback to"
+                                            + " the origin device's registration; omitted aggregates all sessions."
+                                            + " Mutually exclusive with deviceId; unknown IDE names yield 404"
+                                            + " COMMON_002.")
                     @RequestParam(name = "ideName", required = false)
                     String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -505,9 +508,10 @@ public class StatsController {
             @Parameter(
                             name = "ideName",
                             description =
-                                    "Optional exact IDE-name filter against the device registry; omitted"
-                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
-                                            + " unknown IDE names yield 404 COMMON_002.")
+                                    "Optional exact IDE-name filter, matched per session with a fallback to"
+                                            + " the origin device's registration; omitted aggregates all sessions."
+                                            + " Mutually exclusive with deviceId; unknown IDE names yield 404"
+                                            + " COMMON_002.")
                     @RequestParam(name = "ideName", required = false)
                     String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -615,9 +619,10 @@ public class StatsController {
             @Parameter(
                             name = "ideName",
                             description =
-                                    "Optional exact IDE-name filter against the device registry; omitted"
-                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
-                                            + " unknown IDE names yield 404 COMMON_002.")
+                                    "Optional exact IDE-name filter, matched per session with a fallback to"
+                                            + " the origin device's registration; omitted aggregates all sessions."
+                                            + " Mutually exclusive with deviceId; unknown IDE names yield 404"
+                                            + " COMMON_002.")
                     @RequestParam(name = "ideName", required = false)
                     String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -730,9 +735,10 @@ public class StatsController {
             @Parameter(
                             name = "ideName",
                             description =
-                                    "Optional exact IDE-name filter against the device registry; omitted"
-                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
-                                            + " unknown IDE names yield 404 COMMON_002.")
+                                    "Optional exact IDE-name filter, matched per session with a fallback to"
+                                            + " the origin device's registration; omitted aggregates all sessions."
+                                            + " Mutually exclusive with deviceId; unknown IDE names yield 404"
+                                            + " COMMON_002.")
                     @RequestParam(name = "ideName", required = false)
                     String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -844,9 +850,10 @@ public class StatsController {
             @Parameter(
                             name = "ideName",
                             description =
-                                    "Optional exact IDE-name filter against the device registry; omitted"
-                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
-                                            + " unknown IDE names yield 404 COMMON_002.")
+                                    "Optional exact IDE-name filter, matched per session with a fallback to"
+                                            + " the origin device's registration; omitted aggregates all sessions."
+                                            + " Mutually exclusive with deviceId; unknown IDE names yield 404"
+                                            + " COMMON_002.")
                     @RequestParam(name = "ideName", required = false)
                     String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -937,9 +944,10 @@ public class StatsController {
             @Parameter(
                             name = "ideName",
                             description =
-                                    "Optional exact IDE-name filter against the device registry; omitted"
-                                            + " aggregates all sessions. Mutually exclusive with deviceId;"
-                                            + " unknown IDE names yield 404 COMMON_002.")
+                                    "Optional exact IDE-name filter, matched per session with a fallback to"
+                                            + " the origin device's registration; omitted aggregates all sessions."
+                                            + " Mutually exclusive with deviceId; unknown IDE names yield 404"
+                                            + " COMMON_002.")
                     @RequestParam(name = "ideName", required = false)
                     String ideName) {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();

@@ -485,18 +485,12 @@ class StatsServiceTest {
         }
 
         @Test
-        @DisplayName("summaryShouldFilterByIdeName_whenIdeFilterMatchesDevices")
-        void summaryShouldFilterByIdeName_whenIdeFilterMatchesDevices() {
-            UUID ideaDevice = UUID.randomUUID();
-            UUID otherDevice = UUID.randomUUID();
-            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
-                    .thenReturn(
-                            List.of(
-                                    deviceWithIde(ideaDevice, "IntelliJ IDEA"),
-                                    deviceWithIde(otherDevice, "PyCharm")));
-            when(codingSessionRepository.findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse(
-                            userId, List.of(ideaDevice)))
-                    .thenReturn(List.of(session("2026-08-30T10:00:00", "2026-08-30T12:00:00")));
+        @DisplayName("summaryShouldFilterBySessionIde_whenSessionsCarryOne")
+        void summaryShouldFilterBySessionIde_whenSessionsCarryOne() {
+            CodingSession fromIdea = session("2026-08-30T10:00:00", "2026-08-30T12:00:00");
+            fromIdea.setIdeName("IntelliJ IDEA");
+            when(codingSessionRepository.findLiveByUserIdAndIdeName(userId, "IntelliJ IDEA"))
+                    .thenReturn(List.of(fromIdea));
 
             StatsSummaryResponse summary =
                     service.summary(
@@ -509,21 +503,63 @@ class StatsServiceTest {
         }
 
         @Test
-        @DisplayName("summaryShouldThrow_whenIdeMatchesNoDevice")
-        void summaryShouldThrow_whenIdeMatchesNoDevice() {
+        @DisplayName("summaryShouldThrow_whenNeitherSessionNorDeviceCarriesIde")
+        void summaryShouldThrow_whenNeitherSessionNorDeviceCarriesIde() {
+            when(codingSessionRepository.findLiveByUserIdAndIdeName(userId, "WebStorm"))
+                    .thenReturn(List.of());
             when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
                     .thenReturn(List.of(deviceWithIde(UUID.randomUUID(), "PyCharm")));
 
             StatsService.SessionFilter filter = new StatsService.SessionFilter(null, "WebStorm");
             assertThatThrownBy(() -> service.summary(userId, ZoneOffset.UTC, filter))
                     .isInstanceOf(NotFoundException.class);
-            verify(codingSessionRepository, never())
-                    .findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse(any(), any());
         }
 
         @Test
-        @DisplayName("ideFiltersShouldReturnDistinctNonBlankNamesSorted")
-        void ideFiltersShouldReturnDistinctNonBlankNamesSorted() {
+        @DisplayName("summaryShouldReturnEmpty_whenDeviceCarriesIdeButNoSessionDoes")
+        void summaryShouldReturnEmpty_whenDeviceCarriesIdeButNoSessionDoes() {
+            when(codingSessionRepository.findLiveByUserIdAndIdeName(userId, "IntelliJ IDEA"))
+                    .thenReturn(List.of());
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(List.of(deviceWithIde(UUID.randomUUID(), "IntelliJ IDEA")));
+
+            StatsSummaryResponse summary =
+                    service.summary(
+                            userId,
+                            ZoneOffset.UTC,
+                            new StatsService.SessionFilter(null, "IntelliJ IDEA"));
+
+            assertThat(summary.total()).isZero();
+        }
+
+        @Test
+        @DisplayName("distributionShouldPreferSessionIde_overDeviceRegistration")
+        void distributionShouldPreferSessionIde_overDeviceRegistration() {
+            CodingSession fromIdea = session("2026-08-30T10:00:00", "2026-08-30T12:00:00");
+            fromIdea.setOriginDeviceId(deviceId);
+            fromIdea.setIdeName("IntelliJ IDEA");
+            CodingSession fromPyCharm = session("2026-08-30T09:00:00", "2026-08-30T10:00:00");
+            fromPyCharm.setOriginDeviceId(deviceId);
+            fromPyCharm.setIdeName("PyCharm");
+            when(codingSessionRepository.findAllByUserIdAndIsDeletedFalse(userId))
+                    .thenReturn(List.of(fromIdea, fromPyCharm));
+            when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
+                    .thenReturn(List.of(deviceWithIde(deviceId, "IntelliJ IDEA")));
+
+            DistributionResponse response =
+                    service.distribution(
+                            userId, ZoneOffset.UTC, DistributionType.IDES, null, null, null);
+
+            assertThat(response.entries()).hasSize(2);
+            assertThat(response.entries().get(0).name()).isEqualTo("IntelliJ IDEA");
+            assertThat(response.entries().get(0).seconds()).isEqualTo(7200);
+            assertThat(response.entries().get(1).name()).isEqualTo("PyCharm");
+            assertThat(response.entries().get(1).seconds()).isEqualTo(3600);
+        }
+
+        @Test
+        @DisplayName("ideFiltersShouldUnionDeviceRegistrationsAndSessionNames")
+        void ideFiltersShouldUnionDeviceRegistrationsAndSessionNames() {
             when(deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId))
                     .thenReturn(
                             List.of(
@@ -532,8 +568,11 @@ class StatsServiceTest {
                                     deviceWithIde(UUID.randomUUID(), "PyCharm"),
                                     deviceWithIde(UUID.randomUUID(), ""),
                                     deviceWithIde(UUID.randomUUID(), null)));
+            when(codingSessionRepository.findDistinctIdeNamesByUserId(userId))
+                    .thenReturn(List.of("GoLand", "IntelliJ IDEA"));
 
-            assertThat(service.ideFilters(userId)).containsExactly("IntelliJ IDEA", "PyCharm");
+            assertThat(service.ideFilters(userId))
+                    .containsExactly("GoLand", "IntelliJ IDEA", "PyCharm");
         }
 
         @Test

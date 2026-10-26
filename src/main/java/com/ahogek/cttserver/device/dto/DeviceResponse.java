@@ -24,8 +24,14 @@ public record DeviceResponse(
         @Schema(description = "Human-readable device name", example = "MacBook Pro")
                 String deviceName,
         @Schema(description = "Operating system platform", example = "macOS") String platform,
-        @Schema(description = "IDE name", example = "IntelliJ IDEA") String ideName,
-        @Schema(description = "IDE version", example = "2024.1") String ideVersion,
+        @Schema(
+                        description =
+                                "IDE this device most recently used (falls back to the registration"
+                                        + " value when no pushed session carries one)",
+                        example = "IntelliJ IDEA")
+                String ideName,
+        @Schema(description = "Version of that most recently used IDE", example = "2024.1")
+                String ideVersion,
         @Schema(description = "Application or plugin version", example = "1.2.0") String appVersion,
         @Schema(description = "Device registration timestamp", example = "2026-03-01T10:00:00Z")
                 Instant createdAt,
@@ -44,12 +50,28 @@ public record DeviceResponse(
      * @return DeviceResponse DTO
      */
     public static DeviceResponse fromEntity(Device device) {
+        return of(device, device.getIdeName(), device.getIdeVersion());
+    }
+
+    /**
+     * Creates a DeviceResponse with an explicit IDE projection.
+     *
+     * <p>A device id is installation-scoped, so the registry row can only hold the IDE that
+     * registered last while sessions carry the IDE that produced them. The list endpoint therefore
+     * reports the most recently used IDE instead of the registration value.
+     *
+     * @param device the device entity
+     * @param ideName the projected IDE name
+     * @param ideVersion the projected IDE version
+     * @return DeviceResponse DTO
+     */
+    public static DeviceResponse of(Device device, String ideName, String ideVersion) {
         return new DeviceResponse(
                 device.getId(),
                 device.getDeviceName(),
                 device.getPlatform(),
-                device.getIdeName(),
-                device.getIdeVersion(),
+                ideName,
+                ideVersion,
                 device.getAppVersion(),
                 device.getCreatedAt(),
                 device.getLastSeenAt(),

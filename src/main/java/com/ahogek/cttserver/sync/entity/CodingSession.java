@@ -71,6 +71,12 @@ public class CodingSession {
     @Column(name = "origin_device_id")
     private UUID originDeviceId;
 
+    @Column(name = "ide_name", length = 100)
+    private String ideName;
+
+    @Column(name = "ide_version", length = 50)
+    private String ideVersion;
+
     @Column(name = "is_deleted", nullable = false)
     private boolean isDeleted;
 
@@ -230,6 +236,22 @@ public class CodingSession {
 
     public void setOriginDeviceId(UUID originDeviceId) {
         this.originDeviceId = originDeviceId;
+    }
+
+    public String getIdeName() {
+        return ideName;
+    }
+
+    public void setIdeName(String ideName) {
+        this.ideName = ideName;
+    }
+
+    public String getIdeVersion() {
+        return ideVersion;
+    }
+
+    public void setIdeVersion(String ideVersion) {
+        this.ideVersion = ideVersion;
     }
 
     public boolean isDeleted() {

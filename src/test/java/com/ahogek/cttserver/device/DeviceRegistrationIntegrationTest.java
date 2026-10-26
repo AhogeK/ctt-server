@@ -182,6 +182,61 @@ class DeviceRegistrationIntegrationTest {
                 .formatted(deviceId);
     }
 
+    private void pushSessionWithIde(
+            String syncKey,
+            UUID deviceId,
+            UUID sessionUuid,
+            String ideName,
+            String startTime,
+            String endTime) {
+        String pushBody =
+                """
+                {
+                  "deviceId": "%s",
+                  "sessions": [
+                    {"sessionUuid": "%s", "projectName": "ctt-server", "language": "Java",
+                     "startTime": "%s", "endTime": "%s",
+                     "clientModifiedAt": "%s", "clientVersion": 1,
+                     "ideName": "%s", "ideVersion": "2026.1", "deleted": false}
+                  ]
+                }
+                """
+                        .formatted(deviceId, sessionUuid, startTime, endTime, endTime, ideName);
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/sync/push")
+                                .header("Authorization", "Bearer " + syncKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(pushBody)
+                                .exchange())
+                .hasStatusOk();
+    }
+
+    private void pushSessionWithoutIde(
+            String syncKey, UUID deviceId, UUID sessionUuid, String startTime, String endTime) {
+        String pushBody =
+                """
+                {
+                  "deviceId": "%s",
+                  "sessions": [
+                    {"sessionUuid": "%s", "projectName": "ctt-server", "language": "Java",
+                     "startTime": "%s", "endTime": "%s",
+                     "clientModifiedAt": "%s", "clientVersion": 1,
+                     "deleted": false}
+                  ]
+                }
+                """
+                        .formatted(deviceId, sessionUuid, startTime, endTime, endTime);
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/sync/push")
+                                .header("Authorization", "Bearer " + syncKey)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(pushBody)
+                                .exchange())
+                .hasStatusOk();
+    }
+
     private int countKeysBoundToDevice(UUID deviceId) {
         return jdbcClient
                 .sql("SELECT COUNT(*) FROM api_keys WHERE device_id = ?")
@@ -302,6 +357,59 @@ class DeviceRegistrationIntegrationTest {
             assertThat(Instant.parse(lastSeen))
                     .as("a successful pull is device activity")
                     .isAfter(Instant.now().minus(1, ChronoUnit.MINUTES));
+        }
+
+        @Test
+        @DisplayName("Should report the most recently used IDE on a single device row")
+        void shouldReportMostRecentIde_whenOneDeviceUsedTwoIdes() throws Exception {
+            String jwt = registerVerifyAndLogin(uniqueEmail());
+            String rawKey = createApiKey(jwt, "Sync Key", "SYNC");
+            UUID deviceId = UUID.randomUUID();
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/devices")
+                                    .header("Authorization", "Bearer " + rawKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(registerDeviceBody(deviceId))
+                                    .exchange())
+                    .hasStatusOk();
+
+            pushSessionWithIde(
+                    rawKey,
+                    deviceId,
+                    UUID.randomUUID(),
+                    "PyCharm",
+                    "2026-08-30T10:00:00Z",
+                    "2026-08-30T11:00:00Z");
+            pushSessionWithIde(
+                    rawKey,
+                    deviceId,
+                    UUID.randomUUID(),
+                    "GoLand",
+                    "2026-08-30T12:00:00Z",
+                    "2026-08-30T13:00:00Z");
+            // A session from an older client carries no IDE; it must not mask the most recent
+            // attribution just because it is the newest session.
+            pushSessionWithoutIde(
+                    rawKey,
+                    deviceId,
+                    UUID.randomUUID(),
+                    "2026-08-30T14:00:00Z",
+                    "2026-08-30T15:00:00Z");
+
+            var devices =
+                    mvc.get()
+                            .uri("/api/v1/devices")
+                            .header("Authorization", "Bearer " + rawKey)
+                            .exchange();
+            assertThat(devices).hasStatusOk();
+            assertThat(devices).bodyJson().extractingPath("$.data").asArray().hasSize(1);
+            assertThat(devices).bodyJson().extractingPath("$.data[0].ideName").isEqualTo("GoLand");
+            assertThat(devices)
+                    .bodyJson()
+                    .extractingPath("$.data[0].ideVersion")
+                    .isEqualTo("2026.1");
         }
 
         @Test

@@ -252,11 +252,11 @@ public class SyncPushService {
                 INSERT INTO coding_sessions
                     (id, user_id, session_uuid, project_name, language, start_time,
                      end_time, client_modified_at, client_version, server_version,
-                     updated_by_device_id, origin_device_id, is_deleted, deleted_at,
-                     created_at, updated_at)
+                     updated_by_device_id, origin_device_id, ide_name, ide_version,
+                     is_deleted, deleted_at, created_at, updated_at)
                 VALUES\s"""
-                        + buildValuesClause(sessions.size(), 16);
-        List<Object> args = new ArrayList<>(sessions.size() * 16);
+                        + buildValuesClause(sessions.size(), 18);
+        List<Object> args = new ArrayList<>(sessions.size() * 18);
         Instant now = Instant.now();
         for (CodingSession session : sessions) {
             if (session.getId() == null) {
@@ -274,6 +274,8 @@ public class SyncPushService {
             args.add(session.getServerVersion());
             args.add(deviceId);
             args.add(session.getOriginDeviceId());
+            args.add(session.getIdeName());
+            args.add(session.getIdeVersion());
             args.add(session.isDeleted());
             args.add(
                     session.getDeletedAt() != null
@@ -361,6 +363,14 @@ public class SyncPushService {
         session.setEndTime(dto.endTime());
         session.setClientModifiedAt(dto.clientModifiedAt());
         session.setClientVersion(dto.clientVersion());
+        // A blank IDE is absence, not a name: it would otherwise become a bucket of its own in the
+        // IDE distribution and a bogus entry in the filter list.
+        session.setIdeName(normalize(dto.ideName()));
+        session.setIdeVersion(normalize(dto.ideVersion()));
+    }
+
+    private static String normalize(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private String errorCodeName(Exception e) {

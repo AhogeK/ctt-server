@@ -204,4 +204,83 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
      * @return one page of live sessions
      */
     Page<CodingSession> findByUserIdAndIsDeletedFalse(UUID userId, Pageable pageable);
+
+    /**
+     * Lists live sessions attributed to one IDE.
+     *
+     * <p>A session is attributed by its own {@code ide_name}; rows pushed by older clients carry
+     * none and fall back to the IDE registered by their origin device. Both branches run in one
+     * query so the filter cannot disagree with the distribution, which applies the same rule in
+     * memory. Backed by {@code idx_sessions_user_ide} plus {@code idx_sessions_user_origin}.
+     *
+     * @param userId the owning user id
+     * @param ideName the exact IDE name to match
+     * @return matching live sessions; never {@code null}
+     */
+    @Query(
+            """
+            SELECT s FROM CodingSession s
+            WHERE s.userId = :userId
+              AND s.isDeleted = false
+              AND (s.ideName = :ideName
+                   OR (s.ideName IS NULL AND s.originDeviceId IN
+                       (SELECT d.id FROM Device d
+                        WHERE d.userId = :userId AND d.ideName = :ideName)))
+            """)
+    List<CodingSession> findLiveByUserIdAndIdeName(
+            @Param("userId") UUID userId, @Param("ideName") String ideName);
+
+    /**
+     * Lists the distinct non-null IDE names carried by a user's live sessions.
+     *
+     * <p>One half of the IDE filter directory; the other half is the device registration values,
+     * because a user whose sessions predate session-level IDE attribution still has selectable
+     * names.
+     *
+     * @param userId the owning user id
+     * @return distinct session IDE names, unordered
+     */
+    @Query(
+            "SELECT DISTINCT s.ideName FROM CodingSession s "
+                    + "WHERE s.userId = :userId AND s.isDeleted = false AND s.ideName IS NOT NULL")
+    List<String> findDistinctIdeNamesByUserId(@Param("userId") UUID userId);
+
+    /**
+     * Reads the IDE of the most recent session per origin device.
+     *
+     * <p>Backs the device list's {@code ideName}/{@code ideVersion}, whose meaning is "the IDE this
+     * device last used" rather than "the IDE it registered with". One aggregate query keeps the
+     * list free of a per-device lookup; {@code DISTINCT ON} returns the first row of each device in
+     * the given order. Sessions without an IDE are skipped so an old row cannot mask the most
+     * recent attribution.
+     *
+     * @param userId the owning user id
+     * @return one row per device that has pushed a session carrying an IDE
+     */
+    @Query(
+            value =
+                    """
+                    SELECT DISTINCT ON (origin_device_id)
+                           origin_device_id AS "deviceId",
+                           ide_name AS "ideName",
+                           ide_version AS "ideVersion"
+                      FROM coding_sessions
+                     WHERE user_id = :userId
+                       AND is_deleted = FALSE
+                       AND origin_device_id IS NOT NULL
+                       AND ide_name IS NOT NULL
+                     ORDER BY origin_device_id, start_time DESC, server_version DESC
+                    """,
+            nativeQuery = true)
+    List<LatestIdeProjection> findLatestSessionIdePerOriginDevice(@Param("userId") UUID userId);
+
+    /** Projection of {@link #findLatestSessionIdePerOriginDevice}. */
+    interface LatestIdeProjection {
+
+        UUID getDeviceId();
+
+        String getIdeName();
+
+        String getIdeVersion();
+    }
 }
