@@ -11,7 +11,7 @@ CTT Server provides:
 - **Transactional Email Queue**: Outbox pattern with retry scheduling, exponential backoff, and audit logging
 - **Bidirectional Sync Engine**: Multi-device data synchronization with LWW conflict resolution
 - **API Key Management**: Product-grade authentication with device-binding, revocation, and scope-based authorization
-- **Statistics & Analytics**: Time-series aggregation queries with device filtering
+- **Statistics & Analytics**: Time-series aggregation queries with device and IDE filtering
 - **Global Leaderboard**: Redis-powered real-time ranking system
 - **Soft Delete Architecture**: Safe data handling with `is_deleted` flags for sync integrity
 - **OWASP Security Headers**: X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP
