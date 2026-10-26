@@ -103,7 +103,24 @@ class SyncPushServiceTest {
                 Instant.parse("2026-08-25T10:00:00Z"),
                 clientModifiedAt,
                 clientVersion,
+                null,
+                null,
                 deleted);
+    }
+
+    private SyncSessionDto dtoWithIde(
+            UUID sessionUuid, String ideName, String ideVersion, Instant clientModifiedAt) {
+        return new SyncSessionDto(
+                sessionUuid,
+                "ctt-server",
+                "Java",
+                Instant.parse("2026-08-25T09:00:00Z"),
+                Instant.parse("2026-08-25T10:00:00Z"),
+                clientModifiedAt,
+                1,
+                ideName,
+                ideVersion,
+                false);
     }
 
     private CodingSession existingSession(
@@ -169,12 +186,15 @@ class SyncPushServiceTest {
             assertThat(sessionArgs).isNotNull();
             // (id, user_id, session_uuid, project_name, language, start_time, end_time,
             //  client_modified_at, client_version, server_version, updated_by_device_id,
-            //  origin_device_id, is_deleted, deleted_at, created_at, updated_at)
+            //  origin_device_id, ide_name, ide_version, is_deleted, deleted_at, created_at,
+            //  updated_at)
             assertThat(sessionArgs[2]).isEqualTo(sessionUuid);
             assertThat(sessionArgs[9]).isEqualTo(1L);
             assertThat(sessionArgs[10]).isEqualTo(deviceId);
             assertThat(sessionArgs[11]).isEqualTo(deviceId);
-            assertThat(sessionArgs[12]).isEqualTo(false);
+            assertThat(sessionArgs[12]).isNull();
+            assertThat(sessionArgs[13]).isNull();
+            assertThat(sessionArgs[14]).isEqualTo(false);
 
             verify(jdbcTemplate, atLeastOnce()).update(anyString(), any(Object[].class));
 
@@ -185,6 +205,66 @@ class SyncPushServiceTest {
                             ResourceType.CODING_SESSION,
                             deviceId.toString());
             verify(leaderboardService).updateUserScores(userId);
+        }
+
+        @Test
+        @DisplayName("should store the session's own IDE, not the pushing device's registration")
+        void shouldStoreSessionIde_whenClientReportsOne() {
+            UUID sessionUuid = UUID.randomUUID();
+
+            service.push(
+                    userId,
+                    deviceId,
+                    List.of(
+                            dtoWithIde(
+                                    sessionUuid,
+                                    "PyCharm",
+                                    "2026.1",
+                                    Instant.parse("2026-08-25T10:00:00Z"))));
+
+            ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+            ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+            verify(jdbcTemplate, atLeastOnce()).update(sqlCaptor.capture(), argsCaptor.capture());
+
+            Object[] sessionArgs = null;
+            for (int i = 0; i < sqlCaptor.getAllValues().size(); i++) {
+                if (sqlCaptor.getAllValues().get(i).contains("INSERT INTO coding_sessions")) {
+                    assertThat(sqlCaptor.getAllValues().get(i)).contains("ide_name", "ide_version");
+                    sessionArgs = argsCaptor.getAllValues().get(i);
+                    break;
+                }
+            }
+            assertThat(sessionArgs).isNotNull();
+            assertThat(sessionArgs[12]).isEqualTo("PyCharm");
+            assertThat(sessionArgs[13]).isEqualTo("2026.1");
+        }
+
+        @Test
+        @DisplayName("should normalize a blank IDE to null, so it cannot form its own bucket")
+        void shouldNormalizeBlankIde_whenClientSendsEmptyString() {
+            UUID sessionUuid = UUID.randomUUID();
+
+            service.push(
+                    userId,
+                    deviceId,
+                    List.of(
+                            dtoWithIde(
+                                    sessionUuid, "  ", "", Instant.parse("2026-08-25T10:00:00Z"))));
+
+            ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+            ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+            verify(jdbcTemplate, atLeastOnce()).update(sqlCaptor.capture(), argsCaptor.capture());
+
+            Object[] sessionArgs = null;
+            for (int i = 0; i < sqlCaptor.getAllValues().size(); i++) {
+                if (sqlCaptor.getAllValues().get(i).contains("INSERT INTO coding_sessions")) {
+                    sessionArgs = argsCaptor.getAllValues().get(i);
+                    break;
+                }
+            }
+            assertThat(sessionArgs).isNotNull();
+            assertThat(sessionArgs[12]).isNull();
+            assertThat(sessionArgs[13]).isNull();
         }
 
         @Test
@@ -437,7 +517,7 @@ class SyncPushServiceTest {
                     .thenAnswer(
                             _ -> {
                                 Object[] args = updateArgs.getValue();
-                                for (int i = 0; i + 2 < args.length; i += 16) {
+                                for (int i = 0; i + 2 < args.length; i += 18) {
                                     if (sessionUuid2.equals(args[i + 2])) {
                                         throw new IllegalStateException("persistence failure");
                                     }

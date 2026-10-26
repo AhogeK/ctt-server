@@ -145,6 +145,8 @@ public class UserExportService {
                                                 "Authenticated user disappeared mid-request"));
 
         Map<UUID, Device> devices = devicesOf(userId);
+        Map<UUID, CodingSessionRepository.LatestIdeProjection> latestIdeByDevice =
+                latestIdeOf(userId);
         long sessionCount = codingSessionRepository.countByUserIdAndIsDeletedFalse(userId);
 
         auditLogService.log(
@@ -164,7 +166,7 @@ public class UserExportService {
         generator.writeStringField("exportTime", LocalDateTime.now(offset).format(LOCAL_TIMESTAMP));
         generator.writeNumberField("totalSessions", sessionCount);
         writeSessions(generator, userId, offset, devices);
-        writeServerExport(generator, user, offset, devices);
+        writeServerExport(generator, user, offset, devices, latestIdeByDevice);
         generator.writeEndObject();
         generator.flush();
     }
@@ -207,7 +209,20 @@ public class UserExportService {
         generator.writeStringField("projectName", session.getProjectName());
         generator.writeStringField("language", session.getLanguage());
         generator.writeStringField("platform", text(device == null ? null : device.getPlatform()));
-        generator.writeStringField("ideName", text(device == null ? null : device.getIdeName()));
+        // The session's own IDE decides; legacy rows fall back to the device registration, which is
+        // the best available fact for a session that never carried one.
+        boolean sessionHasIde = session.getIdeName() != null && !session.getIdeName().isBlank();
+        generator.writeStringField(
+                "ideName",
+                text(
+                        sessionHasIde
+                                ? session.getIdeName()
+                                : (device == null ? null : device.getIdeName())));
+        generator.writeStringField(
+                "ideVersion",
+                sessionHasIde
+                        ? text(session.getIdeVersion())
+                        : text(device == null ? null : device.getIdeVersion()));
         generator.writeStringField("startTime", local(session.getStartTime(), offset));
         generator.writeStringField("endTime", local(session.getEndTime(), offset));
         generator.writeStringField("lastModified", local(session.getClientModifiedAt(), offset));
@@ -215,7 +230,11 @@ public class UserExportService {
     }
 
     private void writeServerExport(
-            JsonGenerator generator, User user, ZoneOffset offset, Map<UUID, Device> devices)
+            JsonGenerator generator,
+            User user,
+            ZoneOffset offset,
+            Map<UUID, Device> devices,
+            Map<UUID, CodingSessionRepository.LatestIdeProjection> latestIdeByDevice)
             throws IOException {
         generator.writeObjectFieldStart("serverExport");
         generator.writeStringField("exportedBy", "ctt-server");
@@ -223,7 +242,7 @@ public class UserExportService {
         generator.writeStringField("generatedAt", Instant.now().toString());
 
         writeAccount(generator, user);
-        writeDevices(generator, devices);
+        writeDevices(generator, devices, latestIdeByDevice);
         writeDailyStats(generator, user.getId());
         writeAchievements(generator, user.getId());
         writeOauthAccounts(generator, user.getId());
@@ -245,15 +264,25 @@ public class UserExportService {
         generator.writeEndObject();
     }
 
-    private void writeDevices(JsonGenerator generator, Map<UUID, Device> devices)
+    private void writeDevices(
+            JsonGenerator generator,
+            Map<UUID, Device> devices,
+            Map<UUID, CodingSessionRepository.LatestIdeProjection> latestIdeByDevice)
             throws IOException {
         generator.writeArrayFieldStart("devices");
         for (Device device : devices.values()) {
+            var latest = latestIdeByDevice.get(device.getId());
             generator.writeStartObject();
             generator.writeStringField("id", device.getId().toString());
             generator.writeStringField("deviceName", text(device.getDeviceName()));
             generator.writeStringField("platform", text(device.getPlatform()));
-            generator.writeStringField("ideName", text(device.getIdeName()));
+            // Mirrors GET /devices: the IDE the device most recently used, falling back to the
+            // registration value when no pushed session carries one.
+            generator.writeStringField(
+                    "ideName", text(latest == null ? device.getIdeName() : latest.getIdeName()));
+            generator.writeStringField(
+                    "ideVersion",
+                    text(latest == null ? device.getIdeVersion() : latest.getIdeVersion()));
             generator.writeStringField("createdAt", device.getCreatedAt().toString());
             generator.writeStringField("lastSeenAt", nullable(device.getLastSeenAt()));
             generator.writeStringField("revokedAt", nullable(device.getRevokedAt()));
@@ -344,6 +373,15 @@ public class UserExportService {
             devices.put(device.getId(), device);
         }
         return devices;
+    }
+
+    private Map<UUID, CodingSessionRepository.LatestIdeProjection> latestIdeOf(UUID userId) {
+        Map<UUID, CodingSessionRepository.LatestIdeProjection> latest = new HashMap<>();
+        for (CodingSessionRepository.LatestIdeProjection projection :
+                codingSessionRepository.findLatestSessionIdePerOriginDevice(userId)) {
+            latest.put(projection.getDeviceId(), projection);
+        }
+        return latest;
     }
 
     private String local(Instant instant, ZoneOffset offset) {

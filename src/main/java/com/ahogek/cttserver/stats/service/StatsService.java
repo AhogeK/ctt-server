@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Statistics aggregation service.
@@ -511,25 +512,34 @@ public class StatsService {
     }
 
     /**
-     * Resolves the registered devices whose IDE name matches exactly and loads their sessions.
+     * Loads the live sessions attributed to one IDE.
+     *
+     * <p>Sessions carry the IDE that produced them; rows pushed by older clients carry none and are
+     * attributed to the IDE their origin device registered. The repository applies both branches,
+     * so this filter cannot disagree with {@link #idesDistribution}, which labels the same way.
+     *
+     * <p>An IDE name with neither a matching session nor a matching registered device is unknown
+     * and answers 404. A name that a device carries but that produced no live session is a known
+     * IDE with an empty result, not an error.
      *
      * @param userId the owning user
      * @param ideName the exact IDE name to match
-     * @return the union of matching devices' live sessions
-     * @throws NotFoundException if no registered device carries that IDE name
+     * @return the matching live sessions
+     * @throws NotFoundException if no session and no registered device carries that IDE name
      */
     private List<CodingSession> sessionsOfIde(UUID userId, String ideName) {
-        List<UUID> deviceIds =
-                deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
-                        .filter(device -> ideName.equals(device.getIdeName()))
-                        .map(Device::getId)
-                        .toList();
-        if (deviceIds.isEmpty()) {
+        List<CodingSession> sessions =
+                codingSessionRepository.findLiveByUserIdAndIdeName(userId, ideName);
+        if (sessions.isEmpty() && !anyDeviceCarriesIde(userId, ideName)) {
             throw new NotFoundException(
-                    ErrorCode.COMMON_002, "No device registered for IDE: " + ideName);
+                    ErrorCode.COMMON_002, "No session or device registered for IDE: " + ideName);
         }
-        return codingSessionRepository.findAllByUserIdAndOriginDeviceIdInAndIsDeletedFalse(
-                userId, deviceIds);
+        return sessions;
+    }
+
+    private boolean anyDeviceCarriesIde(UUID userId, String ideName) {
+        return deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
+                .anyMatch(device -> ideName.equals(device.getIdeName()));
     }
 
     /**
@@ -591,18 +601,26 @@ public class StatsService {
     }
 
     /**
-     * Lists the distinct non-blank IDE names registered by the user's devices, sorted.
+     * Lists the IDE names a caller can filter by, sorted.
      *
-     * <p>Source is the device registry; revoked devices stay included so historical attribution
-     * remains selectable. The caller-facing filter list must never expose the "Unknown IDE"
-     * fallback bucket (it is not a registered value).
+     * <p>The source is the union of the device registry and the sessions: a name is selectable when
+     * either a device registered it or a session reported it. The session half is what makes an IDE
+     * selectable after the user switched products on one installation (the device row keeps only
+     * the last registration); the device half keeps legacy names selectable before any session
+     * reports one. Revoked devices stay included so historical attribution remains filterable.
+     * Blank values are absent rather than names, and the "Unknown IDE" fallback bucket is never
+     * exposed — it is not a value any client sent.
      *
      * @param userId the owning user
      * @return distinct IDE names, sorted
      */
     public List<String> ideFilters(UUID userId) {
-        return deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
-                .map(Device::getIdeName)
+        Stream<String> registered =
+                deviceRepository.findByUserIdOrderByLastSeenAtDesc(userId).stream()
+                        .map(Device::getIdeName);
+        Stream<String> reported =
+                codingSessionRepository.findDistinctIdeNamesByUserId(userId).stream();
+        return Stream.concat(registered, reported)
                 .filter(name -> name != null && !name.isBlank())
                 .distinct()
                 .sorted()
@@ -646,12 +664,13 @@ public class StatsService {
     }
 
     /**
-     * Aggregates session seconds per IDE product, derived from the device registry.
+     * Aggregates session seconds per IDE product.
      *
-     * <p>The sync protocol does not carry per-session IDE metadata, so the IDE attribution comes
-     * from the origin device's registration ({@code devices.ide_name}). A deviceId is
-     * installation-scoped, so every IDE on one machine shares it; sessions pushed by a device
-     * registered without an IDE name fall back to an "Unknown IDE" bucket.
+     * <p>A session's own {@code ide_name} decides its bucket, because a device id is
+     * installation-scoped: every IDE on one machine shares it, so the device registration can only
+     * describe the IDE that registered last. Sessions pushed by older clients carry no IDE and fall
+     * back to their origin device's registration; a session whose device is gone (or registered
+     * without an IDE) lands in the "Unknown IDE" bucket.
      *
      * @param userId the owning user
      * @param sessions the user's live sessions (already device-filtered when applicable)
@@ -659,10 +678,18 @@ public class StatsService {
      */
     private List<StatsCalculator.DistributionEntry> idesDistribution(
             UUID userId, List<CodingSession> sessions) {
-        Map<UUID, String> ideNames = deviceLabelMap(userId, Device::getIdeName, "Unknown IDE");
+        Map<UUID, String> registeredIdeNames =
+                deviceLabelMap(userId, Device::getIdeName, "Unknown IDE");
         return aggregateByLabel(
                 sessions,
-                session -> ideNames.getOrDefault(session.getOriginDeviceId(), "Unknown IDE"));
+                session -> {
+                    String reported = session.getIdeName();
+                    if (reported != null && !reported.isBlank()) {
+                        return reported;
+                    }
+                    return registeredIdeNames.getOrDefault(
+                            session.getOriginDeviceId(), "Unknown IDE");
+                });
     }
 
     /**
@@ -729,8 +756,8 @@ public class StatsService {
      * Session-set filter for a statistics request.
      *
      * @param deviceId origin-device filter; {@code null} means all devices
-     * @param ideName exact IDE-name filter against the device registry; {@code null} means all
-     *     IDEs; at most one of the two may be set
+     * @param ideName exact IDE-name filter (session-level, device registration as fallback); {@code
+     *     null} means all IDEs; at most one of the two may be set
      */
     public record SessionFilter(UUID deviceId, String ideName) {
         public SessionFilter {

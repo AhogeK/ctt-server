@@ -1176,6 +1176,42 @@ class StatsIntegrationTest {
                     .hasStatusOk();
         }
 
+        private void pushSessionWithIde(
+                String syncKey,
+                UUID deviceId,
+                String sessionUuid,
+                String ideName,
+                String startTime,
+                String endTime) {
+            String pushBody =
+                    """
+                    {
+                      "deviceId": "%s",
+                      "sessions": [
+                        {"sessionUuid": "%s", "projectName": "ctt-server", "language": "Java",
+                         "startTime": "%s", "endTime": "%s",
+                         "clientModifiedAt": "%s", "clientVersion": 1,
+                         "ideName": "%s", "ideVersion": "2026.1", "deleted": false}
+                      ]
+                    }
+                    """
+                            .formatted(
+                                    deviceId.toString(),
+                                    sessionUuid,
+                                    startTime,
+                                    endTime,
+                                    endTime,
+                                    ideName);
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .header("Authorization", "Bearer " + syncKey)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(pushBody))
+                    .hasStatusOk();
+        }
+
         @Test
         @DisplayName(
                 "Push should stamp origin device and device filter should subset every endpoint")
@@ -1362,6 +1398,79 @@ class StatsIntegrationTest {
                             .exchange();
             assertThat(both).hasStatus(400);
             assertThat(both).bodyJson().extractingPath("$.code").isEqualTo("COMMON_003");
+        }
+
+        @Test
+        @DisplayName("Should attribute sessions to their own IDE on one shared device")
+        void shouldAttributeSessionsToTheirOwnIde_whenDeviceIsShared() throws Exception {
+            String[] auth = registerVerifyAndLogin(uniqueEmail());
+            String readKey = createApiKey(auth[0], "read", "READ");
+            String syncKey = createApiKey(auth[0], "sync", "SYNC");
+            // One installation, so one device id shared by both IDEs; the registration names
+            // IntelliJ IDEA, which must not capture the PyCharm session.
+            UUID device = registerDevice(auth[0], UUID.randomUUID());
+
+            pushSessionWithIde(
+                    syncKey,
+                    device,
+                    UUID.randomUUID().toString(),
+                    "IntelliJ IDEA",
+                    "2026-08-30T10:00:00Z",
+                    "2026-08-30T12:00:00Z");
+            pushSessionWithIde(
+                    syncKey,
+                    device,
+                    UUID.randomUUID().toString(),
+                    "PyCharm",
+                    "2026-08-30T10:00:00Z",
+                    "2026-08-30T11:00:00Z");
+
+            var ides =
+                    mvc.get()
+                            .uri("/api/v1/stats/distribution?type=IDES")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(ides).hasStatusOk();
+            assertThat(ides).bodyJson().extractingPath("$.data.entries").asArray().hasSize(2);
+            assertThat(ides)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[0].name")
+                    .isEqualTo("IntelliJ IDEA");
+            assertThat(ides).bodyJson().extractingPath("$.data.entries[0].seconds").isEqualTo(7200);
+            assertThat(ides)
+                    .bodyJson()
+                    .extractingPath("$.data.entries[1].name")
+                    .isEqualTo("PyCharm");
+            assertThat(ides).bodyJson().extractingPath("$.data.entries[1].seconds").isEqualTo(3600);
+
+            var pycharm =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?ideName=PyCharm")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(pycharm).hasStatusOk();
+            assertThat(pycharm).bodyJson().extractingPath("$.data.total").isEqualTo(3600);
+
+            var idea =
+                    mvc.get()
+                            .uri("/api/v1/stats/summary?ideName=IntelliJ IDEA")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(idea).hasStatusOk();
+            assertThat(idea).bodyJson().extractingPath("$.data.total").isEqualTo(7200);
+
+            // Both names are selectable although the device registered only one of them.
+            var filters =
+                    mvc.get()
+                            .uri("/api/v1/stats/ide-filters")
+                            .header("Authorization", "Bearer " + readKey)
+                            .exchange();
+            assertThat(filters).hasStatusOk();
+            assertThat(filters)
+                    .bodyJson()
+                    .extractingPath("$.data")
+                    .asArray()
+                    .containsExactly("IntelliJ IDEA", "PyCharm");
         }
 
         @Test

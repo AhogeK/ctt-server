@@ -12,6 +12,7 @@ import com.ahogek.cttserver.device.dto.DeviceResponse;
 import com.ahogek.cttserver.device.dto.RegisterDeviceRequest;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
+import com.ahogek.cttserver.sync.repository.CodingSessionRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,7 +49,9 @@ class DeviceServiceTest {
     @Mock private DeviceRepository deviceRepository;
     @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private ApiKeyRepository apiKeyRepository;
+    @Mock private CodingSessionRepository codingSessionRepository;
     @Mock private AuditLogService auditLogService;
+    @Mock private CodingSessionRepository.LatestIdeProjection latestIdeProjection;
 
     private DeviceService deviceService;
 
@@ -58,6 +62,7 @@ class DeviceServiceTest {
                         deviceRepository,
                         refreshTokenRepository,
                         apiKeyRepository,
+                        codingSessionRepository,
                         auditLogService);
     }
 
@@ -264,6 +269,51 @@ class DeviceServiceTest {
             ArgumentCaptor<Device> deviceCaptor = ArgumentCaptor.forClass(Device.class);
             then(deviceRepository).should().save(deviceCaptor.capture());
             assertThat(deviceCaptor.getValue().getRevokedAt()).isNotNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("listUserDevices")
+    class ListUserDevicesTests {
+
+        @Test
+        @DisplayName("shouldReportMostRecentlyUsedIde_whenDevicePushedSessions")
+        void shouldReportMostRecentlyUsedIde_whenDevicePushedSessions() {
+            Device device = ownedDevice();
+            device.setIdeName("IntelliJ IDEA");
+            device.setIdeVersion("2024.1");
+            given(deviceRepository.findByUserIdOrderByLastSeenAtDesc(USER_ID))
+                    .willReturn(List.of(device));
+            given(codingSessionRepository.findLatestSessionIdePerOriginDevice(USER_ID))
+                    .willReturn(List.of(latestIdeProjection));
+            given(latestIdeProjection.getDeviceId()).willReturn(DEVICE_ID);
+            given(latestIdeProjection.getIdeName()).willReturn("PyCharm");
+            given(latestIdeProjection.getIdeVersion()).willReturn("2026.1");
+
+            List<DeviceResponse> devices = deviceService.listUserDevices(USER_ID);
+
+            assertThat(devices).hasSize(1);
+            assertThat(devices.getFirst().id()).isEqualTo(DEVICE_ID);
+            assertThat(devices.getFirst().ideName()).isEqualTo("PyCharm");
+            assertThat(devices.getFirst().ideVersion()).isEqualTo("2026.1");
+        }
+
+        @Test
+        @DisplayName("shouldFallBackToRegistration_whenDevicePushedNoIdeSession")
+        void shouldFallBackToRegistration_whenDevicePushedNoIdeSession() {
+            Device device = ownedDevice();
+            device.setIdeName("IntelliJ IDEA");
+            device.setIdeVersion("2024.1");
+            given(deviceRepository.findByUserIdOrderByLastSeenAtDesc(USER_ID))
+                    .willReturn(List.of(device));
+            given(codingSessionRepository.findLatestSessionIdePerOriginDevice(USER_ID))
+                    .willReturn(List.of());
+
+            List<DeviceResponse> devices = deviceService.listUserDevices(USER_ID);
+
+            assertThat(devices).hasSize(1);
+            assertThat(devices.getFirst().ideName()).isEqualTo("IntelliJ IDEA");
+            assertThat(devices.getFirst().ideVersion()).isEqualTo("2024.1");
         }
     }
 }
