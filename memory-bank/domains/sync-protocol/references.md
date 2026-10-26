@@ -5,9 +5,9 @@
 | Endpoint | Request | Response | Scope | Rate |
 | --- | --- | --- | --- | --- |
 | `POST /api/v1/sync/pull` | `{deviceId, lastPulledChangeId}` | `{changes[], nextCursor, hasMore}` | SYNC | 120/min |
-| `POST /api/v1/sync/push` | `{deviceId, sessions[]}` | `{nextCursor}` | SYNC | 120/min |
-| `POST /api/v1/devices` | `{deviceId, deviceName, platform, ideName?}` | device row | SYNC | 10/hour per user |
-| `GET /api/v1/devices` | — | device list | READ or SYNC | — |
+| `POST /api/v1/sync/push` | `{deviceId, sessions[]}`; each session may carry `ideName` (≤100) and `ideVersion` (≤50) | `{nextCursor}` | SYNC | 120/min |
+| `POST /api/v1/devices` | `{deviceId, deviceName, platform, ideName?, ideVersion?, appVersion?}` | device row (submitted values) | SYNC | 10/hour per user |
+| `GET /api/v1/devices` | — | device list; `ideName`/`ideVersion` = most recently used IDE, registration as fallback | READ or SYNC | — |
 | `DELETE /api/v1/devices/{deviceId}` | — | 204 | WRITE | — |
 
 ## Change DTO fields
@@ -32,6 +32,7 @@
 | `origin_device_id` | First pusher (device-scoped stats filter on this) |
 | `updated_by_device_id` | Last writer |
 | `is_deleted`, `deleted_at` | Soft delete state |
+| `ide_name`, `ide_version` | IDE that produced the session (nullable; blank normalized to null; not part of LWW content identity) |
 
 ## Config keys
 

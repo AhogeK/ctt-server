@@ -24,6 +24,10 @@ Facts to look up. No judgement here.
 full history. `hourly-days` returns at most the **31 most recent** active days, oldest first, while
 its `activeDays` still counts every coded day in the window (so it matches `hourly`).
 
+`ideName` is matched per session (`coding_sessions.ide_name`), falling back to the origin device's
+registered IDE for rows that carry none; `ide-filters` returns the union of both sources. `deviceId`
+and `ideName` are mutually exclusive.
+
 ## Duration semantics per surface
 
 Two semantics coexist. Which one a surface uses is deliberate, and mixing them silently changes what
@@ -32,7 +36,7 @@ a number means — read this table before adding or interpreting a surface.
 | Semantics | Surfaces |
 | --- | --- |
 | **Merged** — overlapping intervals are unioned first | `summary`, `heatmap`, `streaks`, `distribution?type=TIME_OF_DAY`, `week-hour` |
-| **Raw per session** — each session contributes its own duration | `distribution?type=LANGUAGES` / `PROJECTS` / `WEEKDAY` / `DEVICES` / `IDES` (registry-backed ones via `aggregateByLabel`), `hourly`, `hourly-days` |
+| **Raw per session** — each session contributes its own duration | `distribution?type=LANGUAGES` / `PROJECTS` / `WEEKDAY` / `DEVICES` / `IDES` (category labels via `aggregateByLabel`), `hourly`, `hourly-days` |
 
 `timeOfDayDistribution` is merged while `weekdayDistribution` is raw, and `weekHourDistribution` is
 merged while `weekdayDistribution` is not: near-identical names are the most common source of
@@ -61,7 +65,7 @@ comparison keys are always present (`total` has none), and `changePercent` is `n
 | `LANGUAGES`, `PROJECTS` | category | session fields, raw durations |
 | `WEEKDAY` | category | session start weekday (ISO name) |
 | `TIME_OF_DAY` | **time axis** | merged intervals sliced at bucket boundaries |
-| `DEVICES`, `IDES` | category | device registry labels (`Unknown device` / `Unknown IDE` fallbacks) |
+| `DEVICES`, `IDES` | category | device registry labels; `IDES` prefers the session's own `ide_name` and falls back to the origin device's registration (`Unknown IDE` when neither exists) |
 
 ## Time-of-day buckets (plugin-aligned)
 

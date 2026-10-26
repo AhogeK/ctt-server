@@ -72,3 +72,22 @@ the ownership and revocation checks:
   the caller has already answered 404 for them; a revoked device stays visibly revoked.
 - **Only successful requests count.** The touch runs inside the service transaction, so a push that
   fails later rolls the heartbeat back with everything else.
+
+## IDE is session metadata, not a device attribute
+
+A device id is installation-scoped: every JetBrains IDE on one machine shares it, so
+`devices.ide_name` can only name whichever IDE registered last. The push payload therefore carries
+`ideName`/`ideVersion` per session, stored in `coding_sessions`.
+
+- **Optional and nullable.** Older plugins send neither; the column stays null and readers fall back
+  to the origin device's registration. Never reject a push because the IDE is missing.
+- **Blank means absent.** `applyIncomingFields` normalizes whitespace-only values to null, otherwise
+  an empty string becomes a bucket of its own in the IDE distribution and an entry in the filter list.
+- **Not part of LWW content identity.** `ConflictResolver.sameContent` deliberately ignores the IDE:
+  a session's IDE does not change over its life, and comparing it would turn every re-push from a
+  plugin that started reporting the field into a modification, defeating the idempotent no-op path.
+- **No backfill.** Old rows keep null and are attributed through the device registration; guessing an
+  IDE for them would record a fact nobody observed.
+- **The device list projects, it does not re-register.** `DeviceResponse.ideName`/`ideVersion` are the
+  newest session's IDE (one `DISTINCT ON` query for the whole list), falling back to the registration
+  values. Registration still answers with the values submitted in that call.

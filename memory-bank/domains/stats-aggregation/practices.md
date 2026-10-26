@@ -69,6 +69,22 @@ turning every re-push into a modification and defeating the idempotent no-op pat
 Unrecognized values are preserved and reported rather than folded into a catch-all, so a genuinely
 new language stays visible instead of disappearing into a bucket nobody inspects.
 
+## IDE attribution is session-first
+
+A device id is installation-scoped, so `devices.ide_name` describes only the IDE that registered
+last — not which IDE produced a session. Every IDE surface attributes per session and falls back:
+
+- **Distribution `IDES`**: `session.ideName` → origin device's registered name → `Unknown IDE`.
+  Buckets are raw per-session durations, like the other category dimensions.
+- **`ideName` filter**: one repository query matching `s.ideName = :name` **or** (`s.ideName IS
+  NULL` and the origin device registered with `:name`). Never resolve the filter to a device set
+  first — that is the old bug: it merges every IDE on a machine into one.
+- **`ide-filters`**: union of session-reported names and device registrations, blanks dropped,
+  sorted. The session half is what keeps a name selectable after the user switched products.
+- **404 only when neither source knows the name**: a device that registered an IDE but has no live
+  session in it is a known name with an empty result (200).
+- **Materialized rows are unaffected**: IDE filtering already bypasses `canUseMaterializedDays`.
+
 ## Test recipe for precision and windows
 
 1. A session with a **fractional** start (`.plusNanos(...)`) so truncation is exercised.

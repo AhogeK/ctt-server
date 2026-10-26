@@ -2153,6 +2153,23 @@ end note
 | **窗口化 STREAK（已定义、未启用）** | 分数 = **完全落在窗口内的最长连续编码天数**（在两端切断 run）。**否决**"窗口结束时的连续天数"：当前周期未结束时它无定义，且会随窗口推进回溯变化。Redis 每个成员只存一个数，启用还须把该 reducer 接到写分更新路径——本轮不做，窗口化 `STREAK` 继续 `400 COMMON_003`，而不是把终身分数塞进窗口 key |
 | 测试 | `LeaderboardPeriodTest`（窗口算术/Key 命名 4 例）+ 既有 `LeaderboardServiceTest` 的组合数与 TTL 断言**改为按枚举推导**（不再硬编码 20/15，避免下次扩展再被打破）+ 集成矩阵由枚举驱动自动覆盖 6×7 组合 |
 
+## 会话级 IDE 归属（前端需求，2026-10-26，v0.87.0）
+
+> 来源：ctt-web《会话级 IDE，不建设备-IDE 绑定》。核实结论：报告成立 —— deviceId 是安装级，`devices.ide_name` 只是「最后一次注册」的投影，会话不携带 IDE 时统计只能把整台机器归给一个 IDE。
+
+| 项 | 结论 |
+|---|---|
+| Schema | 新迁移 `V20261026120000__add_session_ide_metadata.sql`：`coding_sessions.ide_name VARCHAR(100)`、`ide_version VARCHAR(50)`，均可空、不回填；部分索引 `(user_id, ide_name) WHERE is_deleted = FALSE` |
+| 同步契约 | `SyncSessionDto` 增加可选 `ideName`（≤100）/`ideVersion`（≤50）；空白归一为 null；批量 INSERT 由 16 列扩到 18 列；旧插件不传 → 200 且列为 null |
+| 冲突解析 | IDE **不进** `ConflictResolver.sameContent`：会话的 IDE 不随时间变化，放进去会让每次重推都变成修改，破坏幂等 no-op |
+| 统计过滤 | 一条 JPQL：会话 `ide_name = :name` 或（`ide_name IS NULL` 且 origin 设备注册值匹配）。404 只在「无会话且无设备」时返回；设备有该名字但无会话 → 200 空结果 |
+| 分布 | `IDES` 桶按会话 IDE，缺失回退 origin 设备注册值，再缺失 → `Unknown IDE`；仍为逐会话原始累加 |
+| 过滤器目录 | 会话 distinct ∪ 设备注册值，去空、排序 —— 切换 IDE 后名字仍可选 |
+| 设备响应 | `ideName`/`ideVersion` 改为「最近使用」：`DISTINCT ON (origin_device_id)` 一条查询取每设备最近的带 IDE 会话，无则回退注册值；仍是一设备一行，无 N+1 |
+| 导出 | 会话行写会话级 IDE（旧行回退设备），`serverExport.devices` 与 `GET /devices` 同语义 |
+| 明确不做 | 不建 `device_ides` 子表、不按 IDE 拆 device id、不回填旧会话、设备页不加「所有 IDE」数组 |
+| 兼容顺序 | 后端先上可空列 + 可选 DTO + 回退；插件发布后开始上报；前端无需改动 |
+
 ## 设备最后活跃时间修复（前端 Bug，2026-10-26，v0.86.1）
 
 > 来源：ctt-web《设备管理显示 Inactive、lastSeenAt 停在注册日》。定位准确：`last_seen_at` 的语义是「设备最后一次活动」，但只有注册会写它。

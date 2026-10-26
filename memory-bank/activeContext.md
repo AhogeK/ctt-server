@@ -1,11 +1,20 @@
 # Active Context
 
-- [2026-10-26] - 设备最后活跃时间停摆修复（v0.86.1，待授权提交）
+- [2026-10-26] - 会话级 IDE 归属（v0.87.0）
+    - 需求核实: 报告属实 —— deviceId 是安装级（同机所有 IDE 共享），`devices.ide_name` 只在注册时写，`coding_sessions` 不存 IDE，统计按设备归属 ⇒ 一台机器的多 IDE 被合并成同一个、IDE 升级不更新；插件端 `SyncSessionMapper` 已按会话发送 IDE
+    - 契约: 新迁移 `V20261026120000` 加 `coding_sessions.ide_name/ide_version`（可空、不回填）+ 部分索引 `(user_id, ide_name) WHERE is_deleted = FALSE`；`SyncSessionDto` 加可选 `ideName`/`ideVersion`（≤100/≤50，空白归一 null）；批量 INSERT 16 → 18 列
+    - 统计: IDE 过滤 = 会话 `ide_name` ∪ 旧行回退 origin 设备注册值（同一条 JPQL）；`IDES` 分布按会话、回退设备、再回退 `Unknown IDE`；`ide-filters` = 会话 distinct ∪ 设备注册值；404 仅当两者都无该名字；物化门禁不变
+    - 设备: `DeviceResponse.ideName/ideVersion` 改为「最近使用」投影（`DISTINCT ON` 单查询，无 N+1），无带 IDE 会话时回退注册值；注册响应语义不变
+    - 导出: 会话行写会话级 IDE（旧行回退设备），`serverExport.devices` 镜像 `GET /devices`
+    - 不做: 不建 `device_ides`、不拆 device id、不回填旧会话、IDE 不进 `ConflictResolver.sameContent`（否则每次重推都变成修改）
+    - 验证: 定向单测 + 集成（同设备双 IDE → 两个桶、筛选各自命中、设备仍一行且取最近 IDE、旧客户端无字段仍 200）
+
+- [2026-10-26] - 设备最后活跃时间停摆修复（v0.86.1，已提交推送）
     - 前端报告核实: **属实**。`setLastSeenAt` 在生产代码中只有 `DeviceService.registerDevice` 一处；`SyncPullService`/`SyncPushService` 只校验归属与吊销，不写回 ⇒ 每天同步的设备 `last_seen_at` 停在注册日，前端 7 天阈值判成 Inactive
     - 修复: `DeviceRepository.touchLastSeen(userId, deviceId, seenAt)` —— 单条 JPQL update（`lastSeenAt` + `updatedAt`，谓词含 `revokedAt is null`，`@Modifying(clearAutomatically, flushAutomatically)`）；pull 与 push 在归属/吊销校验通过后各调一次。用整行 update 而非实体 save 的原因：`Device` 有 `@Version`，同一安装的多插件并发同步会撞乐观锁，而心跳没有业务含义
     - 事务语义: 调用点都在 `@Transactional` 的 `pull`/`push` 内 ⇒ 后续失败会随事务回滚，不会把失败请求记成活动
     - 测试: 单测 4 例（成功 pull/push 刷新；吊销时不刷新 ×2）；集成用例「把 last_seen_at 改成 13 天前 → pull → `GET /devices` 的 lastSeenAt 在一分钟内」
-    - 状态: 实施 + 验证完成，待授权提交
+    - 状态: 已提交推送（6a83f7f → master 77cc619）
 
 - [2026-10-25] - 排行榜排除 0 分成员（v0.86.0，待授权提交）
     - 前端需求核实: `leaderboard:total`/`streak`/`active_days` 各 9 成员其中 7 个 0 分，`night_owl`/`early_bird` 各 8 个 0 分；7 个 AutoTest 账号 `coding_sessions` 为 0 条 ⇒ **不是精度问题，是写入规则**
