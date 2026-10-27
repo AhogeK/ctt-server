@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3DA639.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/Java-25-E76F00?logo=openjdk&logoColor=white" alt="Java 25">
-  <img src="https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 4.1">
+  <img src="https://img.shields.io/badge/Spring_Boot-4.1.2-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 4.1.2">
   <img src="https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white" alt="Redis">
 </p>
@@ -14,7 +14,7 @@
 The JetBrains plugin keeps a local SQLite database; this service synchronizes it across
 installations and turns the history into statistics, achievements and a global leaderboard.
 
-**Stack:** Java 25 · Spring Boot 4.1 · Spring Security 7 · PostgreSQL + Flyway · Redis ·
+**Stack:** Java 25 · Spring Boot 4.1.2 · Spring Security 7 · PostgreSQL + Flyway · Redis ·
 springdoc-openapi · Thymeleaf · JUnit 6 + Testcontainers.
 
 ## What it does
