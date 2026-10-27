@@ -1,6 +1,9 @@
 # Active Context
 
-- [2026-10-27] - README 重设计（文档，未提交）
+- [2026-10-27] - 依赖升级（v0.87.2）
+    - Boot 4.1.2 / springdoc 3.2.0 / greenmail 2.1.15 / Flyway 13.11.1 / pg 42.7.14 / ben-manes 0.66.0 / spotless 8.10.4 / JaCoCo 0.8.16 / Gradle 9.8.2；google-java-format 1.37.0 在 Spotless 下崩溃，保留 1.36.1；分层 clean build 各 1567 tests / 0 failures
+
+- [2026-10-27] - README 重设计（文档，已提交推送）
     - 785 → 226 行：Hero SVG + 徽章、机制图（mermaid）、快速开始、API 总览、数据模型、测试、文档索引；API 细节零丢失迁至 `docs/api-reference.md`（仅标题由 `## API Endpoints` 改为 `## Endpoints`）；新增 `assets/readme/hero.svg`；底部 Support 用 `<div align="center">` + 单行 flat-square 徽章（源码换行会变竖排）
 
 - [2026-10-26] - 会话 IDE 复核补齐（v0.87.1，已提交推送）
@@ -17,15 +20,13 @@
 
 - [2026-10-26] - 设备最后活跃时间停摆修复（v0.86.1，已提交推送）
     - 前端报告核实: **属实**。`setLastSeenAt` 在生产代码中只有 `DeviceService.registerDevice` 一处；`SyncPullService`/`SyncPushService` 只校验归属与吊销，不写回 ⇒ 每天同步的设备 `last_seen_at` 停在注册日，前端 7 天阈值判成 Inactive
-    - 修复: `DeviceRepository.touchLastSeen(userId, deviceId, seenAt)` —— 单条 JPQL update（`lastSeenAt` + `updatedAt`，谓词含 `revokedAt is null`，`@Modifying(clearAutomatically, flushAutomatically)`）；pull 与 push 在归属/吊销校验通过后各调一次。用整行 update 而非实体 save 的原因：`Device` 有 `@Version`，同一安装的多插件并发同步会撞乐观锁，而心跳没有业务含义
-    - 事务语义: 调用点都在 `@Transactional` 的 `pull`/`push` 内 ⇒ 后续失败会随事务回滚，不会把失败请求记成活动
+    - 修复: `DeviceRepository.touchLastSeen(userId, deviceId, seenAt)` —— 单条 JPQL update（`lastSeenAt` + `updatedAt`，谓词含 `revokedAt is null`，`@Modifying(clearAutomatically, flushAutomatically)`）；pull 与 push 在归属/吊销校验通过后各调一次。用整行 update 而非实体 save 的原因：`Device` 有 `@Version`，同一安装的多插件并发同步会撞乐观锁，而心跳没有业务含义；调用点在 `@Transactional` 内，失败随事务回滚
     - 验证: 单测 4 例 + 集成「13 天前的 last_seen_at → pull → 一分钟内」；已推送（6a83f7f → master 77cc619）
 
 - [2026-10-25] - 排行榜排除 0 分成员（v0.86.0，已提交推送）
     - 前端需求核实: `leaderboard:total`/`streak`/`active_days` 各 9 成员其中 7 个 0 分，`night_owl`/`early_bird` 各 8 个 0 分；7 个 AutoTest 账号 `coding_sessions` 为 0 条 ⇒ **不是精度问题，是写入规则**
     - 根因: `writeScore` 无条件 `ZADD`，`recomputeAndWriteAll` 对每个维度×周期都写 ⇒ 无活动账号以 0 分入榜，并计入 `totalParticipants` 与并列名次
-    - 修复: `LeaderboardDimension.ranksOnlyPositiveScores()`（除 `GROWTH` 外全部为真）；`writeScore` 在 `score <= 0` 时 `ZREM` 并返回（只查层过滤不行：`totalParticipants`、分页、名次仍会带上 0 分成员）；`LANGUAGE` 的榜索引与 `user:languages` 记录只在正分时维护，零时长语言不建榜；回填代次 3 → 4 以清理存量 0 分成员
-    - 口径: `GROWTH` 保留 0/负分（是度量不是缺失），按前端要求单独定策、本次不绑定
+    - 修复: `LeaderboardDimension.ranksOnlyPositiveScores()`（除 `GROWTH` 外全部为真）；`writeScore` 在 `score <= 0` 时 `ZREM` 并返回（只查层过滤不行：`totalParticipants`、分页、名次仍会带上 0 分成员）；`LANGUAGE` 的榜索引与 `user:languages` 记录只在正分时维护，零时长语言不建榜；回填代次 3 → 4 以清理存量 0 分成员；`GROWTH` 保留 0/负分（度量而非缺失）
     - 测试: 零会话用户只移除不写入（仅 `growth` 键可写 0）、负增长与零增长仍写入、零时长语言不建榜、TTL 只在写分时设置；集成用例「无活动用户不在榜上且 `totalParticipants` = 1」
     - 状态: 实施完成，待授权提交
 
@@ -35,7 +36,6 @@
     - 修复: 代次 2 → 3；标记改为 `g{n}:cov{8位}:vocab{v}`，其中 `cov` 由 `LeaderboardDimension.values() × supports()` 排序后 SHA-256 现算 ⇒ **新增维度或放开周期自动失效**；改公式仍需人工提升代次。新标记 `leaderboard:recompute:g3:covbdc93f7f:vocab2`（41 个合法组合）
     - 测试: 断言不再复用 `g2:vocab2`、矩阵增删即改变指纹、枚举顺序无关；排行榜相关 49 例全绿
     - **刻意未做**: 不在你的真实 Redis 上手工执行回填（会改动共享环境数据）；部署后由 `ctt.leaderboard.backfill-initial-delay-ms`（默认 60s）触发。验收 = 四个窗口 `ZCARD` 覆盖 `leaderboard:streak` 的成员数
-    - 状态: 实施完成，待授权提交
 
 - [2026-10-23] - `.omp` 全量分类归档（用户要求：时间只做文件夹，不进文件名；一个需求一个文件）
     - 结构: `.omp/<category>/<YYYY-MM-DD>/<kebab-topic>.md`；类别 = reports / acceptance / requirements / research / plans / notes；顶层不再有散文件

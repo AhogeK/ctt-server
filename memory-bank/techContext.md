@@ -5,16 +5,16 @@
 | 类别 | 技术 |
 |------|------|
 | 语言 | Java 25 (Virtual Threads) |
-| 框架 | Spring Boot 4.1.1 |
-| 构建 | Gradle 9.7.1 + Kotlin DSL + Version Catalog |
-| 数据库 | PostgreSQL（测试容器 `postgres:16.3`）+ Flyway 13.7.0 |
+| 框架 | Spring Boot 4.1.2 |
+| 构建 | Gradle 9.8.2 + Kotlin DSL + Version Catalog |
+| 数据库 | PostgreSQL（测试容器 `postgres:16.3`）+ Flyway 13.11.1 |
 | 缓存 | Redis（测试容器 `redis:latest`） |
 | 安全 | Spring Security 7（随 Boot BOM）+ `spring-security-oauth2-jose` |
-| API文档 | springdoc-openapi 3.1.1 |
+| API文档 | springdoc-openapi 3.2.0 |
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
-| 代码质量 | Spotless 插件 8.10.2（google-java-format 1.36.1）+ JaCoCo 0.8.15 |
+| 代码质量 | Spotless 插件 8.10.4（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-09-19 / v0.77.1。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-10-27 / v0.87.2。
 
 ## 架构
 

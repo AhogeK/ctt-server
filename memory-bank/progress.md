@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.87.1`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.87.2`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth）、审计与限流 |
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.87.2` | 2026-10-27 | chore(deps): upgrade Spring Boot, springdoc, Flyway and the build tooling |
 | `0.87.1` | 2026-10-26 | fix(sync): carry the session IDE on pull and keep it on update |
 | `0.87.0` | 2026-10-26 | feat(sync): attribute sessions to their own IDE |
 | `0.86.1` | 2026-10-26 | fix(device): record device activity on every sync |

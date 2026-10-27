@@ -206,6 +206,8 @@
 
 - **版本以 Maven Central / Gradle Plugin Portal 元数据为准**，`dependencyUpdates` 报告会**漏报关键坐标**（实测只列出 5 项，Spring Boot / spotless / postgresql 全缺）——按坐标逐个查 `maven-metadata.xml`，插件 id 查 Plugin Portal；里程碑与 RC **不算"最新稳定版"**
 - **升级后必须同批更新 `techContext.md` 的版本快照**（R2 的「技术栈变化」包含依赖升级；该表曾长期停留在 Spring Boot 4.0.5 / Flyway 11.4.0 而实际已 4.1.1 / 13.7.0，且留着已移除的依赖）
+- **Spotless 与 google-java-format 要成对升级**：2026-10-27 把 google-java-format 1.36.1 → 1.37.0 后，Spotless 8.10.4 下**每个文件**都抛 `InvocationTargetException`（`LINE_UNDEFINED`）；把 1.37.0 的 all-deps jar 单独跑（带 `--add-exports`）却能正常格式化 ⇒ 是两者的集成缺口，不是 JDK 不兼容。升级前先跑一次 `spotlessJavaCheck`，失败就保留旧版并在报告里写明证据。
+
 - **同一模块族的版本只能有一个来源**：`flyway-core` 与 `flyway-database-postgresql` 必须同版本（前者被 Boot BOM 管理，靠 `strictly` 覆盖），字面量要写成 `libs.versions.<name>.get()` 而不是第二次硬编码
 
 ### R13: 记忆文件维护（强制 - 冷热分层）
@@ -362,6 +364,8 @@
 **事故恢复**：立即停止 → 确认污染 → 重置到安全点 → 重新cherry-pick → `--force-with-lease`推送 → 记录事故
 
 **提交前审查清单**：项目一致性（grep现有模式） + Clean Code（无冗余注释） + 测试覆盖 + 编译通过 + 无回归 + 覆盖率≥80%
+
+**Testcontainers 首轮 `Could not connect to Ryuk` 属环境抖动**：换 Gradle / 依赖后的第一次测试若报 Ryuk 连接失败，先重跑一次再判断（2026-10-27 实测：首轮 312 例失败，重跑 1567/0）。与代码无关，不要因此回滚依赖。
 
 **`clean build` 偶发"零结果失败"（已两次踩坑，2026-09 与 2026-10）**：表现为 `> Task :test FAILED`，但 `build/test-results/test/*.xml` **一个都没有**（连带 `tests=0 failures=0`），且无诊断输出——不是代码问题。处置：**单独重跑 `./gradlew test`（或再 `build`）**；若仍失败且仍零结果，才当真实故障排查。禁止用这一次失败就判定"测试挂了"或去改业务代码。
 

@@ -2140,6 +2140,25 @@ end note
 后续可能加的功能：1. 通过KEY直接调用统计接口供用户使用接口获取个人统计数据 2.提供统计Card方便用户像是Github个人页使用 2.通过绑定Github连通Github获取用户提交信息做相关的统计与展示card
 
 
+## 依赖升级（2026-10-27，v0.87.2）
+
+> 策略：一律升到当前稳定版（含主版本），兼容性由编译 + 全量测试验证；Java / Kotlin 大版本不动（无 Kotlin 源码，JDK 已是 25 LTS）。
+
+| 层 | 升级项 | 验证 |
+|---|---|---|
+| 1 库 / BOM | Spring Boot 4.1.1 → 4.1.2；springdoc 3.1.1 → 3.2.0；greenmail 2.1.14 → 2.1.15；Flyway 13.7.0 → 13.11.1；postgresql 42.7.13 → 42.7.14 | `clean build`：1567 tests / 0 failures |
+| 2 插件 / 工具 | ben-manes 0.64.0 → 0.66.0；spotless 8.10.2 → 8.10.4；JaCoCo 0.8.15 → 0.8.16 | `clean build` + `jacocoTestCoverageVerification`：1567 / 0 |
+| 3 wrapper | Gradle 9.7.1 → 9.8.2 | `clean build`：1567 / 0（首轮 Testcontainers Ryuk 连接失败，属环境抖动，重跑通过） |
+
+| 未升级 | 原因 |
+|---|---|
+| google-java-format 1.36.1 → 1.37.0 | 1.37.0 在 Spotless 8.10.4 下对所有文件抛 `InvocationTargetException`；单独用 all-deps jar（带 `--add-exports`）可以正常格式化，判定为 Spotless 与 1.37.0 的集成缺口，保留 1.36.1 |
+| JDK 25.0.4.1 → 25.0.5 | 属本机环境（sdkman / toolchain），不是仓库依赖；ADOPTIUM 已发布 25.0.5+8，可按需升级 |
+
+| 顺带发现（未改） | `build.gradle.kts` 同时声明 `flyway-database-postgresql` 的字面量与 catalog 别名，版本一致但属重复声明，留待后续清理 |
+
+检测：`dependencyUpdates` 列出 27 项过期坐标（18 项为 Boot 家族）；`flyway-core`、字面量与插件由其漏报/误报，已按 Maven Central / Plugin Portal 逐项核对。
+
 ## README 重构（文档，2026-10-27）
 
 > 目标：首页一屏回答「这是什么、怎么用、去哪看细节」；长尾契约沉到 `docs/`，不改任何接口。
