@@ -50,6 +50,7 @@ Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshT
 | `/api/v1/users/me`                         | DELETE | Delete the current user's account permanently (requires JWT, CSRF token) - see below                                      |
 | `/api/v1/users/me/sessions`                | GET    | List the account's login sessions, most recently used first - see below                                                    |
 | `/api/v1/users/me/sessions/{sessionId}`    | DELETE | Revoke one login session (204; a WRITE-scoped API key may call it too) - see below                                          |
+| `/api/v1/users/me/sessions/revoke`         | POST   | Revoke several sessions by id; partial success reported per id - see below                                                  |
 | `/api/v1/users/me/export`                  | GET    | Download everything the account holds as one JSON file, in the desktop client's import format - see below                    |
 
 **Display name update** (`PATCH /api/v1/users/me`): body `{"displayName": "..."}`, validated with
@@ -106,6 +107,17 @@ instant cannot keep the session alive — and a client that keeps presenting a r
 token gets `401 AUTH_003` for that session alone rather than taking every other session down with
 it. Already-issued access tokens stay valid until they expire: the 15-minute window logout leaves
 open, and the reason the list is the authority on "signed in where", not the tokens.
+`POST /api/v1/users/me/sessions/revoke` revokes a list of sessions in one call. The body is
+`{"sessionIds": [...]}`; duplicates are ignored and at most 100 distinct ids are accepted (more is
+`400 COMMON_003`). The call is deliberately partial-success: ids that are unknown, already revoked,
+or owned by another account come back in `skipped`, the rest are revoked, and the response is `200`
+with `{revoked, skipped}` — a retry after a timeout therefore converges instead of failing forever.
+Listing the calling session is allowed and equals a logout for it (its refresh token dies at once;
+the access token stays valid until it expires, as with the single-session call). Every revoked
+session emits its own `SESSION_REVOKED` audit event with the same `kind` detail. The service locks
+the sessions in ascending id order, so overlapping batches acquire shared locks in the same
+sequence. Rate limited to 10
+calls/hour per user; an API key needs `WRITE` scope.
 
 **Data export** (`GET /api/v1/users/me/export?timezoneOffset=<minutes>`): streams everything the
 account holds as one JSON file. The shape is the desktop client's import format on purpose — a file
