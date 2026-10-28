@@ -133,3 +133,13 @@ on 2026-10-19: with the lock but without the re-read, a refresh racing a revocat
 4. Kill switch: after reset, a previously issued refresh token is rejected.
 5. Action coverage: adding an enum value without its controller branch must fail a test — assert the
    unhandled case explicitly rather than relying on the happy path.
+
+## Batch revocation locks in id order
+
+A batch takes the session lock once per id before reading it. Two overlapping batches that acquire
+the same locks in different orders deadlock, so distinct ids are sorted ascending (UUID natural
+order) and locked in that order — the ordering is the safety property, not a formatting choice.
+
+Partial success is deliberate: an id with no live row is reported as `skipped`, never as 404, which
+keeps the single-session endpoint's BOLA invisibility rule for batches too. Retrying the same body
+is therefore idempotent — ids the first attempt revoked simply come back as skipped.

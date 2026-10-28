@@ -40,6 +40,7 @@ Counts verified against `ErrorCode` on 2026-10-28 (68 codes, v0.87.2).
 | `PATCH /api/v1/users/me` | body `{displayName}` (2–50, shared registration rule) · responds with the re-read `UserProfileResponse` · same name = no-op (no write, no audit) · 10/hour per user |
 | `GET /api/v1/users/me/sessions` | `data` is the **array** (no `{sessions: []}` envelope) · `limit` default 20, clamped 1..100 · sorted by `lastUsedAt` desc with nulls last, then `createdAt` desc · 60/hour |
 | `DELETE /api/v1/users/me/sessions/{id}` | 204, no body · revokes every live token of that session · revoking the caller's own session is allowed · foreign/unknown → 404 `COMMON_002` · 10/hour |
+| `POST /api/v1/users/me/sessions/revoke` | body `{sessionIds}` · duplicates ignored, ≤100 distinct (more → 400 `COMMON_003`) · partial success: unknown/already-revoked/foreign ids in `skipped`, response 200 `{revoked, skipped}` · one `SESSION_REVOKED` audit per revoked session · locks in ascending id order · 10 calls/hour per user |
 | `GET /api/v1/users/me/export` | streaming JSON · `timezoneOffset` required, ±720, out of range → 400 `COMMON_003` · `Content-Disposition: attachment; filename="ctt-export-<yyyy-MM-dd>.json"` (local date in the caller's offset) · 3/hour |
 
 Introduced in v0.80.0 (display name), v0.82.0 (login sessions) and v0.83.0 (data export), so any
