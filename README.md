@@ -123,7 +123,7 @@ docker compose up -d postgres redis mailpit
 | --- | --- | --- |
 | Authentication | `/api/v1/auth` | register, verify email, login, refresh, logout, password reset, GitHub OAuth |
 | API keys | `/api/v1/auth/api-keys` | create, list, revoke and delete device-bound keys |
-| Users | `/api/v1/users/me` | profile, display name, password, email change, login sessions, export, account deletion |
+| Users | `/api/v1/users/me` | profile, display name, password, email change, login sessions (list, revoke one, revoke a batch), export, account deletion |
 | Devices | `/api/v1/devices` | register, list and revoke installations; reports the most recently used IDE |
 | Sync | `/api/v1/sync/pull`, `/api/v1/sync/push` | change-log pull with cursors, LWW batch push |
 | Statistics | `/api/v1/stats` | summary, heatmap, streaks, distributions, hourly views, recent sessions, achievements |
