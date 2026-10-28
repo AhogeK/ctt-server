@@ -92,8 +92,10 @@ entry. Each entry carries `kind` (`WEB` or `PLUGIN`), `deviceName` and `ideName`
 session, the `userAgent` exactly as the client sent it, `createdAt` (when the login happened),
 `lastUsedAt` (the most recent refresh, null until one happens), `expiresAt`, and `current` — true
 for the session the calling access token belongs to. A call made with an API key has no session of
-its own, so every entry reports `current: false`. Sessions are sorted by last use, newest first;
-`GET` is rate limited to 60/hour and `DELETE` to 10/hour.
+its own, so every entry reports `current: false`. Sessions are sorted by `lastUsedAt` descending
+with never-refreshed sessions last, then by `createdAt` descending. The response body's `data` is the
+array itself — there is no `{sessions: []}` envelope — and `limit` defaults to 20 with values clamped
+to 1..100. `GET` is rate limited to 60/hour and `DELETE` to 10/hour.
 
 `DELETE /api/v1/users/me/sessions/{sessionId}` revokes every live token of that session, so the
 client holding it must sign in again; revoking the calling session is allowed and equals a logout.
@@ -117,8 +119,10 @@ inserts everything as live, so exporting them would resurrect rows the user dele
 else rides in `serverExport` (account, devices, materialized statistics, achievements, login
 sessions, API key metadata, OAuth bindings), which the importer ignores by name — Gson skips
 unknown fields. No credentials of any kind are included: no password, no token, no key hash.
-Downloaded as `ctt-export-<yyyyMMdd>.json`; requires an active account, `READ` scope for an API
-key, and is rate limited to 3 exports/hour. Errors: `400 COMMON_003` (offset out of range),
+Downloaded with `Content-Disposition: attachment; filename="ctt-export-<yyyy-MM-dd>.json"`, the
+local date in the caller's offset; clients should read the header rather than build the name
+themselves. Requires an active account, `READ` scope for an API key, and is rate limited to 3
+exports/hour. Errors: `400 COMMON_003` (offset out of range),
 `403 AUTH_020` / `403 AUTH_022`, `429 RATE_LIMIT_001`. The export is audited as `DATA_EXPORTED`.
 
 **IDE attribution**: each session carries its own `ideName` / `ideVersion` — the IDE that produced
