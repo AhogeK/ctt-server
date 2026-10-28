@@ -102,6 +102,26 @@ class LoginSessionEndpointsIntegrationTest {
     }
 
     @Test
+    @DisplayName("Should list a browser-only session when the account has no device")
+    void shouldListBrowserSession_whenNoDeviceIsRegistered() throws Exception {
+        UUID userId = register(userEmail());
+        // A browser sends a local identifier rather than a registered device UUID; the server
+        // stores no device for that session, which is exactly the shape that used to crash.
+        String[] tokens = login(userId, "browser-7f3a91");
+
+        JsonNode sessions = listSessions(tokens[0]);
+
+        assertThat(sessions).hasSize(1);
+        JsonNode web = sessions.get(0);
+        assertThat(web.path("kind").asText()).isEqualTo("WEB");
+        assertThat(web.has("deviceName")).isTrue();
+        assertThat(web.get("deviceName").isNull()).isTrue();
+        assertThat(web.has("ideName")).as("web entry: %s", web).isTrue();
+        assertThat(web.get("ideName").isNull()).isTrue();
+        assertThat(web.path("current").asBoolean()).isTrue();
+    }
+
+    @Test
     @DisplayName("Should stop only the revoked session's refresh token")
     void shouldStopOnlyTheRevokedSession_whenOneIsRevoked() throws Exception {
         UUID userId = register(userEmail());
@@ -240,13 +260,13 @@ class LoginSessionEndpointsIntegrationTest {
     }
 
     private JsonNode listSessions(String accessToken) throws Exception {
-        String response =
+        var result =
                 mvc.get()
                         .uri("/api/v1/users/me/sessions")
                         .header("Authorization", "Bearer " + accessToken)
-                        .exchange()
-                        .getResponse()
-                        .getContentAsString();
+                        .exchange();
+        assertThat(result).hasStatusOk();
+        String response = result.getResponse().getContentAsString();
         JsonNode data = objectMapper.readTree(response).path("data");
         assertThat(data.isArray()).as("session list failed: %s", response).isTrue();
         return data;
