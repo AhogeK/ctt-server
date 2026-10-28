@@ -14,7 +14,7 @@
 | `LEADERBOARD_` | 2 | Ranking |
 | `DEVICE_` | 1 | Device registration conflicts |
 
-Counts verified against `ErrorCode` on 2026-10-18 (v0.80.0).
+Counts verified against `ErrorCode` on 2026-10-28 (68 codes, v0.87.2).
 
 ## Frequently used codes
 
@@ -32,6 +32,21 @@ Counts verified against `ErrorCode` on 2026-10-18 (v0.80.0).
 | `RATE_LIMIT_001` | 429 | Rate limit exceeded (carries `retryAfter` + header) |
 | `DEVICE_001` | 409 | Device already registered to another user |
 | `SECURITY_006` | 403 | Captcha verification failed / token missing |
+
+## Account & security endpoints (verified 2026-10-28, v0.87.2)
+
+| Endpoint | Contract facts |
+| --- | --- |
+| `PATCH /api/v1/users/me` | body `{displayName}` (2–50, shared registration rule) · responds with the re-read `UserProfileResponse` · same name = no-op (no write, no audit) · 10/hour per user |
+| `GET /api/v1/users/me/sessions` | `data` is the **array** (no `{sessions: []}` envelope) · `limit` default 20, clamped 1..100 · sorted by `lastUsedAt` desc with nulls last, then `createdAt` desc · 60/hour |
+| `DELETE /api/v1/users/me/sessions/{id}` | 204, no body · revokes every live token of that session · revoking the caller's own session is allowed · foreign/unknown → 404 `COMMON_002` · 10/hour |
+| `GET /api/v1/users/me/export` | streaming JSON · `timezoneOffset` required, ±720, out of range → 400 `COMMON_003` · `Content-Disposition: attachment; filename="ctt-export-<yyyy-MM-dd>.json"` (local date in the caller's offset) · 3/hour |
+
+Introduced in v0.80.0 (display name), v0.82.0 (login sessions) and v0.83.0 (data export), so any
+deployment at or above those versions carries them. Attribution rule: the first release that contains
+a feature is the **first `chore: bump version` commit after the feature commit** — the `appVersion`
+inside the feature commit itself is still the previous release (2026-10-28: reading it directly gave
+0.79/0.81/0.82 instead of 0.80/0.82/0.83).
 
 ## Scopes
 

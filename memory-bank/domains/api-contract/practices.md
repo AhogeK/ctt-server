@@ -117,3 +117,21 @@ in, so the failure is a `400` at the boundary instead of a rejected batch deeper
 3. For a new endpoint: one test asserting the contract **shape** (envelope nesting), because the
    frontend codegen depends on it.
 4. For a family change (new shared param): one test per sibling proving they all behave the same.
+
+## List endpoints return the array under `data`
+
+`RestApiResponse<T>` already provides the envelope, so a list endpoint wraps `List<T>` directly:
+`{"success":true,"data":[...]}`. Do not add a second object such as `{"sessions":[...]}` — a client
+that has already coded against the array breaks the moment the shape changes, and it buys nothing
+the outer envelope does not already provide. If a future list needs paging metadata, add a **new**
+endpoint (or a new versioned field set) rather than reshaping the existing one; growing a response
+with an extra sibling key is safe, replacing its type is not.
+
+## Release attribution: count the bump that follows
+
+"The version that introduced X" is the **first `chore: bump version to A.B.C` commit after X's
+feature commit**, not the `appVersion` stored in that feature commit — that value still points at the
+release the work started from. `git rev-list --ancestry-path <feature>..HEAD --reverse` then take the
+first bump, or check the endpoint's presence in `git show <bump>:<file>`. Reading the feature commit's
+catalog entry is off by exactly one release (2026-10-28: reported 0.79/0.81/0.82 for the account
+endpoints, actual 0.80/0.82/0.83).

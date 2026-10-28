@@ -152,6 +152,7 @@
 - **现代 Java**：优先 `record`、`sealed class`、`pattern matching`，避免 Lombok
 - **验证优先**：不确定内容先验证再使用
 - **报数字必须复算**：向用户或报告陈述"还剩 N 处""影响 M 个文件"这类规模时，必须用**同一条命令**重跑得出；禁止拿不同过滤条件的前后结果拼凑（曾把「生产 4 处 + 测试 91 处」报成"9 处 / 8 个文件" ✗）
+- **判断功能首发版本要看后面的 bump**：feature 提交里的 `appVersion` 仍是上一个发布；首发版本 = 该 feature 之后第一个 `chore: bump version` 的版本（用 `git rev-list --ancestry-path <feat>..HEAD --reverse` 取第一个 bump，或在 bump 提交里 `git show <bump>:<file>` 验证端点存在）。2026-10-28 直接读 feature 提交的 catalog，把 R1–R3 报成 0.79/0.81/0.82，实际是 0.80/0.82/0.83。
 - **变更溯源**：发现与预期/记忆不一致时，优先猜想"是否被用户修改了"而非"AI 忘了改/改错了"
     - **第一步**：检查 git diff/commit history 确认变更来源
     - **第二步**：验证当前业务逻辑是否正确（测试通过 = 逻辑正确）

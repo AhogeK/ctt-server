@@ -1859,7 +1859,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 - `GET /api/v1/users/me` **判定为不加限流**：前端 AppHeader 每次渲染都会调用（其对接文档明示），实现零 bcrypt、一次主键查 —— 加了会破坏已确认的用法，收益不成比例
 - `memory-bank/domains/api-contract/references.md` 的错误码计数漂移（AUTH 写 24、实测 25）已修正，核对基线刷到 v0.80.0；经验沉淀进 `api-contract/practices.md`「限流是控制器属性」
 
-#### R2：登录会话列表与吊销 ✅ 已交付（v0.82.0 / v0.83.0）
+#### R2：登录会话列表与吊销 ✅ 已交付（端点 v0.82.0；文档 v0.83.0）
 
 > **验收状态（2026-10-19 最终）**：`LoginSessionEndpointsIntegrationTest`（**9 例**：列表/踢会话隔离/删当前会话/`logout-all`/不泄露他人会话/未认证/UA 截断/UA 轮换沿用/**并发锁串行化**）与 `JwtToCurrentUserConverterTest`（+2 例）覆盖下列条目。**无遗留待办**：并发竞态已建确定性用例并借此修掉一个真缺陷（见下）；唯一不测的是"堆峰值"（不可稳定测量）。
 
@@ -1910,7 +1910,7 @@ CREATE INDEX idx_refresh_tokens_session ON refresh_tokens (user_id, session_id);
 ALTER TABLE refresh_tokens ADD COLUMN user_agent VARCHAR(512);
 ```
 
-- **R2-b ✅ 已交付（与 R3 同批发布为 v0.83.0）：两个端点 + 并发保证** —— `GET /api/v1/users/me/sessions`（按 `session_id` 归并，一次登录一条；`current` 取自 access token 的 `sid`；`limit` 默认 20 / 上限 100；限流 60/h）与 `DELETE /api/v1/users/me/sessions/{sessionId}`（204；吊销该会话全部未吊销行；非本人或不存在统一 `404 COMMON_002`；限流 10/h；审计 `SESSION_REVOKED`）。DTO `LoginSessionResponse` 九字段 + `@JsonInclude(ALWAYS)`（可空键始终出现）。
+- **R2-b ✅ 已交付（端点与并发保证随 v0.82.0；面向对接方的文档随 v0.83.0）：两个端点 + 并发保证** —— `GET /api/v1/users/me/sessions`（按 `session_id` 归并，一次登录一条；`current` 取自 access token 的 `sid`；`limit` 默认 20 / 上限 100；限流 60/h）与 `DELETE /api/v1/users/me/sessions/{sessionId}`（204；吊销该会话全部未吊销行；非本人或不存在统一 `404 COMMON_002`；限流 10/h；审计 `SESSION_REVOKED`）。DTO `LoginSessionResponse` 九字段 + `@JsonInclude(ALWAYS)`（可空键始终出现）。
 
 **并发保证（本批核心）**：刷新与吊销**都先取会话级排它锁** `pg_advisory_xact_lock(hashtext(session_id))`（事务级自动释放）⇒ 两者串行，"踢了就一定失效"；否则刷新事务可在批量吊销扫过之后插入新行，被踢会话复活 ✗。
 
