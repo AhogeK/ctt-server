@@ -5,12 +5,14 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.BatchRevokeSessionsResponse;
 import com.ahogek.cttserver.auth.dto.LoginSessionResponse;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository.SessionRow;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 
@@ -18,10 +20,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -40,6 +44,9 @@ public class LoginSessionService {
 
     /** Sessions a caller may ask for in one page, and the largest limit the endpoint honours. */
     private static final int MAX_SESSIONS = 100;
+
+    /** Largest number of distinct sessions one batch revocation may carry. */
+    private static final int MAX_BATCH_REVOCATIONS = 100;
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final DeviceRepository deviceRepository;
@@ -105,19 +112,75 @@ public class LoginSessionService {
      */
     @Transactional
     public void revokeSession(UUID userId, UUID sessionId) {
-        refreshTokenRepository.lockSession(sessionId);
-
         RefreshToken liveToken =
-                refreshTokenRepository
-                        .findFirstByUserIdAndSessionIdAndRevokedAtIsNullOrderByCreatedAtDesc(
-                                userId, sessionId)
+                findLiveTokenUnderLock(userId, sessionId)
                         .orElseThrow(
                                 () ->
                                         new NotFoundException(
                                                 ErrorCode.COMMON_002, "Session not found"));
 
-        refreshTokenRepository.revokeSession(userId, sessionId, Instant.now());
+        revokeLiveSession(userId, sessionId, liveToken, Instant.now());
+    }
 
+    /**
+     * Revokes several sessions in one call.
+     *
+     * <p>Partial success is the contract: an id that is unknown, already revoked, or owned by
+     * another account is reported as skipped instead of failing the call, so a retry after a
+     * timeout converges — the sessions the first attempt revoked are simply skipped.
+     *
+     * <p>Sessions are locked in ascending id order, so two batches that overlap walk the shared ids
+     * in the same sequence. The order is what keeps them from waiting on each other; only a hash
+     * collision inside the advisory lock could order two ids differently.
+     *
+     * @param userId the account performing the revocation
+     * @param sessionIds the requested session ids; duplicates are ignored
+     * @return how many sessions were revoked and which ids were skipped
+     * @throws ValidationException when more than {@value #MAX_BATCH_REVOCATIONS} distinct ids are
+     *     requested
+     */
+    @Transactional
+    public BatchRevokeSessionsResponse revokeSessions(UUID userId, List<UUID> sessionIds) {
+        List<UUID> distinct = sessionIds.stream().distinct().sorted().toList();
+        if (distinct.size() > MAX_BATCH_REVOCATIONS) {
+            throw new ValidationException(
+                    ErrorCode.COMMON_003,
+                    "At most "
+                            + MAX_BATCH_REVOCATIONS
+                            + " distinct sessions can be revoked in one call");
+        }
+
+        Instant now = Instant.now();
+        int revoked = 0;
+        List<UUID> skipped = new ArrayList<>();
+        for (UUID sessionId : distinct) {
+            Optional<RefreshToken> liveToken = findLiveTokenUnderLock(userId, sessionId);
+            if (liveToken.isEmpty()) {
+                skipped.add(sessionId);
+                continue;
+            }
+            revokeLiveSession(userId, sessionId, liveToken.get(), now);
+            revoked++;
+        }
+        return new BatchRevokeSessionsResponse(revoked, skipped);
+    }
+
+    /**
+     * Takes the session lock and reads its live token in one step.
+     *
+     * <p>Both writers of a session — rotation and revocation — must lock before they read: a read
+     * that happens first can act on a state a concurrent revocation is about to change.
+     */
+    private Optional<RefreshToken> findLiveTokenUnderLock(UUID userId, UUID sessionId) {
+        refreshTokenRepository.lockSession(sessionId);
+        return refreshTokenRepository
+                .findFirstByUserIdAndSessionIdAndRevokedAtIsNullOrderByCreatedAtDesc(
+                        userId, sessionId);
+    }
+
+    private void revokeLiveSession(
+            UUID userId, UUID sessionId, RefreshToken liveToken, Instant now) {
+        refreshTokenRepository.revokeSession(userId, sessionId, now);
         auditLogService.log(
                 userId,
                 AuditAction.SESSION_REVOKED,

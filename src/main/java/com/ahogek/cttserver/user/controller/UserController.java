@@ -3,6 +3,8 @@ package com.ahogek.cttserver.user.controller;
 import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
 import com.ahogek.cttserver.auth.apikey.security.RequiresApiKeyScope;
+import com.ahogek.cttserver.auth.dto.BatchRevokeSessionsRequest;
+import com.ahogek.cttserver.auth.dto.BatchRevokeSessionsResponse;
 import com.ahogek.cttserver.auth.dto.LoginSessionResponse;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LoginSessionService;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -68,6 +71,41 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/api/v1/users")
 public class UserController {
 
+    private static final String UNAUTHORIZED_EXAMPLE =
+            """
+            {
+              "code": "AUTH_003",
+              "message": "Token invalid",
+              "details": [],
+              "traceId": "abc-123",
+              "httpStatus": 401,
+              "timestamp": "2026-07-01T10:00:00Z"
+            }
+            """;
+
+    private static final String SCOPE_DENIED_EXAMPLE =
+            """
+            {
+              "code": "AUTH_020",
+              "message": "API key missing required scope",
+              "details": [],
+              "traceId": "abc-123",
+              "httpStatus": 403,
+              "timestamp": "2026-07-01T10:00:00Z"
+            }
+            """;
+
+    private static final String RATE_LIMITED_EXAMPLE =
+            """
+            {
+              "code": "RATE_LIMIT_001",
+              "message": "Too many requests",
+              "details": [],
+              "traceId": "abc-123",
+              "httpStatus": 429,
+              "timestamp": "2026-07-01T10:00:00Z"
+            }
+            """;
     private final UserProfileService userProfileService;
     private final UserService userService;
     private final AccountDeletionService accountDeletionService;
@@ -525,6 +563,116 @@ public class UserController {
         CurrentUser currentUser = currentUserProvider.getActiveUserRequired();
         loginSessionService.revokeSession(currentUser.id(), sessionId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Revoke several login sessions",
+            description =
+                    """
+                    Revokes each listed session that is still live and owned by the caller, and
+                    reports the ids that were not: unknown, already revoked, or owned by another
+                    account. A batch is deliberately partial-success, so a retry after a timeout
+                    converges — ids the first attempt revoked are simply skipped. Listing the
+                    calling session is allowed and equals a logout for it. At most 100 distinct ids
+                    per call; duplicates are ignored.
+                    """)
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description =
+                                "Batch processed; revoked counts only the sessions this call ended",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = RestApiResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "partial",
+                                                        summary =
+                                                                "Two revoked, one already revoked",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "success": true,
+                                                                  "message": "Operation successful",
+                                                                  "data": {
+                                                                    "revoked": 2,
+                                                                    "skipped": ["9f1c8f7a-2b4e-4d5a-9c3e-1a2b3c4d5e6f"]
+                                                                  },
+                                                                  "timestamp": "2026-07-01T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "400",
+                        description =
+                                "Empty list, a null id, or more than 100 distinct ids - COMMON_003",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "tooManySessions",
+                                                        summary =
+                                                                "101 distinct session ids in one call",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "COMMON_003",
+                                                                  "message": "At most 100 distinct sessions can be revoked in one call",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 400,
+                                                                  "timestamp": "2026-07-01T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Missing, expired, or revoked token - AUTH_003",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "invalidToken",
+                                                        summary =
+                                                                "The access token is expired or was revoked",
+                                                        value = UNAUTHORIZED_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description =
+                                "API key without WRITE scope (AUTH_020) or inactive account (AUTH_022)",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "scopeDenied",
+                                                        summary = "API key without WRITE scope",
+                                                        value = SCOPE_DENIED_EXAMPLE))),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "More than 10 batch calls in an hour",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "rateLimited",
+                                                        summary =
+                                                                "More than 10 batch calls in an hour",
+                                                        value = RATE_LIMITED_EXAMPLE)))
+            })
+    @SecurityRequirement(name = "bearerAuth")
+    @RequiresApiKeyScope(ApiKeyScope.WRITE)
+    @RateLimit(type = RateLimitType.USER, limit = 10, windowSeconds = 3600)
+    @PostMapping("/me/sessions/revoke")
+    public ResponseEntity<RestApiResponse<BatchRevokeSessionsResponse>> revokeLoginSessions(
+            @Valid @RequestBody BatchRevokeSessionsRequest request) {
+        CurrentUser currentUser = currentUserProvider.getActiveUserRequired();
+        return ResponseEntity.ok(
+                RestApiResponse.ok(
+                        loginSessionService.revokeSessions(
+                                currentUser.id(), request.sessionIds())));
     }
 
     @Operation(
