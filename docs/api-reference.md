@@ -92,7 +92,8 @@ entry. Each entry carries `kind` (`WEB` or `PLUGIN`), `deviceName` and `ideName`
 session, the `userAgent` exactly as the client sent it, `createdAt` (when the login happened),
 `lastUsedAt` (the most recent refresh, null until one happens), `expiresAt`, and `current` — true
 for the session the calling access token belongs to. A call made with an API key has no session of
-its own, so every entry reports `current: false`. Sessions are sorted by `lastUsedAt` descending
+its own, so every entry reports `current: false`. An account with no registered device still lists
+its sessions; their `deviceName`/`ideName` are null. Sessions are sorted by `lastUsedAt` descending
 with never-refreshed sessions last, then by `createdAt` descending. The response body's `data` is the
 array itself — there is no `{sessions: []}` envelope — and `limit` defaults to 20 with values clamped
 to 1..100. `GET` is rate limited to 60/hour and `DELETE` to 10/hour.
