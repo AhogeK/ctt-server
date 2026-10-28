@@ -2140,6 +2140,19 @@ end note
 后续可能加的功能：1. 通过KEY直接调用统计接口供用户使用接口获取个人统计数据 2.提供统计Card方便用户像是Github个人页使用 2.通过绑定Github连通Github获取用户提交信息做相关的统计与展示card
 
 
+## 会话列表空设备修复（前端 Bug，2026-10-28，v0.87.3）
+
+> 来源：ctt-web 报告 `GET /api/v1/users/me/sessions?limit=100` 返回 500。核实为服务端缺陷。
+
+| 项 | 结论 |
+|---|---|
+| 根因 | 浏览器登录使用非 UUID 的 `deviceId` ⇒ `refresh_tokens.device_id` 为 NULL；`devicesById` 在所有行都没有设备时返回 `Map.of()`，`ImmutableCollections.MapN.get(null)` 抛 NPE（`LoginSessionService:82`），被 `GlobalExceptionHandler` 转成 500 `SYSTEM_001` |
+| 修复 | 新增 `deviceOf(devices, row)`：`deviceId == null` 时直接返回 null；排序、`limit` 夹取、`current`、限流均不动 |
+| 回归 | `shouldListBrowserSession_whenNoDeviceIsRegistered`（非 UUID `deviceId` 登录）；`listSessions` 助手补 200 断言与 `ideName` 按键断言；修复前为红（`SYSTEM_001`），修复后为绿 |
+| 验证 | 定向用例通过；全量 **1568 tests / 0 failures**；`spotlessCheck`、`jacocoTestCoverageVerification` 通过 |
+| 文档/规则 | `docs/api-reference.md` 补「无注册设备仍列出会话，`deviceName`/`ideName` 为 null」；`AGENTS.md` R9 增「测试要覆盖空关联」 |
+| 不做 | 不改接口契约、不加迁移、不改前端；已有会话无需修复数据 |
+
 ## 依赖升级（2026-10-27，v0.87.2）
 
 > 策略：一律升到当前稳定版（含主版本），兼容性由编译 + 全量测试验证；Java / Kotlin 大版本不动（无 Kotlin 源码，JDK 已是 25 LTS）。

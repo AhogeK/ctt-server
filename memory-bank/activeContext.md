@@ -1,5 +1,8 @@
 # Active Context
 
+- [2026-10-28] - 会话列表 500 修复（v0.87.3，待授权提交）
+    - 根因: `LoginSessionService.listSessions` 以 `devices.get(row.getDeviceId())` 查设备；浏览器会话的 `device_id` 为 null，而无任何设备的账号会让 `devicesById` 返回 `Map.of()`，`ImmutableCollections.MapN.get(null)` 抛 NPE ⇒ 500 `SYSTEM_001`。修复: `deviceOf()` 先判空再查；回归用例用非 UUID 的 deviceId 登录（浏览器形态），断言列表 200 且 `deviceName`/`ideName` 为 null
+
 - [2026-10-27] - 依赖升级（v0.87.2）
     - Boot 4.1.2 / springdoc 3.2.0 / greenmail 2.1.15 / Flyway 13.11.1 / pg 42.7.14 / ben-manes 0.66.0 / spotless 8.10.4 / JaCoCo 0.8.16 / Gradle 9.8.2；google-java-format 1.37.0 在 Spotless 下崩溃，保留 1.36.1；分层 clean build 各 1567 tests / 0 failures
 
@@ -34,14 +37,11 @@
     - 前端报告核实: **五项断言全部属实**。Redis 实测（192.168.5.178:6379）：`leaderboard:streak`=2，`month/quarter/half-year/year` 四个窗口各 1；`leaderboard:recompute:g2:vocab2` 存在；代码 `SCORE_RULE_GENERATION` 仍为 2
     - 根因: 标记键只有「代次 + 词表版本」，0.85.0 放开 `STREAK` 全部周期既没提升代次、标记也不含矩阵信息 ⇒ 旧标记命中，`backfillScores()` 首次判断即 return，未推送过的用户没有窗口键；查不存在的 ZSet 返回 200 + 空列表，前端显示空态而非错误
     - 修复: 代次 2 → 3；标记改为 `g{n}:cov{8位}:vocab{v}`，其中 `cov` 由 `LeaderboardDimension.values() × supports()` 排序后 SHA-256 现算 ⇒ **新增维度或放开周期自动失效**；改公式仍需人工提升代次。新标记 `leaderboard:recompute:g3:covbdc93f7f:vocab2`（41 个合法组合）
-    - 测试: 断言不再复用 `g2:vocab2`、矩阵增删即改变指纹、枚举顺序无关；排行榜相关 49 例全绿
-    - **刻意未做**: 不在你的真实 Redis 上手工执行回填（会改动共享环境数据）；部署后由 `ctt.leaderboard.backfill-initial-delay-ms`（默认 60s）触发。验收 = 四个窗口 `ZCARD` 覆盖 `leaderboard:streak` 的成员数
+    - 测试: 断言不再复用 `g2:vocab2`、矩阵增删即改变指纹、枚举顺序无关，排行榜相关 49 例全绿；**刻意未做**：不在真实 Redis 手工回填（共享数据），部署后由 `ctt.leaderboard.backfill-initial-delay-ms`（60s）触发
 
 - [2026-10-23] - `.omp` 全量分类归档（用户要求：时间只做文件夹，不进文件名；一个需求一个文件）
     - 结构: `.omp/<category>/<YYYY-MM-DD>/<kebab-topic>.md`；类别 = reports / acceptance / requirements / research / plans / notes；顶层不再有散文件
-    - 迁移 35 个 .md（原顶层 30 + plans/ 5 + reports/ 2，去重 2 份后），`skill-graph-zh.json` 移入 `data/`；旧的 `reports/2026-10-2X-*.md` 命名已并入日期文件夹
-    - 规则: `AGENTS.md` R26 两处过时行同步修正（plans 路径带日期文件夹、报告行指向类别目录），并把「每轮新建」与「分类归档」两条合并表述，消除命名冲突
-    - 状态: ✅ 已完成（随本批 AI 提交）
+    - 迁移 35 个 .md（顶层 30 + plans/ 5 + reports/ 2，去重 2 份；旧 `reports/2026-10-2X-*.md` 命名已并入日期文件夹），`skill-graph-zh.json` 移入 `data/`；同步修正 `AGENTS.md` R26 两处过时行并合并「每轮新建」与「分类归档」表述（✅ 已完成，随该批 AI 提交）
 
 - [2026-10-23] - 数据库连不上诊断（**第二次复发，非代码问题**）
     - 现象: IDEA 内启动应用 ⇒ `flywayInitializer` 取连接失败，根因 `java.net.NoRouteToHostException`（EHOSTUNREACH，SQLState 08001）
