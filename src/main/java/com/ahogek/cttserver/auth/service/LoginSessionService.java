@@ -79,8 +79,17 @@ public class LoginSessionService {
         return rows.stream()
                 .sorted(recentlyUsedFirst)
                 .limit(Math.min(Math.max(limit, 1), MAX_SESSIONS))
-                .map(row -> toResponse(row, devices.get(row.getDeviceId()), currentSessionId))
+                .map(row -> toResponse(row, deviceOf(devices, row), currentSessionId))
                 .toList();
+    }
+
+    /**
+     * A browser session has no device, and {@link #devicesById} can return {@link Map#of()}, whose
+     * {@code get(null)} throws; the absence is resolved before the lookup.
+     */
+    private static Device deviceOf(Map<UUID, Device> devices, SessionRow row) {
+        UUID deviceId = row.getDeviceId();
+        return deviceId == null ? null : devices.get(deviceId);
     }
 
     /**
