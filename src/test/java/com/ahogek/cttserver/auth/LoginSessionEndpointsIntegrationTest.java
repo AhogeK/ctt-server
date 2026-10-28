@@ -2,6 +2,7 @@ package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
+import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
 
@@ -18,16 +19,20 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
@@ -259,6 +264,149 @@ class LoginSessionEndpointsIntegrationTest {
         refresh(ownerTokens[1]);
     }
 
+    @Test
+    @DisplayName("Should revoke every listed session of the caller")
+    void shouldRevokeListedSessions_whenAllBelongToCaller() throws Exception {
+        UUID userId = register(userEmail());
+        String[] keeper = login(userId, UUID.randomUUID().toString());
+        String[] first = login(userId, UUID.randomUUID().toString());
+        String[] second = login(userId, UUID.randomUUID().toString());
+        UUID firstId = UUID.fromString(sessionIdOf(first[0]));
+        UUID secondId = UUID.fromString(sessionIdOf(second[0]));
+
+        JsonNode data = batchRevoke(keeper[0], List.of(firstId, secondId));
+
+        assertThat(data.path("revoked").asInt()).isEqualTo(2);
+        assertThat(data.path("skipped")).isEmpty();
+        assertThat(listSessions(keeper[0])).hasSize(1);
+        assertRefreshRejected(first[1]);
+        assertRefreshRejected(second[1]);
+    }
+
+    @Test
+    @DisplayName("Should skip revoked, unknown and foreign sessions without failing the batch")
+    void shouldSkipRevokedUnknownAndForeign_whenBatching() throws Exception {
+        UUID ownerId = register(userEmail());
+        String[] keeper = login(ownerId, UUID.randomUUID().toString());
+        String[] victim = login(ownerId, UUID.randomUUID().toString());
+        UUID victimId = UUID.fromString(sessionIdOf(victim[0]));
+        revokeSession(keeper[0], victimId.toString());
+
+        UUID strangerId = register(userEmail());
+        String[] stranger = login(strangerId, UUID.randomUUID().toString());
+        UUID strangerSessionId = UUID.fromString(sessionIdOf(stranger[0]));
+        UUID unknown = UUID.randomUUID();
+
+        JsonNode data = batchRevoke(keeper[0], List.of(victimId, unknown, strangerSessionId));
+
+        assertThat(data.path("revoked").asInt()).isZero();
+        assertThat(data.path("skipped")).hasSize(3);
+        String[] skipped = objectMapper.convertValue(data.path("skipped"), String[].class);
+        assertThat(skipped)
+                .containsExactlyInAnyOrder(
+                        victimId.toString(), unknown.toString(), strangerSessionId.toString());
+        assertRefreshRejected(victim[1]);
+        assertThat(refresh(stranger[1])).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("Should ignore duplicate ids in one batch")
+    void shouldIgnoreDuplicateIds_whenBatchRepeatsThem() throws Exception {
+        UUID userId = register(userEmail());
+        String[] keeper = login(userId, UUID.randomUUID().toString());
+        String[] target = login(userId, UUID.randomUUID().toString());
+        UUID targetId = UUID.fromString(sessionIdOf(target[0]));
+
+        JsonNode data = batchRevoke(keeper[0], List.of(targetId, targetId, targetId));
+
+        assertThat(data.path("revoked").asInt()).isEqualTo(1);
+        assertThat(data.path("skipped")).isEmpty();
+        assertThat(listSessions(keeper[0])).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Should reject more than 100 distinct session ids")
+    void shouldRejectOversizedBatch_whenDistinctIdsExceedTheLimit() throws Exception {
+        UUID userId = register(userEmail());
+        String[] tokens = login(userId, UUID.randomUUID().toString());
+        List<UUID> ids = IntStream.range(0, 101).mapToObj(_ -> UUID.randomUUID()).toList();
+
+        assertBatchRejected(tokens[0], Map.of("sessionIds", ids));
+    }
+
+    @Test
+    @DisplayName("Should reject an empty id list")
+    void shouldRejectEmptyBatch_whenNoIdsAreListed() throws Exception {
+        UUID userId = register(userEmail());
+        String[] tokens = login(userId, UUID.randomUUID().toString());
+
+        assertBatchRejected(tokens[0], Map.of("sessionIds", List.of()));
+    }
+
+    @Test
+    @DisplayName("Should reject a null element in the id list")
+    void shouldRejectNullElement_whenBatchContainsOne() throws Exception {
+        UUID userId = register(userEmail());
+        String[] tokens = login(userId, UUID.randomUUID().toString());
+
+        assertBatchRejected(tokens[0], "{\"sessionIds\":[null]}");
+    }
+
+    @Test
+    @DisplayName("Should revoke the calling session when it is listed")
+    void shouldRevokeCurrentSession_whenItIsListed() throws Exception {
+        UUID userId = register(userEmail());
+        String[] tokens = login(userId, UUID.randomUUID().toString());
+        UUID sessionId = UUID.fromString(sessionIdOf(tokens[0]));
+
+        JsonNode data = batchRevoke(tokens[0], List.of(sessionId));
+
+        assertThat(data.path("revoked").asInt()).isEqualTo(1);
+        // Access tokens are stateless, so the 15-minute window logout leaves open applies here
+        // too: the list still answers (now empty), while the refresh token is already dead.
+        assertThat(listSessions(tokens[0])).isEmpty();
+        assertRefreshRejected(tokens[1]);
+    }
+
+    @Test
+    @DisplayName("Should write one audit event per session revoked by a batch")
+    void shouldWriteOneAuditEventPerRevokedSession_whenBatching() throws Exception {
+        UUID userId = register(userEmail());
+        String[] keeper = login(userId, UUID.randomUUID().toString());
+        String[] first = login(userId, UUID.randomUUID().toString());
+        String[] second = login(userId, UUID.randomUUID().toString());
+        UUID firstId = UUID.fromString(sessionIdOf(first[0]));
+        UUID secondId = UUID.fromString(sessionIdOf(second[0]));
+
+        batchRevoke(keeper[0], List.of(firstId, secondId));
+
+        await().atMost(5, TimeUnit.SECONDS)
+                .untilAsserted(
+                        () -> {
+                            Integer events =
+                                    jdbcClient
+                                            .sql(
+                                                    "SELECT COUNT(*) FROM audit_logs"
+                                                            + " WHERE action = 'SESSION_REVOKED'"
+                                                            + " AND resource_id IN (?, ?)")
+                                            .param(firstId.toString())
+                                            .param(secondId.toString())
+                                            .query(Integer.class)
+                                            .single();
+                            assertThat(events).isEqualTo(2);
+                            String kind =
+                                    jdbcClient
+                                            .sql(
+                                                    "SELECT details -> 'ext' ->> 'kind' FROM audit_logs"
+                                                            + " WHERE action = 'SESSION_REVOKED'"
+                                                            + " AND resource_id = ?")
+                                            .param(firstId.toString())
+                                            .query(String.class)
+                                            .single();
+                            assertThat(kind).isEqualTo(RefreshToken.AUDIENCE_WEB);
+                        });
+    }
+
     private JsonNode listSessions(String accessToken) throws Exception {
         var result =
                 mvc.get()
@@ -270,6 +418,50 @@ class LoginSessionEndpointsIntegrationTest {
         JsonNode data = objectMapper.readTree(response).path("data");
         assertThat(data.isArray()).as("session list failed: %s", response).isTrue();
         return data;
+    }
+
+    private JsonNode batchRevoke(String accessToken, List<UUID> sessionIds) throws Exception {
+        var result =
+                mvc.post()
+                        .uri("/api/v1/users/me/sessions/revoke")
+                        .with(csrf())
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("sessionIds", sessionIds)))
+                        .exchange();
+        assertThat(result).hasStatusOk();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+    }
+
+    private void assertBatchRejected(String accessToken, Object body) throws Exception {
+        String json = body instanceof String text ? text : objectMapper.writeValueAsString(body);
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/users/me/sessions/revoke")
+                                .with(csrf())
+                                .header("Authorization", "Bearer " + accessToken)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json)
+                                .exchange())
+                .hasStatus(400)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("COMMON_003");
+    }
+
+    private void assertRefreshRejected(String refreshToken) throws Exception {
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/auth/refresh")
+                                .with(csrf())
+                                .header("User-Agent", USER_AGENT)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"refreshToken\":\"" + refreshToken + "\"}")
+                                .exchange())
+                .hasStatus(401)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("AUTH_003");
     }
 
     private void revokeSession(String accessToken, String sessionId) throws Exception {
