@@ -116,8 +116,12 @@ Listing the calling session is allowed and equals a logout for it (its refresh t
 the access token stays valid until it expires, as with the single-session call). Every revoked
 session emits its own `SESSION_REVOKED` audit event with the same `kind` detail. The service locks
 the sessions in ascending id order, so overlapping batches acquire shared locks in the same
-sequence. Rate limited to 10
-calls/hour per user; an API key needs `WRITE` scope.
+sequence. The batch is rate limited to 10 calls/hour per user (`429 RATE_LIMIT_001`), counted
+**per endpoint**: one batch of up to 100 ids is a single call and draws on its own counter, not on
+the single-session `DELETE /users/me/sessions/{sessionId}` allowance (also 10/hour). Every 429
+carries a `Retry-After` header with the remaining seconds of the current fixed window, and
+`retryAfter` in the body is the matching ISO-8601 instant — read either instead of assuming the
+full window. An API key needs `WRITE` scope.
 
 **Data export** (`GET /api/v1/users/me/export?timezoneOffset=<minutes>`): streams everything the
 account holds as one JSON file. The shape is the desktop client's import format on purpose — a file
