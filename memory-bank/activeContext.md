@@ -1,7 +1,7 @@
 # Active Context
 
 - [2026-10-29] - 会话批量撤销（v0.88.0，已提交推送）
-    - 新增 `POST /api/v1/users/me/sessions/revoke`（body `{sessionIds}`，去重后 1..100）：按 UUID 升序取会话锁，逐条撤销并写 `SESSION_REVOKED`；不存在的/已撤销的/他人的进 `skipped`，整体 200 且重放幂等；限流 10 次/时；当前会话可撤销（refresh 立即 401，access token 15 分钟内仍有效）；审查后补 401/403/429 独立示例、拆分 `MAX_BATCH_REVOCATIONS`、抽取 `findLiveTokenUnderLock`、429 用例独立成类、补 null 元素用例
+    - 新增 `POST /api/v1/users/me/sessions/revoke`（body `{sessionIds}`，去重后 1..100）：按 UUID 升序取会话锁，逐条撤销并写 `SESSION_REVOKED`；不存在的/已撤销的/他人的进 `skipped`，整体 200 且重放幂等；限流 10 次/时；当前会话可撤销（refresh 立即 401，access token 15 分钟内仍有效）；审查后补 401/403/429 独立示例、拆分 `MAX_BATCH_REVOCATIONS`、抽取 `findLiveTokenUnderLock`、429 用例独立成类、补 null 元素用例；前端反馈后补「按端点分桶 + `Retry-After`/`retryAfter`」文档说明（行为不变、纯文档不 bump 版本）
 
 - [2026-10-28] - 会话列表 500 修复（v0.87.3，待授权提交）
     - 根因: `LoginSessionService.listSessions` 以 `devices.get(row.getDeviceId())` 查设备；浏览器会话的 `device_id` 为 null，而无任何设备的账号会让 `devicesById` 返回 `Map.of()`，`ImmutableCollections.MapN.get(null)` 抛 NPE ⇒ 500 `SYSTEM_001`。修复: `deviceOf()` 先判空再查；回归用例用非 UUID 的 deviceId 登录（浏览器形态），断言列表 200 且 `deviceName`/`ideName` 为 null
