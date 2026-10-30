@@ -106,6 +106,11 @@ All endpoints protected by `@RateLimit` return HTTP 429 with the following retry
 | Error Code     | `RATE_LIMIT_001` (or `MAIL_004` for the mail duplicate-guard)     |
 | Response Field | `retryAfter` — ISO-8601 absolute timestamp of the window reset    |
 
+Counting is **per endpoint**: the Redis key combines the identity facet (`user:<id>`, `ip:<addr>`,
+…) with the endpoint (`ControllerName.methodName`). Two endpoints with the same numeric limit never
+share an allowance — single-session revocation and batch revocation are both 10/hour for a user but
+drain separate buckets, and one batch call (up to 100 ids) counts once.
+
 The remaining seconds are read atomically from the Redis counter TTL by the Lua script, so no extra round-trip is needed. When the TTL is unavailable (Redis inconsistency) the header and field are omitted — clients must treat a missing value as "retry later".
 
 Example response:
