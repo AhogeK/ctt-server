@@ -219,4 +219,36 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
             @Param("userId") UUID userId,
             @Param("deviceId") UUID deviceId,
             @Param("now") Instant now);
+
+    /**
+     * Returns when a login session was first issued.
+     *
+     * @param userId the owning user
+     * @param sessionId the login session
+     * @return the first issuance instant, or null when the session is unknown
+     */
+    @Query(
+            value =
+                    "SELECT MIN(created_at) FROM refresh_tokens"
+                            + " WHERE user_id = :userId AND session_id = :sessionId",
+            nativeQuery = true)
+    Instant findSessionCreatedAt(@Param("userId") UUID userId, @Param("sessionId") UUID sessionId);
+
+    /**
+     * Revokes every live token of the user's other sessions.
+     *
+     * @param userId the owning user
+     * @param sessionId the session to keep
+     * @param now the revocation instant
+     * @return the number of revoked rows
+     */
+    @Modifying
+    @Query(
+            "UPDATE RefreshToken r SET r.revokedAt = :now"
+                    + " WHERE r.userId = :userId AND r.revokedAt IS NULL"
+                    + " AND r.sessionId <> :sessionId")
+    int revokeAllUserTokensExceptSession(
+            @Param("userId") UUID userId,
+            @Param("sessionId") UUID sessionId,
+            @Param("now") Instant now);
 }

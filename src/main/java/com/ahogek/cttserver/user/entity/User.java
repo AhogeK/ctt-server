@@ -4,7 +4,16 @@ import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -60,6 +69,15 @@ public class User {
 
     @Column(name = "terms_version", length = 20)
     private String termsVersion;
+
+    @Column(name = "totp_secret_ciphertext", columnDefinition = "TEXT")
+    private String totpSecretCiphertext;
+
+    @Column(name = "totp_confirmed_at")
+    private Instant totpConfirmedAt;
+
+    @Column(name = "totp_last_used_step")
+    private Long totpLastUsedStep;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -249,5 +267,29 @@ public class User {
 
     public void setTermsVersion(String termsVersion) {
         this.termsVersion = termsVersion;
+    }
+
+    public String getTotpSecretCiphertext() {
+        return totpSecretCiphertext;
+    }
+
+    public void setTotpSecretCiphertext(String totpSecretCiphertext) {
+        this.totpSecretCiphertext = totpSecretCiphertext;
+    }
+
+    public Instant getTotpConfirmedAt() {
+        return totpConfirmedAt;
+    }
+
+    public void setTotpConfirmedAt(Instant totpConfirmedAt) {
+        this.totpConfirmedAt = totpConfirmedAt;
+    }
+
+    public Long getTotpLastUsedStep() {
+        return totpLastUsedStep;
+    }
+
+    public void setTotpLastUsedStep(Long totpLastUsedStep) {
+        this.totpLastUsedStep = totpLastUsedStep;
     }
 }
