@@ -45,6 +45,18 @@ public enum AuditAction {
     /** One login session revoked from the account's session list. */
     SESSION_REVOKED("A login session was revoked"),
 
+    /** Two-factor authentication enabled by the account owner. */
+    TOTP_ENABLED("Two-factor authentication enabled"),
+
+    /** Two-factor authentication disabled by the account owner. */
+    TOTP_DISABLED("Two-factor authentication disabled"),
+
+    /** Recovery codes regenerated for the account. */
+    TOTP_RECOVERY_CODES_REGENERATED("Two-factor recovery codes regenerated"),
+
+    /** A two-factor challenge failed. */
+    TOTP_CHALLENGE_FAILED("Two-factor challenge failed"),
+
     /** The account's data was exported. */
     DATA_EXPORTED("Account data exported"),
 
