@@ -4,6 +4,7 @@ import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -70,4 +71,21 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT u FROM User u WHERE u.status = :status")
     List<User> findAllByStatus(@Param("status") UserStatus status);
+
+    /**
+     * Advances the replay guard for a TOTP step.
+     *
+     * <p>Must run inside a transaction; the caller owns the boundary so the guard commit lines up
+     * with the rest of the operation that consumed the code.
+     *
+     * @param userId the account
+     * @param step the accepted TOTP step
+     * @return 1 when the step was greater than the stored one, otherwise 0
+     */
+    @Modifying
+    @Query(
+            "UPDATE User u SET u.totpLastUsedStep = :step"
+                    + " WHERE u.id = :userId"
+                    + " AND (u.totpLastUsedStep IS NULL OR u.totpLastUsedStep < :step)")
+    int markTotpStepUsed(@Param("userId") UUID userId, @Param("step") long step);
 }
