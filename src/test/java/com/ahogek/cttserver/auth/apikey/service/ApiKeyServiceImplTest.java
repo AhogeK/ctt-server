@@ -99,7 +99,7 @@ class ApiKeyServiceImplTest {
             // Given
             CreateApiKeyRequest request =
                     new CreateApiKeyRequest(
-                            "My Key", EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC), null);
+                            "My Key", EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC), null, null);
             given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
             given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID)).willReturn(0L);
             given(apiKeyHasher.generateRawKey()).willReturn(RAW_KEY);
@@ -142,7 +142,7 @@ class ApiKeyServiceImplTest {
         void shouldStoreKeyPrefixWithCttakMarker_andExactFourteenChars() {
             CreateApiKeyRequest request =
                     new CreateApiKeyRequest(
-                            "My Key", EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC), null);
+                            "My Key", EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC), null, null);
             given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
             given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID)).willReturn(0L);
             given(apiKeyHasher.generateRawKey()).willReturn(RAW_KEY);
@@ -178,7 +178,7 @@ class ApiKeyServiceImplTest {
                     "cttak_ab_cdefg_z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4";
             CreateApiKeyRequest request =
                     new CreateApiKeyRequest(
-                            "My Key", EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC), null);
+                            "My Key", EnumSet.of(ApiKeyScope.READ, ApiKeyScope.SYNC), null, null);
             given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
             given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID)).willReturn(0L);
             given(apiKeyHasher.generateRawKey()).willReturn(rawKeyWithUnderscorePrefix);
@@ -210,7 +210,7 @@ class ApiKeyServiceImplTest {
         void shouldThrowNotFoundException_whenUserNotFound() {
             // Given
             CreateApiKeyRequest request =
-                    new CreateApiKeyRequest("Key", Set.of(ApiKeyScope.READ), null);
+                    new CreateApiKeyRequest("Key", Set.of(ApiKeyScope.READ), null, null);
             given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
 
             // When & Then
@@ -224,7 +224,7 @@ class ApiKeyServiceImplTest {
         void shouldThrowConflictException_whenLimitExceeded() {
             // Given
             CreateApiKeyRequest request =
-                    new CreateApiKeyRequest("Key", Set.of(ApiKeyScope.READ), null);
+                    new CreateApiKeyRequest("Key", Set.of(ApiKeyScope.READ), null, null);
             given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
             given(apiKeyRepository.countByUserIdAndRevokedAtIsNull(USER_ID)).willReturn(20L);
 
@@ -241,7 +241,7 @@ class ApiKeyServiceImplTest {
             // the scope aspect only enforces scopes for API-key callers. A credential must not be
             // issuable to an account that no longer exists, even one that authenticates nowhere.
             CreateApiKeyRequest request =
-                    new CreateApiKeyRequest("Key", Set.of(ApiKeyScope.READ), null);
+                    new CreateApiKeyRequest("Key", Set.of(ApiKeyScope.READ), null, null);
             ReflectionTestUtils.setField(user, "status", UserStatus.DELETED);
             given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
 

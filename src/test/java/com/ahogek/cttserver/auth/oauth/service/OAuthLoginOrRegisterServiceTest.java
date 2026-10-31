@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth.oauth.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.oauth.entity.UserOAuthAccount;
 import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
@@ -10,6 +11,7 @@ import com.ahogek.cttserver.auth.oauth.model.GitHubUserInfo;
 import com.ahogek.cttserver.auth.oauth.repository.UserOAuthAccountRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
+import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
@@ -33,6 +35,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -67,6 +70,7 @@ class OAuthLoginOrRegisterServiceTest {
     @Mock private AuditLogService auditLogService;
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
+    @Mock private TwoFactorChallengeService twoFactorChallengeService;
 
     private final TermsProperties termsProperties = new TermsProperties("1.0.0", null);
 
@@ -86,6 +90,7 @@ class OAuthLoginOrRegisterServiceTest {
                         refreshTokenRepository,
                         auditLogService,
                         securityProperties,
+                        twoFactorChallengeService,
                         termsProperties);
 
         doAnswer(
@@ -128,8 +133,13 @@ class OAuthLoginOrRegisterServiceTest {
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
             LoginResponse response =
-                    oauthLoginService.process(
-                            OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+                    ((LoginOutcome.Success)
+                                    oauthLoginService.process(
+                                            OAuthProvider.GITHUB,
+                                            TEST_GITHUB_ACCESS_TOKEN,
+                                            userInfo,
+                                            null))
+                            .response();
 
             assertThat(response.userId()).isEqualTo(user.getId());
             assertThat(response.accessToken()).isEqualTo(TEST_CTT_ACCESS_TOKEN);
@@ -221,6 +231,32 @@ class OAuthLoginOrRegisterServiceTest {
                             ResourceType.USER,
                             user.getId().toString());
         }
+
+        @Test
+        @DisplayName("should return a challenge when the OAuth user has 2FA enabled")
+        void shouldReturnChallenge_whenOauthUserHasTwoFactor() {
+            User user = createActiveUser();
+            user.setTotpConfirmedAt(Instant.now());
+            UserOAuthAccount account = createOAuthAccount(user);
+            when(oauthAccountRepository.findByProviderAndProviderUserId(
+                            OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+                    .thenReturn(Optional.of(account));
+            when(twoFactorChallengeService.create(user.getId(), null))
+                    .thenReturn(
+                            new TwoFactorChallengeService.ChallengeTicket("challenge-token", 300));
+
+            LoginOutcome outcome =
+                    oauthLoginService.process(
+                            OAuthProvider.GITHUB,
+                            TEST_GITHUB_ACCESS_TOKEN,
+                            createGitHubUserInfo(),
+                            null);
+
+            assertThat(outcome).isInstanceOf(LoginOutcome.Challenge.class);
+            assertThat(((LoginOutcome.Challenge) outcome).challenge().challengeToken())
+                    .isEqualTo("challenge-token");
+            verify(jwtTokenProvider, never()).generateAccessToken(any(), any());
+        }
     }
 
     @Nested
@@ -241,11 +277,52 @@ class OAuthLoginOrRegisterServiceTest {
 
             GitHubUserInfo userInfo = createGitHubUserInfo();
             LoginResponse response =
-                    oauthLoginService.process(
-                            OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+                    ((LoginOutcome.Success)
+                                    oauthLoginService.process(
+                                            OAuthProvider.GITHUB,
+                                            TEST_GITHUB_ACCESS_TOKEN,
+                                            userInfo,
+                                            null))
+                            .response();
 
             assertThat(response.userId()).isEqualTo(existingUser.getId());
             assertThat(response.accessToken()).isEqualTo(TEST_CTT_ACCESS_TOKEN);
+        }
+
+        @Test
+        @DisplayName("should challenge instead of merging when the email owner has 2FA enabled")
+        void shouldReturnChallenge_whenMergedEmailOwnerHasTwoFactor() {
+            User existingUser = createActiveUser();
+            existingUser.setTotpConfirmedAt(Instant.now());
+            when(oauthAccountRepository.findByProviderAndProviderUserId(
+                            OAuthProvider.GITHUB, String.valueOf(GITHUB_USER_ID)))
+                    .thenReturn(Optional.empty());
+            when(userRepository.findByEmailIgnoreCase(TEST_EMAIL))
+                    .thenReturn(Optional.of(existingUser));
+            when(twoFactorChallengeService.create(existingUser.getId(), null))
+                    .thenReturn(
+                            new TwoFactorChallengeService.ChallengeTicket("challenge-token", 300));
+
+            LoginOutcome outcome =
+                    oauthLoginService.process(
+                            OAuthProvider.GITHUB,
+                            TEST_GITHUB_ACCESS_TOKEN,
+                            createGitHubUserInfo(),
+                            null);
+
+            assertThat(outcome).isInstanceOf(LoginOutcome.Challenge.class);
+            assertThat(((LoginOutcome.Challenge) outcome).challenge().challengeToken())
+                    .isEqualTo("challenge-token");
+            // No token may be minted: otherwise the provider login would be a 2FA bypass for an
+            // account that already exists under the same address.
+            verify(jwtTokenProvider, never()).generateAccessToken(any(), any());
+            verify(oauthAccountRepository).save(any(UserOAuthAccount.class));
+            verify(auditLogService)
+                    .logSuccess(
+                            existingUser.getId(),
+                            AuditAction.OAUTH_ACCOUNT_LINKED,
+                            ResourceType.USER,
+                            existingUser.getId().toString());
         }
 
         @Test

@@ -21,6 +21,18 @@ class AuditActionTest {
     }
 
     @Test
+    void description_returns_correct_value_for_two_factor_actions() {
+        assertThat(AuditAction.TOTP_ENABLED.description())
+                .isEqualTo("Two-factor authentication enabled");
+        assertThat(AuditAction.TOTP_DISABLED.description())
+                .isEqualTo("Two-factor authentication disabled");
+        assertThat(AuditAction.TOTP_RECOVERY_CODES_REGENERATED.description())
+                .isEqualTo("Two-factor recovery codes regenerated");
+        assertThat(AuditAction.TOTP_CHALLENGE_FAILED.description())
+                .isEqualTo("Two-factor challenge failed");
+    }
+
+    @Test
     void description_returns_correct_value_for_verification_actions() {
         assertThat(AuditAction.EMAIL_VERIFICATION_SENT.description())
                 .isEqualTo("Verification email dispatched to outbox");

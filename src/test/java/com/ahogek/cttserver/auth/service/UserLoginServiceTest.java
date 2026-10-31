@@ -3,10 +3,12 @@ package com.ahogek.cttserver.auth.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
+import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
@@ -62,6 +64,7 @@ class UserLoginServiceTest {
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
     @Mock private LoginAttemptService loginAttemptService;
+    @Mock private TwoFactorChallengeService twoFactorChallengeService;
 
     private final TermsProperties termsProperties = new TermsProperties("1.0.0", null);
 
@@ -83,6 +86,7 @@ class UserLoginServiceTest {
                         auditLogService,
                         loginAttemptService,
                         securityProperties,
+                        twoFactorChallengeService,
                         termsProperties);
 
         doAnswer(_ -> null).when(loginAttemptService).recordSuccess(anyString());
@@ -107,7 +111,8 @@ class UserLoginServiceTest {
             when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(TEST_ACCESS_TOKEN);
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
-            LoginResponse response = loginService.login(request);
+            LoginResponse response =
+                    ((LoginOutcome.Success) loginService.loginWithTwoFactor(request)).response();
 
             assertThat(response.userId()).isEqualTo(user.getId());
             assertThat(response.accessToken()).isEqualTo(TEST_ACCESS_TOKEN);
@@ -123,7 +128,8 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
             when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(TEST_ACCESS_TOKEN);
 
-            loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
+            loginService.loginWithTwoFactor(
+                    new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
 
             verify(loginAttemptService).recordSuccess(TEST_EMAIL);
         }
@@ -136,7 +142,8 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
             when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(TEST_ACCESS_TOKEN);
 
-            loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
+            loginService.loginWithTwoFactor(
+                    new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
 
             assertThat(user.getLastLoginAt()).isNotNull();
         }
@@ -149,7 +156,8 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(true);
             when(jwtTokenProvider.generateAccessToken(any(), any())).thenReturn(TEST_ACCESS_TOKEN);
 
-            loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
+            loginService.loginWithTwoFactor(
+                    new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
 
             verify(auditLogService)
                     .logSuccess(
@@ -171,7 +179,7 @@ class UserLoginServiceTest {
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
-            assertThatThrownBy(() -> loginService.login(request))
+            assertThatThrownBy(() -> loginService.loginWithTwoFactor(request))
                     .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_001);
         }
@@ -185,7 +193,7 @@ class UserLoginServiceTest {
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
-            assertThatThrownBy(() -> loginService.login(request))
+            assertThatThrownBy(() -> loginService.loginWithTwoFactor(request))
                     .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_001);
         }
@@ -198,7 +206,8 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(false);
 
             try {
-                loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
+                loginService.loginWithTwoFactor(
+                        new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
             } catch (UnauthorizedException _) {
                 // expected
             }
@@ -214,7 +223,8 @@ class UserLoginServiceTest {
             when(passwordEncoder.matches(TEST_PASSWORD, TEST_PASSWORD_HASH)).thenReturn(false);
 
             try {
-                loginService.login(new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
+                loginService.loginWithTwoFactor(
+                        new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null));
             } catch (UnauthorizedException _) {
                 // expected
             }
@@ -241,7 +251,7 @@ class UserLoginServiceTest {
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
-            assertThatThrownBy(() -> loginService.login(request))
+            assertThatThrownBy(() -> loginService.loginWithTwoFactor(request))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_006);
         }
@@ -257,7 +267,7 @@ class UserLoginServiceTest {
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
-            assertThatThrownBy(() -> loginService.login(request))
+            assertThatThrownBy(() -> loginService.loginWithTwoFactor(request))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_004);
         }
@@ -270,7 +280,7 @@ class UserLoginServiceTest {
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
-            assertThatThrownBy(() -> loginService.login(request))
+            assertThatThrownBy(() -> loginService.loginWithTwoFactor(request))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_005);
         }
@@ -283,7 +293,7 @@ class UserLoginServiceTest {
 
             LoginRequest request = new LoginRequest(TEST_EMAIL, TEST_PASSWORD, null, null);
 
-            assertThatThrownBy(() -> loginService.login(request))
+            assertThatThrownBy(() -> loginService.loginWithTwoFactor(request))
                     .isInstanceOf(ForbiddenException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_005);
         }

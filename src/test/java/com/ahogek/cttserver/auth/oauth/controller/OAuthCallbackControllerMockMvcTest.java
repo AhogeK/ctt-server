@@ -1,5 +1,7 @@
 package com.ahogek.cttserver.auth.oauth.controller;
 
+import com.ahogek.cttserver.auth.dto.LoginChallengeResponse;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.model.CurrentUser;
@@ -265,7 +267,7 @@ class OAuthCallbackControllerMockMvcTest {
             BDDMockito.given(
                             loginOrRegisterService.process(
                                     any(), eq(ACCESS_TOKEN), eq(userInfo), any()))
-                    .willReturn(loginResponse);
+                    .willReturn(new LoginOutcome.Success(loginResponse));
         }
 
         @Test
@@ -284,6 +286,33 @@ class OAuthCallbackControllerMockMvcTest {
                     .contains("accessToken=" + ACCESS_TOKEN)
                     .contains("refreshToken=" + REFRESH_TOKEN)
                     .contains("termsExpired=false");
+        }
+
+        @Test
+        @DisplayName("Should redirect with a fragment challenge when 2FA is enabled")
+        void shouldRedirectWithFragment_whenTwoFactorIsRequired() {
+            stubSuccessfulCallbackChain();
+            BDDMockito.given(
+                            loginOrRegisterService.process(
+                                    any(), eq(ACCESS_TOKEN), any(GitHubUserInfo.class), any()))
+                    .willReturn(
+                            new LoginOutcome.Challenge(
+                                    new LoginChallengeResponse(true, "challenge-token", 300)));
+
+            var result =
+                    mvc.get()
+                            .uri(
+                                    "/api/v1/auth/oauth/github/callback?code=%s&state=%s"
+                                            .formatted(CODE, STATE))
+                            .exchange();
+
+            assertThat(result).hasStatus(302);
+            assertThat(result.getResponse().getRedirectedUrl())
+                    .contains("twoFactorRequired=true")
+                    .contains("#challengeToken=challenge-token")
+                    .doesNotContain("accessToken=")
+                    .doesNotContain("refreshToken=");
+            assertThat(result.getResponse().getHeaders("Set-Cookie")).isEmpty();
         }
 
         @Test

@@ -15,5 +15,7 @@ ctt:
   security:
     rate-limit:
       enabled: false
+    two-factor:
+      encryption-key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
   leaderboard:
     backfill-initial-delay-ms: 86400000
