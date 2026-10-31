@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param name human-readable label for the key (1-100 characters)
  * @param scopes non-empty set of {@link ApiKeyScope} permissions granted to the key
  * @param expiresAt optional expiration timestamp; when {@code null} the key never expires
+ * @param code TOTP or recovery code when two-factor authentication is enabled
  * @author AhogeK [ahogek@gmail.com]
  */
 @Schema(description = "Request payload to create a new API key")
@@ -44,4 +45,10 @@ public record CreateApiKeyRequest(
                         example = "2027-01-01T00:00:00+09:00",
                         nullable = true)
                 @Future(message = "Expiration must be in the future")
-                OffsetDateTime expiresAt) {}
+                OffsetDateTime expiresAt,
+        @Schema(
+                        description =
+                                "TOTP or recovery code when two-factor authentication is enabled",
+                        nullable = true)
+                @Size(max = 64)
+                String code) {}
