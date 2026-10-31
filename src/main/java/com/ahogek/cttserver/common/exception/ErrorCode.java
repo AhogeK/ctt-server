@@ -53,6 +53,12 @@ public enum ErrorCode {
     AUTH_023("Active API keys must be revoked before they can be deleted", HttpStatus.CONFLICT),
     AUTH_024("Maximum active API keys reached", HttpStatus.CONFLICT),
     AUTH_025("This action requires a signed-in session, not an API key", HttpStatus.FORBIDDEN),
+    AUTH_026("Two-factor challenge is invalid or expired", HttpStatus.UNAUTHORIZED),
+    AUTH_027("Invalid two-factor code", HttpStatus.UNAUTHORIZED),
+    AUTH_028("Two-factor authentication is already enabled", HttpStatus.CONFLICT),
+    AUTH_029("Two-factor authentication is not enabled", HttpStatus.CONFLICT),
+    AUTH_030("Two-factor verification is required for this action", HttpStatus.FORBIDDEN),
+    AUTH_031("Recent authentication required", HttpStatus.FORBIDDEN),
     PASSWORD_SAME_AS_OLD(
             "New password cannot be the same as the current password", HttpStatus.CONFLICT),
 

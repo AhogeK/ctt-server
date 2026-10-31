@@ -69,6 +69,10 @@ ctt:
     jwt:
       # JWT secret key from environment variable (256+ bits for HMAC-SHA256)
       secret-key: ${JWT_SECRET_KEY}
+    two-factor:
+      # No fallback in production: a missing key must stop the deployment, not silently encrypt
+      # TOTP secrets with a value that is public in the repository.
+      encryption-key: ${TOTP_ENCRYPTION_KEY}
     password:
       # Production BCrypt rounds (12 rounds ≈ 250ms per hash)
       bcrypt-rounds: 12

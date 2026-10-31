@@ -165,6 +165,19 @@ ctt:
       auth-failure-rate-limit: 10
       auth-failure-rate-limit-window-seconds: 60
 
+    two-factor:
+      issuer: "Code Time Tracker"
+      # Dev-only fallback, mirroring the JWT key above. The prod profile removes the fallback so a
+      # missing key fails fast instead of silently encrypting with a public value.
+      encryption-key: ${TOTP_ENCRYPTION_KEY:TE9DQUxfREVWX1RPVFBfS0VZX05PVF9GT1JfUFJPRFg=}
+      digits: 6
+      period-seconds: 30
+      window-steps: 1
+      pending-setup-ttl: 10m
+      challenge-ttl: 5m
+      recent-authentication-window: 10m
+      recovery-code-count: 10
+
     hcaptcha:
       site-key: ${HCAPTCHA_SITE_KEY:}
       secret-key: ${HCAPTCHA_SECRET_KEY:}

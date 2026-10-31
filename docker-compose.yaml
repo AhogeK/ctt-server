@@ -33,6 +33,9 @@ services:
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-ctt_redis_pass}
       SPRING_MAIL_HOST: ctt-mailpit
       SPRING_MAIL_PORT: 1025
+      # Intentionally unset here: the local profile uses the development fallback in
+      # application.yaml. Production deployments must inject a real key instead of shipping a dev
+      # value through this compose file.
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:${APP_PORT}/ctt-server/actuator/health || exit 1"]
       interval: 10s
