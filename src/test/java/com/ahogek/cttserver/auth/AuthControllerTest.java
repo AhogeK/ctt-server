@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.captcha.CaptchaService;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.model.CurrentUser;
@@ -8,6 +9,7 @@ import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.auth.twofactor.service.LoginTwoFactorService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
@@ -62,6 +64,7 @@ class AuthControllerTest {
     @MockitoBean private UserService userService;
 
     @MockitoBean private UserLoginService userLoginService;
+    @MockitoBean private LoginTwoFactorService loginTwoFactorService;
 
     @MockitoBean private TokenRefreshService tokenRefreshService;
 
@@ -267,7 +270,8 @@ class AuthControllerTest {
             LoginResponse mockResponse =
                     new LoginResponse(userId, "access-token", "refresh-token", 3600L);
 
-            BDDMockito.given(userLoginService.login(BDDMockito.any())).willReturn(mockResponse);
+            BDDMockito.given(userLoginService.loginWithTwoFactor(BDDMockito.any()))
+                    .willReturn(new LoginOutcome.Success(mockResponse));
 
             var result =
                     mvc.post()

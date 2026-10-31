@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.apikey.service.ApiKeyQueryService;
 import com.ahogek.cttserver.auth.apikey.service.ApiKeyService;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.auth.twofactor.service.TwoFactorService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
@@ -77,6 +78,7 @@ class ApiKeyControllerMockMvcTest {
     @MockitoBean private ApiKeyService apiKeyService;
     @MockitoBean private ApiKeyQueryService apiKeyQueryService;
     @MockitoBean private CurrentUserProvider currentUserProvider;
+    @MockitoBean private TwoFactorService twoFactorService;
 
     /**
      * The slice tests stand in for an account that is active, which is the state they exercise; the

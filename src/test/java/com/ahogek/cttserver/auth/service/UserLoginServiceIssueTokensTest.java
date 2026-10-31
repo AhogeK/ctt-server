@@ -4,6 +4,7 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
+import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
@@ -59,6 +60,7 @@ class UserLoginServiceIssueTokensTest {
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
     @Mock private TermsProperties termsProperties;
+    @Mock private TwoFactorChallengeService twoFactorChallengeService;
 
     private UserLoginService userLoginService;
 
@@ -79,6 +81,7 @@ class UserLoginServiceIssueTokensTest {
                         auditLogService,
                         loginAttemptService,
                         securityProperties,
+                        twoFactorChallengeService,
                         termsProperties);
     }
 

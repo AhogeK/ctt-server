@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.auth.oauth.service;
 
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.oauth.entity.UserOAuthAccount;
 import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
@@ -8,6 +9,7 @@ import com.ahogek.cttserver.auth.oauth.model.GitHubUserInfo;
 import com.ahogek.cttserver.auth.oauth.repository.UserOAuthAccountRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
+import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.user.entity.User;
@@ -57,6 +59,7 @@ class OAuthLoginOrRegisterServiceTermsTest {
     @Mock private AuditLogService auditLogService;
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
+    @Mock private TwoFactorChallengeService twoFactorChallengeService;
 
     private final TermsProperties termsProperties =
             new TermsProperties(CURRENT_TERMS_VERSION, null);
@@ -77,6 +80,7 @@ class OAuthLoginOrRegisterServiceTermsTest {
                         refreshTokenRepository,
                         auditLogService,
                         securityProperties,
+                        twoFactorChallengeService,
                         termsProperties);
 
         doAnswer(
@@ -152,8 +156,13 @@ class OAuthLoginOrRegisterServiceTermsTest {
 
         GitHubUserInfo userInfo = createGitHubUserInfo();
         LoginResponse response =
-                oauthLoginService.process(
-                        OAuthProvider.GITHUB, TEST_GITHUB_ACCESS_TOKEN, userInfo, null);
+                ((LoginOutcome.Success)
+                                oauthLoginService.process(
+                                        OAuthProvider.GITHUB,
+                                        TEST_GITHUB_ACCESS_TOKEN,
+                                        userInfo,
+                                        null))
+                        .response();
 
         assertThat(response.termsExpired()).isFalse();
     }

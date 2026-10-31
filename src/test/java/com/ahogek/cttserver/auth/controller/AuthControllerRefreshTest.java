@@ -8,6 +8,7 @@ import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.auth.twofactor.service.LoginTwoFactorService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
@@ -59,6 +60,7 @@ class AuthControllerRefreshTest {
     @MockitoBean private UserService userService;
 
     @MockitoBean private UserLoginService userLoginService;
+    @MockitoBean private LoginTwoFactorService loginTwoFactorService;
 
     @MockitoBean private TokenRefreshService tokenRefreshService;
 

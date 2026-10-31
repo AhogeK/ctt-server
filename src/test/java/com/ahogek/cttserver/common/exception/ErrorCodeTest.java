@@ -35,6 +35,12 @@ class ErrorCodeTest {
         assertThat(ErrorCode.AUTH_018.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.AUTH_023.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(ErrorCode.AUTH_024.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ErrorCode.AUTH_026.httpStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(ErrorCode.AUTH_027.httpStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(ErrorCode.AUTH_028.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ErrorCode.AUTH_029.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ErrorCode.AUTH_030.httpStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(ErrorCode.AUTH_031.httpStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(ErrorCode.PASSWORD_SAME_AS_OLD.httpStatus()).isEqualTo(HttpStatus.CONFLICT);
     }
 

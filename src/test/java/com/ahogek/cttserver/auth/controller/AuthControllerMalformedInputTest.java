@@ -2,12 +2,14 @@ package com.ahogek.cttserver.auth.controller;
 
 import com.ahogek.cttserver.auth.AuthController;
 import com.ahogek.cttserver.auth.captcha.CaptchaService;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.filter.TermsCheckFilter;
 import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.auth.twofactor.service.LoginTwoFactorService;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
@@ -56,6 +58,7 @@ class AuthControllerMalformedInputTest {
     @MockitoBean private UserService userService;
 
     @MockitoBean private UserLoginService userLoginService;
+    @MockitoBean private LoginTwoFactorService loginTwoFactorService;
 
     @MockitoBean private TokenRefreshService tokenRefreshService;
 
@@ -155,7 +158,8 @@ class AuthControllerMalformedInputTest {
         void shouldHandleUnknownFieldGracefully() {
             LoginResponse mockResponse =
                     new LoginResponse(UUID.randomUUID(), "access-token", "refresh-token", 3600L);
-            given(userLoginService.login(any())).willReturn(mockResponse);
+            given(userLoginService.loginWithTwoFactor(any()))
+                    .willReturn(new LoginOutcome.Success(mockResponse));
 
             String request =
                     """
