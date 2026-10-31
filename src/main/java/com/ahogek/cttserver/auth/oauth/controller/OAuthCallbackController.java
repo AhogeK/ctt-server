@@ -1,5 +1,7 @@
 package com.ahogek.cttserver.auth.oauth.controller;
 
+import com.ahogek.cttserver.auth.dto.LoginChallengeResponse;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.oauth.client.GitHubOAuthClient;
@@ -42,6 +44,8 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -287,10 +291,29 @@ public class OAuthCallbackController {
         GitHubUserInfo userInfo = githubClient.getUserInfo(tokenResponse.accessToken());
 
         if (payload.action() == OAuthStatePayload.Action.LOGIN) {
-            LoginResponse loginResponse =
+            LoginOutcome outcome =
                     loginOrRegisterService.process(
                             provider, tokenResponse.accessToken(), userInfo, payload.clientIp());
 
+            if (outcome instanceof LoginOutcome.Challenge challenge) {
+                LoginChallengeResponse body = challenge.challenge();
+                String redirectUrl =
+                        UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
+                                .path(LOGIN_REDIRECT_PATH)
+                                .queryParam("twoFactorRequired", true)
+                                .fragment(
+                                        "challengeToken="
+                                                + URLEncoder.encode(
+                                                        body.challengeToken(),
+                                                        StandardCharsets.UTF_8)
+                                                + "&expiresIn="
+                                                + body.expiresIn())
+                                .toUriString();
+                response.sendRedirect(redirectUrl);
+                return;
+            }
+
+            LoginResponse loginResponse = ((LoginOutcome.Success) outcome).response();
             CookieHelper.addCookiesToResponse(
                     response,
                     loginResponse.accessToken(),
