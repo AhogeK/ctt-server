@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.auth.apikey.controller;
 
 import com.ahogek.cttserver.auth.CurrentUserProvider;
+import com.ahogek.cttserver.auth.WebSessionGuard;
 import com.ahogek.cttserver.auth.apikey.dto.ApiKeyResponse;
 import com.ahogek.cttserver.auth.apikey.dto.ApiKeysResponse;
 import com.ahogek.cttserver.auth.apikey.dto.CreateApiKeyRequest;
@@ -9,6 +10,7 @@ import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
 import com.ahogek.cttserver.auth.apikey.security.RequiresApiKeyScope;
 import com.ahogek.cttserver.auth.apikey.service.ApiKeyQueryService;
 import com.ahogek.cttserver.auth.apikey.service.ApiKeyService;
+import com.ahogek.cttserver.auth.twofactor.service.TwoFactorService;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.ErrorResponse;
@@ -78,18 +80,43 @@ public class ApiKeyController {
               "timestamp": "2026-07-09T10:30:00Z"
             }
             """;
+    private static final String SESSION_REQUIRED_EXAMPLE =
+            """
+            {
+              "code": "AUTH_025",
+              "message": "This action requires a signed-in session, not an API key",
+              "details": [],
+              "traceId": "abc-123",
+              "httpStatus": 403,
+              "timestamp": "2026-10-30T10:30:00Z"
+            }
+            """;
+    private static final String TWO_FACTOR_REQUIRED_EXAMPLE =
+            """
+            {
+              "code": "AUTH_030",
+              "message": "Two-factor verification is required for this action",
+              "details": [],
+              "traceId": "abc-123",
+              "httpStatus": 403,
+              "timestamp": "2026-10-30T10:30:00Z"
+            }
+            """;
 
     private final ApiKeyService apiKeyService;
     private final ApiKeyQueryService apiKeyQueryService;
     private final CurrentUserProvider currentUserProvider;
+    private final TwoFactorService twoFactorService;
 
     public ApiKeyController(
             ApiKeyService apiKeyService,
             ApiKeyQueryService apiKeyQueryService,
-            CurrentUserProvider currentUserProvider) {
+            CurrentUserProvider currentUserProvider,
+            TwoFactorService twoFactorService) {
         this.apiKeyService = apiKeyService;
         this.apiKeyQueryService = apiKeyQueryService;
         this.currentUserProvider = currentUserProvider;
+        this.twoFactorService = twoFactorService;
     }
 
     @Operation(
@@ -206,24 +233,34 @@ public class ApiKeyController {
                                                                 """))),
                 @ApiResponse(
                         responseCode = "403",
-                        description = "API key missing required scope - AUTH_020",
+                        description =
+                                "API-key caller, or two-factor verification required -"
+                                        + " AUTH_025/AUTH_030",
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
-                                        examples =
-                                                @ExampleObject(
-                                                        name = "scope-denied",
-                                                        summary =
-                                                                "API key lacks the required scope",
-                                                        value = SCOPE_DENIED_EXAMPLE)))
+                                        examples = {
+                                            @ExampleObject(
+                                                    name = "session-required",
+                                                    summary =
+                                                            "An API key cannot mint another API key",
+                                                    value = SESSION_REQUIRED_EXAMPLE),
+                                            @ExampleObject(
+                                                    name = "two-factor-required",
+                                                    summary =
+                                                            "Two-factor is enabled but no code was"
+                                                                    + " supplied",
+                                                    value = TWO_FACTOR_REQUIRED_EXAMPLE)
+                                        }))
             })
     @RateLimit(type = RateLimitType.USER, limit = 10, windowSeconds = 3600)
-    @RequiresApiKeyScope(ApiKeyScope.WRITE)
     @PostMapping
     public ResponseEntity<RestApiResponse<CreateApiKeyResponse>> createApiKey(
             @Valid @RequestBody CreateApiKeyRequest request) {
-        UUID userId = currentUserProvider.getActiveUserRequired().id();
-        CreateApiKeyResponse response = apiKeyService.createApiKey(userId, request);
+        var current =
+                WebSessionGuard.requireWebSession(currentUserProvider.getActiveUserRequired());
+        twoFactorService.requireCodeForSensitiveAction(current.id(), request.code());
+        CreateApiKeyResponse response = apiKeyService.createApiKey(current.id(), request);
         return ResponseEntity.created(URI.create("/api/v1/auth/api-keys/" + response.apiKey().id()))
                 .body(RestApiResponse.ok(response));
     }

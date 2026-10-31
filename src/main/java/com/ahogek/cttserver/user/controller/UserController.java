@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.user.controller;
 
 import com.ahogek.cttserver.auth.CurrentUserProvider;
+import com.ahogek.cttserver.auth.WebSessionGuard;
 import com.ahogek.cttserver.auth.apikey.enums.ApiKeyScope;
 import com.ahogek.cttserver.auth.apikey.security.RequiresApiKeyScope;
 import com.ahogek.cttserver.auth.dto.BatchRevokeSessionsRequest;
@@ -9,7 +10,6 @@ import com.ahogek.cttserver.auth.dto.LoginSessionResponse;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.auth.service.LoginSessionService;
 import com.ahogek.cttserver.common.exception.ErrorCode;
-import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
@@ -910,12 +910,10 @@ public class UserController {
     @DeleteMapping("/me")
     public ResponseEntity<RestApiResponse<EmptyResponse>> deleteCurrentUser(
             @Valid @RequestBody DeleteAccountRequest request) {
-        CurrentUser currentUser = currentUserProvider.getActiveUserRequired();
         // An API key is a credential sitting on disk in the plugin; letting one destroy the account
         // it was issued for turns a leaked key into account loss.
-        if (currentUser.authType() != CurrentUser.AuthenticationType.WEB_SESSION) {
-            throw new ForbiddenException(ErrorCode.AUTH_025);
-        }
+        CurrentUser currentUser =
+                WebSessionGuard.requireWebSession(currentUserProvider.getActiveUserRequired());
         accountDeletionService.deleteAccount(currentUser.id(), request.password());
         // After the transaction, never inside it: a ranking write that outlived a rollback would
         // leave a live account unranked, whereas the reverse (deleted but still ranked) is logged
