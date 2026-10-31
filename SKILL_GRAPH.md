@@ -1,9 +1,9 @@
 <a id="top"></a>
 # SKILL GRAPH — 本机技能索引（人机共读）
 
-> **最后更新**: 2026-10-12
-> **技能总数**: **496** 个唯一技能（项目 4 · 内置 17 · 用户级 412 · opencode 配置 63；跨源同名 4 组见 §5）
-> **来源**: 项目 `.agents/skills` · 内置 omp `~/.omp/agent/skills` · 内置 superpowers 插件 · 用户级 `~/.agents/skills` · opencode `~/.config/opencode/skills`
+> **最后更新**: 2026-10-30
+> **技能总数**: **503** 个唯一技能（条目 509 · 项目 4 · 内置 19 · 用户级 418 · opencode 68；跨源同名 6 组见 §5）
+> **来源**: 项目 `.agents/skills` · 内置 omp `~/.omp/agent/skills`（4）· 内置 superpowers 插件（15）· 用户级 `~/.agents/skills`（418）· opencode `~/.config/opencode/skills`（68）
 > **名称**: 以技能 `SKILL.md` 的 frontmatter `name:` 为准；与目录名不同时在括号内标注目录（如 `cso`（目录 `gstack-cso`））
 > **用法**: 先看 §0 快速查找；其余用检索定位（如 `grep -i "单细胞" SKILL_GRAPH.md`），**不要整篇通读**
 > **维护**: 本文件只做索引，不复制技能内容；技能增删后按同一规则重新生成；说明由维护者用中文撰写，不复述英文原文
@@ -31,22 +31,22 @@
 
 | 分类 | 数量 | 直达 |
 | --- | --- | --- |
-| 需求与规划 | 16 | [跳转](#c-plan) |
+| 需求与规划 | 24 | [跳转](#c-plan) |
 | 方案评审与决策 | 10 | [跳转](#c-design-review) |
-| 编码与重构 | 16 | [跳转](#c-impl) |
+| 编码与重构 | 15 | [跳转](#c-impl) |
 | 调试与排障 | 10 | [跳转](#c-debug) |
 | 代码审查与 Git | 13 | [跳转](#c-review) |
-| 测试与验证 | 8 | [跳转](#c-test) |
-| UI / 视觉与设计 | 30 | [跳转](#c-ui) |
+| 测试与验证 | 11 | [跳转](#c-test) |
+| UI / 视觉与设计 | 21 | [跳转](#c-ui) |
 | 浏览器与检索 | 26 | [跳转](#c-browser) |
-| 写作与文档 | 17 | [跳转](#c-doc) |
+| 写作与文档 | 19 | [跳转](#c-doc) |
 | 科研与学术 | 26 | [跳转](#c-academic) |
 | 生信与组学 | 44 | [跳转](#c-bio) |
 | 分子 · 药物 · 实验室 | 24 | [跳转](#c-mol) |
 | 数据 · 可视化与 ML | 30 | [跳转](#c-data) |
-| 部署 · 运维与安全 | 22 | [跳转](#c-ops) |
-| 代理与会话 | 24 | [跳转](#c-agent) |
-| CLI 封装与外部工具 | 6 | [跳转](#c-cli) |
+| 部署 · 运维与安全 | 25 | [跳转](#c-ops) |
+| 代理与会话 | 26 | [跳转](#c-agent) |
+| CLI 封装与外部工具 | 4 | [跳转](#c-cli) |
 
 ### 按章节
 
@@ -54,9 +54,9 @@
 | --- | --- | --- |
 | §0 | 快速查找指南（按任务，20 条链） | [跳转](#s0) |
 | §1 | 项目技能（4） | [跳转](#s1) |
-| §2 | 内置技能（17） | [跳转](#s2) |
-| §3 | 用户级技能（412，按名称排序 —— 检索轴） | [跳转](#s3) |
-| §4 | opencode 配置技能（63） | [跳转](#s4) |
+| §2 | 内置技能（19） | [跳转](#s2) |
+| §3 | 用户级技能（418，表内 416；按名称排序 —— 检索轴） | [跳转](#s3) |
+| §4 | opencode 配置技能（68，表内 64） | [跳转](#s4) |
 | §5 | 跨源同名 | [跳转](#s5) |
 | §6 | 家族速查 | [跳转](#s6) |
 | §7 | 校正记录 | [跳转](#s7) |
@@ -64,10 +64,10 @@
 
 ## 用途分类索引
 
-> 按"我要做什么"归类，可从上方目录的分类表直达；一个技能可出现在多个用途下（此处是索引，技能本体只在 §1–§4 收录一次）；未列入的技能按名称在 §3/§4 检索。
+> 按"我要做什么"归类，可从上方目录的分类表直达；索引收录 **328 条 / 328 个技能**（每个技能只出现一次），其余 175 个技能按名称在 §2–§4 检索。
 
 <a id="c-plan"></a>
-### 需求与规划（16）
+### 需求与规划（24）
 
 把模糊想法变成可执行方案：先问清、再拆解、后落地。
 
@@ -87,6 +87,14 @@
 - `loop-me` — 就"你想构建的工作流"接受规格层面的连续盘问，把需求问清。
 - `arbor` — 用假设树细化研究/工程问题：可重复评估器、孤立实验、证据追踪与基准优化。
 - `what-if-oracle` — 用结构化"假如…会怎样"情景压测研究计划（不做概率预测）。
+- `openspec-explore` — 以思考伙伴方式探索问题、调查现状、厘清需求（变更前或变更中）。
+- `openspec-new-change` — 新建 OpenSpec 变更：按工件工作流逐步推进功能、修复或改造。
+- `openspec-continue-change` — 继续 OpenSpec 变更：创建下一个工件并推进流程。
+- `openspec-ff-change` — 快速生成实现所需的全部 OpenSpec 工件，不逐个确认。
+- `openspec-update-change` — 修订变更的规划工件并保持彼此一致（不改代码）。
+- `openspec-sync-specs` — 把变更的 delta specs 同步进主规格（不归档变更）。
+- `openspec-propose` — 一步生成完整 OpenSpec 提案：设计、规格与任务齐备。
+- `openspec-onboard` — 引导式入门：带旁白完整走一遍 OpenSpec 工作流（含真实代码）。
 
 <a id="c-design-review"></a>
 ### 方案评审与决策（10）
@@ -105,17 +113,15 @@
 - `grilling` — 就计划、决策或想法对用户进行高强度盘问，压力测试其思考。
 
 <a id="c-impl"></a>
-### 编码与重构（16）
+### 编码与重构（15）
 
 实现、简化，并守住质量底线。
 
-- `tdd` — 测试先行开发：用户要求 test-first 或提到红绿重构时使用。
 - `test-driven-development` — 写任何功能或修任何 bug 的实现代码之前使用：先写失败测试。
 - `incremental-implementation` — 把改动切成薄而可验证的小步交付，适用于任何需要控制风险的功能或重构。
 - `constraint-driven-development` — 把项目质量标准写成契约（CONSTRAINTS.md）并阻止代理悄悄降低门槛。
 - `source-driven-development` — 让每个实现决策都落在官方文档上：动手前先查证官方说法而非凭记忆。
 - `prototype` — 造一个用完即弃的原型来回答设计问题（验证某方案是否可行、手感如何）。
-- `full-output-enforcement` — 覆盖模型默认截断行为：强制完整代码输出、禁止占位符、妥善处理 token 上限切分。
 - `code-simplification` — 不改变行为地简化代码：可读性与可维护性差、复杂度堆积时使用。
 - `codebase-design` — 深模块设计的共同语言：模块接口、加深机会、接缝位置、可测性与 AI 可导航性。
 - `domain-modeling` — 建立并打磨项目领域模型：术语表 GLOSSARY.md、ADR 讨论与代码术语统一。
@@ -125,6 +131,7 @@
 - `migrate-to-shoehorn` — 把测试里的 `as` 类型断言迁移到 @total-typescript/shoehorn。
 - `deslop-shared-libs` — 在近期改动中发现值得抽出的共享代码，并只推荐真正可共享的部分。
 - `subagent-driven-development` — 用子代理执行含独立任务的实施计划时使用。
+- `openspec-apply-change` — 按 OpenSpec 变更的任务清单落地实现：开始、继续或逐项完成。
 
 <a id="c-debug"></a>
 ### 调试与排障（10）
@@ -162,7 +169,7 @@
 - `finishing-a-development-branch` — 实现完成且测试通过后，决定分支如何收尾合入时使用。
 
 <a id="c-test"></a>
-### 测试与验证（8）
+### 测试与验证（11）
 
 测试先行、测试体检与端到端验证。
 
@@ -174,37 +181,31 @@
 - `browser-testing-with-devtools` — 用 Chrome DevTools 在真实浏览器中测试：查 DOM、抓控制台错误、看网络请求、做性能与视觉校验。
 - `test-auth-bootstrap` — 在开发/测试环境自动取得可用凭据（或完整账号），使端到端验证不被登录/验证码卡住。
 - `verification-before-completion` — 声称"完成/修好/通过"之前必须运行验证命令并核对输出，先有证据再下结论。
+- `openspec-verify-change` — 归档前校验实现与变更工件一致、完整、正确。
+- `verify-openspec-docs` — 用全新上下文子代理重跑命令、核对 OpenSpec 文档事实。
+- `eval-plan` — 付费评测前预注册指标、对照组与停止规则；先零成本试跑，再按花费表批准试点。
 
 <a id="c-ui"></a>
-### UI / 视觉与设计（30）
+### UI / 视觉与设计（21）
 
 界面设计、视觉打磨、动效与无障碍。
 
 - `ui` — 构建与改造生产级 UI：组件、排版、布局与视觉一致性（不含后端逻辑）。
 - `design-taste-frontend` — 前端艺术指导（tasteskill v2）：基于 247 个精选站点研究的构图、字体、配色与摄影方向。
-- `design-taste-frontend-v1` — 上一版 taste-skill，仅在需要与其行为逐字兼容的旧项目中保留使用。
 - `frontend-ui-engineering` — 构建生产级、无障碍、自适应的界面：组件、布局、状态管理与 WCAG 达标。
 - `design-consultation` — 设计咨询：为新项目建立设计体系、品牌规范或 DESIGN.md。
 - `design-html` — 把定稿的设计或方案落成可交付的 HTML/CSS。
 - `design-review` — 视觉 QA 与设计打磨（不做事前的方案设计评审）。
 - `design-shotgun` — 设计发散：一次给出多个 UI 方向与变体供挑选。
 - `impeccable` — 界面设计的通用改进流程：设计、重塑、评审、审计、打磨、澄清、精简与加固。
-- `minimalist-ui` — 简洁编辑风界面：暖色单色调、字体对比、扁平 bento 网格与低饱和配色。
-- `industrial-brutalist-ui` — 工业粗野风格界面：瑞士印刷版式与军用终端美学的融合——刚性网格、极简配色。
-- `high-end-visual-design` — 按高端设计机构标准做界面：精确字体、间距、阴影、卡片结构与动效，并封堵廉价感默认样式。
-- `gpt-taste` — 高级 UX/UI 与 GSAP 动效工程：Python 驱动的版面随机化、AIDA 结构、编辑式字体与 bento 网格。
 - `oil-ui` — 网站/应用/仪表盘/组件的界面设计、改进与评审：先探索不同设计方向再落地。
 - `oiloil-ui-ux-guide` — 整理项目 UI/UX 规范并产出 design-spec.md，或对现有界面做优先级排序的评审；单个颜色字号这类小问题不适用。
-- `stitch-design-taste` — 为 Google Stitch 生成 DESIGN.md：把高端 UI 标准写成代理可执行的语义设计系统。
 - `emil-design-eng` — Emil Kowalski 的 UI 打磨哲学：组件设计、动效取舍与让产品"手感好"的细节。
 - `motion-spec` — 把模糊动效诉求（"丝滑一点""高级感""加点动画"）写成明确的动效规格：时长、曲线、编排与降级。
 - `animation-vocabulary` — 反查动画/动效术语：把"弹一下""橡皮筋滚动"这类描述对应到准确名称，供检索与沟通。
 - `review-animations` — 按高标准审查动画/动效代码（源自 Emil Kowalski 的设计工程标准）。
 - `draw-ui` — 设计 App、后台、游戏界面与完整落地页并产出 UI 设计稿；也可把设计稿或截图还原为 HTML/CSS、现有前端项目或微信小程序。不用于插画、海报、故事板与纯图片编辑。
-- `image-to-code` — 视觉要求高的网页任务：先生成设计稿，再据此产出代码（图像到代码的完整链路）。
 - `generate-image` — 经 OpenRouter 图像 API 生成或编辑图片（Gemini/Seedream/Recraft/GPT-Image）：照片、插画、概念图、标志与合成。
-- `brandkit` — 生成高端品牌视觉：品牌规范板、标志系统、识别手册与视觉世界提案。
-- `redesign-existing-projects` — 把现有网站/应用升级到高品质：审计现状、识别廉价 AI 套路并给出改造方案。
 - `web-design-guidelines` — 界面评审：可访问性、设计一致性与 UX 问题清单。
 - `web-accessibility-audit` — 审计 WCAG 无障碍合规并给出修复建议与优先级。
 - `a11y-debugging` — 用 Chrome DevTools 排查无障碍问题：语义 HTML、ARIA、焦点态、键盘导航、点击区域与对比度。
@@ -244,7 +245,7 @@
 - `liteparse` — 本地文档与 PDF 解析：输出带边界框的空间文本，便于版面相关抽取。
 
 <a id="c-doc"></a>
-### 写作与文档（17）
+### 写作与文档（19）
 
 人读文档、写作法、排版与图表表达。
 
@@ -265,6 +266,8 @@
 - `documd-visuals` — 用 Markdown 做文本驱动可视化：图表、示意图、卡片、架构与页面布局（含可靠性/运营类图表）。
 - `diagram` — 把流程、架构、状态机画成图并导出 SVG/Excalidraw。
 - `venue-templates` — 按目标会议的模板与格式要求排版论文、海报、基金与 LaTeX 稿件。
+- `write-openspec-docs` — 以 OpenSpec 文风撰写/修订文档页：行动优先、无铺垫、可扫读。
+- `draft-openspec-docs` — 协作起草 OpenSpec 文档页：先在页内建计划、逐步确认后逐节成稿（非小修）。
 
 <a id="c-academic"></a>
 ### 科研与学术（26）
@@ -415,7 +418,7 @@
 - `optimize-for-gpu` — 在 NVIDIA 硬件上加速科学 Python，并验证结果正确且确实更快（CUDA/RAPIDS/CuPy/Numba）。
 
 <a id="c-ops"></a>
-### 部署 · 运维与安全（22）
+### 部署 · 运维与安全（25）
 
 发布上线、性能与可观测性、安全与合规。
 
@@ -441,9 +444,12 @@
 - `terraform-style-check` — 按 HashiCorp 官方风格约定编写与审查 Terraform HCL。
 - `security-and-hardening` — 代码安全加固：审计输入处理、认证授权、OWASP 漏洞与依赖安全。
 - `cso` — 安全审计：静态发现为主，具备条件时补充复现与修复候选（OWASP、威胁建模、漏洞复核）。
+- `openspec-archive-change` — 实现完成后归档已完成的 OpenSpec 变更。
+- `openspec-bulk-archive-change` — 一次归档多个已完成的 OpenSpec 变更。
+- `release-openspec` — 发布 OpenSpec：审计合并与 changeset、推进发布 PR、切 beta/stable 并核对。
 
 <a id="c-agent"></a>
-### 代理与会话（24）
+### 代理与会话（26）
 
 技能体系本身、会话交接与代理协作。
 
@@ -471,16 +477,16 @@
 - `guard` — 全面安全模式：危险命令告警 + 目录级编辑限制（careful + freeze 的合体）。
 - `freeze` — 冻结编辑范围：把本会话的写入限制在指定目录内，防止顺手改无关代码。
 - `unfreeze` — 解除 freeze 的目录编辑限制，恢复全目录写入。
+- `magpie-quota` — 查看订阅、编码套餐与 API Key 余额及重置时间；限流或昂贵任务前先看额度。
+- `magpie-setup` — 配置 magpie：接入 Key/订阅、模型路由与回退、网关预算与 MCP。
 
 <a id="c-cli"></a>
-### CLI 封装与外部工具（6）
+### CLI 封装与外部工具（4）
 
 给 GUI 应用与非编程工具套一层命令行，让代理可自动化。
 
 - `cli-anything` — 为 GUI 应用或源码仓库构建、打磨、校验 CLI-Anything 命令行封装（不改动其生成格式）。
-- `cli-anything-*` — 家族：69 个具体应用的命令行驱动（Blender / GIMP / QGIS / Zotero / iTerm2 / Obsidian / FreeCAD / Postman… 完整清单见 §3 的 `cli-anything-` 前缀族）
 - `cli-hub-meta-skill` — 在实时目录里检索可用的 agent-native CLI 工具（创意、效率、AI 等方向）。
-- `opencli-*` — 家族：4 个 OpenCLI 适配器相关技能（`opencli-usage` / `opencli-browser` / `opencli-adapter-author` / `opencli-autofix`，均已在上方「浏览器与检索」列出）
 - `cli-anything-macrocli` — 用命令行驱动 MacroCLI：把 GUI 操作定义成可调用的参数化宏。
 - `reverse-engineering` — 逆向 macOS 二进制与私有 API：stripped Mach-O、arm64e、系统进程（Ghidra/LLDB）。
 
@@ -687,6 +693,7 @@
 - `subagent-driven-development` — 用子代理执行含独立任务的实施计划时使用。
 
 ---
+
 <a id="s1"></a>
 ## 1. 项目技能（`.agents/skills/`，4 个）
 
@@ -706,12 +713,14 @@
 ---
 
 <a id="s2"></a>
-## 2. 内置技能（17 个）
+## 2. 内置技能（19 个）
 
-### 2.1 omp 内置（`~/.omp/agent/skills/`，2 个）
+### 2.1 omp 内置（`~/.omp/agent/skills/`，4 个）
 
 | 技能 | 说明 |
 | --- | --- |
+| `magpie-quota` | 查看订阅、编码套餐与 API Key 余额及重置时间；限流或昂贵任务前先看额度。 |
+| `magpie-setup` | 配置 magpie：接入 Key/订阅、模型路由与回退、网关预算与 MCP。 |
 | `teach` | 讲解任何内容都要让人真正理解而非记住：按已验证的教学原则组织解释，任何程度的讲解都可调用。 |
 | `visualize` | 给讲解配一张最小正确的图（依赖图、流程、时序、状态机、树、对比等），以内联 SVG 渲染。 |
 
@@ -742,9 +751,9 @@
 ---
 
 <a id="s3"></a>
-## 3. 用户级技能（`~/.agents/skills/`，412 个）
+## 3. 用户级技能（`~/.agents/skills/`，418 个）
 
-> 本机技能库主体，**按名称排序** —— 这是**检索轴**：已知名字时快速定位。
+> 本机技能库主体，**按名称排序**（本表列 416 个；`teach`、`test-driven-development` 与内置同名，见 §5） —— 这是**检索轴**：已知名字时快速定位。
 > 想按用途找技能，请看上方的 **用途分类索引** —— 那是**发现轴**：按「我要做什么」归类，并给出每个成员的说明。
 > 字母本身不表达用途，因此这里不再按首字母拆小节。
 
@@ -773,7 +782,6 @@
 | `bids` | 组织、查询、校验与转换 BIDS 脑影像数据集（MRI/EEG/MEG/iEEG/PET 等）。 |
 | `biopython` | Biopython 序列处理：读写 FASTA/GenBank/PDB、系统发育、经 Bio.Entrez 访问 NCBI/PubMed。 |
 | `bioservices` | 用 Python 调 UniProt、KEGG、ChEMBL、Reactome、QuickGO、UniChem 等，做跨库注释与标识映射。 |
-| `brandkit` | 生成高端品牌视觉：品牌规范板、标志系统、识别手册与视觉世界提案。 |
 | `browser-harness` | 经 CDP 驱动真实浏览器：点击输入、导航、已登录会话、JS 渲染或反爬页面（纯静态抓取请用 curl）。 |
 | `browser-testing-with-devtools` | 用 Chrome DevTools 在真实浏览器中测试：查 DOM、抓控制台错误、看网络请求、做性能与视觉校验。 |
 | `browser-use` | 直接的浏览器控制（CDP）：自动化、抓取、测试、截图与站点操作。 |
@@ -889,7 +897,6 @@
 | `depmap` | 取用并分析 DepMap 数据：CRISPR Chronos 基因效应、癌症模型注释、组学标志物与 PRISM 药敏。 |
 | `deprecation-and-migration` | 管理弃用与迁移：下线旧系统/API/功能、把用户迁到新实现、在线改库表结构。 |
 | `design-taste-frontend` | 前端艺术指导（tasteskill v2）：基于 247 个精选站点研究的构图、字体、配色与摄影方向。 |
-| `design-taste-frontend-v1` | 上一版 taste-skill，仅在需要与其行为逐字兼容的旧项目中保留使用。 |
 | `dhdna-profiler` | 用 DHDNA 框架分析给定文本的推理与写作模式（认知风格画像、文本推理比较）。 |
 | `diagnosing-bugs` | 难缠 bug 与性能回归的诊断循环：用户说"诊断/调试这个"或报告坏了/抛错/失败/变慢时使用。 |
 | `diagram-design` | 生成品牌化专业图：架构与增量架构、现状图、流程、时序、状态机、ER、时间线、泳道、象限、雷达、树状与组织结构等。 |
@@ -900,6 +907,7 @@
 | `documentation-and-adrs` | 记录决策与文档：写 ADR、公共 API 变更说明、功能发布说明与给未来工程师的背景。 |
 | `domain-modeling` | 建立并打磨项目领域模型：术语表 GLOSSARY.md、ADR 讨论与代码术语统一。 |
 | `doubt-driven-development` | 关键决策先过一遍全新上下文的对抗式评审：交叉盘问假设、压测隐藏失败模式。 |
+| `draft-openspec-docs` | 协作起草 OpenSpec 文档页：先在页内建计划、逐步确认后逐节成稿（非小修）。 |
 | `draw-ui` | 设计 App、后台、游戏界面与完整落地页并产出 UI 设计稿；也可把设计稿或截图还原为 HTML/CSS、现有前端项目或微信小程序。不用于插画、海报、故事板与纯图片编辑。 |
 | `emil-design-eng` | Emil Kowalski 的 UI 打磨哲学：组件设计、动效取舍与让产品"手感好"的细节。 |
 | `esm` | 用 Biohub esm SDK 做 ESM3 蛋白生成、ESMC 嵌入与 ESMFold2 全原子折叠（本地推理或托管客户端）。 |
@@ -914,7 +922,6 @@
 | `fluidsim` | 规划、配置、检视、重启与分析有界 CFD 仿真（FluidSim）：求解器选择、参数复核、FFT/MPI 与数值有效性检查。 |
 | `folklore-variant-evidence` | 取 ClinGen 基因-疾病有效性断言，并核对某 GRCh38 胚系 SNV/小 indel 的公开证据与文献。 |
 | `frontend-ui-engineering` | 构建生产级、无障碍、自适应的界面：组件、布局、状态管理与 WCAG 达标。 |
-| `full-output-enforcement` | 覆盖模型默认截断行为：强制完整代码输出、禁止占位符、妥善处理 token 上限切分。 |
 | `generate-image` | 经 OpenRouter 图像 API 生成或编辑图片（Gemini/Seedream/Recraft/GPT-Image）：照片、插画、概念图、标志与合成。 |
 | `geniml` | 本地基因组区间模型与集合代数：校验 BED/universe 契约，规划 Region2Vec/scEmbed 运行并检查一致性。 |
 | `genomic-coordinates` | 坐标约定转换、变异表示规范化与比较、装配版本/染色体命名不一致的提前发现。 |
@@ -929,30 +936,24 @@
 | `github-bug-report-triage` | 判断 GitHub bug 报告是否可行动，并指出缺失的复现信息。 |
 | `github-issue-dedupe` | 用语义检索与关键词匹配发现重复 issue，或建立自动查重。 |
 | `glycoengineering` | 糖基化分析与改造：扫描 N-糖基化序列、S/T 富集区、糖基证据，准备 NetNGlyc/NetOGlyc/GlycoSHIELD 流程。 |
-| `gpt-taste` | 高级 UX/UI 与 GSAP 动效工程：Python 驱动的版面随机化、AIDA 结构、编辑式字体与 bento 网格。 |
 | `grill-me` | 就方案或设计接受一场不留情面的追问，用以打磨思路。 |
 | `grill-with-docs` | 同上，并在追问过程中同步产出 ADR 与术语表文档。 |
 | `grilling` | 就计划、决策或想法对用户进行高强度盘问，压力测试其思考。 |
 | `gtars` | 本地基因组区间模型与集合代数：重叠与计数、共识与覆盖、分词、片段处理与 refget/BEDbase 规划（Python/Rust/CLI）。 |
 | `handoff` | 把当前对话压缩成交接文档，供另一个代理接手继续。 |
 | `health` | 体检 agent 配置与 AI 可维护性：指令漂移、hooks/MCP、验证器缺失；不查应用 bug，也不做 PR 审查。 |
-| `high-end-visual-design` | 按高端设计机构标准做界面：精确字体、间距、阴影、卡片结构与动效，并封堵廉价感默认样式。 |
 | `histolab` | 病理全片图像处理：切片检视、组织掩膜、随机/网格/评分抽样与 H&E 染色归一，产出可供训练的图块集。 |
 | `hugging-science` | 在 Hugging Science 目录中发现并评估科研数据集、模型、方法帖与 Space（生物/化学/材料/气候/天文等）。 |
 | `hunt` | 先定位根因再动手修：报错、崩溃、回归或"以前能跑"时使用；不用于代码审查或新功能。 |
 | `hypogenic` | 规划与审计用 HypoGeniC/HypoRefine 做 LLM 辅助假设生成（hypogenic 包、任务配置、假设库与 HypoBench）。 |
 | `hypothesis-generation` | 把观察转成可检验的科学问题：候选假设、竞争解释、因果/相关主张、判别性预测与预注册分析计划。 |
 | `idea-refine` | 把粗糙想法打磨成清晰可执行的概念：结构化发散与收敛，适用于开工前的构思阶段。 |
-| `image-to-code` | 视觉要求高的网页任务：先生成设计稿，再据此产出代码（图像到代码的完整链路）。 |
-| `imagegen-frontend-mobile` | 生成移动端 App 的高保真界面概念与流程稿，用作原生风格设计参考。 |
-| `imagegen-frontend-web` | 生成面向转化的网站设计参考图，强调版式与转化路径。 |
 | `imaging-data-commons` | 查询并下载 NCI Imaging Data Commons 的公开肿瘤影像数据（集合发现、元数据与影像检索）。 |
 | `impeccable` | 界面设计的通用改进流程：设计、重塑、评审、审计、打磨、澄清、精简与加固。 |
 | `implement` | 依据一份规格或一组工单（tickets）落地实现。 |
 | `implement-spec` | 把 /to-spec 与 /to-tickets 的产物落成代码。 |
 | `improve-codebase-architecture` | 扫描代码库找出"加深模块"的机会，产出可视化 HTML 报告并逐个推翻或采纳。 |
 | `incremental-implementation` | 把改动切成薄而可验证的小步交付，适用于任何需要控制风险的功能或重构。 |
-| `industrial-brutalist-ui` | 工业粗野风格界面：瑞士印刷版式与军用终端美学的融合——刚性网格、极简配色。 |
 | `infographics` | 用 OpenRouter 上的 Nano Banana 2 生成或评审信息图（统计摘要、时间线、流程）。 |
 | `interview-me` | 通过连续单问挖掘用户真正想要的东西（而非其自以为想要的）。 |
 | `iso-standards-readiness` | 准备并按结构审查 ISO 管理体系与实验室能力（如 ISO 13485/15189/17025）的就绪证据。 |
@@ -978,7 +979,6 @@
 | `medchem` | 药物化学过滤与化合物初筛：类药规则（Lipinski/Veber/CNS）、结构警示与 PAINS。 |
 | `memory-leak-debugging` | 排查 JavaScript/Node.js 内存泄漏：高内存占用与 OOM，含堆快照分析。 |
 | `migrate-to-shoehorn` | 把测试里的 `as` 类型断言迁移到 @total-typescript/shoehorn。 |
-| `minimalist-ui` | 简洁编辑风界面：暖色单色调、字体对比、扁平 bento 网格与低饱和配色。 |
 | `modal` | 用 Modal 无服务器平台按需运行 Python（含按需 GPU），部署函数与批处理任务。 |
 | `molecular-dynamics` | 用 OpenMM/MDAnalysis 搭建并分析分子动力学模拟（蛋白与配体体系、轨迹分析）。 |
 | `molfeat` | 用 Molfeat 生成分子特征，用于 QSAR/QSPR、相似性与虚拟筛选。 |
@@ -1017,6 +1017,18 @@
 | `opencli-browser` | 用 opencli 驱动真实 Chrome：检视页面、填表、点击与抓取数据。 |
 | `opencli-usage` | OpenCLI 会话的入口总览：都有哪些能力、如何发现适配器与命令、输出格式。 |
 | `openpiv` | 用 OpenPIV 做粒子图像测速：从 PIV 图像序列提取速度场。 |
+| `openspec-apply-change` | 按 OpenSpec 变更的任务清单落地实现：开始、继续或逐项完成。 |
+| `openspec-archive-change` | 实现完成后归档已完成的 OpenSpec 变更。 |
+| `openspec-bulk-archive-change` | 一次归档多个已完成的 OpenSpec 变更。 |
+| `openspec-continue-change` | 继续 OpenSpec 变更：创建下一个工件并推进流程。 |
+| `openspec-explore` | 以思考伙伴方式探索问题、调查现状、厘清需求（变更前或变更中）。 |
+| `openspec-ff-change` | 快速生成实现所需的全部 OpenSpec 工件，不逐个确认。 |
+| `openspec-new-change` | 新建 OpenSpec 变更：按工件工作流逐步推进功能、修复或改造。 |
+| `openspec-onboard` | 引导式入门：带旁白完整走一遍 OpenSpec 工作流（含真实代码）。 |
+| `openspec-propose` | 一步生成完整 OpenSpec 提案：设计、规格与任务齐备。 |
+| `openspec-sync-specs` | 把变更的 delta specs 同步进主规格（不归档变更）。 |
+| `openspec-update-change` | 修订变更的规划工件并保持彼此一致（不改代码）。 |
+| `openspec-verify-change` | 归档前校验实现与变更工件一致、完整、正确。 |
 | `opentrons-integration` | 编写、评审、迁移、仿真与排错 Opentrons 官方 Python Protocol API v2 协议。 |
 | `optimize-for-gpu` | 在 NVIDIA 硬件上加速科学 Python，并验证结果正确且确实更快（CUDA/RAPIDS/CuPy/Numba）。 |
 | `pacsomatic` | 准备并启动 nf-core/pacsomatic 的肿瘤-正常配对 PacBio HiFi 流程。 |
@@ -1066,7 +1078,7 @@
 | `rea-changelog-update` | 依据固定 Git 历史准备或重写 REA 发布日志与 GitHub Release 说明。 |
 | `rea-tool-design` | 设计或变更 REA 调查工具：CLI/MCP 契约、provider 能力与 Evidence 语义。 |
 | `read` | 抓取 URL 与 PDF 并总结或输出干净 Markdown（读、引用、保存网页时使用）。 |
-| `redesign-existing-projects` | 把现有网站/应用升级到高品质：审计现状、识别廉价 AI 套路并给出改造方案。 |
+| `release-openspec` | 发布 OpenSpec：审计合并与 changeset、推进发布 PR、切 beta/stable 并核对。 |
 | `relion` | 校验并执行 RELION 单颗粒冷冻电镜精修与半图后处理（STAR、光学、掩膜与 FSC）。 |
 | `relsa-severity-assessment` | 实验动物福利的多变量严重度评估与终点时间预测（探索性打分）。 |
 | `remote-browser` | 在受限沙箱中用 Browser Use CLI 控制隔离的云浏览器。 |
@@ -1112,7 +1124,6 @@
 | `statistical-analysis` | 研究数据的统计分析指引：检验选择、假设检查、效应量与功效。 |
 | `statistical-power` | 研究规划阶段的样本量与统计功效计算（需要多少受试者才能检验出效应）。 |
 | `statsmodels` | 用 statsmodels 拟合与诊断统计模型：OLS、GLM、离散与混合模型、ARIMA/SARIMAX。 |
-| `stitch-design-taste` | 为 Google Stitch 生成 DESIGN.md：把高端 UI 标准写成代理可执行的语义设计系统。 |
 | `sympy` | 精确符号数学：代数、微积分、方程求解与符号线性代数。 |
 | `tamarind` | 使用 Tamarind 平台上的开源分子设计与结构生物学工具（AlphaFold/RFdiffusion/Boltz/ESMFold 等）。 |
 | `tdd` | 测试先行开发：用户要求 test-first 或提到红绿重构时使用。 |
@@ -1144,6 +1155,7 @@
 | `vercel-react-best-practices` | React/Next.js 性能最佳实践：包体积、数据获取与渲染优化。 |
 | `vercel-react-native-skills` | React Native / Expo 移动端组件、动画与性能优化。 |
 | `vercel-react-view-transitions` | React/Next.js 页面转场与共享元素动画（ViewTransition）。 |
+| `verify-openspec-docs` | 用全新上下文子代理重跑命令、核对 OpenSpec 文档事实。 |
 | `wait-what` | 当某段解释没听懂时，请它换一种更直白的说法把同一件事讲清楚。 |
 | `wayfinder` | 在陌生代码库里定位"该改哪里"：以目标为导向的代码导航与入口发现。 |
 | `waypoint-bio` | 微生物组基础模型与基准：Waypoint 检查点、Compass 基准与丰度表分析。 |
@@ -1154,6 +1166,7 @@
 | `what-if-oracle` | 用结构化"假如…会怎样"情景压测研究计划（不做概率预测）。 |
 | `wizard` | 需要人工操作（凭据、开通、割接）时的分步引导式 bash 流程。 |
 | `write` | 起草、编辑或本地化中英文文稿（不含代码注释）。 |
+| `write-openspec-docs` | 以 OpenSpec 文风撰写/修订文档页：行动优先、无铺垫、可扫读。 |
 | `write-plan` | 把需求写成分步实施计划（写计划、规格转任务、多文件改动前使用）。 |
 | `writing-beats` | 写作"节拍"：把内容拆成有推进感的段落与节拍再成文。 |
 | `writing-for-agents` | 面向代理写文档：技能、AGENTS.md/CLAUDE.md 与规则文件的写法与维护边界。 |
@@ -1167,9 +1180,9 @@
 
 ---
 <a id="s4"></a>
-## 4. opencode 配置技能（`~/.config/opencode/skills/`，63 个）
+## 4. opencode 配置技能（`~/.config/opencode/skills/`，68 个）
 
-> 11 个本地目录（含 `gstack` 包内子技能）+ 56 个指向 gstack 仓库的符号链接；链接目录名形如 `gstack-<name>`，技能名为 `<name>`。
+> 11 个本地目录（含 `gstack` 包内子技能）+ 57 个指向 gstack 仓库的符号链接；链接目录名形如 `gstack-<name>`，技能名为 `<name>`。本表列 64 个；`health`、`learn`、`qa`、`retro` 与用户级同名，见 §5。
 
 | 技能 | 说明 |
 | --- | --- |
@@ -1200,6 +1213,7 @@
 | `doko-search` | 用本地浏览器在 Google/Bing/DuckDuckGo 上免费检索。 |
 | `doko-summarize` | 通过真实浏览器抓取并总结网页要点。 |
 | `doko-translate` | 整页翻译并尽量保留结构、格式、表格与代码块。 |
+| `eval-plan` | 付费评测前预注册指标、对照组与停止规则；先零成本试跑，再按花费表批准试点。 |
 | `dokobot` | 读取 JS 渲染的动态页面与 SPA 内容。 |
 | `freeze` | 冻结编辑范围：把本会话的写入限制在指定目录内，防止顺手改无关代码。 |
 | `guard` | 全面安全模式：危险命令告警 + 目录级编辑限制（careful + freeze 的合体）。 |
@@ -1244,7 +1258,7 @@
 ---
 
 <a id="s5"></a>
-## 5. 跨源同名（已去重，按来源优先级解析）
+## 5. 跨源同名（6 组，已去重）
 
 | 技能名 | 出现在 | 处理 |
 | --- | --- | --- |
@@ -1268,13 +1282,14 @@
 
 | 前缀 / 族 | 数量 | 说明 |
 | --- | --- | --- |
-| `cli-anything-*` | 69 | 为各类 GUI 应用封装的命令行驱动（详见 §3 对应条目） |
+| `cli-anything-*` | 70 | 为各类 GUI 应用封装的命令行驱动（详见 §3 对应条目） |
 | `nature-*` | 14 | 学术写作与投稿全流程（检索、引用、配图、润色、审稿回复、专利、PPT） |
 | `doko-*` | 4 | 浏览器检索 / 摘要 / 翻译 / 多轮研究 |
-| `gstack-*`（目录名） | 56 | 符号链接指向外部 gstack 仓库；技能名不带前缀，见 §4 |
+| `gstack-*`（目录名） | 57 | 符号链接指向外部 gstack 仓库；技能名不带前缀，见 §4 |
 | `plan-*-review` | 4 | 计划的多视角评审（CEO / 设计 / DX / 工程） |
 | `ios-*` | 5 | 真机 iOS 的 QA、修 bug、设计审计与调试桥同步 |
 | `vercel-*` | 6 | Vercel 部署与 React/Next.js 性能与组织规范 |
+| `openspec-*` | 12 | OpenSpec 变更工作流；另有 `release-` / `write-` / `draft-` / `verify-openspec-docs` 4 个非前缀成员，合计 16 |
 
 ---
 
@@ -1283,13 +1298,23 @@
 ---
 
 <a id="s7"></a>
-## 7. 校正记录（本次重写）
 
-- **名称口径**：以技能 `SKILL.md` 的 frontmatter `name:` 为准。上一版按目录名收录，导致 `gstack-cso` 记成 `cso` 之外的名字、`browser_harness` 记成目录名等错位；本版修正，并在名字与目录不同时标注目录。
-- **删除**：上一版提及的名字中 **114 个在本机已不存在**（如 `arkcli-*`、`ast-grep`、`docx`、`browser`、`clean`、`git-master` 等），已全部移除；**140 个新增/变形**已按实际收录。
-- **去重**：合并 `browser-harness`（3 行 → 1 行）与 `gstack` 包内同名子技能（`plan-design-review`、`office-hours`、`gstack-upgrade`）；跨源同名的 6 组改记于 §5，正文只出现一次。
-- **语言**：说明改由维护者用**简体中文重写**（此前为机器翻译腔的直译），技能名/命令/路径/产品名保持原文；每条 ≤40 字，讲清"做什么 + 何时用"。
-- **口径（可复核）**：项目 4 · 内置 omp 2 · 内置 superpowers 15 · 用户级 416 个 SKILL.md（去重后 412）· opencode 70 个 SKILL.md（去重后 63）= 507 个 SKILL.md → **496 个唯一技能**。
+## 7. 校正记录
+
+### 2026-10-30（本次全量校对）
+
+- **口径**：以每个 `SKILL.md` 的 frontmatter `name:` 为准，按真实路径去重；符号链接跟随解析。结果：**509 条技能条目 → 503 个唯一技能**（项目 4 · 内置 omp 4 · superpowers 15 · 用户级 418 · opencode 68；6 组跨源同名见 §5）。
+- **删除 12 个失效条目**：均在本机五个来源中不存在（以设计与前端类为主），已从正文、分类索引与家族表一并移除；索引中不再保留名单。
+- **新增 19 个**：OpenSpec 工作流 16 个（`openspec-*` 12 + `release-openspec` / `write-openspec-docs` / `draft-openspec-docs` / `verify-openspec-docs`）、magpie 2 个（`magpie-quota` / `magpie-setup`）、opencode 的 `eval-plan`。
+- **计数修正**：§2 17 → 19；§3 412 → 418（其中 `teach`、`test-driven-development` 与内置同名，表内列 416）；§4 63 → 68（其中 `health`、`learn`、`qa`、`retro` 与用户级同名，表内列 64；57 个 gstack 符号链接 + 11 个本地技能）。
+- **分类索引**：删除 9 个失效 UI 条目与 2 个通配符条目（`cli-anything-*`、`opencli-*`，族清单改由 §3 与 §6 承担），新增 19 条，并去掉唯一重复项（`tdd` 保留在「测试与验证」）；分类计数按实际条目重算（合计 328 条，每个技能只出现一次）。
+- **家族计数**：`cli-anything-*` 69 → 70；`gstack-*` 56 → 57；新增 `openspec-*` 族。
+- **校验**：五个来源的全集与 §1–§4 逐名比对，缺失 0、失效 0；§5 六组同名与实测一致；分类表计数 = 标题计数。
+- **未改动**：§0 的 20 条任务链与 §1 项目技能；技能说明仍为中文，名称/命令/路径保持原文。
+
+### 2026-10-12（上一版，已由本次取代）
+
+- 上一版按目录名收录，导致 `gstack-cso`、`browser_harness` 等名称错位；当时删除 114 个不存在条目、新增/修正 140 个，并合并 `browser-harness` 与 gstack 包内同名子技能。
+- 其总数（496 唯一 / 507 个 SKILL.md）与来源分布已被本节的 503 / 509 取代，不再作为当前口径。
 
 [返回目录](#top)
-
