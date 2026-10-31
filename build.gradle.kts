@@ -55,6 +55,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+    implementation(libs.otp.java)
+    implementation(libs.commons.codec)
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     runtimeOnly(libs.org.postgresql)
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
