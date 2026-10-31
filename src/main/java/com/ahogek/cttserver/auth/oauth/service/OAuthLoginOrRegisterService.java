@@ -3,6 +3,8 @@ package com.ahogek.cttserver.auth.oauth.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.LoginChallengeResponse;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.oauth.entity.UserOAuthAccount;
@@ -11,6 +13,7 @@ import com.ahogek.cttserver.auth.oauth.model.GitHubUserInfo;
 import com.ahogek.cttserver.auth.oauth.repository.UserOAuthAccountRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
+import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.context.RequestContext;
@@ -29,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -56,6 +60,7 @@ public class OAuthLoginOrRegisterService {
     private final AuditLogService auditLogService;
     private final SecurityProperties.JwtProperties jwtProps;
     private final TermsProperties termsProperties;
+    private final TwoFactorChallengeService twoFactorChallengeService;
 
     public OAuthLoginOrRegisterService(
             UserOAuthAccountRepository oauthAccountRepository,
@@ -64,6 +69,7 @@ public class OAuthLoginOrRegisterService {
             RefreshTokenRepository refreshTokenRepository,
             AuditLogService auditLogService,
             SecurityProperties securityProperties,
+            TwoFactorChallengeService twoFactorChallengeService,
             TermsProperties termsProperties) {
         this.oauthAccountRepository = oauthAccountRepository;
         this.userRepository = userRepository;
@@ -71,32 +77,84 @@ public class OAuthLoginOrRegisterService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.auditLogService = auditLogService;
         this.jwtProps = securityProperties.jwt();
+        this.twoFactorChallengeService = twoFactorChallengeService;
         this.termsProperties = termsProperties;
     }
 
     /**
-     * Processes OAuth authentication and returns CTT credentials.
+     * Processes OAuth authentication and returns either CTT credentials or a second-factor
+     * challenge.
      *
      * <p>Flow:
      *
      * <ol>
      *   <li>Query existing OAuth binding by (provider, providerUserId)
-     *   <li>If found: validate user status, update tokens, issue credentials
-     *   <li>If not found: check email for merge or create new user
+     *   <li>If found and the account has 2FA enabled: validate status, refresh the provider token,
+     *       return a challenge instead of credentials
+     *   <li>If not found: an email match may belong to a 2FA account — link it and challenge
+     *   <li>Otherwise: fall through to the normal merge/registration path and issue credentials
      * </ol>
+     *
+     * <p>The 2FA check runs before any token is minted, so an enabled second factor cannot be
+     * bypassed by signing in through the provider instead of the password form.
      *
      * @param provider the OAuth provider
      * @param accessToken the OAuth access token from provider (GitHub token)
      * @param userInfo the GitHub user info from OAuth callback
-     * @return LoginResponse with CTT access and refresh tokens
+     * @param clientIp the caller IP
+     * @return tokens for a non-2FA account, or a challenge for a 2FA account
      */
     @Transactional
-    public LoginResponse process(
+    public LoginOutcome process(
             OAuthProvider provider, String accessToken, GitHubUserInfo userInfo, String clientIp) {
-        return oauthAccountRepository
-                .findByProviderAndProviderUserId(provider, String.valueOf(userInfo.id()))
-                .map(account -> handleExistingBinding(account, accessToken, userInfo, clientIp))
-                .orElseGet(() -> handleNewBinding(provider, accessToken, userInfo, clientIp));
+        Optional<UserOAuthAccount> existing =
+                oauthAccountRepository.findByProviderAndProviderUserId(
+                        provider, String.valueOf(userInfo.id()));
+        if (existing.isPresent()) {
+            UserOAuthAccount account = existing.get();
+            User user = account.getUser();
+            if (user.getTotpConfirmedAt() != null) {
+                validateUserStatus(user);
+                updateOAuthAccount(account, accessToken, userInfo);
+                return challenge(user);
+            }
+            return new LoginOutcome.Success(
+                    handleExistingBinding(account, accessToken, userInfo, clientIp));
+        }
+
+        Optional<User> byEmail = userRepository.findByEmailIgnoreCase(userInfo.email());
+        if (byEmail.isPresent() && byEmail.get().getTotpConfirmedAt() != null) {
+            User user = byEmail.get();
+            validateUserStatus(user);
+            UserOAuthAccount linked =
+                    createOAuthAccountEntity(user, provider, accessToken, userInfo);
+            oauthAccountRepository.save(linked);
+            auditLogService.logSuccess(
+                    user.getId(),
+                    AuditAction.OAUTH_ACCOUNT_LINKED,
+                    ResourceType.USER,
+                    user.getId().toString());
+            return challenge(user);
+        }
+
+        return new LoginOutcome.Success(
+                handleNewBinding(provider, accessToken, userInfo, clientIp));
+    }
+
+    private LoginOutcome challenge(User user) {
+        TwoFactorChallengeService.ChallengeTicket ticket =
+                twoFactorChallengeService.create(user.getId(), null);
+        return new LoginOutcome.Challenge(
+                new LoginChallengeResponse(true, ticket.token(), ticket.expiresIn()));
+    }
+
+    private void updateOAuthAccount(
+            UserOAuthAccount account, String accessToken, GitHubUserInfo userInfo) {
+        account.setAccessToken(accessToken);
+        account.setProviderLogin(userInfo.login());
+        account.setProviderEmail(userInfo.email());
+        account.setTokenExpiresAt(null);
+        oauthAccountRepository.save(account);
     }
 
     /** Handles existing OAuth binding: validate status, update tokens, issue credentials. */

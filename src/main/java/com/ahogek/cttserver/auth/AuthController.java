@@ -2,8 +2,11 @@ package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.captcha.CaptchaService;
 import com.ahogek.cttserver.auth.dto.ForgotPasswordRequest;
+import com.ahogek.cttserver.auth.dto.LoginChallengeResponse;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
+import com.ahogek.cttserver.auth.dto.LoginTwoFactorRequest;
 import com.ahogek.cttserver.auth.dto.PasswordResetRequest;
 import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
 import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
@@ -13,6 +16,7 @@ import com.ahogek.cttserver.auth.service.LogoutService;
 import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
+import com.ahogek.cttserver.auth.twofactor.service.LoginTwoFactorService;
 import com.ahogek.cttserver.auth.util.CookieHelper;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ConflictException;
@@ -32,6 +36,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -73,6 +78,7 @@ public class AuthController {
 
     private final UserService userService;
     private final UserLoginService userLoginService;
+    private final LoginTwoFactorService loginTwoFactorService;
     private final TokenRefreshService tokenRefreshService;
     private final LogoutService logoutService;
     private final PasswordResetService passwordResetService;
@@ -86,6 +92,7 @@ public class AuthController {
             LogoutService logoutService,
             PasswordResetService passwordResetService,
             CaptchaService captchaService,
+            LoginTwoFactorService loginTwoFactorService,
             SecurityProperties securityProperties) {
         this.userService = userService;
         this.userLoginService = userLoginService;
@@ -93,6 +100,7 @@ public class AuthController {
         this.logoutService = logoutService;
         this.passwordResetService = passwordResetService;
         this.captchaService = captchaService;
+        this.loginTwoFactorService = loginTwoFactorService;
         this.securityProperties = securityProperties;
     }
 
@@ -265,15 +273,54 @@ public class AuthController {
     @PublicApi(reason = "User login endpoint - Tier 1 public API")
     @RateLimit(limit = 30, windowSeconds = 3600)
     @PostMapping("/login")
-    public ResponseEntity<RestApiResponse<LoginResponse>> login(
+    public ResponseEntity<RestApiResponse<?>> login(
             @Valid @RequestBody LoginRequest request, HttpServletResponse httpResponse) {
 
         captchaService.verifyCaptcha(request.captchaToken());
-        LoginResponse response = userLoginService.login(request);
+        LoginOutcome outcome = userLoginService.loginWithTwoFactor(request);
 
+        if (outcome instanceof LoginOutcome.Challenge challenge) {
+            LoginChallengeResponse body = challenge.challenge();
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(RestApiResponse.ok(body));
+        }
+
+        LoginResponse response = ((LoginOutcome.Success) outcome).response();
         CookieHelper.addCookiesToResponse(
                 httpResponse, response.accessToken(), response.refreshToken(), refreshTokenPath());
 
+        return ResponseEntity.ok()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + response.accessToken())
+                .body(RestApiResponse.ok(response));
+    }
+
+    @Operation(
+            summary = "Complete a two-factor login",
+            description = "Verifies a TOTP code or an unused recovery code and issues tokens.")
+    @ApiResponses(
+            value = {
+                @ApiResponse(
+                        responseCode = "200",
+                        description = "Tokens issued",
+                        content =
+                                @Content(schema = @Schema(implementation = RestApiResponse.class))),
+                @ApiResponse(
+                        responseCode = "401",
+                        description = "Invalid code or expired challenge - AUTH_026/AUTH_027",
+                        content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+                @ApiResponse(
+                        responseCode = "429",
+                        description = "Too many attempts - RATE_LIMIT_001",
+                        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    @PublicApi(reason = "Second-factor login completion")
+    @RateLimit(type = RateLimitType.IP, limit = 10, windowSeconds = 300)
+    @PostMapping("/login/2fa")
+    public ResponseEntity<RestApiResponse<LoginResponse>> loginTwoFactor(
+            @Valid @RequestBody LoginTwoFactorRequest request, HttpServletResponse httpResponse) {
+        LoginResponse response =
+                loginTwoFactorService.complete(request.challengeToken(), request.code());
+        CookieHelper.addCookiesToResponse(
+                httpResponse, response.accessToken(), response.refreshToken(), refreshTokenPath());
         return ResponseEntity.ok()
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + response.accessToken())
                 .body(RestApiResponse.ok(response));

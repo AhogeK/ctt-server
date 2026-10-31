@@ -3,11 +3,14 @@ package com.ahogek.cttserver.auth.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.LoginChallengeResponse;
+import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
+import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
 import com.ahogek.cttserver.common.context.RequestContext;
@@ -50,6 +53,7 @@ public class UserLoginService {
     private final LoginAttemptService loginAttemptService;
     private final SecurityProperties.JwtProperties jwtProps;
     private final TermsProperties termsProperties;
+    private final TwoFactorChallengeService twoFactorChallengeService;
 
     public UserLoginService(
             UserRepository userRepository,
@@ -60,6 +64,7 @@ public class UserLoginService {
             AuditLogService auditLogService,
             LoginAttemptService loginAttemptService,
             SecurityProperties securityProperties,
+            TwoFactorChallengeService twoFactorChallengeService,
             TermsProperties termsProperties) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -69,11 +74,18 @@ public class UserLoginService {
         this.auditLogService = auditLogService;
         this.loginAttemptService = loginAttemptService;
         this.jwtProps = securityProperties.jwt();
+        this.twoFactorChallengeService = twoFactorChallengeService;
         this.termsProperties = termsProperties;
     }
 
+    /**
+     * Authenticates credentials and either issues tokens or returns a second-factor challenge.
+     *
+     * @param request the login request
+     * @return tokens for a non-2FA account, or a challenge for a 2FA account
+     */
     @Transactional
-    public LoginResponse login(LoginRequest request) {
+    public LoginOutcome loginWithTwoFactor(LoginRequest request) {
         User user =
                 userRepository
                         .findByEmailIgnoreCase(request.email())
@@ -88,16 +100,40 @@ public class UserLoginService {
             handleFailedLogin(user);
         }
 
-        // Only reached on successful authentication (handleFailedLogin throws)
         loginAttemptService.recordSuccess(user.getEmail());
 
+        if (user.getTotpConfirmedAt() != null) {
+            TwoFactorChallengeService.ChallengeTicket ticket =
+                    twoFactorChallengeService.create(user.getId(), request.deviceId());
+            return new LoginOutcome.Challenge(
+                    new LoginChallengeResponse(true, ticket.token(), ticket.expiresIn()));
+        }
+
+        return new LoginOutcome.Success(completeLogin(user, request.deviceId()));
+    }
+
+    /**
+     * Issues tokens after a fully authenticated login.
+     *
+     * @param user the authenticated user
+     * @param deviceId the device that initiated the login
+     * @return the token response
+     */
+    @Transactional
+    public LoginResponse completeLogin(User user, String deviceId) {
+        // The second-factor path loads the user after the password step, so a suspension, lock or
+        // deletion between the challenge and its completion must still stop token issuance.
+        validateUserStatus(user);
         String clientIp = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
         user.setLastLoginAt(Instant.now());
         user.setLastLoginIp(clientIp);
+        // The second-factor path loads the user outside this transaction, so the entity may be
+        // detached; without an explicit save the last-login update would be silently dropped.
+        userRepository.save(user);
 
         UUID sessionId = UUID.randomUUID();
         String accessToken = jwtTokenProvider.generateAccessToken(user, sessionId);
-        String refreshToken = createRefreshToken(user.getId(), request.deviceId(), sessionId);
+        String refreshToken = createRefreshToken(user.getId(), deviceId, sessionId);
 
         auditLogService.logSuccess(
                 user.getId(),
