@@ -7,9 +7,9 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.88.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.89.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
-| 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth）、审计与限流 |
+| 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证）、审计与限流 |
 
 ## 版本里程碑
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.89.0` | 2026-10-31 | feat(auth): add TOTP two-factor authentication |
 | `0.88.0` | 2026-10-29 | feat(user): revoke several login sessions in one call |
 | `0.87.3` | 2026-10-28 | fix(user): list sessions of accounts that have no device |
 | `0.87.2` | 2026-10-27 | chore(deps): upgrade Spring Boot, springdoc, Flyway and the build tooling |
@@ -98,7 +99,7 @@
 | 压力/负载测试 | `src/` 无 perf/load/benchmark 测试 | 未做 |
 | 错误监控（Sentry 等） | 依赖与代码中无集成 | 未做 |
 | CI 流水线 | 无 `.github/workflows/` | 未做 |
-| 部署脚本配套 | 仅有 `Dockerfile`，无 compose/编排 | 部分完成 |
+| 部署脚本配套 | 本地 `docker-compose.yaml` 已有；生产编排/自动化部署脚本未落地 | 部分完成 |
 
 旧 `progress.md` 中列出的「CodingSession 数据模型 / SyncCursor / SyncPullService / SyncPushService /
 ConflictResolver(LWW) / Redis ZSet 排行榜」**均已交付**（v0.45–v0.73），当时清单已过期；其原文在归档中保留。

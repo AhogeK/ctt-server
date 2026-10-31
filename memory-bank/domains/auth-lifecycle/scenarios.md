@@ -43,3 +43,13 @@ in production.
 | Changing thresholds | They are security parameters, not tuning knobs | Ask before changing; document the reason; keep the sliding-window semantics |
 | Adding a captcha-protected endpoint | Verification cost is per request | Resolve the token first, before any DB work |
 | Local/test environments | Captcha must not block automated tests | Leave the secret unset (verifier passes with a warning) or use the provider's test key pair; never add a code-level bypass |
+
+## Touching 2FA
+
+| Trigger | Judgement | Action |
+| --- | --- | --- |
+| Enabling 2FA | A stolen session could bind an attacker's authenticator | Require current password for password accounts; OAuth-only requires a session younger than 10 minutes (`AUTH_031`) |
+| Disabling 2FA | Possession factor is the credential; password is not required | Accept TOTP or an unused recovery code, then revoke other sessions |
+| Rotating recovery codes | Old codes must die atomically | Replace the whole batch in one transaction; audit without the codes |
+| Adding an API-key operation | API keys can otherwise mint permanent credentials | Require `WEB_SESSION`; when 2FA is on, require a code (`AUTH_030`/`AUTH_027`) |
+| OAuth login | GitHub alone must not bypass the factor | Check `totp_confirmed_at` before issuing tokens; deliver the challenge in the URL fragment |

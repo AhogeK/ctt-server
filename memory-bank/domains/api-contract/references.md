@@ -95,3 +95,19 @@ Account-lockout (`403`) reuses the same dual signalling so clients have one retr
 | Idempotency | `common/idempotent/` |
 | Scope enforcement | `apikey/` (`@RequiresApiKeyScope`, `ApiKeyScopeAspect`) |
 | Public whitelist | `common/` (`@PublicApi`, `PublicApiEndpointRegistry`) |
+
+## Two-factor endpoints
+
+| Endpoint | Contract facts |
+| --- | --- |
+| `GET /api/v1/users/me/2fa` | `enabled`, `confirmedAt` (nullable, key always present), `recoveryCodesRemaining`, `hasPassword`, `recentAuthentication` · WEB_SESSION only (`AUTH_025`) |
+| `POST /api/v1/users/me/2fa/totp/start` | `currentPassword` required for password accounts (`USER_013`/`USER_014`); OAuth-only needs session ≤10min (`AUTH_031`); 409 `AUTH_028` if enabled |
+| `POST /api/v1/users/me/2fa/totp/confirm` | `code` → 10 recovery codes once; 401 `AUTH_026`/`AUTH_027`; 409 `AUTH_028` |
+| `POST /api/v1/users/me/2fa/disable` | `code` xor `recoveryCode`; 204; 409 `AUTH_029`; revokes other sessions |
+| `POST /api/v1/users/me/2fa/recovery-codes/regenerate` | `code` xor `recoveryCode`; new batch, old codes invalid |
+| `POST /api/v1/auth/login` (2FA enabled) | 202 envelope `data:{twoFactorRequired,challengeToken,expiresIn}`; no cookies/Authorization |
+| `POST /api/v1/auth/login/2fa` | `challengeToken` + TOTP/recovery code; 200 `LoginResponse`; 401 `AUTH_026`/`AUTH_027`; 429 after 5 failures |
+| `POST /api/v1/auth/api-keys` | WEB_SESSION always; when 2FA enabled requires `code` (`AUTH_030` missing, `AUTH_027` invalid) |
+
+Errors: `AUTH_026`–`AUTH_031`; TOTP replay guard is `users.totp_last_used_step`; recovery codes are
+SHA-256 hashes and single-use.

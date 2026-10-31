@@ -10,11 +10,12 @@
 | 数据库 | PostgreSQL（测试容器 `postgres:16.3`）+ Flyway 13.11.1 |
 | 缓存 | Redis（测试容器 `redis:latest`） |
 | 安全 | Spring Security 7（随 Boot BOM）+ `spring-security-oauth2-jose` |
+| 两步验证 | `otp-java` 2.2.0（RFC 6238）+ `commons-codec` 1.22.0（Base32） |
 | API文档 | springdoc-openapi 3.2.0 |
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.10.4（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-10-27 / v0.87.2。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-10-31 / v0.89.0（2FA 依赖为本批新增；其余沿用 2026-10-27 的核实结果）。
 
 ## 架构
 

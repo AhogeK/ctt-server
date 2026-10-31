@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-10-30] - 两步验证（TOTP + 恢复码）（v0.89.0，已交付）
+    - 新增 `/api/v1/users/me/2fa/*`（状态/start/confirm/disable/regenerate）与 `POST /auth/login/2fa`；启用后密码登录返回 202 + 挑战，OAuth 回调以 `#challengeToken` fragment 返回且不写 token/Cookie；新增 `AUTH_026`–`AUTH_031`
+    - 安全: TOTP secret AES-256-GCM（`TOTP_ENCRYPTION_KEY`）、恢复码仅存 SHA-256、`totp_last_used_step` 防重放、Redis 一次性挑战（5 次失败 429）、启用/关闭撤销其他会话、API key 创建要求 WEB_SESSION + 2FA 复核
+    - **审查修复（10-31）**: ①启动阻断——`TOTP_ENCRYPTION_KEY` 默认空串 + `@NotBlank` 使三条启动路径全挂（曾靠 `@TestPropertySource` 掩盖）；改为本地占位键、prod 无回退、compose 不再传空值；`completeLogin` 现重校验账号状态 ②审计阻断——`LoginTwoFactorService.complete` 的 `@Transactional` 让 `TOTP_CHALLENGE_FAILED`（AFTER_COMMIT）随回滚丢弃并把已消费凭据一并回滚；移除该事务，`completeLogin` 补显式 `save` ③新增 `SecondFactorVerifier` 收敛三处重复判定（位数从配置推导），删除 `UserLoginService.login` 死方法，OAuth 两条 `process*` 合并 ④`markTotpStepUsed` 去掉仓库层 `@Transactional`、`UserController` 改用 `WebSessionGuard`、去掉失效的 `@RequiresApiKeyScope`、10 个实体通配导入展开 ⑤补 7 例测试（OAuth email-merge+2FA、`AUTH_031` 新旧会话、`AUTH_029`、双凭据歧义、端点级 429、`TOTP_CHALLENGE_FAILED` 落库，末者 RED 可复现；另加 2FA 完成后账号被 SUSPENDED 的 403 用例）
+    - 验证: `spotlessCheck` + `jacocoTestCoverageVerification` + 全量 `build` 1618/0/1 skipped；版本 0.89.0；`AGENTS.md` R8 补配置空值与二次认证完成阶段两条边界
 - [2026-10-29] - 会话批量撤销（v0.88.0，已提交推送）
     - 新增 `POST /api/v1/users/me/sessions/revoke`（body `{sessionIds}`，去重后 1..100）：按 UUID 升序取会话锁，逐条撤销并写 `SESSION_REVOKED`；不存在的/已撤销的/他人的进 `skipped`，整体 200 且重放幂等；限流 10 次/时；当前会话可撤销（refresh 立即 401，access token 15 分钟内仍有效）；审查后补 401/403/429 独立示例、拆分 `MAX_BATCH_REVOCATIONS`、抽取 `findLiveTokenUnderLock`、429 用例独立成类、补 null 元素用例；前端反馈后补「按端点分桶 + `Retry-After`/`retryAfter`」文档说明（行为不变、纯文档不 bump 版本）
 
@@ -186,14 +191,6 @@
     - 未动（附依据）: Spring Boot 4.1.1（最新稳定）、Gradle 9.7.1（最新稳定，9.8.0-rc-3 是 RC）、postgresql 42.7.13 / junit-platform-launcher 6.1.3 / spotless 8.10.2 / dependency-management 1.1.7（均已是 Maven Central 最新）、JDK 25.0.4（25 GA 家族最新，25.0.4.1 仅同版重建包；25→26 属大版本跳跃须先确认，未动）
     - 验证: `clean build` + 全量 **1470 tests / 0 failures** ✓（首次运行失败一次、无诊断输出即重跑通过 —— 判断为升级后首次拉取构件的瞬时失败，最终解析版本已逐一核实 ✓）
 
-- [2026-09-19] - Notion 计划迁移入库（`.plans/`，版本不变）
-    - 触发: 你决定弃用 Notion，计划类文档统一进仓库（人机共读、中文、仅 develop、不进 master）
-    - 产出: `.plans/ctt-server-development-plan.md`（1782 行，迁移自《🖥️ ctt-server 开发计划》2026-09-01 快照）+ 4 张图（mindmap 阶段总览 / uml 状态机 / uml 时序 / dot 模块依赖）。转换: 42 对 `<details>` 拆壳、14 张 HTML 表转 Markdown、229 处行首 TAB 归一、14 处假链接修复、3 个 H1 收敛为 1
-    - **我的转换规则漏了「块边界」，三类缺陷连环暴露**: ①"表格前补空行"缺 `not is_table(prev)` 守卫 → 给每一行前都插空行 → **106 处表格被切断、退化成段落**（你截图报的 ✗；算术印证 120 表格行 − 14 表头 = 106）②只恢复了标题/列表/表格周围，**没恢复普通段落的块边界** → 280 处独立块被并成一段 ③缩进行（列表续行）后面的非缩进行被**懒惰续行**吞进列表项 → 21 处；另有 4 处 `****` 粗体拼接伪影（Notion「粗体里嵌代码」残留）
-    - **判据教训（本批最值得记）**: 我连续几轮报"结构检查 11/11 全过"，却查不出上述缺陷 —— markdownlint 只看列数/空行，**看不见"行被空行隔断成非表格"**。换判据才抓到: ①真实 GFM 解析器数元素（table=14 / thead=14 / tr=106 / h1=1 / code=5 / 字面 `****`=0）②**在你真实查看器（docu.md）里亲眼验收** —— 自建 `file:///tmp/*.html` 预览只是近似（连 `- [x]` 复选框都渲染不出 ✗），真实查看器才是标准判据（表格成真 `<table>`、4 图渲染成 PNG、复选框成 ☑）
-    - 另记一处**我自己的筛查漏项**: 量化时一度把 mindmap 里的 `**`/`***` 行算作"被合并段落"（227 处）—— 筛查规则同样漏了**围栏感知** ✗，纠正后为 280 处
-    - 规则同步: R26 补 `.plans/` 行（人机共读的计划/归档入库、仅 develop）—— 原 R26 只认 `.omp/`，与"计划入库"直接冲突（按 R14 已改，待你确认）
-    - 提交: 计划迁移 + gitignore 在 develop；**计划文档不进 master**（面向 AI 与开发过程的内容），gitignore 单独 cherry-pick 进 master；纯文档不 bump 版本
 
 ---
 

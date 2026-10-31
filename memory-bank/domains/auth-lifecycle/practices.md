@@ -143,3 +143,27 @@ order) and locked in that order — the ordering is the safety property, not a f
 Partial success is deliberate: an id with no live row is reported as `skipped`, never as 404, which
 keeps the single-session endpoint's BOLA invisibility rule for batches too. Retrying the same body
 is therefore idempotent — ids the first attempt revoked simply come back as skipped.
+
+## Two-factor setup and login
+
+1. `POST /users/me/2fa/totp/start` re-authenticates, generates a 20-byte secret, encrypts it with
+   AES-256-GCM (`TOTP_ENCRYPTION_KEY`), and stores it in Redis for 10 minutes.
+2. `confirm` verifies the TOTP code, persists the secret/confirmed timestamp, marks the accepted
+   step, issues ten recovery codes (hashes only), deletes the pending secret, and revokes other
+   sessions — all in one transaction.
+3. Login returns `202` with a Redis-backed challenge; `/auth/login/2fa` consumes it once, verifies
+   TOTP or a recovery code, and only then calls `UserLoginService.completeLogin`.
+4. Five failed codes end the challenge with `429`; failures do not touch the password lockout.
+5. `disable` clears the secret, deletes recovery codes, audits, and revokes other sessions;
+   `regenerate` replaces the batch and audits.
+6. Export never includes the encrypted secret, the last-used step, or recovery hashes.
+7. Every verification goes through `SecondFactorVerifier`. The kind of a single-field submission is
+   decided by the configured digit count, not a hard-coded six; endpoints that receive `code` and
+   `recoveryCode` as separate fields name the kind explicitly, so a recovery code in the `code`
+   field stays rejected.
+8. `LoginTwoFactorService.complete` holds no transaction. Audit events fire on `AFTER_COMMIT`, so an
+   enclosing transaction would roll the failure record away exactly when the attempt failed, and
+   would also un-consume the credential that was just spent. Token issuance opens its own
+   transaction inside `completeLogin`.
+9. `completeLogin` saves the user explicitly. The second-factor path loads the entity outside the
+   issuing transaction, so relying on dirty checking would silently drop `lastLoginAt`/`lastLoginIp`.

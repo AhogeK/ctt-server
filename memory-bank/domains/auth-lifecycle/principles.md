@@ -102,3 +102,15 @@ tradeoff this domain already rejected).
 pending email change, reading one's own profile, and revoking or purging an API key keep working for a
 locked or suspended account: they are how a user escapes a compromise, and gating them would turn a
 lockout into a trap.
+
+## 11. 2FA is a second login step, not a session upgrade
+
+- A password login with 2FA enabled returns a `202` challenge and **must not** set cookies or an
+  `Authorization` header. Tokens exist only after `/auth/login/2fa`.
+- The challenge is single-use and short-lived; a TOTP step is accepted once (`totp_last_used_step`).
+- Enabling or disabling 2FA revokes every other session; the current session is kept. Access tokens
+  remain valid until their 15-minute expiry — the documented residual window, not a bug.
+- Creating an API key is a high-risk action: browser session required, plus a TOTP/recovery code when
+  2FA is enabled. An API key cannot mint another API key.
+- API keys remain a deliberate 2FA bypass for machine sync; that risk is managed by scopes and
+  revocation, not by asking the plugin for a 6-digit code.

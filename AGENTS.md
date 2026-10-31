@@ -159,6 +159,8 @@
     - **第三步**：如用户修改了，更新记忆适应新逻辑，不要恢复"旧版本"
     - **禁止**：笃定"这应该是错的"、"之前改的忘了恢复"等揣测性结论
 - **读写同一文件必须先读完再写**：禁止 `open(p,'w').write(open(p).read().replace(...))` 这类一行式写法——`'w'` 会先截断，读到的已是空内容。2026-10-23 因此把 `gradle/libs.versions.toml` 写空、编译失败。做法：先读出内容到变量 → 改 → 再一次性写回；批量改写优先 `sed -i`（已证明安全）或 `edit` 工具
+- **配置回退与空值**：Spring 的 `${VAR:default}` 只在变量缺失时用 default，**空字符串不算缺失**；Docker Compose 的 `${VAR:-default}` 才把未设置/空都当缺省。密钥类配置加 dev fallback 时，compose 不要显式透传空值，`.env.example` 的占位行保持注释；否则本地启动会被“默认值”打断（2026-10-31 2FA `TOTP_ENCRYPTION_KEY` 踩坑）。
+- **二次认证不是最终认证**：挑战签发后账号状态可能变化，完成阶段必须重新校验 `ACTIVE`（或复用统一的 `validateUserStatus`）后才能签发 token；密码正确不等于可以发凭证（2026-10-31 2FA 完成阶段补此校验）。
 - **环境类故障先对照，再怀疑代码**：连不上数据库/Redis、启动即挂时，先看异常类型与「别处是否可达」再动代码。判据：`NoRouteToHostException`/EHOSTUNREACH = 网络层被挡（多见于 macOS「本地网络」权限，IDE 进程被拦）；`Connection refused` = 服务没起；`UnknownHostException` = 解析失败；`PSQLException: password authentication failed` = 凭据。判别动作：在**系统 shell** 上 `nc -z <host> <port>` 对照一次，通 ⇒ 问题在应用进程/权限侧，不在代码。同类问题已复发两次（2026-09-18、2026-10-23）
 
 ### R8.5: 项目一致性优先（强制）

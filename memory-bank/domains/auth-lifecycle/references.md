@@ -73,3 +73,19 @@
 | Captcha | `auth/captcha/CaptchaService.java` |
 | Lockout | `auth/service/` (login attempt service) + `login_attempts` table |
 | Terms gate | filter + `ctt.terms.*` config |
+
+## Two-factor endpoints
+
+| Endpoint | Method | Notes | Rate |
+| --- | --- | --- | --- |
+| `/api/v1/users/me/2fa` | GET | `enabled/confirmedAt/recoveryCodesRemaining/hasPassword/recentAuthentication` | — |
+| `/api/v1/users/me/2fa/totp/start` | POST | Pending secret; password or recent session | 5/hour USER |
+| `/api/v1/users/me/2fa/totp/confirm` | POST | Returns 10 recovery codes once | 5/5min USER |
+| `/api/v1/users/me/2fa/disable` | POST | TOTP or recovery code; revokes other sessions | 5/hour USER |
+| `/api/v1/users/me/2fa/recovery-codes/regenerate` | POST | Replaces the batch | 3/hour USER |
+| `/api/v1/auth/login/2fa` | POST | Challenge + TOTP/recovery code | 10/5min IP |
+
+**Code**: `auth/twofactor/` (`TwoFactorService`, `LoginTwoFactorService`,
+`TwoFactorChallengeService`, `RecoveryCodeService`, `SecondFactorVerifier`, `TotpService`,
+`TotpSecretCipher`). `SecondFactorVerifier` is the single place that decides what counts as a
+valid second factor, so the login path and `/users/me/2fa/*` cannot drift apart.
