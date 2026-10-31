@@ -210,6 +210,42 @@ The registry also includes system endpoints by default:
 
 ---
 
+
+## Two-Factor Authentication
+
+TOTP is a possession factor layered on top of the password (or OAuth) login. It is not a
+replacement for the session: a stolen access token remains valid until it expires (at most 15
+minutes), and API keys are machine credentials that bypass the interactive challenge by design.
+
+**Secret storage.** A 20-byte secret is encrypted with AES-256-GCM using
+`TOTP_ENCRYPTION_KEY`; the stored value is `v1:<iv>:<ciphertext>`. The key must be backed up
+separately from the database: losing it makes every enabled secret undecryptable. It is validated
+at startup, and a missing or malformed key stops the application instead of degrading to an
+unencrypted or default value — the production profile deliberately has no fallback, while local
+development uses a public placeholder so a fresh clone starts without extra setup. Pending,
+unconfirmed secrets live in Redis for ten minutes and are encrypted with the same key.
+
+**Replay.** Verification accepts the current 30-second step and one step either side. The accepted
+step is written to `users.totp_last_used_step` with a conditional update, so the same step cannot
+issue two sessions. A challenge is claimed with `GETDEL` and restored with an incremented attempt
+counter after a failed code; the fifth failure ends it with `429`.
+
+**Recovery codes.** Ten codes are generated from ten random bytes each, shown as four Base32
+groups, and stored only as SHA-256 hashes. Consumption is an atomic `UPDATE ... WHERE used_at IS
+NULL`; regeneration replaces the whole batch.
+
+**Session and key boundaries.** Enabling or disabling 2FA revokes every other session of the
+account (the current session is kept). Creating an API key requires a browser session; when 2FA is
+enabled it also requires a TOTP or unused recovery code. Otherwise a stolen session could mint a
+permanent machine credential and bypass the factor entirely.
+
+**OAuth.** A GitHub callback checks the linked user's 2FA state before issuing any CTT token. The
+challenge is delivered in the URL fragment (`#challengeToken=...`), never in the query string, and
+no cookies are set on that response.
+
+**Explicitly out of scope.** SMS/email codes, WebAuthn/passkeys, trusted-device cookies, admin
+reset of a user's 2FA, and 2FA on every API-key request.
+
 ## CSRF Protection
 
 ### Double Submit Cookie Pattern
@@ -438,6 +474,11 @@ This prevents:
 | `POST /users/me/email/change-request`      | EMAIL      | 3      | 10 minutes      |
 | `POST /users/me/email/change-confirm`      | IP         | 15     | 10 minutes      |
 | `POST /users/me/email/resend-verification` | USER       | 1      | 60 seconds      |
+| `POST /auth/login/2fa`                     | IP         | 10     | 5 minutes       |
+| `POST /users/me/2fa/totp/start`            | USER       | 5      | 1 hour          |
+| `POST /users/me/2fa/totp/confirm`          | USER       | 5      | 5 minutes       |
+| `POST /users/me/2fa/disable`               | USER       | 5      | 1 hour          |
+| `POST /users/me/2fa/recovery-codes/regenerate` | USER   | 3      | 1 hour          |
 
 ### Rate Limit Response
 

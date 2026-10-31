@@ -50,6 +50,12 @@ public enum ErrorCode {
 | AUTH_013   | 403         | OAuth state validation failed | Week 3   |
 | USER_014   | 401         | Current password incorrect    | v0.44.0  |
 | USER_015   | 409         | Password already set          | v0.32.0  |
+| AUTH_026   | 401         | Two-factor challenge or setup invalid/expired | v0.89.0 |
+| AUTH_027   | 401         | Invalid TOTP or recovery code (including replay) | v0.89.0 |
+| AUTH_028   | 409         | Two-factor already enabled                  | v0.89.0 |
+| AUTH_029   | 409         | Two-factor not enabled                      | v0.89.0 |
+| AUTH_030   | 403         | Action requires a 2FA re-check              | v0.89.0 |
+| AUTH_031   | 403         | Recent authentication required              | v0.89.0 |
 ```
 
 **Important**: Do NOT use HTTP status codes as error codes. Frontend needs precise error handling (e.g., distinguish "password wrong" vs "account locked" - both return 403).
@@ -99,6 +105,26 @@ public enum ErrorCode {
 **Resource Type**: `ResourceType.API_KEY`
 
 **Details**: `API_KEY_CREATED` includes `keyId` and `keyPrefix` (never raw key or hash). `API_KEY_REVOKED` includes `keyId`. `API_KEY_DELETED` includes `keyId`. `API_KEY_AUTH_FAILED` includes failure reason (revoked/expired/malformed/insufficient_scope).
+
+### Two-Factor Audit Events
+
+| Audit Action | Description | Trigger Point |
+|---|---|---|
+| `TOTP_ENABLED` | Two-factor authentication enabled | `TwoFactorService.confirm` |
+| `TOTP_DISABLED` | Two-factor authentication disabled | `TwoFactorService.disable` |
+| `TOTP_RECOVERY_CODES_REGENERATED` | Recovery codes replaced | `TwoFactorService.regenerate` |
+| `TOTP_CHALLENGE_FAILED` | A second-factor login code was rejected | `LoginTwoFactorService.complete` |
+
+**Resource Type**: `ResourceType.USER`
+
+**Details**: reason only. Never include the TOTP secret, a submitted code, a recovery code, or a
+recovery-code hash.
+
+`TOTP_CHALLENGE_FAILED` is emitted from a method that holds no transaction of its own. That is
+deliberate: audit events are published with `@TransactionalEventListener(AFTER_COMMIT)`, so an
+enclosing transaction that rolls back would discard the failure record — precisely when the record
+matters most. A rejected code must still consume the credential, and that write must survive the
+rejection.
 
 ### API Key Authentication Rate Limiting
 

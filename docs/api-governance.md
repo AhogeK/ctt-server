@@ -95,6 +95,29 @@ The `@RateLimit` annotation supports four isolation dimensions via `RateLimitTyp
 
 **Note**: `EMAIL` type requires `keyExpression` parameter to extract email from request (e.g., `#request.email`).
 
+
+### Two-Factor Re-verification
+
+The `/api/v1/users/me/2fa/*` endpoints are browser-session operations: an API key receives
+`403 AUTH_025`. Creating an API key also requires a browser session; when the account has 2FA
+enabled it additionally requires a TOTP code or an unused recovery code (`403 AUTH_030` when
+missing, `401 AUTH_027` when invalid or replayed).
+
+The login challenge returned by `POST /auth/login` is a `202` success response, not an error:
+`data = {twoFactorRequired, challengeToken, expiresIn}` and no cookies or `Authorization` header
+are set. The challenge is single-use and expires after five minutes.
+
+| Endpoint | Dimension | Limit | Window |
+|---|---|---|---|
+| `POST /auth/login/2fa` | IP | 10 | 5 minutes |
+| `POST /users/me/2fa/totp/start` | USER | 5 | 1 hour |
+| `POST /users/me/2fa/totp/confirm` | USER | 5 | 5 minutes |
+| `POST /users/me/2fa/disable` | USER | 5 | 1 hour |
+| `POST /users/me/2fa/recovery-codes/regenerate` | USER | 3 | 1 hour |
+
+Five failed codes end the challenge with `429 RATE_LIMIT_001`; failures are independent of the
+password lockout counter.
+
 ### Rate Limit Response Contract
 
 All endpoints protected by `@RateLimit` return HTTP 429 with the following retry information when the limit is exceeded:

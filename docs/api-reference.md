@@ -12,6 +12,7 @@ Start with authentication: every protected call takes either a short-lived JWT (
 |---------------------------------------|--------|----------------------------------------------------------------------------|
 | `/api/v1/auth/register`               | POST   | Register new user (rate limited: 60/hour per IP)                           |
 | `/api/v1/auth/login`                  | POST   | User login with JWT tokens (rate limited: 30/hour per IP)                  |
+| `/api/v1/auth/login/2fa`              | POST   | Complete a two-factor login (10/5min per IP)                              |
 | `/api/v1/auth/refresh`                | POST   | Refresh access token using refresh token (rotation)                        |
 | `/api/v1/auth/verify-email`           | GET    | Verify email with token param (public, 24h token TTL)                      |
 | `/api/v1/auth/resend-verification`    | POST   | Resend verification email (rate limited: 3/1min per email)                 |
@@ -166,6 +167,58 @@ fallback.
 **Response Fields** (v0.34.0+):
 - `hasPassword` (boolean) — whether the user has a password set (false for OAuth-only users)
 
+
+### Two-Factor Authentication
+
+TOTP (SHA-1, 6 digits, 30-second step, ±1 step) with ten single-use recovery codes. Every
+endpoint below requires a browser session: an API key receives `403 AUTH_025`. The TOTP secret is
+encrypted at rest with AES-256-GCM; recovery codes are stored only as SHA-256 hashes.
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/users/me/2fa` | GET | Current state: `enabled`, `confirmedAt`, `recoveryCodesRemaining`, `hasPassword`, `recentAuthentication` |
+| `/api/v1/users/me/2fa/totp/start` | POST | Create an unconfirmed secret; `currentPassword` is required for password accounts (5/hour per user) |
+| `/api/v1/users/me/2fa/totp/confirm` | POST | Confirm the secret with a TOTP code; returns ten recovery codes **once** (5/5min per user) |
+| `/api/v1/users/me/2fa/disable` | POST | Disable with a TOTP code or an unused recovery code (5/hour per user) |
+| `/api/v1/users/me/2fa/recovery-codes/regenerate` | POST | Replace all recovery codes with a TOTP or unused recovery code (3/hour per user) |
+
+**Starting setup.** Password accounts must send `currentPassword`. OAuth-only accounts have no
+password: the current session must have been created within ten minutes, otherwise the call returns
+`403 AUTH_031` and the user must sign in again. `GET /2fa` exposes `hasPassword` and
+`recentAuthentication` so the client can choose the right prompt before calling start.
+
+**Login.** When 2FA is enabled, `POST /api/v1/auth/login` returns **`202`** with the standard
+envelope and `data = {twoFactorRequired, challengeToken, expiresIn}`; it sets no cookies and no
+`Authorization` header. Complete it with `POST /api/v1/auth/login/2fa`
+`{challengeToken, code}`; `code` accepts a TOTP code or an unused recovery code. Success returns
+`200` and the normal `LoginResponse` with cookies and `Authorization`.
+
+Challenges are single-use and expire after five minutes. A TOTP step can be accepted only once;
+recovery codes are consumed atomically. Five failed attempts invalidate the challenge and return
+`429 RATE_LIMIT_001`.
+
+**OAuth.** When the linked user has 2FA enabled, the GitHub callback redirects to the frontend with
+`?twoFactorRequired=true#challengeToken=...&expiresIn=300`; it sets no cookies and puts no tokens in
+the URL. The client completes the same `/auth/login/2fa` call.
+
+**Security state changes.** Enabling or disabling 2FA revokes every other login session of the
+account and keeps the current one. Access tokens already issued remain valid until they expire (at
+most 15 minutes). Creating an API key always requires a browser session and, when 2FA is enabled, a
+TOTP or recovery code: missing code → `403 AUTH_030`, invalid/replayed code → `401 AUTH_027`.
+
+| Error | HTTP | Meaning |
+|---|---|---|
+| `AUTH_026` | 401 | Two-factor challenge or setup is invalid/expired |
+| `AUTH_027` | 401 | Invalid TOTP code or recovery code (including replay/already used) |
+| `AUTH_028` | 409 | Two-factor is already enabled |
+| `AUTH_029` | 409 | Two-factor is not enabled |
+| `AUTH_030` | 403 | The action requires a 2FA re-check |
+| `AUTH_031` | 403 | Recent authentication required (OAuth-only setup) |
+| `USER_013` / `USER_014` | 403 / 401 | Current password missing / incorrect during setup |
+
+Recovery codes are shown only in the confirm and regenerate responses. They are never returned by
+the status endpoint, exported, or written to audit logs.
+
 ### Email Change
 
 | Endpoint                                     | Method | Description                                                                                              |
@@ -210,7 +263,7 @@ User → POST /change-request {newEmail, password?} → System sends verificatio
 
 | Endpoint                        | Method | Description                                                                                                |
 |---------------------------------|--------|------------------------------------------------------------------------------------------------------------|
-| `/api/v1/auth/api-keys`         | POST   | Create API key (rate limited: 10/hour per user) — raw key returned once, then only hash is stored          |
+| `/api/v1/auth/api-keys`         | POST   | Create API key (browser session only; rate limited: 10/hour per user) — raw key returned once, then only hash is stored. `403 AUTH_025` for API-key callers, `403 AUTH_030` when 2FA is enabled and no `code` is supplied |
 | `/api/v1/auth/api-keys`         | GET    | List user's API keys (metadata only, no raw key/hash exposure)                                             |
 | `/api/v1/auth/api-keys/{id}`    | GET    | Get single API key metadata (BOLA-protected: 401 if not owned by caller)                                   |
 | `/api/v1/auth/api-keys/{id}`    | DELETE | Revoke API key (BOLA-protected, idempotent) — key remains in DB for audit, authentication is blocked       |
@@ -228,7 +281,7 @@ an API key value (it returns `null` for `cttak_*`). After authentication succeed
 embeds the populated `CurrentUser` so downstream `getCurrentUserRequired()` calls work for both
 authentication types without an extra database lookup.
 
-**Scope Enforcement**: API keys are granted specific scopes (READ, WRITE, SYNC, ADMIN). Protected endpoints enforce scope requirements via `@RequiresApiKeyScope` annotation. API keys without the required scope receive 403 (AUTH_020). JWT-authenticated users bypass scope checks.
+**Scope Enforcement**: API keys are granted specific scopes (READ, WRITE, SYNC, ADMIN). Protected endpoints enforce scope requirements via `@RequiresApiKeyScope` annotation. API keys without the required scope receive 403 (AUTH_020). JWT-authenticated users bypass scope checks — and `POST /api/v1/auth/api-keys` is closed to API-key callers entirely (`403 AUTH_025`), so a leaked key cannot mint a replacement.
 
 **Error Codes**:
 
