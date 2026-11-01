@@ -84,7 +84,7 @@ class TwoFactorEndpointsIntegrationTest {
 
         JsonNode started = body(start(token, PASSWORD));
         String secret = started.path("secret").asText();
-        assertThat(secret).isNotBlank();
+        assertThat(secret).hasSize(32).doesNotContain("=");
         assertThat(started.path("otpauthUri").asText()).startsWith("otpauth://totp/");
 
         assertThat(confirm(token, "000000"))

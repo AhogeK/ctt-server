@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.OptionalLong;
 
 import com.bastiaanjansen.otp.HMACAlgorithm;
-import com.bastiaanjansen.otp.SecretGenerator;
 import com.bastiaanjansen.otp.TOTPGenerator;
 
 /**
@@ -29,6 +29,9 @@ import com.bastiaanjansen.otp.TOTPGenerator;
  */
 @Service
 public class TotpService {
+
+    private static final int SECRET_BYTES = 20;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final TwoFactorProperties properties;
     private final Clock clock;
@@ -53,10 +56,17 @@ public class TotpService {
     /**
      * Generates a new 160-bit secret encoded as Base32.
      *
+     * <p>Twenty random bytes are encoded once. The otp-java {@code SecretGenerator.generate(int)}
+     * helper already returns Base32 bytes, so feeding its output to a second Base32 encoder would
+     * produce a 52-character payload plus {@code ====} padding that iOS Google Authenticator
+     * rejects.
+     *
      * @return the Base32 secret
      */
     public String generateSecret() {
-        return base32.encodeAsString(SecretGenerator.generate(160));
+        byte[] secret = new byte[SECRET_BYTES];
+        RANDOM.nextBytes(secret);
+        return base32.encodeAsString(secret);
     }
 
     /**
@@ -90,7 +100,8 @@ public class TotpService {
         for (long step = currentStep - properties.windowSteps();
                 step <= currentStep + properties.windowSteps();
                 step++) {
-            if (step < 0) {
+            // otp-java rejects a timestamp of zero; step zero is outside its supported range.
+            if (step <= 0) {
                 continue;
             }
             String candidate = generator.at(step * properties.periodSeconds());

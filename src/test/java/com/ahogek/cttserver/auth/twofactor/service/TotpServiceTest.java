@@ -2,6 +2,7 @@ package com.ahogek.cttserver.auth.twofactor.service;
 
 import com.ahogek.cttserver.common.config.properties.TwoFactorProperties;
 
+import org.apache.commons.codec.binary.Base32;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -19,9 +20,29 @@ class TotpServiceTest {
     private static final String KEY =
             Base64.getEncoder().encodeToString("0123456789abcdef0123456789abcdef".getBytes());
     private static final String RFC_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+    private static final String LEGACY_SECRET =
+            "KBJDITSXJFEE6VSYGVAUYSSPKU2DGNKVIU3UUU2ZIRDDOTRXI5HQ====";
 
     private final TotpService service =
             new TotpService(properties(), Clock.fixed(Instant.ofEpochSecond(59), ZoneOffset.UTC));
+
+    @Test
+    @DisplayName("Should generate a 160-bit Base32 secret without padding")
+    void shouldGenerate160BitSecret_whenRequested() {
+        String secret = service.generateSecret();
+
+        assertThat(secret).hasSize(32).matches("[A-Z2-7]{32}");
+        assertThat(new Base32().decode(secret)).hasSize(20);
+    }
+
+    @Test
+    @DisplayName("Should still verify a legacy padded secret")
+    void shouldVerifyLegacySecret_whenCodeMatches() {
+        String code = service.codeAt(LEGACY_SECRET, 1);
+
+        assertThat(service.matchingStep(LEGACY_SECRET, code, Instant.ofEpochSecond(59)))
+                .hasValue(1);
+    }
 
     @Test
     @DisplayName("Should produce the RFC 6238 SHA-1 six-digit vector")
