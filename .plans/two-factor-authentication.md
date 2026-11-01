@@ -1,6 +1,6 @@
 # 两步验证（TOTP + 恢复码）实施计划
 
-> **状态**：已完成（v0.89.0，已交付 develop） · 2026-10-31
+> **状态**：已完成（v0.89.0；v0.89.1 修复 TOTP 密钥长度） · 2026-11-02
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` (native) or
 > `superpowers:subagent-driven-development` to implement task-by-task. Steps use checkbox (`- [ ]`)
@@ -143,6 +143,14 @@
 - 验证：`spotlessCheck` + `jacocoTestCoverageVerification` + 全量 `build` 通过；**1618 tests / 0 failures / 1 skipped**。
 - 已知边界：OAuth email-merge 的 2FA 路径会先建立 provider 绑定再挑战；账号删除/密码/邮箱修改仍只要求密码或会话；关闭 2FA 后既有 access token 最长 15 分钟有效；以上均已在残余风险中记录，不在本批扩大。
 
+## Hotfix v0.89.1（2026-11-02）
+
+- 现象：iOS Google Authenticator 拒扫 52 字符密钥；苹果密码、Android GA 等不受影响。
+- 根因：`otp-java` 的 `SecretGenerator.generate(160)` 返回的是 **Base32 编码后的 ASCII 字节**，不是 20 字节随机值；`TotpService` 又做一次 Base32，得到 52 字符 + `====`。源码与运行版本一致，不是部署漂移。
+- 修复：改为生成 20 个随机字节，调用一次 Base32；输出 32 字符、无填充，符合 RFC 4226 推荐长度，也满足 iOS GA 的长度约束。
+- 迁移：已启用账号的旧 secret 不能原地替换；使用当前 TOTP/恢复码 `disable`，再 `start → confirm` 重新绑定。恢复码轮换不改变 secret。
+- 验证：新增密钥长度、start 端点与旧 56 字符 secret 兼容性回归测试；全量 `build` **1620 tests / 0 failures / 1 skipped**。
+
 **同步规则（强制）**：每完成一个 Task，必须在本表更新状态并在“验证证据”写命令 + 结果；同时更新主计划对应条目与 `memory-bank/activeContext.md`。计划与实现不一致时，**先改计划再改代码**，并记录“原写 X，实测 Y”。本文件只进 develop，不进 master。
 
 **RED→GREEN（强制）**：每个 Task 的测试步骤必须先运行并记录失败（RED），再写实现；只记录通过结果不算完成。
@@ -159,13 +167,13 @@
 - `ErrorCode.AUTH_026..AUTH_031`
 - `AuditAction.TOTP_ENABLED/TOTP_DISABLED/TOTP_RECOVERY_CODES_REGENERATED/TOTP_CHALLENGE_FAILED`
 
-- [ ] 读 `SecurityProperties` 的 `@ConfigurationProperties` 注册方式，确认新属性类无需额外 `@EnableConfigurationProperties`（若需，加到配置类）。
-- [ ] 写迁移：users 三列（`TEXT`/`TIMESTAMPTZ`/`BIGINT`，全部 nullable）+ `user_recovery_codes`（id/user_id/code_hash/batch_id/created_at/used_at，FK cascade，唯一约束 `(user_id, code_hash)`，索引 `(user_id, used_at)`）。
-- [ ] 写 `TwoFactorProperties`，`encryptionKey` 做 32 字节 base64 校验；测试配置提供固定键。
-- [ ] 加 `otp-java` 到 catalog + `build.gradle.kts`；运行 `./gradlew dependencies --configuration runtimeClasspath | grep -i 'otp\|commons-codec'`，确认只新增预期依赖。
+- [x] 读 `SecurityProperties` 的 `@ConfigurationProperties` 注册方式，确认新属性类无需额外 `@EnableConfigurationProperties`（若需，加到配置类）。
+- [x] 写迁移：users 三列（`TEXT`/`TIMESTAMPTZ`/`BIGINT`，全部 nullable）+ `user_recovery_codes`（id/user_id/code_hash/batch_id/created_at/used_at，FK cascade，唯一约束 `(user_id, code_hash)`，索引 `(user_id, used_at)`）。
+- [x] 写 `TwoFactorProperties`，`encryptionKey` 做 32 字节 base64 校验；测试配置提供固定键。
+- [x] 加 `otp-java` 到 catalog + `build.gradle.kts`；运行 `./gradlew dependencies --configuration runtimeClasspath | grep -i 'otp\|commons-codec'`，确认只新增预期依赖。
 - [x] 写失败测试：`TwoFactorPropertiesTest`（非法 key 拒绝）、`TwoFactorSchemaIntegrationTest`（三列读写）、`ErrorCodeTest`（026–031 状态码）。
 - [x] 实现最小代码让测试通过；运行 `./gradlew test --tests "*TwoFactorPropertiesTest" --tests "*TwoFactorSchemaIntegrationTest"`。
-- [ ] 更新 Progress Ledger，报告验证输出；不提交。
+- [x] 更新 Progress Ledger，报告验证输出；不提交。
 
 ## Task 2: TOTP、secret 加密、恢复码
 
@@ -184,10 +192,10 @@
 - `int UserRecoveryCodeRepository.consume(UUID userId, String codeHash, Instant now)`（`UPDATE ... WHERE used_at IS NULL`，返回 1 表示占用成功）
 - `TwoFactorSetupStore.put(UUID userId, String encryptedSecret, Duration ttl)` / `Optional<String> get(UUID userId)` / `void delete(UUID userId)`
 
-- [ ] 先 `javap`/读 `otp-java` API，确认 `TOTP`/`Generator`/`Verifier` 用法；把结论写入计划（替换 UNVERIFIED）。
-- [ ] 写失败测试：AES-GCM 往返、篡改密文失败、密钥长度错误；RFC 6238 已知向量（固定时间/secret）；恢复码 10 个、格式、只存哈希、并发 consume 只有一个成功、旧码在 issue 后失效。
-- [ ] 实现最小代码；运行 `./gradlew test --tests "*Totp*" --tests "*RecoveryCode*"`。
-- [ ] 更新 Progress Ledger；不提交。
+- [x] 先 `javap`/读 `otp-java` API，确认 `TOTP`/`Generator`/`Verifier` 用法；把结论写入计划（替换 UNVERIFIED）。
+- [x] 写失败测试：AES-GCM 往返、篡改密文失败、密钥长度错误；RFC 6238 已知向量（固定时间/secret）；恢复码 10 个、格式、只存哈希、并发 consume 只有一个成功、旧码在 issue 后失效。
+- [x] 实现最小代码；运行 `./gradlew test --tests "*Totp*" --tests "*RecoveryCode*"`。
+- [x] 更新 Progress Ledger；不提交。
 
 ## Task 3: 挑战服务与防重放
 
@@ -201,9 +209,9 @@
 - `void markTotpStepUsed(UUID userId, long step)`（条件更新 `step > last`，0 行 = 重放 `AUTH_027`）
 - `record ChallengeTicket(String token, long expiresIn)` / `record ChallengePayload(UUID userId, String deviceId)`（`TwoFactorChallengeService` 的嵌套 record）
 
-- [ ] 读 `RefreshTokenRepository` 现有会话查询，确定 `sessionCreatedAt` 的 JPQL；写失败测试（挑战单次、过期、5 次失败、并发 consume、同 step 重放）。
-- [ ] 实现 Redis 原子操作（优先 `getAndDelete`/Lua；若用 Lua，测试并发）；运行定向测试。
-- [ ] 更新 Progress Ledger；不提交。
+- [x] 读 `RefreshTokenRepository` 现有会话查询，确定 `sessionCreatedAt` 的 JPQL；写失败测试（挑战单次、过期、5 次失败、并发 consume、同 step 重放）。
+- [x] 实现 Redis 原子操作（优先 `getAndDelete`/Lua；若用 Lua，测试并发）；运行定向测试。
+- [x] 更新 Progress Ledger；不提交。
 
 ## Task 4: 用户 2FA 端点
 
@@ -224,11 +232,11 @@ DTO 形状：
 - `ConfirmTotpRequest(String code)`；`RecoveryCodesResponse(List<String> recoveryCodes)`
 - `DisableTwoFactorRequest(String code, String recoveryCode)` / `RegenerateRecoveryCodesRequest(String code, String recoveryCode)`（二选一，服务端校验恰好一个）
 
-- [ ] 写失败集成测试：未启用状态、start 密码缺失/错误、OAuth-only 新鲜/过期、confirm 错码/成功、重复 confirm 409、disable 错码/成功、regenerate 旧码失效、API key 调用 403 `AUTH_025`、每个端点限流。
-- [ ] 实现 `WebSessionGuard.requireActiveWebSession()` 并在所有 2FA 端点使用；实现 controller/service。
-- [ ] `start` 将 AES-GCM 加密后的 secret 写入 `TwoFactorSetupStore`（TTL 10 分钟，覆盖旧 pending）；`confirm` 读取并校验，成功时持久化 `totp_secret_ciphertext` / `totp_confirmed_at`、标记 step、签发 10 个恢复码并删除 pending；错码保留 pending 供重试。
-- [ ] 运行 `./gradlew test --tests "*TwoFactorEndpointsIntegrationTest"`。
-- [ ] 更新 Progress Ledger；不提交。
+- [x] 写失败集成测试：未启用状态、start 密码缺失/错误、OAuth-only 新鲜/过期、confirm 错码/成功、重复 confirm 409、disable 错码/成功、regenerate 旧码失效、API key 调用 403 `AUTH_025`、每个端点限流。
+- [x] 实现 `WebSessionGuard.requireActiveWebSession()` 并在所有 2FA 端点使用；实现 controller/service。
+- [x] `start` 将 AES-GCM 加密后的 secret 写入 `TwoFactorSetupStore`（TTL 10 分钟，覆盖旧 pending）；`confirm` 读取并校验，成功时持久化 `totp_secret_ciphertext` / `totp_confirmed_at`、标记 step、签发 10 个恢复码并删除 pending；错码保留 pending 供重试。
+- [x] 运行 `./gradlew test --tests "*TwoFactorEndpointsIntegrationTest"`。
+- [x] 更新 Progress Ledger；不提交。
 
 ## Task 5: 登录 202 与 `/login/2fa`
 
@@ -241,48 +249,48 @@ DTO 形状：
 - `LoginResponse LoginTwoFactorService.complete(String challengeToken, String code)`（挑战 + TOTP/恢复码 + 防重放）
 - `LoginChallengeResponse(boolean twoFactorRequired, String challengeToken, long expiresIn)`；`LoginTwoFactorRequest(String challengeToken, String code)`
 
-- [ ] 写失败集成测试：未启用仍 200 + Cookie/Authorization；已启用 202 + 信封 + **无 Cookie/Authorization**；错误码 401；正确码 200；同码重放 401；挑战过期 401；5 次失败 429；`termsExpired` 最终仍正确。
-- [ ] 重构 `UserLoginService.login` 为 `LoginOutcome`；`completeLogin` 只在完整成功后更新 `lastLoginAt`、写 `LOGIN_SUCCESS`、签发 token。
-- [ ] 在 `AuthController` 加 `/login/2fa`（`@PublicApi`、IP 10/5min），成功路径复用 Cookie/Authorization 写法。
-- [ ] 运行定向测试；更新 Progress Ledger；不提交。
+- [x] 写失败集成测试：未启用仍 200 + Cookie/Authorization；已启用 202 + 信封 + **无 Cookie/Authorization**；错误码 401；正确码 200；同码重放 401；挑战过期 401；5 次失败 429；`termsExpired` 最终仍正确。
+- [x] 重构 `UserLoginService.login` 为 `LoginOutcome`；`completeLogin` 只在完整成功后更新 `lastLoginAt`、写 `LOGIN_SUCCESS`、签发 token。
+- [x] 在 `AuthController` 加 `/login/2fa`（`@PublicApi`、IP 10/5min），成功路径复用 Cookie/Authorization 写法。
+- [x] 运行定向测试；更新 Progress Ledger；不提交。
 
 ## Task 6: OAuth 2FA 分支
 
 **Files:** `OAuthCallbackController.java`, `OAuthLoginOrRegisterService.java`, 测试落在 `OAuthLoginOrRegisterServiceTest` 与 `OAuthCallbackControllerMockMvcTest`
 
-- [ ] 读现有 OAuth 测试与 `process` 事务，确定“先认证/注册、后签发”的最小拆分；把结论写入计划。
-- [ ] 写失败测试：已启用 2FA 的 OAuth 用户回调 → 302 到 `frontendUrl/oauth/callback?twoFactorRequired=true#challengeToken=...`，**无 Set-Cookie、无 token query**；未启用用户保持现有行为；challenge 可完成 `/login/2fa`。
-- [ ] 实现分支：2FA 检查发生在 `createRefreshToken` 之前；challenge 的 `deviceId=null`；fragment 用 URLEncoder 编码。
-- [ ] 运行定向测试；更新 Progress Ledger；不提交。
+- [x] 读现有 OAuth 测试与 `process` 事务，确定“先认证/注册、后签发”的最小拆分；把结论写入计划。
+- [x] 写失败测试：已启用 2FA 的 OAuth 用户回调 → 302 到 `frontendUrl/oauth/callback?twoFactorRequired=true#challengeToken=...`，**无 Set-Cookie、无 token query**；未启用用户保持现有行为；challenge 可完成 `/login/2fa`。
+- [x] 实现分支：2FA 检查发生在 `createRefreshToken` 之前；challenge 的 `deviceId=null`；fragment 用 URLEncoder 编码。
+- [x] 运行定向测试；更新 Progress Ledger；不提交。
 
 ## Task 7: API key 创建检查
 
 **Files:** `ApiKeyController.java`, `CreateApiKeyRequest.java`, `ApiKeyServiceImpl.java`, `WebSessionGuard.java`, 测试落在 `TwoFactorEndpointsIntegrationTest`
 
-- [ ] 写失败测试：API key 调用创建 → 403 `AUTH_025`；网页会话且未启用 2FA → 201；已启用缺 code → 403 `AUTH_030`；错码 → 401 `AUTH_027`；正确码 → 201 且同码重放 401。
-- [ ] 在 `CreateApiKeyRequest` 加可选 `code`（`@Schema`，不破坏旧请求）；controller 用 `WebSessionGuard`；service 调用 `TwoFactorService.requireCodeForSensitiveAction`。
-- [ ] 运行定向测试；更新 Progress Ledger；不提交。
+- [x] 写失败测试：API key 调用创建 → 403 `AUTH_025`；网页会话且未启用 2FA → 201；已启用缺 code → 403 `AUTH_030`；错码 → 401 `AUTH_027`；正确码 → 201 且同码重放 401。
+- [x] 在 `CreateApiKeyRequest` 加可选 `code`（`@Schema`，不破坏旧请求）；controller 用 `WebSessionGuard`；service 调用 `TwoFactorService.requireCodeForSensitiveAction`。
+- [x] 运行定向测试；更新 Progress Ledger；不提交。
 
 ## Task 8: 会话撤销、导出与审计
 
 **Files:** `RefreshTokenRepository.java`, `TwoFactorService.java`, `UserExportService.java`（仅测试/必要白名单）, `UserController.java`, 集成测试
 
-- [ ] 写失败测试：启用 2FA 后其他会话 refresh 401、当前会话仍可刷新；关闭 2FA 同样；access token 在 15 分钟内仍有效（文档化断言）；导出 JSON 不含 `totp`/`recovery` 字段；审计三条事件无 secret/码；`TOTP_CHALLENGE_FAILED` 不含码。
-- [ ] 加 `revokeAllUserTokensExceptSession(userId, sessionId, now)`；启用/关闭在**同一事务内**执行（修正早前“事务提交后”的写法：回滚时撤销也应回滚，避免部分状态）。
+- [x] 写失败测试：启用 2FA 后其他会话 refresh 401、当前会话仍可刷新；关闭 2FA 同样；access token 在 15 分钟内仍有效（文档化断言）；导出 JSON 不含 `totp`/`recovery` 字段；审计三条事件无 secret/码；`TOTP_CHALLENGE_FAILED` 不含码。
+- [x] 加 `revokeAllUserTokensExceptSession(userId, sessionId, now)`；启用/关闭在**同一事务内**执行（修正早前“事务提交后”的写法：回滚时撤销也应回滚，避免部分状态）。
 - `int RefreshTokenRepository.revokeAllUserTokensExceptSession(UUID userId, UUID sessionId, Instant now)`
-- [ ] 导出 DTO 白名单/测试；`AuditAction` 接线。
-- [ ] 运行定向测试；更新 Progress Ledger；不提交。
+- [x] 导出 DTO 白名单/测试；`AuditAction` 接线。
+- [x] 运行定向测试；更新 Progress Ledger；不提交。
 
 ## Task 9: 文档、记忆、版本与全量验证
 
 **Files:** `docs/api-reference.md`, `docs/api-governance.md`, `docs/security-architecture.md`, `docs/developer-handbook.md`, `README.md`, `memory-bank/*`, `domains/*`, `.plans/ctt-server-development-plan.md`, `libs.versions.toml`
 
-- [ ] 更新 API Reference：端点、202 信封、错误码 025–031、限流、API key 边界、OAuth fragment、会话撤销、`hasPassword/recentAuthentication`。
-- [ ] 更新 Governance/Security：2FA 威胁模型、TOTP 重放、恢复码、加密键运维、API key 旁路与创建检查。
-- [ ] 更新 README（安全模型、API 表）；Developer Handbook（错误码/审计动作）。
-- [ ] 更新 `memory-bank/domains/auth-lifecycle/*` 与 `api-contract/references.md`；`activeContext` 一条、`progress` 版本里程碑。
-- [ ] 版本 `0.89.0`（独立提交）；运行 `./gradlew spotlessCheck test jacocoTestCoverageVerification` 与一次全量 `build`，记录 tests/failures。
-- [ ] 更新主计划 2FA 条目与 Progress Ledger；报告，不提交。
+- [x] 更新 API Reference：端点、202 信封、错误码 025–031、限流、API key 边界、OAuth fragment、会话撤销、`hasPassword/recentAuthentication`。
+- [x] 更新 Governance/Security：2FA 威胁模型、TOTP 重放、恢复码、加密键运维、API key 旁路与创建检查。
+- [x] 更新 README（安全模型、API 表）；Developer Handbook（错误码/审计动作）。
+- [x] 更新 `memory-bank/domains/auth-lifecycle/*` 与 `api-contract/references.md`；`activeContext` 一条、`progress` 版本里程碑。
+- [x] 版本 `0.89.0`（功能）与 `0.89.1`（TOTP 热修复）各自独立提交；运行 `./gradlew spotlessCheck test jacocoTestCoverageVerification` 与一次全量 `build`，记录 tests/failures。
+- [x] 更新主计划 2FA 条目与 Progress Ledger；完成交付报告并按发布流程提交。
 
 ---
 

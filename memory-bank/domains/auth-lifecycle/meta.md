@@ -45,8 +45,8 @@ payload semantics, login metadata, lockout thresholds, the audit events each flo
 
 | | |
 | --- | --- |
-| Checked against source | 2026-10-31 · v0.89.0 (2FA added; login/OAuth/API-key/session flows re-read) |
+| Checked against source | 2026-11-02 · v0.89.1 (TOTP secret generation corrected; login/OAuth/API-key/session flows re-checked) |
 | Coverage | Auth/OAuth/user packages, two-factor services, API-key creation guard, error codes and session revocation at this revision |
-| Known drift | None known after the 2026-10-31 pass; re-verify the flow you rely on. |
+| Known drift | None known after the 2026-11-02 pass; re-verify the flow you rely on. |
 
 Treat unverified parts as a lead to check, not as a fact.

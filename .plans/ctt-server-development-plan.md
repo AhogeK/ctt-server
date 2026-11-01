@@ -2301,6 +2301,6 @@ end note
 
 ## 🔐 两步验证（TOTP + 恢复码）（独立子计划，2026-10-30，v0.89.0）
 
-> **状态**：已完成（v0.89.0，Task 9/9）。实施计划与交付总结：[`two-factor-authentication.md`](two-factor-authentication.md)。
+> **状态**：已完成（v0.89.0；v0.89.1 修复 TOTP 密钥长度，Task 9/9）。实施计划与交付总结：[`two-factor-authentication.md`](two-factor-authentication.md)。
 >
 > 契约已与前端闭合：202 + 统一信封、OAuth `#challengeToken` fragment、`AUTH_026`–`AUTH_031`、API key 创建前检查、启用/关闭撤销其他会话。本阶段不做短信/邮件验证码、WebAuthn、插件改造。

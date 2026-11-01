@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.89.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.89.1`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证）、审计与限流 |
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.89.1` | 2026-11-02 | fix(auth): generate a single-encoded 160-bit TOTP secret |
 | `0.89.0` | 2026-10-31 | feat(auth): add TOTP two-factor authentication |
 | `0.88.0` | 2026-10-29 | feat(user): revoke several login sessions in one call |
 | `0.87.3` | 2026-10-28 | fix(user): list sessions of accounts that have no device |
