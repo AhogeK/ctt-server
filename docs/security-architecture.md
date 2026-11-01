@@ -225,6 +225,11 @@ unencrypted or default value — the production profile deliberately has no fall
 development uses a public placeholder so a fresh clone starts without extra setup. Pending,
 unconfirmed secrets live in Redis for ten minutes and are encrypted with the same key.
 
+The 20-byte secret is Base32-encoded **exactly once**, producing 32 characters without padding.
+Enrollments created before v0.89.1 used a double-encoded value: 52 Base32 characters plus four `=`
+padding (56 characters total); those accounts must be re-enrolled (`disable`, then `start` +
+`confirm`) before iOS Google Authenticator can scan them.
+
 **Replay.** Verification accepts the current 30-second step and one step either side. The accepted
 step is written to `users.totp_last_used_step` with a conditional update, so the same step cannot
 issue two sessions. A challenge is claimed with `GETDEL` and restored with an incremented attempt

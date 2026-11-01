@@ -170,9 +170,12 @@ fallback.
 
 ### Two-Factor Authentication
 
-TOTP (SHA-1, 6 digits, 30-second step, ±1 step) with ten single-use recovery codes. Every
-endpoint below requires a browser session: an API key receives `403 AUTH_025`. The TOTP secret is
-encrypted at rest with AES-256-GCM; recovery codes are stored only as SHA-256 hashes.
+TOTP (SHA-1, 6 digits, 30-second step, ±1 step) with ten single-use recovery codes. The `secret` is
+20 random bytes encoded once as Base32: **32 characters, no padding**. Every endpoint below requires
+a browser session: an API key receives `403 AUTH_025`. The TOTP secret is encrypted at rest with
+AES-256-GCM; recovery codes are stored only as SHA-256 hashes. Accounts enrolled before v0.89.1 may
+hold a double-encoded secret: 52 Base32 characters plus four `=` padding (56 characters total);
+re-enroll them with `disable` + `start` + `confirm`.
 
 | Endpoint | Method | Description |
 |---|---|---|
