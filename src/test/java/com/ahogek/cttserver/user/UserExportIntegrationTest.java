@@ -14,6 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -83,8 +84,15 @@ class UserExportIntegrationTest {
     @Value("${server.servlet.context-path:}")
     private String contextPath;
 
-    /** Real HTTP, because a {@code StreamingResponseBody} is not observable through MockMvc. */
-    private final RestClient rest = RestClient.create();
+    /**
+     * Real HTTP, because a {@code StreamingResponseBody} is not observable through MockMvc.
+     *
+     * <p>The JDK client does not auto-retry 429 responses; the rate-limit test intentionally makes
+     * a request whose {@code Retry-After} is the full one-hour window, and an Apache retry strategy
+     * would sleep for that window and hang the suite.
+     */
+    private final RestClient rest =
+            RestClient.builder().requestFactory(new JdkClientHttpRequestFactory()).build();
 
     @AfterEach
     void tearDown() {
