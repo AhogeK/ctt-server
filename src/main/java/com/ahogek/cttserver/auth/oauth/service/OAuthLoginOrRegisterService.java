@@ -11,6 +11,7 @@ import com.ahogek.cttserver.auth.oauth.entity.UserOAuthAccount;
 import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
 import com.ahogek.cttserver.auth.oauth.model.GitHubUserInfo;
 import com.ahogek.cttserver.auth.oauth.repository.UserOAuthAccountRepository;
+import com.ahogek.cttserver.auth.passkey.repository.UserPasskeyRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
 import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
@@ -61,6 +62,7 @@ public class OAuthLoginOrRegisterService {
     private final SecurityProperties.JwtProperties jwtProps;
     private final TermsProperties termsProperties;
     private final TwoFactorChallengeService twoFactorChallengeService;
+    private final UserPasskeyRepository passkeys;
 
     public OAuthLoginOrRegisterService(
             UserOAuthAccountRepository oauthAccountRepository,
@@ -70,6 +72,7 @@ public class OAuthLoginOrRegisterService {
             AuditLogService auditLogService,
             SecurityProperties securityProperties,
             TwoFactorChallengeService twoFactorChallengeService,
+            UserPasskeyRepository passkeys,
             TermsProperties termsProperties) {
         this.oauthAccountRepository = oauthAccountRepository;
         this.userRepository = userRepository;
@@ -78,6 +81,7 @@ public class OAuthLoginOrRegisterService {
         this.auditLogService = auditLogService;
         this.jwtProps = securityProperties.jwt();
         this.twoFactorChallengeService = twoFactorChallengeService;
+        this.passkeys = passkeys;
         this.termsProperties = termsProperties;
     }
 
@@ -145,7 +149,11 @@ public class OAuthLoginOrRegisterService {
         TwoFactorChallengeService.ChallengeTicket ticket =
                 twoFactorChallengeService.create(user.getId(), null);
         return new LoginOutcome.Challenge(
-                new LoginChallengeResponse(true, ticket.token(), ticket.expiresIn()));
+                new LoginChallengeResponse(
+                        true,
+                        ticket.token(),
+                        ticket.expiresIn(),
+                        passkeys.countByUserId(user.getId())));
     }
 
     private void updateOAuthAccount(

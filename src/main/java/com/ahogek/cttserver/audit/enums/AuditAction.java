@@ -57,6 +57,21 @@ public enum AuditAction {
     /** A two-factor challenge failed. */
     TOTP_CHALLENGE_FAILED("Two-factor challenge failed"),
 
+    /** A passkey was registered for the account. */
+    PASSKEY_REGISTERED("Passkey registered"),
+
+    /** A passkey was renamed by the account owner. */
+    PASSKEY_RENAMED("Passkey renamed"),
+
+    /** A passkey was deleted by the account owner. */
+    PASSKEY_DELETED("Passkey deleted"),
+
+    /** A login completed with a passkey. */
+    PASSKEY_LOGIN_SUCCESS("Successful passkey login"),
+
+    /** A passkey assertion was rejected. */
+    PASSKEY_LOGIN_FAILED("Failed passkey login"),
+
     /** The account's data was exported. */
     DATA_EXPORTED("Account data exported"),
 

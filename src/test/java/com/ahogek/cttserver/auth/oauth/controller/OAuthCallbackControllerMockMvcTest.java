@@ -297,7 +297,7 @@ class OAuthCallbackControllerMockMvcTest {
                                     any(), eq(ACCESS_TOKEN), any(GitHubUserInfo.class), any()))
                     .willReturn(
                             new LoginOutcome.Challenge(
-                                    new LoginChallengeResponse(true, "challenge-token", 300)));
+                                    new LoginChallengeResponse(true, "challenge-token", 300, 2)));
 
             var result =
                     mvc.get()
@@ -310,6 +310,7 @@ class OAuthCallbackControllerMockMvcTest {
             assertThat(result.getResponse().getRedirectedUrl())
                     .contains("twoFactorRequired=true")
                     .contains("#challengeToken=challenge-token")
+                    .contains("&passkeyCount=2")
                     .doesNotContain("accessToken=")
                     .doesNotContain("refreshToken=");
             assertThat(result.getResponse().getHeaders("Set-Cookie")).isEmpty();

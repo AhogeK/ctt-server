@@ -64,15 +64,40 @@ public class TwoFactorChallengeService {
     public ChallengePayload consume(String token) {
         String json = redisTemplate.opsForValue().getAndDelete(key(token));
         if (json == null) {
-            throw new UnauthorizedException(
-                    ErrorCode.AUTH_026, "Two-factor challenge is invalid or expired");
+            throw invalidChallenge();
         }
+        return parse(json);
+    }
+
+    /**
+     * Reads a challenge without consuming it.
+     *
+     * <p>The passkey second-factor options endpoint must validate the token without spending it:
+     * the user may still choose the TOTP/recovery-code path after declining the passkey.
+     *
+     * @param token the one-time login challenge token
+     * @return the stored challenge payload
+     * @throws UnauthorizedException with {@code AUTH_026} when the token is missing or expired
+     */
+    public ChallengePayload peek(String token) {
+        String json = redisTemplate.opsForValue().get(key(token));
+        if (json == null) {
+            throw invalidChallenge();
+        }
+        return parse(json);
+    }
+
+    private ChallengePayload parse(String json) {
         try {
             return objectMapper.readValue(json, ChallengePayload.class);
         } catch (JsonProcessingException e) {
-            throw new UnauthorizedException(
-                    ErrorCode.AUTH_026, "Two-factor challenge is invalid or expired");
+            throw invalidChallenge();
         }
+    }
+
+    private static UnauthorizedException invalidChallenge() {
+        return new UnauthorizedException(
+                ErrorCode.AUTH_026, "Two-factor challenge is invalid or expired");
     }
 
     public void recordFailure(String token, ChallengePayload payload) {

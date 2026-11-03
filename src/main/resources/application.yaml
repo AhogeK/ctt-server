@@ -178,6 +178,14 @@ ctt:
       recent-authentication-window: 10m
       recovery-code-count: 10
 
+    passkey:
+      rp-name: "Code Time Tracker"
+      rp-id: ${PASSKEY_RP_ID:localhost}
+      allowed-origins: ${PASSKEY_ALLOWED_ORIGINS:http://localhost:5173}
+      challenge-ttl: 5m
+      timeout: 5m
+      new-credential-delay: 0s
+
     hcaptcha:
       site-key: ${HCAPTCHA_SITE_KEY:}
       secret-key: ${HCAPTCHA_SECRET_KEY:}
