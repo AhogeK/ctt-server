@@ -222,6 +222,80 @@ TOTP or recovery code: missing code â†’ `403 AUTH_030`, invalid/replayed code â†
 Recovery codes are shown only in the confirm and regenerate responses. They are never returned by
 the status endpoint, exported, or written to audit logs.
 
+### Passkeys (WebAuthn)
+
+Passkeys are an additional single-step, phishing-resistant login path. They do **not** replace the
+password, TOTP, recovery codes or GitHub OAuth. The relying-party ID and origins are configured with
+`PASSKEY_RP_ID` / `PASSKEY_ALLOWED_ORIGINS`; the RP ID is a long-lived commitment and changing it
+invalidates every registered credential.
+
+| Endpoint | Method | Auth | Description |
+|---|---|---|---|
+| `/api/v1/auth/passkey/options` | POST | anonymous | Discoverable assertion options; no `allowCredentials` |
+| `/api/v1/auth/passkey/assert` | POST | anonymous | Complete assertion and issue the normal login response |
+| `/api/v1/users/me/passkey/options` | POST | browser session + recent auth | Registration options; resident key and UV required |
+| `/api/v1/users/me/passkey` | POST | browser session + recent auth | Complete registration; returns metadata |
+| `/api/v1/users/me/passkey` | GET | browser session | List registered credentials |
+| `/api/v1/users/me/passkey/{id}` | PATCH | browser session | Rename a credential |
+| `/api/v1/users/me/passkey/{id}` | DELETE | browser session + recent auth | Delete a credential |
+| `/api/v1/auth/2fa/passkey/options` | POST | anonymous + `challengeToken` | Account-bound assertion options for an existing 2FA challenge |
+| `/api/v1/auth/2fa/passkey/assert` | POST | anonymous + `challengeToken` | Complete the 2FA challenge with an account-bound passkey |
+
+The second-factor options request is `{"challengeToken":"..."}` and returns the browser-ready
+`publicKey` options. The assert request is `{"challengeToken":"...","credential":{...}}`; success uses
+the same `LoginResponse`, cookies and `Authorization` header as `/auth/login/2fa`. The options carry
+`allowCredentials` for the challenge account only. A failed passkey attempt does not consume the 2FA
+challenge, so the TOTP/recovery-code fallback remains usable; a successful assertion consumes it.
+
+`LoginChallengeResponse` includes `passkeyCount` (always present, zero when none). For OAuth the same
+value is carried in the redirect fragment as `passkeyCount`, alongside `challengeToken` and
+`expiresIn`.
+
+The options responses are the browser-ready JSON objects produced by WebAuthn (`publicKey`
+wrapper). Registration and assertion bodies contain the browser `PublicKeyCredential` JSON:
+
+```json
+{
+  "credential": { "id": "...", "rawId": "...", "type": "public-key", "response": { "...": "..." } },
+  "name": "MacBook Pro"
+}
+```
+
+Assertion success uses the same `LoginResponse`, cookies and `Authorization` header as password
+login. A passkey login is complete on its own and does not enter the TOTP second step. The
+credential metadata response contains `id`, `name`, `createdAt`, `lastUsedAt`, `transports`,
+`backupEligible` and `backupState`.
+
+Security rules:
+
+- Registration and assertion require `userVerification=REQUIRED`; the server rejects assertions
+  whose UV flag is false.
+- The server validates the RP ID hash, origin, challenge, signature and user-presence flag through
+  the WebAuthn library.
+- Challenges are random, operation-bound and single-use; they expire after five minutes.
+- A signature counter of zero is accepted while the stored counter is zero (synced credentials); once
+  a non-zero counter is stored, a zero or non-increasing value is rejected. Backup eligibility/state
+  is display metadata, never an access-control gate.
+- Attestation is requested as `none`; there is no attestation trust policy.
+- Registration sends a security notification email; it contains the label only, never credential
+  material.
+- Deleting the last passkey is allowed only while the account still has a password or an OAuth
+  binding.
+
+| Error | HTTP | Meaning |
+|---|---|---|
+| `AUTH_026` | 401 | Two-factor login challenge invalid or expired |
+| `AUTH_032` | 401 | Passkey challenge invalid or expired |
+| `AUTH_033` | 401 | Passkey verification failed (signature, origin, UV/UP, counter, no passkey) |
+| `AUTH_034` | 409 | Credential already registered |
+| `AUTH_035` | 404 | Credential not found or not owned by the caller |
+| `AUTH_018` | 409 | Deleting the last passkey would leave no password or OAuth login |
+| `AUTH_031` | 403 | Recent authentication required |
+| `AUTH_025` | 403 | API-key callers cannot use passkey management |
+
+Rate limits: anonymous options 30/5min IP, anonymous assert 20/5min IP; registration options and
+completion 10/hour user, rename 20/hour user, delete 10/hour user.
+
 ### Email Change
 
 | Endpoint                                     | Method | Description                                                                                              |

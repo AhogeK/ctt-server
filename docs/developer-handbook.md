@@ -56,6 +56,10 @@ public enum ErrorCode {
 | AUTH_029   | 409         | Two-factor not enabled                      | v0.89.0 |
 | AUTH_030   | 403         | Action requires a 2FA re-check              | v0.89.0 |
 | AUTH_031   | 403         | Recent authentication required              | v0.89.0 |
+| AUTH_032   | 401         | Passkey challenge invalid or expired        | v0.90.0 |
+| AUTH_033   | 401         | Passkey verification failed                 | v0.90.0 |
+| AUTH_034   | 409         | Passkey already registered                  | v0.90.0 |
+| AUTH_035   | 404         | Passkey not found or not owned              | v0.90.0 |
 ```
 
 **Important**: Do NOT use HTTP status codes as error codes. Frontend needs precise error handling (e.g., distinguish "password wrong" vs "account locked" - both return 403).
@@ -125,6 +129,21 @@ deliberate: audit events are published with `@TransactionalEventListener(AFTER_C
 enclosing transaction that rolls back would discard the failure record — precisely when the record
 matters most. A rejected code must still consume the credential, and that write must survive the
 rejection.
+
+### Passkey Audit Events
+
+| Audit Action | Description | Trigger Point |
+|---|---|---|
+| `PASSKEY_REGISTERED` | A passkey was registered | `PasskeyRegistrationService.finishRegistration` |
+| `PASSKEY_RENAMED` | A passkey label changed | `PasskeyManagementService.rename` |
+| `PASSKEY_DELETED` | A passkey was removed | `PasskeyManagementService.delete` |
+| `PASSKEY_LOGIN_SUCCESS` | A passkey assertion completed login | `PasskeyAuthenticationService.finishAssertion` / `finishSecondFactor` |
+| `PASSKEY_LOGIN_FAILED` | A passkey assertion was rejected | `PasskeyAuthenticationService.fail` |
+
+**Resource Type**: `ResourceType.USER`
+
+**Details**: credential label or a generic reason only. Never include the credential ID, public key,
+challenge, signature, or user handle.
 
 ### API Key Authentication Rate Limiting
 

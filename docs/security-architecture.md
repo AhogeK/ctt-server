@@ -248,8 +248,53 @@ permanent machine credential and bypass the factor entirely.
 challenge is delivered in the URL fragment (`#challengeToken=...`), never in the query string, and
 no cookies are set on that response.
 
-**Explicitly out of scope.** SMS/email codes, WebAuthn/passkeys, trusted-device cookies, admin
-reset of a user's 2FA, and 2FA on every API-key request.
+**Explicitly out of scope.** SMS/email codes, WebAuthn/passkeys as a second-factor switch,
+trusted-device cookies, admin reset of a user's 2FA, and 2FA on every API-key request.
+
+## Passkeys (WebAuthn)
+
+Passkeys are an additional **discoverable credential** login path and an optional **second factor**
+for an existing 2FA challenge. A primary passkey assertion is complete on its own and does not enter
+the TOTP challenge; the second-factor endpoint is account-bound and is only available when the login
+flow already issued a 2FA challenge. Password, TOTP, recovery codes and OAuth remain available for
+recovery.
+
+**Relying party.** `PASSKEY_RP_ID` must be the effective domain used by the browser and is a
+long-lived commitment: changing it invalidates every registered credential. `PASSKEY_ALLOWED_ORIGINS`
+is an exact origin allowlist. Both default to localhost for local development; a production
+deployment must set them explicitly. `PASSKEY_RP_ID` must not include a scheme, port or path.
+
+**Registration.** The browser session must be recent (`AUTH_031`), and API-key callers are rejected
+(`AUTH_025`). The creation options require a resident key and user verification. `attestation=none`
+is deliberate: this public service does not use attestation as an access-control decision.
+
+**Assertion.** The anonymous options contain no `allowCredentials`, so the authenticator can select
+any discoverable credential for the relying party. The server requires `UV` and `UP`, validates the
+RP ID hash, origin, challenge and signature, and resolves the account from the WebAuthn user handle
+(the account UUID). All assertion failures return the same `AUTH_033` response to avoid account
+enumeration.
+
+**Challenge storage.** A challenge is random, operation-bound (registration, discoverable assertion,
+or second factor), stored in Redis and claimed with `GETDEL`; it expires after five minutes. A
+consumed or mismatched challenge is rejected with `AUTH_032`.
+
+**Second factor.** The options endpoint validates the login `challengeToken` without consuming it,
+then stores an account-bound WebAuthn challenge whose payload includes the SHA-256 hash of that
+login token. The assertion is accepted only when the WebAuthn challenge, account and token hash all
+match. The login challenge is consumed only after a successful assertion; a failed passkey attempt
+consumes the WebAuthn challenge but leaves TOTP/recovery code usable. The new session created by the
+successful completion is recent by construction.
+
+**Credential record.** The table stores the base64url credential ID, COSE public key, signature
+counter, transports, AAGUID and backup flags. If the stored counter is zero, an observed zero is
+accepted (synced passkeys); once a non-zero counter is stored, a zero or non-increasing observation
+is rejected. Backup eligibility/state are display metadata only and are not an authorization gate.
+No private key material reaches the server.
+
+**Recovery and revocation.** Password + TOTP and password + recovery code remain valid. Deleting a
+passkey requires recent authentication; deleting the last passkey is allowed only while the account
+still has a password or an OAuth binding. Every registration sends a security notification email
+containing only the label.
 
 ## CSRF Protection
 
