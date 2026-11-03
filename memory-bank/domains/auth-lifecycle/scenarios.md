@@ -53,3 +53,25 @@ in production.
 | Rotating recovery codes | Old codes must die atomically | Replace the whole batch in one transaction; audit without the codes |
 | Adding an API-key operation | API keys can otherwise mint permanent credentials | Require `WEB_SESSION`; when 2FA is on, require a code (`AUTH_030`/`AUTH_027`) |
 | OAuth login | GitHub alone must not bypass the factor | Check `totp_confirmed_at` before issuing tokens; deliver the challenge in the URL fragment |
+
+## Touching passkeys
+
+| Trigger | Judgement | Action |
+| --- | --- | --- |
+| Registering a passkey | A stolen browser session could bind an attacker's authenticator | Require `AUTH_031` recent authentication; reject API keys with `AUTH_025`; notify by email |
+| Logging in with a passkey | This is an independent factor, not a second step | Complete the assertion without TOTP; issue the same `LoginResponse` and cookies as password login |
+| Deleting the last passkey | The account must keep a usable login path | Allow only while a password or OAuth binding remains; otherwise reject with `AUTH_018` (409) |
+| Changing `PASSKEY_RP_ID` | Every credential is bound to the RP ID | Treat as a breaking migration; plan re-registration before changing it |
+| Assertion failure | Must not reveal whether the credential exists | Return `AUTH_033` for every failure; log the reason without credential ID or challenge |
+| Signature counter is zero | Synced passkeys legitimately report zero | Accept it; do not compare zero to the stored value as a regression |
+
+## Touching second-factor passkeys
+
+| Trigger | Judgement | Action |
+| --- | --- | --- |
+| Account has a 2FA challenge and passkeys | The account is known; discoverable assertion is wrong | Start assertion with `.userHandle(userId)` so Yubico builds account-bound `allowCredentials` |
+| Reading `challengeToken` for options | Must not spend the code fallback | Use `TwoFactorChallengeService.peek`, never `consume` |
+| Passkey assertion fails | User must still be able to enter TOTP | Consume only the WebAuthn challenge; keep the login challenge |
+| Passkey assertion succeeds | Both factors are satisfied | Consume the 2FA challenge before issuing tokens; replay is `AUTH_026` |
+| Account has passkeys but no TOTP | No 2FA challenge is issued today | Do not invent a second step; that is a separate policy change |
+| Login challenge expired while options are open | Assertion must not mint tokens | `peek`/`consume` raises `AUTH_026`; WebAuthn challenge may already be spent |

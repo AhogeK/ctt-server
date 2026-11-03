@@ -190,6 +190,8 @@
 - **禁止在代码中使用全限定类名**：除 `import` 外一律用短名（`IntStream.rangeClosed` 而非 `java.util.stream.IntStream.rangeClosed`）
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试**：多断言链式调用 `.isX().isY().isZ()`，方法名 `shouldX_whenY`
+- **测试限流时禁用 HTTP 自动重试（强制）**：Apache HttpClient 的默认策略会对 `429` 按 `Retry-After` 睡眠重试；导出的限流用例因此睡满 1 小时窗口、整轮测试卡死 27 分钟。限流/429 用例必须使用不自动重试的客户端（如 `JdkClientHttpRequestFactory`），并直接断言状态码，不能依赖默认 `RestClient.create()`。
+
 - **测试要覆盖「空关联」**：集合为空、外键全为 null 的输入也要有一条用例——`Map.of()`（不可变空表）的 `get(null)` 会抛 NPE，2026-10-28 因此线上 `GET /users/me/sessions` 直接 500，而既有用例的夹具里总有已注册设备，恰好绕过了这条路径。
 
 - **编辑前验证（强制）**：先读完整文件（片段读取不足时直接整文件读取，不反复片段读同一文件）→ 编辑后LSP diagnostics → 编译验证 → 运行相关测试
@@ -215,6 +217,8 @@
 - **Spotless 与 google-java-format 要成对升级**：2026-10-27 把 google-java-format 1.36.1 → 1.37.0 后，Spotless 8.10.4 下**每个文件**都抛 `InvocationTargetException`（`LINE_UNDEFINED`）；把 1.37.0 的 all-deps jar 单独跑（带 `--add-exports`）却能正常格式化 ⇒ 是两者的集成缺口，不是 JDK 不兼容。升级前先跑一次 `spotlessJavaCheck`，失败就保留旧版并在报告里写明证据。
 
 - **同一模块族的版本只能有一个来源**：`flyway-core` 与 `flyway-database-postgresql` 必须同版本（前者被 Boot BOM 管理，靠 `strictly` 覆盖），字面量要写成 `libs.versions.<name>.get()` 而不是第二次硬编码
+
+- **新增依赖必须做多维评估（强制）**：至少比较**最新稳定版**、维护活跃度与最近发布、采用度、许可证、已知漏洞、传递依赖体积、**与当前框架/运行时兼容性（Spring Boot BOM、Spring Security、JDK、Jackson 2/3、Servlet/WebFlux、日志栈）**、API 稳定性、可测试性与替换成本；优先使用 BOM/官方管理的版本。禁止因为示例代码、前端建议或“能编译”就直接引入；先记录候选、版本、证据和排除理由，再落代码。解析后必须用 `dependencies` / `dependencyInsight` 核对解析版本，确认没有强制降级、双 Jackson 代际或同一能力重复引入。RC/里程碑不算稳定版。
 
 ### R13: 记忆文件维护（强制 - 冷热分层）
 

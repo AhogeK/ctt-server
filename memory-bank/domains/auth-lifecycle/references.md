@@ -73,6 +73,13 @@
 | Captcha | `auth/captcha/CaptchaService.java` |
 | Lockout | `auth/service/` (login attempt service) + `login_attempts` table |
 | Terms gate | filter + `ctt.terms.*` config |
+| Passkey challenge | `auth/passkey/service/PasskeyChallengeService.java` |
+| Passkey registration | `auth/passkey/service/PasskeyRegistrationService.java` |
+| Passkey assertion/login | `auth/passkey/service/PasskeyAuthenticationService.java` |
+| Passkey credential store | `auth/passkey/service/PasskeyCredentialRepository.java` + `user_passkeys` table |
+| Passkey notification | `auth/passkey/service/PasskeyNotificationService.java` (`REQUIRES_NEW`) |
+| Passkey second-factor API | `auth/passkey/controller/PasskeySecondFactorController.java` |
+| Passkey second-factor service | `auth/passkey/service/PasskeyAuthenticationService.java` (`startSecondFactor`, `finishSecondFactor`) |
 
 ## Two-factor endpoints
 
@@ -89,3 +96,32 @@
 `TwoFactorChallengeService`, `RecoveryCodeService`, `SecondFactorVerifier`, `TotpService`,
 `TotpSecretCipher`). `SecondFactorVerifier` is the single place that decides what counts as a
 valid second factor, so the login path and `/users/me/2fa/*` cannot drift apart.
+
+## Passkey endpoints
+
+| Endpoint | Method | Notes | Rate |
+| --- | --- | --- | --- |
+| `/api/v1/auth/passkey/options` | POST | Anonymous discoverable assertion options; empty `allowCredentials` | 30/5min IP |
+| `/api/v1/auth/passkey/assert` | POST | Assertion + `LoginResponse` + cookies; `AUTH_032`/`AUTH_033` | 20/5min IP |
+| `/api/v1/users/me/passkey/options` | POST | Registration options; recent auth (`AUTH_031`); browser session only | 10/hour USER |
+| `/api/v1/users/me/passkey` | POST | Complete registration; `201`; `AUTH_034` on duplicate | 10/hour USER |
+| `/api/v1/users/me/passkey` | GET | List credentials; no public key or credential ID exposure beyond metadata | — |
+| `/api/v1/users/me/passkey/{id}` | PATCH | Rename the label | 20/hour USER |
+| `/api/v1/users/me/passkey/{id}` | DELETE | Delete; recent auth; `AUTH_035` when not owned | 10/hour USER |
+
+**Config**: `PASSKEY_RP_ID`, `PASSKEY_ALLOWED_ORIGINS` (exact origins), optional relying-party name.
+**Errors**: `AUTH_032` challenge invalid/expired, `AUTH_033` assertion failed, `AUTH_034` credential
+already registered, `AUTH_035` not found/not owned; `AUTH_025` for API-key callers.
+
+## Second-factor passkey endpoints
+
+| Endpoint | Method | Notes | Rate |
+| --- | --- | --- | --- |
+| `/api/v1/auth/2fa/passkey/options` | POST | Body `{challengeToken}`; account-bound `allowCredentials`; peeks 2FA challenge | 20/5min IP |
+| `/api/v1/auth/2fa/passkey/assert` | POST | Body `{challengeToken, credential}`; consumes WebAuthn challenge; login challenge only on success | 10/5min IP |
+
+**Error mapping**: `AUTH_026` login challenge invalid/expired; `AUTH_032` WebAuthn challenge invalid,
+expired, consumed or binding mismatch; `AUTH_033` assertion failed/no passkey.
+**Source**: `PasskeySecondFactorController`, `PasskeyAuthenticationService.startSecondFactor` /
+`finishSecondFactor`; `PasskeyChallengeService.Operation.SECOND_FACTOR`.
+**Response**: same `LoginResponse`, cookies and `Authorization` as `/auth/login/2fa`.

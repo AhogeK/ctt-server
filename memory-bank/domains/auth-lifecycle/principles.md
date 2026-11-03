@@ -114,3 +114,37 @@ lockout into a trap.
   2FA is enabled. An API key cannot mint another API key.
 - API keys remain a deliberate 2FA bypass for machine sync; that risk is managed by scopes and
   revocation, not by asking the plugin for a 6-digit code.
+
+## 12. A passkey is an independent single-step credential
+
+A passkey assertion is a complete login and must not enter the TOTP challenge. It is not a
+replacement for the password, TOTP, recovery codes or OAuth: every one of those remains available
+for recovery, and the account cannot become passkey-only while it has no other credential.
+
+The server requires user verification and presence, validates the RP ID hash, origin, challenge and
+signature, and treats the WebAuthn user handle as the account UUID. Attestation is deliberately
+`none` — this public service does not make policy decisions from vendor attestation.
+
+A signature counter of zero is valid when the stored counter is zero (synced passkeys); once a
+non-zero counter is stored, a zero or non-increasing observation is a regression and fails the
+assertion. Backup eligibility/state are display metadata, never an authorization gate.
+
+Registration and deletion require recent authentication (`AUTH_031`); API-key callers are rejected
+(`AUTH_025`). Deleting the last passkey is allowed only while another login path remains. Every
+registration sends a notification mail containing only the label.
+
+## 13. A second-factor passkey is account-bound and preserves the fallback
+
+When a login already produced a 2FA challenge, the account is known. The second-factor passkey
+assertion must therefore use `allowCredentials` for that account, not the discoverable flow. The
+options endpoint **peeks** the login challenge; it must not consume it. A separate WebAuthn challenge
+is stored with `SECOND_FACTOR` and a SHA-256 binding to the login token.
+
+A failed assertion consumes only the WebAuthn challenge, leaving the login challenge usable for TOTP
+or a recovery code. Only a successful assertion consumes the login challenge and issues tokens. This
+is the deliberate resolution of “consume on failure” versus “still allow the code”; consuming both
+would strand the user.
+
+Only accounts already in the TOTP 2FA flow get `passkeyCount` and the alternative. A passkey account
+without TOTP keeps the current direct-login behavior. The new session created by `completeLogin` is
+recent by construction; there is no pre-existing session to check.

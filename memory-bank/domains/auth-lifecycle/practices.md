@@ -167,3 +167,30 @@ is therefore idempotent — ids the first attempt revoked simply come back as sk
    transaction inside `completeLogin`.
 9. `completeLogin` saves the user explicitly. The second-factor path loads the entity outside the
    issuing transaction, so relying on dirty checking would silently drop `lastLoginAt`/`lastLoginIp`.
+
+## Passkey ceremonies
+
+1. Registration options require `residentKey=REQUIRED`, `userVerification=REQUIRED` and
+   `attestation=none`. The challenge is stored in Redis under an operation-bound key and claimed
+   with `GETDEL`.
+2. Assertion options use an empty `allowCredentials` list; the authenticator chooses a discoverable
+   credential. The server resolves the account from the WebAuthn user handle (the user UUID), never
+   from a browser-supplied user id.
+3. Yubico `RelyingParty` validates the assertion (RP ID hash, origin allowlist, challenge, signature,
+   UP, UV). Failures are mapped to `AUTH_033`; an invalid or consumed challenge is `AUTH_032`.
+4. Credential persistence treats a stored counter of zero as uninitialised (synced credentials can
+   keep reporting zero). Once a non-zero counter is stored, a zero or non-increasing observation is
+   a regression and is rejected. Backup flags are informational.
+5. Registration and deletion call `getActiveUserRequired()` plus the recent-authentication check
+   (`AUTH_031`). API-key authentication is rejected before the ceremony (`AUTH_025`).
+6. The notification runs in `REQUIRES_NEW` after the credential transaction commits, so a mail
+   failure cannot roll the credential back. The message contains the label, never the credential ID,
+   public key or challenge.
+
+## Second-factor passkey ceremonies
+
+1. `POST /auth/2fa/passkey/options` peeks the 2FA challenge, rejects an account without TOTP or passkeys, and starts with `.userHandle(userId)`; Yubico builds `allowCredentials` from `PasskeyCredentialRepository.getCredentialIdsForUsername`.
+2. The WebAuthn challenge is stored as `Operation.SECOND_FACTOR` with the account id and `TokenUtils.hashToken(challengeToken)`; the raw login token is never stored in it.
+3. `POST /auth/2fa/passkey/assert` peeks the login challenge, consumes the WebAuthn challenge with operation/account/token hash, and verifies the assertion.
+4. Failure consumes only the WebAuthn challenge and records `LoginAttempt`/audit; the login challenge remains for `/auth/login/2fa`. No single transaction: rollback would lose the audit or un-consume a credential.
+5. Success verifies owner/counter, `GETDEL`s the login challenge, then calls `completeLogin`; the session is recent by construction.

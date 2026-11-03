@@ -238,3 +238,12 @@
     - 验证: clean build 全绿 + 全量 1326/0（零回归）+ spotlessCheck 通过（gjf 新版本无格式漂移）+ dependencyUpdates outdated=0
     - 教训: ben-manes 对部分坐标报 available=None 不可信，关键坐标用 Maven Central 元数据人工核实；flyway 双模块必须同版本（db 模块 POM parent.version 强绑定）
     - 状态: ✅ 完成，待提交授权
+
+- [2026-09-19] - 依赖更新分析与升级（v0.77.1）
+    - 策略: 一律直接升到最新稳定版（含主版本），兼容性由编译 + 全量测试验证，不做逐项风险评估
+    - **ben-manes 报告不可尽信（旧坑复现）**: `dependencyUpdates` 只列出 5 项，**缺 Spring Boot / spotless / postgresql 等关键坐标**；按既有教训改用 **Maven Central 元数据 + Gradle Plugin Portal 逐个核实**，才发现 Spring Boot 4.1.1 与 Gradle 9.7.1 **本已是最新稳定**（插件报的 4.2.0-M1 / 9.8.0-rc-3 是里程碑与 RC ✗ 按策略跳过）
+    - 升级: greenmail 2.1.13→**2.1.14**、springdoc-openapi 3.1.0→**3.1.1**、flyway 13.5.0→**13.7.0**、ben-manes 插件 **坐标迁移** `com.github.ben-manes.versions`→`io.github.ben-manes.versions` 且 0.61.0→**0.64.0**（两个 id 都已有 0.64.0，按新坐标走 ✓）
+    - **顺手修掉一处会漂移的重复来源**: `flyway-core` 的 `version { strictly("13.5.0") }` 是硬编码字面量，与目录里的 `flyway` 版本各自维护 → 改为 `strictly(libs.versions.flyway.get())`。**关键不变量**（上一批的血泪）: flyway 的 core 与 database-postgresql 必须同版本，BOM 给的 12.4.0 由 strictly 覆盖 → 升级后实测 `flyway-core 12.4.0 -> 13.7.0`、`flyway-database-postgresql -> 13.7.0` **同版本** ✓
+    - **techContext 技术栈表严重过期，已一并修正**: 原表写 Spring Boot 4.0.5 / Flyway 11.4.0 / springdoc 2.8.5 / Testcontainers 1.20.6 / JUnit 5 / JaCoCo 0.8.14，实际为 **4.1.1 / 13.7.0 / 3.1.1 / 2.0.5 / 6.1.3 / 0.8.15**；且表里还留着**已不再使用**的 JJWT（现用 `spring-security-oauth2-jose`），并把 spotless **插件版本**（8.10.2）与 google-java-format（1.36.1）混为一谈。修正后加了一句"**本表是快照，`gradle/libs.versions.toml` 才是唯一来源**"以防再漂
+    - 未动（附依据）: Spring Boot 4.1.1（最新稳定）、Gradle 9.7.1（最新稳定，9.8.0-rc-3 是 RC）、postgresql 42.7.13 / junit-platform-launcher 6.1.3 / spotless 8.10.2 / dependency-management 1.1.7（均已是 Maven Central 最新）、JDK 25.0.4（25 GA 家族最新，25.0.4.1 仅同版重建包；25→26 属大版本跳跃须先确认，未动）
+    - 验证: `clean build` + 全量 **1470 tests / 0 failures** ✓（首次运行失败一次、无诊断输出即重跑通过 —— 判断为升级后首次拉取构件的瞬时失败，最终解析版本已逐一核实 ✓）

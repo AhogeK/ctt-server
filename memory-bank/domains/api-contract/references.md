@@ -4,7 +4,7 @@
 
 | Prefix | Count | Area |
 | --- | --- | --- |
-| `AUTH_` | 25 | Authentication, API keys, OAuth, scopes |
+| `AUTH_` | 35 | Authentication, API keys, OAuth, scopes, 2FA, passkeys |
 | `USER_` | 14 | User profile, email change, password |
 | `MAIL_` | 8 | Outbox delivery, rate limits |
 | `SECURITY_` | 7 | Captcha, terms, request hardening |
@@ -14,7 +14,7 @@
 | `LEADERBOARD_` | 2 | Ranking |
 | `DEVICE_` | 1 | Device registration conflicts |
 
-Counts verified against `ErrorCode` on 2026-10-28 (68 codes, v0.87.2).
+Counts verified against `ErrorCode` on 2026-11-03 (82 codes, v0.91.0; 81 prefixed plus `PASSWORD_SAME_AS_OLD`).
 
 ## Frequently used codes
 
@@ -111,3 +111,31 @@ Account-lockout (`403`) reuses the same dual signalling so clients have one retr
 
 Errors: `AUTH_026`–`AUTH_031`; TOTP replay guard is `users.totp_last_used_step`; recovery codes are
 SHA-256 hashes and single-use.
+
+## Passkey endpoints
+
+| Endpoint | Contract facts |
+| --- | --- |
+| `POST /api/v1/auth/passkey/options` | Anonymous; `data.publicKey` discoverable assertion options with empty `allowCredentials` |
+| `POST /api/v1/auth/passkey/assert` | `{credential}`; 200 `LoginResponse` + cookies; `AUTH_032` challenge, `AUTH_033` verification |
+| `POST /api/v1/users/me/passkey/options` | Browser session + recent auth (`AUTH_031`); `data.publicKey` creation options |
+| `POST /api/v1/users/me/passkey` | `{credential,name?}`; 201 metadata; `AUTH_034` duplicate |
+| `GET /api/v1/users/me/passkey` | Array of `id,name,createdAt,lastUsedAt,transports,backupEligible,backupState`; credential material is not returned |
+| `PATCH /api/v1/users/me/passkey/{id}` | `{name}`; 200 updated metadata; `AUTH_035` not owned |
+| `DELETE /api/v1/users/me/passkey/{id}` | 204; recent auth; `AUTH_035` not owned |
+
+All management endpoints require a browser session; API-key callers receive `AUTH_025`.
+Errors: `AUTH_032`–`AUTH_035`; the WebAuthn relying party is configured by `PASSKEY_RP_ID` and
+`PASSKEY_ALLOWED_ORIGINS`.
+
+## Second-factor passkey endpoints
+
+| Endpoint | Contract facts |
+| --- | --- |
+| `POST /api/v1/auth/2fa/passkey/options` | `{challengeToken}`; 200 `data.publicKey`; account-bound `allowCredentials`; `AUTH_026` invalid login challenge, `AUTH_033` no passkey |
+| `POST /api/v1/auth/2fa/passkey/assert` | `{challengeToken,credential}`; 200 `LoginResponse` + cookies/Authorization; `AUTH_026`/`AUTH_032`/`AUTH_033` |
+| `POST /api/v1/auth/login` / OAuth challenge | `LoginChallengeResponse.passkeyCount`; OAuth fragment carries the same value |
+
+A failed passkey attempt does not consume the login challenge; the TOTP/recovery-code endpoint can
+still complete it. A successful assertion consumes both the WebAuthn challenge and the login
+challenge.

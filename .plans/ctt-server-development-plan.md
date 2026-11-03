@@ -2304,3 +2304,15 @@ end note
 > **状态**：已完成（v0.89.0；v0.89.1 修复 TOTP 密钥长度，Task 9/9）。实施计划与交付总结：[`two-factor-authentication.md`](two-factor-authentication.md)。
 >
 > 契约已与前端闭合：202 + 统一信封、OAuth `#challengeToken` fragment、`AUTH_026`–`AUTH_031`、API key 创建前检查、启用/关闭撤销其他会话。本阶段不做短信/邮件验证码、WebAuthn、插件改造。
+
+## 🔑 通行密钥基础（Passkey / WebAuthn）（并入 v0.91.0）
+
+> **状态**：implemented（并入 v0.91.0）。实施计划、依赖选型与测试记录：[`passkey-authentication.md`](passkey-authentication.md)。
+>
+> 发现型通行密钥作为独立单步登录路径，密码/TOTP/恢复码/OAuth 全部保留；注册与删除需近期认证，API key 不可管理通行密钥。v0.91.0 起，已进入 2FA 的账号也可以使用通行密钥完成第二步；见下方独立子计划。
+
+## 🔑 通行密钥作为第二步（独立子计划，2026-11-03，v0.91.0）
+
+> **状态**：implemented（已交付 v0.91.0：6432bc1 / 2f99161 / cc1995e / c1ac658）。实施计划与测试记录：本地 `.omp/plans/2026-11-03/passkey-second-factor-plan.md`（未入库）。
+>
+> 两步验证挑战增加 `passkeyCount`；第二步页面可在 TOTP/恢复码之外使用账号绑定的通行密钥。失败只消费 WebAuthn challenge，保留 TOTP 回退；成功才消费登录 challenge。仅已启用 TOTP 的账号受影响。全量 **1645 tests / 0 failures / 1 skipped**，`build` 与覆盖率门禁通过。
