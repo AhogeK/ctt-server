@@ -12,6 +12,7 @@ postgresql = "42.7.14"
 junitPlatformLauncher = "6.1.3"
 otpJava = "2.2.0"
 commonsCodec = "1.22.0"
+webauthn = "2.10.1"
 
 [libraries]
 
@@ -22,6 +23,7 @@ org-postgresql = { module = "org.postgresql:postgresql", version.ref = "postgres
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatformLauncher"}
 otp-java = { module = "com.github.bastiaanjansen:otp-java", version.ref = "otpJava" }
 commons-codec = { module = "commons-codec:commons-codec", version.ref = "commonsCodec" }
+webauthn-server-core = { module = "com.yubico:webauthn-server-core", version.ref = "webauthn" }
 
 [plugins]
 

@@ -7,6 +7,7 @@ import com.ahogek.cttserver.auth.dto.LoginOutcome;
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
+import com.ahogek.cttserver.auth.passkey.repository.UserPasskeyRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
@@ -65,6 +66,7 @@ class UserLoginServiceTest {
     @Mock private SecurityProperties.JwtProperties jwtProps;
     @Mock private LoginAttemptService loginAttemptService;
     @Mock private TwoFactorChallengeService twoFactorChallengeService;
+    @Mock private UserPasskeyRepository passkeys;
 
     private final TermsProperties termsProperties = new TermsProperties("1.0.0", null);
 
@@ -87,6 +89,7 @@ class UserLoginServiceTest {
                         loginAttemptService,
                         securityProperties,
                         twoFactorChallengeService,
+                        passkeys,
                         termsProperties);
 
         doAnswer(_ -> null).when(loginAttemptService).recordSuccess(anyString());

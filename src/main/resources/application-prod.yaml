@@ -73,6 +73,10 @@ ctt:
       # No fallback in production: a missing key must stop the deployment, not silently encrypt
       # TOTP secrets with a value that is public in the repository.
       encryption-key: ${TOTP_ENCRYPTION_KEY}
+    passkey:
+      # The RP ID is a long-lived commitment. Changing it invalidates every registered passkey.
+      rp-id: ${PASSKEY_RP_ID}
+      allowed-origins: ${PASSKEY_ALLOWED_ORIGINS}
     password:
       # Production BCrypt rounds (12 rounds ≈ 250ms per hash)
       bcrypt-rounds: 12

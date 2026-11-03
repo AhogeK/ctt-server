@@ -19,12 +19,14 @@ import com.ahogek.cttserver.mail.repository.MailOutboxRepository;
 import com.ahogek.cttserver.mail.template.ChangeEmailTemplateData;
 import com.ahogek.cttserver.mail.template.EmailVerificationTemplateData;
 import com.ahogek.cttserver.mail.template.MailTemplateRenderer;
+import com.ahogek.cttserver.mail.template.PasskeyAddedTemplateData;
 import com.ahogek.cttserver.mail.template.PasswordResetTemplateData;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -51,6 +53,7 @@ public class MailOutboxService {
     private static final String BIZ_TYPE_VERIFICATION = "REGISTER_VERIFY";
     private static final String BIZ_TYPE_PASSWORD_RESET = "RESET_PASSWORD";
     private static final String BIZ_TYPE_CHANGE_EMAIL = "CHANGE_EMAIL";
+    private static final String BIZ_TYPE_PASSKEY_ADDED = "PASSKEY_ADDED";
 
     private static final Duration VERIFICATION_TOKEN_TTL = Duration.ofHours(24);
     private static final Duration PASSWORD_RESET_TOKEN_TTL = Duration.ofMinutes(30);
@@ -59,6 +62,7 @@ public class MailOutboxService {
     private static final Duration VERIFICATION_RATE_WINDOW = Duration.ofMinutes(1);
     private static final Duration PASSWORD_RESET_RATE_WINDOW = Duration.ofMinutes(5);
     private static final Duration CHANGE_EMAIL_RATE_WINDOW = Duration.ofMinutes(10);
+    private static final Duration PASSKEY_ADDED_RATE_WINDOW = Duration.ofMinutes(10);
     private static final int RATE_LIMIT_THRESHOLD = 3;
 
     private static final Duration IDEMPOTENT_WINDOW = Duration.ofMinutes(10);
@@ -206,6 +210,41 @@ public class MailOutboxService {
         repository.save(outbox);
         logMailEnqueued(outbox);
         return EmptyResponse.ok("Email change verification email queued successfully");
+    }
+
+    /**
+     * Enqueues a security notification after a passkey is registered.
+     *
+     * <p>Rate-limited to 3 requests per 10-minute window. The message contains the credential label
+     * but never the credential ID, public key or challenge.
+     *
+     * @param userId the account
+     * @param username the account display name
+     * @param email the recipient
+     * @param passkeyName the label chosen for the credential
+     * @return {@link EmptyResponse} indicating success
+     * @throws TooManyRequestsException if the notification rate limit is exceeded
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public EmptyResponse enqueuePasskeyAddedEmail(
+            UUID userId, String username, String email, String passkeyName) {
+        checkRateLimit(email, BIZ_TYPE_PASSKEY_ADDED, PASSKEY_ADDED_RATE_WINDOW);
+
+        var data = new PasskeyAddedTemplateData(username, passkeyName);
+        MailOutbox outbox =
+                buildOutboxEntity(
+                        userId,
+                        email,
+                        BIZ_TYPE_PASSKEY_ADDED,
+                        "New passkey added to your account",
+                        data.getTemplateName(),
+                        renderer.renderHtml(data),
+                        renderer.renderText(data),
+                        data.getVariables());
+
+        repository.save(outbox);
+        logMailEnqueued(outbox);
+        return EmptyResponse.ok("Passkey notification queued successfully");
     }
 
     private void checkRateLimit(String email, String bizType, Duration window) {

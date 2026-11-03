@@ -307,7 +307,9 @@ public class OAuthCallbackController {
                                                         body.challengeToken(),
                                                         StandardCharsets.UTF_8)
                                                 + "&expiresIn="
-                                                + body.expiresIn())
+                                                + body.expiresIn()
+                                                + "&passkeyCount="
+                                                + body.passkeyCount())
                                 .toUriString();
                 response.sendRedirect(redirectUrl);
                 return;

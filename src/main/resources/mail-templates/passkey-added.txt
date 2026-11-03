@@ -1,0 +1,8 @@
+New passkey added, [[${username}]]
+
+A new passkey was added to your account: [[${passkeyName}]].
+
+You can use it to sign in without a password. If you did not add this passkey, remove it from the
+security settings and change your password immediately.
+
+This is a security notification. No action is required if you recognize this change.

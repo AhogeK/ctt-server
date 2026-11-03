@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout/base :: layout(~{::body})}">
+<!--/*@thymesVar id="username" type="java.lang.String"*/-->
+<!--/*@thymesVar id="passkeyName" type="java.lang.String"*/-->
+<body>
+    <h2 style="color: #333333; margin: 0 0 24px 0; font-size: 20px; font-weight: 600;">
+        New passkey added, <span th:text="${username}">User</span>
+    </h2>
+
+    <p style="color: #333333; line-height: 1.6; margin: 0 0 24px 0;">
+        A new passkey was added to your account:
+        <strong th:text="${passkeyName}">Passkey</strong>.
+    </p>
+
+    <p style="color: #333333; line-height: 1.6; margin: 0 0 24px 0;">
+        You can use it to sign in without a password. If you did not add this passkey, remove it
+        from the security settings and change your password immediately.
+    </p>
+
+    <p style="color: #888888; font-size: 13px; line-height: 1.5; margin: 24px 0 0 0; text-align: center;">
+        This is a security notification. No action is required if you recognize this change.
+    </p>
+</body>
+</html>

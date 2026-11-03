@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.oauth.entity.UserOAuthAccount;
 import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
 import com.ahogek.cttserver.auth.oauth.model.GitHubUserInfo;
 import com.ahogek.cttserver.auth.oauth.repository.UserOAuthAccountRepository;
+import com.ahogek.cttserver.auth.passkey.repository.UserPasskeyRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.service.JwtTokenProvider;
 import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
@@ -71,6 +72,7 @@ class OAuthLoginOrRegisterServiceTest {
     @Mock private SecurityProperties securityProperties;
     @Mock private SecurityProperties.JwtProperties jwtProps;
     @Mock private TwoFactorChallengeService twoFactorChallengeService;
+    @Mock private UserPasskeyRepository passkeys;
 
     private final TermsProperties termsProperties = new TermsProperties("1.0.0", null);
 
@@ -91,6 +93,7 @@ class OAuthLoginOrRegisterServiceTest {
                         auditLogService,
                         securityProperties,
                         twoFactorChallengeService,
+                        passkeys,
                         termsProperties);
 
         doAnswer(

@@ -4,6 +4,7 @@ import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
+import com.ahogek.cttserver.auth.service.RecentAuthenticationService;
 import com.ahogek.cttserver.auth.twofactor.dto.RecoveryCodesResponse;
 import com.ahogek.cttserver.auth.twofactor.dto.StartTotpResponse;
 import com.ahogek.cttserver.auth.twofactor.dto.TwoFactorStatusResponse;
@@ -47,6 +48,7 @@ public class TwoFactorService {
     private final TwoFactorProperties properties;
     private final AuditLogService auditLogService;
     private final SecondFactorVerifier verifier;
+    private final RecentAuthenticationService recentAuthentication;
     private final Clock clock;
 
     @Autowired
@@ -60,7 +62,8 @@ public class TwoFactorService {
             RefreshTokenRepository refreshTokenRepository,
             TwoFactorProperties properties,
             AuditLogService auditLogService,
-            SecondFactorVerifier verifier) {
+            SecondFactorVerifier verifier,
+            RecentAuthenticationService recentAuthentication) {
         this(
                 userRepository,
                 passwordEncoder,
@@ -72,6 +75,7 @@ public class TwoFactorService {
                 properties,
                 auditLogService,
                 verifier,
+                recentAuthentication,
                 Clock.systemUTC());
     }
 
@@ -86,6 +90,7 @@ public class TwoFactorService {
             TwoFactorProperties properties,
             AuditLogService auditLogService,
             SecondFactorVerifier verifier,
+            RecentAuthenticationService recentAuthentication,
             Clock clock) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -97,12 +102,13 @@ public class TwoFactorService {
         this.properties = properties;
         this.auditLogService = auditLogService;
         this.verifier = verifier;
+        this.recentAuthentication = recentAuthentication;
         this.clock = clock;
     }
 
     public TwoFactorStatusResponse status(UUID userId, UUID sessionId) {
         User user = requireUser(userId);
-        boolean recent = isRecentAuthentication(userId, sessionId);
+        boolean recent = recentAuthentication.isRecent(userId, sessionId);
         return new TwoFactorStatusResponse(
                 user.getTotpConfirmedAt() != null,
                 user.getTotpConfirmedAt(),
@@ -257,19 +263,7 @@ public class TwoFactorService {
             }
             return;
         }
-        if (!isRecentAuthentication(user.getId(), sessionId)) {
-            throw new ForbiddenException(ErrorCode.AUTH_031);
-        }
-    }
-
-    private boolean isRecentAuthentication(UUID userId, UUID sessionId) {
-        if (sessionId == null) {
-            return false;
-        }
-        Instant createdAt = refreshTokenRepository.findSessionCreatedAt(userId, sessionId);
-        return createdAt != null
-                && !createdAt.isBefore(
-                        clock.instant().minus(properties.recentAuthenticationWindow()));
+        recentAuthentication.requireRecent(user.getId(), sessionId);
     }
 
     private void revokeOtherSessions(UUID userId, UUID sessionId) {

@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
+import com.ahogek.cttserver.auth.passkey.repository.UserPasskeyRepository;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.auth.twofactor.service.TwoFactorChallengeService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
@@ -54,6 +55,7 @@ public class UserLoginService {
     private final SecurityProperties.JwtProperties jwtProps;
     private final TermsProperties termsProperties;
     private final TwoFactorChallengeService twoFactorChallengeService;
+    private final UserPasskeyRepository passkeys;
 
     public UserLoginService(
             UserRepository userRepository,
@@ -65,6 +67,7 @@ public class UserLoginService {
             LoginAttemptService loginAttemptService,
             SecurityProperties securityProperties,
             TwoFactorChallengeService twoFactorChallengeService,
+            UserPasskeyRepository passkeys,
             TermsProperties termsProperties) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -75,6 +78,7 @@ public class UserLoginService {
         this.loginAttemptService = loginAttemptService;
         this.jwtProps = securityProperties.jwt();
         this.twoFactorChallengeService = twoFactorChallengeService;
+        this.passkeys = passkeys;
         this.termsProperties = termsProperties;
     }
 
@@ -106,7 +110,11 @@ public class UserLoginService {
             TwoFactorChallengeService.ChallengeTicket ticket =
                     twoFactorChallengeService.create(user.getId(), request.deviceId());
             return new LoginOutcome.Challenge(
-                    new LoginChallengeResponse(true, ticket.token(), ticket.expiresIn()));
+                    new LoginChallengeResponse(
+                            true,
+                            ticket.token(),
+                            ticket.expiresIn(),
+                            passkeys.countByUserId(user.getId())));
         }
 
         return new LoginOutcome.Success(completeLogin(user, request.deviceId()));
