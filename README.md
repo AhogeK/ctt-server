@@ -30,8 +30,10 @@ springdoc-openapi · Thymeleaf · JUnit 6 + Testcontainers.
   competition ordering (1, 2, 2, 4). A user who did none of the measured activity is absent rather
   than listed at zero — except on the growth board, where zero ("no change") is a measurement.
 - **A security model, not a demo.** Short-lived JWTs for the dashboard, TOTP two-factor
-  authentication with single-use recovery codes, device-bound API keys with scopes for plugins,
-  SHA-256 token storage, declarative rate limits, account lockout and an append-only audit trail.
+  authentication and phishing-resistant passkeys with single-use recovery codes, device-bound API
+  keys with scopes for plugins, SHA-256 token storage, declarative rate limits, account lockout and
+  an append-only audit trail. Existing 2FA accounts can complete the second step with a passkey
+  instead of a code.
 
 ## How it works
 
@@ -113,6 +115,8 @@ docker compose up -d postgres redis mailpit
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Redis endpoint | `localhost`, `6379`, required |
 | `JWT_SECRET_KEY` | JWT signing key, 256+ bits | required in production |
 | `TOTP_ENCRYPTION_KEY` | AES key sealing TOTP secrets, base64 of exactly 32 bytes (`openssl rand -base64 32`) | required in production; dev-only fallback locally |
+| `PASSKEY_RP_ID` | WebAuthn relying-party ID (effective domain, e.g. `ctt.example.com`); changing it invalidates all registered passkeys | `localhost` for local |
+| `PASSKEY_ALLOWED_ORIGINS` | Comma-separated exact browser origins allowed to use passkeys | `http://localhost:5173` for local |
 | `RESEND_API_KEY` | Email delivery key | required in production |
 | `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Sender identity | required, `CTT` |
 
@@ -122,9 +126,9 @@ docker compose up -d postgres redis mailpit
 
 | Area | Base path | What it covers |
 | --- | --- | --- |
-| Authentication | `/api/v1/auth` | register, verify email, login, two-factor challenge, refresh, logout, password reset, GitHub OAuth |
+| Authentication | `/api/v1/auth` | register, verify email, login, two-factor challenge, passkey sign-in, refresh, logout, password reset, GitHub OAuth |
 | API keys | `/api/v1/auth/api-keys` | create, list, revoke and delete device-bound keys |
-| Users | `/api/v1/users/me` | profile, display name, password, email change, login sessions (list, revoke one, revoke a batch), two-factor authentication, export, account deletion |
+| Users | `/api/v1/users/me` | profile, display name, password, email change, login sessions (list, revoke one, revoke a batch), two-factor authentication, passkeys, export, account deletion |
 | Devices | `/api/v1/devices` | register, list and revoke installations; reports the most recently used IDE |
 | Sync | `/api/v1/sync/pull`, `/api/v1/sync/push` | change-log pull with cursors, LWW batch push |
 | Statistics | `/api/v1/stats` | summary, heatmap, streaks, distributions, hourly views, recent sessions, achievements |

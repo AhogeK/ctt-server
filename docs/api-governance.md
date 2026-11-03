@@ -118,6 +118,27 @@ are set. The challenge is single-use and expires after five minutes.
 Five failed codes end the challenge with `429 RATE_LIMIT_001`; failures are independent of the
 password lockout counter.
 
+### Passkey ceremonies
+
+`POST /auth/passkey/options` and `/assert` are anonymous and IP-limited. Registration and
+management endpoints require a browser session; registration/confirmation and delete additionally
+require recent authentication (`AUTH_031`). API-key callers receive `AUTH_025`.
+
+| Endpoint | Dimension | Limit | Window |
+|---|---|---|---|
+| `POST /auth/passkey/options` | IP | 30 | 5 minutes |
+| `POST /auth/passkey/assert` | IP | 20 | 5 minutes |
+| `POST /users/me/passkey/options` | USER | 10 | 1 hour |
+| `POST /users/me/passkey` | USER | 10 | 1 hour |
+| `PATCH /users/me/passkey/{id}` | USER | 20 | 1 hour |
+| `DELETE /users/me/passkey/{id}` | USER | 10 | 1 hour |
+| `POST /auth/2fa/passkey/options` | IP | 20 | 5 minutes |
+| `POST /auth/2fa/passkey/assert` | IP | 10 | 5 minutes |
+
+Assertion failures are counted with the existing login-attempt mechanism when the credential maps to
+a known account; unknown credentials receive the same generic error. Challenges are single-use and
+expire after five minutes.
+
 ### Rate Limit Response Contract
 
 All endpoints protected by `@RateLimit` return HTTP 429 with the following retry information when the limit is exceeded:
