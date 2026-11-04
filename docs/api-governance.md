@@ -57,7 +57,8 @@ refreshed during a lockout, suspension, or deletion) cannot use them.
     *   `DELETE /api/v1/auth/oauth/accounts/{provider}` (removing a login method)
 *   **Authentication**: Required (`CurrentUserProvider.getActiveUserRequired()`), which rejects
     `PENDING_VERIFICATION` (`AUTH_006`), `LOCKED` (`AUTH_004`), `SUSPENDED` (`AUTH_005`) and
-    `DELETED` (`AUTH_022`) with the status the token carries.
+    `DELETED` (`AUTH_022`) with the status the token carries. Credential/identity operations also
+    require `WebSessionGuard`; an API key receives `AUTH_025` even when the account is active.
 *   **Deliberately not in this tier**: operations that *protect* an account stay reachable while it
     is locked or suspended — logout, logout-all, cancelling a pending email change, reading one's own
     profile, and revoking or purging API keys. Gating those would remove the only self-service way

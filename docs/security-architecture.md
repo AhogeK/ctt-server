@@ -296,6 +296,39 @@ passkey requires recent authentication; deleting the last passkey is allowed onl
 still has a password or an OAuth binding. Every registration sends a security notification email
 containing only the label.
 
+## Credential and request hardening
+
+**API keys are machine credentials, not interactive identities.** Password set/change, email-change
+request/resend/cancel/status and account deletion require `WEB_SESSION`; an API key receives
+`AUTH_025`. `getActiveUserRequired()` alone proves account state, not that the caller is a browser.
+
+**Password changes revoke other credentials.** The current browser session survives; every other live
+refresh-token session and every API key are revoked, matching the credential-change rule used by
+password reset.
+
+**Forwarded IPs are untrusted by default.** `X-Forwarded-For` / `X-Real-IP` are honored only when the
+direct socket peer is listed in `ctt.security.trusted-proxy-addresses`; the rightmost untrusted hop is
+used. The default is the socket address, so rotating a client-supplied header cannot bypass IP rate
+limits or forge audit attribution. A trusted TLS proxy that sets `X-Forwarded-Proto: https` also gets
+the HSTS header.
+
+**OAuth state and token placement.** The authorize endpoint sets an HttpOnly, SameSite=Lax state
+cookie, with Secure when the request is directly TLS or arrives through a configured trusted proxy
+that sets `X-Forwarded-Proto: https`; the callback rejects a state that does not match it. Successful
+login puts access/refresh tokens in the URL fragment, never in the query string, so they do not
+enter proxy or access logs.
+
+**Management surface.** Actuator exposes only `health` and `info`; `metrics`, `loggers` and other
+management endpoints are not reachable through the public API.
+
+**Mail retention and account deletion.** `mail_outbox` rows are tied to `users` with an FK cascade;
+terminal rows older than seven days are purged by a scheduled job. Rendered verification/reset links
+therefore do not remain indefinitely, and account deletion removes queued/historical mail.
+
+**Audit inputs.** Trace IDs are accepted only as 32 hex characters (the persisted column width) and
+client IPs are length/charset bounded before audit persistence; malformed values fall back to a
+generated trace ID/socket IP instead of causing a silently dropped audit row.
+
 ## CSRF Protection
 
 ### Double Submit Cookie Pattern
@@ -800,7 +833,7 @@ GitHub redirects to /auth/oauth/github/callback?code=xxx&state=xxx
 Server validates state → exchanges code → gets user info
          │
          ▼
-Server 302 redirects to {frontendUrl}/oauth/callback?accessToken=...&refreshToken=...
+Server 302 redirects to {frontendUrl}/oauth/callback#accessToken=...&refreshToken=...
 ```
 
 #### OAuth Actions
@@ -1013,8 +1046,9 @@ ctt:
 
 | Variable                     | Required   | Default                 | Description                                     |
 |------------------------------|------------|-------------------------|-------------------------------------------------|
-| `JWT_SECRET_KEY`             | Production | Local dummy             | JWT signing key (256+ bits)                     |
-| `OAUTH_TOKEN_ENCRYPTION_KEY` | Production | Local dummy             | AES-256 key for OAuth tokens (Base64, 32 bytes) |
+| `JWT_SECRET_KEY`             | All profiles | none                    | JWT signing key (256+ bits)                     |
+| `OAUTH_TOKEN_ENCRYPTION_KEY` | All profiles | none                    | AES-256 key for OAuth tokens (Base64, 32 bytes) |
+| `TRUSTED_PROXY_ADDRESSES`    | Behind proxy | empty                   | Exact proxy IPs allowed to supply `X-Forwarded-For` |
 | `GITHUB_CLIENT_ID`           | OAuth      | empty                   | GitHub OAuth app client ID                      |
 | `GITHUB_CLIENT_SECRET`       | OAuth      | empty                   | GitHub OAuth app client secret                  |
 | `HCAPTCHA_SITE_KEY`          | Production | empty                   | hCaptcha site key (blank = captcha disabled)    |

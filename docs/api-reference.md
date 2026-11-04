@@ -22,6 +22,13 @@ Start with authentication: every protected call takes either a short-lived JWT (
 | `/api/v1/auth/password-reset/confirm` | POST   | Confirm password reset (rate limited: 15/10min per IP)                     |
 | `/api/v1/auth/terms/accept`           | POST   | Accept current terms version (requires JWT)                                |
 
+`POST /api/v1/auth/refresh` reads the refresh token from the httpOnly `ctt_refresh_token` cookie
+first, then from `{"refreshToken": "..."}` in the body. When the cookie carries the token, the body
+and the field may both be omitted; the browser therefore does not need a script-readable copy of
+the refresh token. The endpoint still accepts the body form for non-browser clients. If neither
+source carries a token, it returns `400 COMMON_003`; an invalid, expired or revoked token is
+`401 AUTH_003`/`AUTH_007` (or `403 AUTH_009` on reuse).
+
 ### GitHub OAuth
 
 | Endpoint                                 | Method | Description                                                                                                                                            |
@@ -37,7 +44,7 @@ Client → GET /authorize → {authUrl: "https://github.com/..."}
 Client → redirect user to GitHub → user authorizes
 GitHub → redirect to /callback?code=xxx&state=xxx
 Server → validate state → exchange code → get user info → login/register
-Server → 302 redirect to {frontendUrl}/oauth/callback?accessToken=...&refreshToken=...
+Server → 302 redirect to {frontendUrl}/oauth/callback#accessToken=...&refreshToken=...
 ```
 
 **Error Handling**: All OAuth errors redirect to `{frontendUrl}/oauth/error?code={errorCode}`.
@@ -416,7 +423,7 @@ same machine; per-session attribution is authoritative (see Sync Engine).
 
 **Protocol**:
 - `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `sessionUuid`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot — including the session's `ideName`/`ideVersion` (null when the row has none) — plus `nextCursor` and a `hasMore` flag. Responses are paged (`ctt.sync.pull-batch-size`, default 1000): clients continue pulling with the returned cursor until `hasMore` is false. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent).
-- `push` accepts `{ deviceId, sessions[] }`, routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Sessions may carry an optional `ideName`/`ideVersion` describing the IDE that produced them (length-bounded, blank treated as absent); older clients omit both and their new rows stay null, which statistics read as "use the origin device's registration". An update that omits them leaves the stored values untouched, so a client that cannot report an IDE cannot erase one a newer client recorded; a client that starts reporting one fills it in. Returns `nextCursor` for the next pull.
+- `push` accepts `{ deviceId, sessions[] }` with 1–1000 entries (more is `400 COMMON_003`), routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Sessions may carry an optional `ideName`/`ideVersion` describing the IDE that produced them (length-bounded, blank treated as absent); older clients omit both and their new rows stay null, which statistics read as "use the origin device's registration". An update that omits them leaves the stored values untouched, so a client that cannot report an IDE cannot erase one a newer client recorded; a client that starts reporting one fills it in. Returns `nextCursor` for the next pull.
 - `deviceId` ownership is validated (404 `COMMON_002` on mismatch, including devices that have been revoked); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
 
 ### Statistics & Analytics
@@ -630,3 +637,5 @@ Locked accounts are automatically unlocked after lockout period expires, either 
 ## Interactive documentation
 
 Once the service runs, Swagger UI is available at `http://localhost:8080/ctt-server/swagger-ui.html`; the machine-readable document is served at `/v3/api-docs`.
+
+**Credential boundary:** password set/change, email-change request/resend/cancel/status and account deletion require a `WEB_SESSION`. API-key callers receive `403 AUTH_025`; `getActiveUserRequired()` alone is not sufficient for these operations. A password change/reset revokes other refresh sessions and all API keys, while the caller's current browser session remains valid.

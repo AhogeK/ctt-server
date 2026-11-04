@@ -113,10 +113,12 @@ docker compose up -d postgres redis mailpit
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | PostgreSQL endpoint | `localhost`, `5432`, `ctt_server` |
 | `DB_USERNAME`, `DB_PASSWORD` | Database credentials | required |
 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Redis endpoint | `localhost`, `6379`, required |
-| `JWT_SECRET_KEY` | JWT signing key, 256+ bits | required in production |
+| `JWT_SECRET_KEY` | JWT signing key, 256+ bits | required (including local compose) |
 | `TOTP_ENCRYPTION_KEY` | AES key sealing TOTP secrets, base64 of exactly 32 bytes (`openssl rand -base64 32`) | required in production; dev-only fallback locally |
 | `PASSKEY_RP_ID` | WebAuthn relying-party ID (effective domain, e.g. `ctt.example.com`); changing it invalidates all registered passkeys | `localhost` for local |
 | `PASSKEY_ALLOWED_ORIGINS` | Comma-separated exact browser origins allowed to use passkeys | `http://localhost:5173` for local |
+| `OAUTH_TOKEN_ENCRYPTION_KEY` | AES key sealing GitHub access tokens, base64 of exactly 32 bytes | required (including local compose) |
+| `TRUSTED_PROXY_ADDRESSES` | Exact reverse-proxy IPs allowed to supply `X-Forwarded-For`; empty trusts the socket peer only | empty |
 | `RESEND_API_KEY` | Email delivery key | required in production |
 | `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Sender identity | required, `CTT` |
 
