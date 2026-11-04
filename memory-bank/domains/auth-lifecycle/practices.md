@@ -96,6 +96,10 @@ re-issue with a null device id, so a plugin session silently became a `WEB`/30-d
 Consequence worth knowing: a plugin that logs in **before** registering its device is recorded as a
 web session, and every later issuance on that session keeps that audience.
 
+Refresh transport is **cookie first, body fallback**: `refreshToken` is optional because the
+httpOnly cookie carries it; otherwise the controller returns `400 COMMON_003` (service: `401
+AUTH_003`). The body form stays for non-browser clients; serialize tabs to avoid `AUTH_009`.
+
 ### Revoking a session, and what it must not do
 
 `DELETE /users/me/sessions/{id}` revokes every live row of the session and is serialized against

@@ -1,5 +1,9 @@
 # Active Context
 
+- [2026-11-04] - 安全加固与刷新 Cookie（v0.91.3，未提交）
+    - API key 仅浏览器可改密码/邮箱；密码变更撤销其他 session 与 API keys；JWT/OAuth key 无公开 fallback；actuator 仅 health/info；XFF 仅可信代理；OAuth state cookie + token fragment（可信 TLS 代理下 Secure）；audit trace/IP 校验；mail outbox cascade/retention、显式 user_id、失败日志脱敏；MDC IP 脱敏；sync 批量上限；HSTS 代理；`/auth/refresh` Cookie 优先、body 可省略（无令牌 400，service 空令牌 401）
+    - 全量 **1669 tests / 0 failures / 1 skipped**，build/coverage 通过；前端影响见 `.omp/reports/2026-11-04/security-hardening-frontend-report.md` 与 `.omp/reports/2026-11-04/refresh-cookie-only-frontend-report.md`
+
 - [2026-11-03] - 通行密钥基础 + 第二步（v0.91.0，已交付：6432bc1/2f99161/cc1995e/c1ac658）
     - 新增 `POST /auth/2fa/passkey/options|assert`；options 用 `peek` 校验而不消费 2FA `challengeToken`，WebAuthn challenge 存 `SECOND_FACTOR` 类型与 token 的 SHA-256 绑定；`allowCredentials` 由账号 `userHandle` 生成
     - 失败只消费 WebAuthn challenge，保留 TOTP/恢复码回退；成功才 `GETDEL` 消费 2FA challenge；无 TOTP 的账号不进入第二步；新 session 天然 recent
@@ -7,11 +11,8 @@
     - 测试/文档: 密码 2FA + passkey 成功、错误签名后 TOTP 仍可用、无 passkey 账号 `passkeyCount=0`、跨账号凭据拒绝；全量 **1645 tests / 0 failures / 1 skipped**，`build` 与 `jacocoTestCoverageVerification` 通过。README、`docs/api-reference.md` / `api-governance.md` / `security-architecture.md` / `developer-handbook.md`、`auth-lifecycle` 领域与前端报告 `.omp/reports/2026-11-03/passkey-second-factor-frontend-report.md` 已同步
 - [2026-11-03] - 通行密钥基础实现（并入 v0.91.0）
     - 新增发现型登录 `POST /auth/passkey/options|assert`（不进入 TOTP）与 `/users/me/passkey/*` 注册/列表/重命名/删除；注册与删除要求近期认证，API key 一律拒绝
-    - 依赖锁定 Yubico `webauthn-server-core` 2.10.1；Redis 操作绑定挑战（5 分钟、`GETDEL` 单次消费）、RP ID/origin 校验、UV/UP 强制、签名计数器按存储值 0 特殊处理、备份标志仅展示、无 attestation、新增凭据邮件通知（`REQUIRES_NEW`）
-    - 兼容: 密码/TOTP/恢复码/OAuth 全保留；删除最后一个通行密钥仅在仍有密码或 OAuth 时允许（`AUTH_018`）；新增 `AUTH_032`–`AUTH_035`
-    - 文档: README、`docs/api-reference.md` / `api-governance.md` / `security-architecture.md` / `developer-handbook.md`、`auth-lifecycle` 五件套与 `api-contract` 已同步；`.plans/passkey-authentication.md` 记录选型与实施结果
-    - 验证: passkey 目标用例通过；全量 `cleanTest test` **1645 tests / 0 failures / 1 skipped**，`build` 通过。排障: 导出限流用例的 `RestClient` 默认按 429 的 `Retry-After` 睡满 1 小时，导致套件看似卡死；改用 `JdkClientHttpRequestFactory` 后整轮 **3m9s** 完成
-
+    - 依赖 Yubico `webauthn-server-core` 2.10.1；Redis 操作绑定挑战（5 分钟、`GETDEL`）、RP ID/origin、UV/UP、计数器 0 语义、备份标志展示、无 attestation、邮件通知（`REQUIRES_NEW`）；密码/TOTP/恢复码/OAuth 全保留；删除最后凭据仅在有密码或 OAuth 时允许（`AUTH_018`）；新增 `AUTH_032`–`AUTH_035`
+    - 文档: README、`docs/api-reference.md` / `api-governance.md` / `security-architecture.md` / `developer-handbook.md`、`auth-lifecycle` 与 `api-contract` 已同步；验证: passkey 目标用例通过，全量 **1645 tests / 0 failures / 1 skipped**，build 通过；RestClient 429 自动重试导致假卡死的排障见 `JdkClientHttpRequestFactory` 修复
 - [2026-10-30] - 两步验证（TOTP + 恢复码）（v0.89.0，已交付）
     - 新增 `/api/v1/users/me/2fa/*`（状态/start/confirm/disable/regenerate）与 `POST /auth/login/2fa`；启用后密码登录返回 202 + 挑战，OAuth 回调以 `#challengeToken` fragment 返回且不写 token/Cookie；新增 `AUTH_026`–`AUTH_031`
     - 安全: TOTP secret AES-256-GCM（`TOTP_ENCRYPTION_KEY`）、恢复码仅存 SHA-256、`totp_last_used_step` 防重放、Redis 一次性挑战（5 次失败 429）、启用/关闭撤销其他会话、API key 创建要求 WEB_SESSION + 2FA 复核
@@ -20,7 +21,6 @@
     - **2026-11-02 修复（v0.89.1）**: iOS Google Authenticator 拒扫 52 字符密钥。根因不是版本漂移，而是 `SecretGenerator.generate(160)` 已返回 Base32 字节，`TotpService` 又编码一次（20 字节 → 32 字符 → 52 字符 + `====`）；改为 20 个随机字节只编码一次，返回 32 字符无填充。已启用旧账号需 `disable → start → confirm` 重设；新增密钥长度、start 端点与旧 56 字符 secret 兼容性测试；全量 1620/0/1 skipped
 - [2026-10-29] - 会话批量撤销（v0.88.0，已提交推送）
     - 新增 `POST /api/v1/users/me/sessions/revoke`（body `{sessionIds}`，去重后 1..100）：按 UUID 升序取会话锁，逐条撤销并写 `SESSION_REVOKED`；不存在的/已撤销的/他人的进 `skipped`，整体 200 且重放幂等；限流 10 次/时；当前会话可撤销（refresh 立即 401，access token 15 分钟内仍有效）；审查后补 401/403/429 独立示例、拆分 `MAX_BATCH_REVOCATIONS`、抽取 `findLiveTokenUnderLock`、429 用例独立成类、补 null 元素用例；前端反馈后补「按端点分桶 + `Retry-After`/`retryAfter`」文档说明（行为不变、纯文档不 bump 版本）
-
 - [2026-10-28] - 会话列表 500 修复（v0.87.3，待授权提交）
     - 根因: `LoginSessionService.listSessions` 以 `devices.get(row.getDeviceId())` 查设备；浏览器会话的 `device_id` 为 null，而无任何设备的账号会让 `devicesById` 返回 `Map.of()`，`ImmutableCollections.MapN.get(null)` 抛 NPE ⇒ 500 `SYSTEM_001`。修复: `deviceOf()` 先判空再查；回归用例用非 UUID 的 deviceId 登录（浏览器形态），断言列表 200 且 `deviceName`/`ideName` 为 null
 

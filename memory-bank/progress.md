@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.91.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.91.3`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流 |
 
@@ -18,6 +18,9 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.91.3` | 2026-11-04 | fix(security): close review gaps in proxying, PII and contracts |
+| `0.91.2` | 2026-11-04 | fix(auth): allow cookie-only refresh token submission |
+| `0.91.1` | 2026-11-04 | fix(security): harden credential, OAuth, proxy and audit paths |
 | `0.91.0` | 2026-11-03 | feat(auth): add passkey sign-in and second-factor authentication |
 | `0.89.1` | 2026-11-02 | fix(auth): generate a single-encoded 160-bit TOTP secret |
 | `0.89.0` | 2026-10-31 | feat(auth): add TOTP two-factor authentication |

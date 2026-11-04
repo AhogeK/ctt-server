@@ -93,3 +93,15 @@ X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP。
 导出内容的**格式**不是服务端可选的：它由唯一消费端（插件端导入器）的解析方式决定——`DataExportImportService` 用 Gson 读固定模型（`exportVersion` 硬校验、字段名固定、时间按 `ISO_LOCAL_DATE_TIME` 解析），故 NDJSON 与带 `Z` 的时间都会让**整份导入失败**（不是跳过一行）⇒ 后端产出必须是单 JSON 对象 + 无时区本地时间（`timezoneOffset` 必填）。
 
 有取舍的是**通道**（同步流式 / 一次性票据 + 原生下载 / 异步任务 + 产物存储），取舍依据是**实测规模**而非直觉：2026-10-19 实测全库会话负载 707 kB，故维持同步流式；升级触发条件 = **单用户 >10 MB 或导出 p95 >5 s**。详见 `.plans/ctt-server-development-plan.md` 的 R3 段。
+
+## 安全边界：机器凭据 vs 浏览器凭据
+
+API key 只代表机器同步能力，不代表可交互的账号控制。改密码、改邮箱、账号删除等凭据/身份操作必须经过 `WebSessionGuard`；仅调用 `getActiveUserRequired()` 不足以证明调用者是浏览器会话。
+
+## 代理头与客户端身份
+
+`X-Forwarded-For` / `X-Real-IP` 默认不可信。只有 socket peer 命中 `ctt.security.trusted-proxy-addresses` 时才解析代理链，并取右侧第一个非可信 hop；否则使用 `getRemoteAddr()`。IP 限流、审计 IP 和 last-login IP 共用这一来源。
+
+## OAuth 浏览器绑定
+
+OAuth state 必须与 HttpOnly、SameSite Lax 的状态 Cookie 对齐；缺失/不匹配的 callback 不消耗登录。成功 token 只放 fragment，不能放 query（query 会进入历史、代理和访问日志）。
