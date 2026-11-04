@@ -64,7 +64,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,loggers
+        include: health,info
   endpoint:
     health:
       show-details: when-authorized
@@ -92,8 +92,10 @@ ctt:
     terms-accept-path: "/api/v1/auth/terms/accept"
 
   security:
+    # Only these exact reverse-proxy IPs may supply X-Forwarded-For/X-Real-IP.
+    trusted-proxy-addresses: ${TRUSTED_PROXY_ADDRESSES:}
     jwt:
-      secret-key: ${JWT_SECRET_KEY:LOCAL_DUMMY_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG}
+      secret-key: ${JWT_SECRET_KEY}
       issuer: "ctt-identity-provider"
       access-token-ttl: 15m
       refresh-token-ttl-plugin: 14d
@@ -149,7 +151,7 @@ ctt:
 
     oauth:
       frontend-url: "${FRONTEND_BASE_URL:http://localhost:5173}"
-      token-encryption-key: "${OAUTH_TOKEN_ENCRYPTION_KEY:L4QmQcZ4IuNPd0Q4rWRqoB33oOASs9As3pFAkdNIOs8=}"
+      token-encryption-key: "${OAUTH_TOKEN_ENCRYPTION_KEY}"
       github:
         client-id: "${GITHUB_CLIENT_ID:}"
         client-secret: "${GITHUB_CLIENT_SECRET:}"

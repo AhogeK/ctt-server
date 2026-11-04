@@ -13,9 +13,13 @@
 # it either. A day-long initial delay keeps it out of a test run entirely.
 ctt:
   security:
+    jwt:
+      secret-key: TEST_ONLY_JWT_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG_FOR_TEST
     rate-limit:
       enabled: false
     two-factor:
       encryption-key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+    oauth:
+      token-encryption-key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
   leaderboard:
     backfill-initial-delay-ms: 86400000
