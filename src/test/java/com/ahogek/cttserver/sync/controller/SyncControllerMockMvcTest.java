@@ -23,6 +23,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -250,6 +251,43 @@ class SyncControllerMockMvcTest {
                                             }
                                             """
                                                     .formatted(DEVICE_ID, "P".repeat(256)))
+                                    .exchange())
+                    .hasStatus(400);
+
+            verifyNoInteractions(syncPushService);
+        }
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should reject a push carrying more than 1000 sessions")
+        void shouldReturn400_whenBatchExceedsLimit() {
+            String session =
+                    """
+                    {
+                      "sessionUuid": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+                      "projectName": "ctt-server",
+                      "language": "Java",
+                      "startTime": "2026-08-25T09:00:00Z",
+                      "endTime": "2026-08-25T10:00:00Z",
+                      "clientModifiedAt": "2026-08-25T10:00:00Z",
+                      "clientVersion": 2,
+                      "deleted": false
+                    }
+                    """;
+            String body =
+                    """
+                    {"deviceId":"%s","sessions":[%s]}
+                    """
+                            .formatted(
+                                    DEVICE_ID,
+                                    String.join(",", Collections.nCopies(1001, session)));
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/sync/push")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(body)
                                     .exchange())
                     .hasStatus(400);
 
