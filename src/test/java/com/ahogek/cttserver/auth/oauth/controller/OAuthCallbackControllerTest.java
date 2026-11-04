@@ -4,6 +4,7 @@ import com.ahogek.cttserver.auth.oauth.enums.OAuthProvider;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.jupiter.api.DisplayName;
@@ -23,7 +24,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OAuthCallbackControllerTest {
 
     private static final Class<?>[] AUTHORIZE_PARAMS =
-            new Class<?>[] {OAuthProvider.class, String.class, Authentication.class};
+            new Class<?>[] {
+                OAuthProvider.class,
+                String.class,
+                Authentication.class,
+                HttpServletRequest.class,
+                HttpServletResponse.class
+            };
 
     private static final Class<?>[] CALLBACK_PARAMS =
             new Class<?>[] {
@@ -32,6 +39,8 @@ class OAuthCallbackControllerTest {
                 String.class,
                 String.class,
                 String.class,
+                String.class,
+                HttpServletRequest.class,
                 HttpServletResponse.class
             };
 

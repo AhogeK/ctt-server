@@ -18,6 +18,7 @@ import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
+import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -156,7 +157,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                         apiKeyProperties.authFailureRateLimitWindowSeconds());
 
         if (!result.allowed()) {
-            log.warn("API key auth rate limit exceeded for IP: {}", clientIp);
+            log.warn(
+                    "API key auth rate limit exceeded for IP: {}",
+                    DesensitizeUtils.maskIp(clientIp));
             response.setStatus(429);
             long retryAfterSeconds =
                     result.remainingSeconds() > 0

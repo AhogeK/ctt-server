@@ -26,14 +26,20 @@ import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
+import com.ahogek.cttserver.common.utils.IpUtils;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,6 +52,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -75,6 +83,8 @@ public class OAuthCallbackController {
     private static final String BIND_REDIRECT_PATH = "/settings/profile";
     private static final String LOGIN_REDIRECT_PATH = "/oauth/callback";
     private static final String ERROR_REDIRECT_PATH = "/oauth/error";
+    private static final String OAUTH_STATE_COOKIE = "ctt_oauth_state";
+    private static final Duration OAUTH_STATE_TTL = Duration.ofMinutes(10);
 
     private static final Pattern STATE_UUID_PATTERN =
             Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
@@ -83,16 +93,19 @@ public class OAuthCallbackController {
     private final GitHubOAuthClient githubClient;
     private final OAuthLoginOrRegisterService loginOrRegisterService;
     private final SecurityProperties securityProps;
+    private final Set<String> trustedProxies;
 
     public OAuthCallbackController(
             OAuthStateService stateService,
             GitHubOAuthClient githubClient,
             OAuthLoginOrRegisterService loginOrRegisterService,
-            SecurityProperties securityProps) {
+            SecurityProperties securityProps,
+            @Value("${ctt.security.trusted-proxy-addresses:}") String trustedProxyAddresses) {
         this.stateService = stateService;
         this.githubClient = githubClient;
         this.loginOrRegisterService = loginOrRegisterService;
         this.securityProps = securityProps;
+        this.trustedProxies = IpUtils.parseTrustedProxies(trustedProxyAddresses);
     }
 
     @Operation(
@@ -169,13 +182,16 @@ public class OAuthCallbackController {
             // implemented)
             @SuppressWarnings("unused") @PathVariable OAuthProvider provider,
             @RequestParam(name = "action", defaultValue = "login") String action,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest request,
+            HttpServletResponse response) {
 
         OAuthStatePayload.Action oauthAction = parseAction(action);
         String clientIp = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
 
         OAuthStatePayload payload = getOAuthStatePayload(authentication, oauthAction, clientIp);
         String stateId = stateService.generateAndSaveState(payload);
+        setStateCookie(response, stateId, IpUtils.isSecureRequest(request, trustedProxies));
 
         String authUrl =
                 UriComponentsBuilder.fromUriString("https://github.com/login/oauth/authorize")
@@ -255,6 +271,8 @@ public class OAuthCallbackController {
             @RequestParam(required = false) String state,
             @RequestParam(required = false) String error,
             @RequestParam(required = false) String errorDescription,
+            @CookieValue(name = OAUTH_STATE_COOKIE, required = false) String stateCookie,
+            HttpServletRequest request,
             HttpServletResponse response)
             throws IOException {
 
@@ -279,6 +297,12 @@ public class OAuthCallbackController {
             redirectError(response, "MISSING_OAUTH_PARAMS");
             return;
         }
+        if (stateCookie == null || !state.equals(stateCookie)) {
+            clearStateCookie(response, IpUtils.isSecureRequest(request, trustedProxies));
+            redirectError(response, "INVALID_OAUTH_STATE");
+            return;
+        }
+        clearStateCookie(response, IpUtils.isSecureRequest(request, trustedProxies));
         OAuthStatePayload payload = stateService.consumeState(state);
         if (payload.action() != OAuthStatePayload.Action.LOGIN
                 && payload.action() != OAuthStatePayload.Action.BIND) {
@@ -325,9 +349,17 @@ public class OAuthCallbackController {
             String redirectUrl =
                     UriComponentsBuilder.fromUriString(securityProps.oauth().frontendUrl())
                             .path(LOGIN_REDIRECT_PATH)
-                            .queryParam("accessToken", loginResponse.accessToken())
-                            .queryParam("refreshToken", loginResponse.refreshToken())
-                            .queryParam("termsExpired", loginResponse.termsExpired())
+                            .fragment(
+                                    "accessToken="
+                                            + URLEncoder.encode(
+                                                    loginResponse.accessToken(),
+                                                    StandardCharsets.UTF_8)
+                                            + "&refreshToken="
+                                            + URLEncoder.encode(
+                                                    loginResponse.refreshToken(),
+                                                    StandardCharsets.UTF_8)
+                                            + "&termsExpired="
+                                            + loginResponse.termsExpired())
                             .toUriString();
 
             response.sendRedirect(redirectUrl);
@@ -415,5 +447,27 @@ public class OAuthCallbackController {
                         .toUriString();
 
         response.sendRedirect(redirectUrl);
+    }
+
+    private static void setStateCookie(
+            HttpServletResponse response, String stateId, boolean secure) {
+        addStateCookie(response, stateId, OAUTH_STATE_TTL, secure);
+    }
+
+    private static void clearStateCookie(HttpServletResponse response, boolean secure) {
+        addStateCookie(response, "", Duration.ZERO, secure);
+    }
+
+    private static void addStateCookie(
+            HttpServletResponse response, String value, Duration maxAge, boolean secure) {
+        ResponseCookie cookie =
+                ResponseCookie.from(OAUTH_STATE_COOKIE, value)
+                        .httpOnly(true)
+                        .secure(secure)
+                        .sameSite("Lax")
+                        .path("/")
+                        .maxAge(maxAge)
+                        .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 }

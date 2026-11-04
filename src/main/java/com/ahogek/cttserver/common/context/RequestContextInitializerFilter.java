@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.common.context;
 
+import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 import com.ahogek.cttserver.common.utils.IpUtils;
 
 import jakarta.servlet.FilterChain;
@@ -9,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.jspecify.annotations.NonNull;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -16,6 +18,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -32,7 +35,16 @@ import java.util.UUID;
 public final class RequestContextInitializerFilter extends OncePerRequestFilter {
 
     public static final String TRACE_HEADER = "X-Trace-Id";
-    private static final int MAX_HEADER_LENGTH = 128;
+    private static final int MAX_CLIENT_HEADER_LENGTH = 128;
+    private static final int MAX_TRACE_LENGTH = 32;
+    private static final String HSTS_HEADER = "Strict-Transport-Security";
+    private static final String HSTS_VALUE = "max-age=31536000; includeSubDomains";
+    private final Set<String> trustedProxies;
+
+    public RequestContextInitializerFilter(
+            @Value("${ctt.security.trusted-proxy-addresses:}") String trustedProxyAddresses) {
+        this.trustedProxies = IpUtils.parseTrustedProxies(trustedProxyAddresses);
+    }
 
     @Override
     protected void doFilterInternal(
@@ -41,7 +53,9 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
         String traceId =
                 Optional.ofNullable(request.getHeader(TRACE_HEADER))
                         .filter(s -> !s.isBlank())
-                        .filter(s -> s.length() <= MAX_HEADER_LENGTH)
+                        .filter(s -> s.length() == MAX_TRACE_LENGTH)
+                        .filter(s -> s.matches("^[0-9a-fA-F]{32}$"))
+                        .map(String::toLowerCase)
                         .orElseGet(() -> UUID.randomUUID().toString().replace("-", ""));
 
         ClientIdentity clientIdentity = extractClientIdentity(request);
@@ -49,16 +63,20 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
         RequestInfo requestInfo =
                 new RequestInfo(
                         traceId,
-                        IpUtils.getRealIp(request),
+                        IpUtils.getRealIp(request, trustedProxies),
                         request.getHeader("User-Agent"),
                         request.getRequestURI(),
                         request.getMethod(),
                         clientIdentity);
 
         response.setHeader(TRACE_HEADER, traceId);
+        if (IpUtils.isTrustedProxy(request, trustedProxies)
+                && "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"))) {
+            response.setHeader(HSTS_HEADER, HSTS_VALUE);
+        }
 
         MDC.put(MdcKey.TRACE_ID, traceId);
-        MDC.put(MdcKey.CLIENT_IP, requestInfo.clientIp());
+        MDC.put(MdcKey.CLIENT_IP, DesensitizeUtils.maskIp(requestInfo.clientIp()));
         MDC.put(MdcKey.HTTP_METHOD, requestInfo.method());
         MDC.put(MdcKey.REQUEST_URI, requestInfo.requestUri());
         Optional.ofNullable(clientIdentity.deviceId())
@@ -127,8 +145,8 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
             return null;
         }
         String trimmed = value.trim();
-        return trimmed.length() > MAX_HEADER_LENGTH
-                ? trimmed.substring(0, MAX_HEADER_LENGTH)
+        return trimmed.length() > MAX_CLIENT_HEADER_LENGTH
+                ? trimmed.substring(0, MAX_CLIENT_HEADER_LENGTH)
                 : trimmed;
     }
 

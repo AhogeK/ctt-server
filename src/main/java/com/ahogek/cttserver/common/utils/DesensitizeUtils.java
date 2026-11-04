@@ -93,6 +93,23 @@ public final class DesensitizeUtils {
     }
 
     /**
+     * Masks an IP address for application logs while retaining enough shape for correlation.
+     *
+     * @param ip IPv4 or IPv6 address
+     * @return masked IP, or the input when absent
+     */
+    public static String maskIp(String ip) {
+        if (ip == null || ip.isBlank()) {
+            return ip;
+        }
+        if (ip.indexOf(':') >= 0) {
+            return ip.substring(0, Math.min(4, ip.length())) + "***";
+        }
+        int lastDot = ip.lastIndexOf('.');
+        return lastDot > 0 ? ip.substring(0, lastDot) + ".***" : "***";
+    }
+
+    /**
      * Masks a token, showing only first and last 4 chars.
      *
      * <p>Example: {@code eyJhbGciOiJIUzI1NiJ9...xyz} → {@code eyJh...xyz}
