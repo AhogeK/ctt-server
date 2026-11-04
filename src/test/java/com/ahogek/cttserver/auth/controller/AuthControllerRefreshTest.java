@@ -9,6 +9,7 @@ import com.ahogek.cttserver.auth.service.PasswordResetService;
 import com.ahogek.cttserver.auth.service.TokenRefreshService;
 import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.auth.twofactor.service.LoginTwoFactorService;
+import com.ahogek.cttserver.auth.util.CookieHelper;
 import com.ahogek.cttserver.common.BaseControllerSliceTest;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
@@ -17,6 +18,8 @@ import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
 import com.ahogek.cttserver.user.repository.UserRepository;
 import com.ahogek.cttserver.user.service.UserService;
+
+import jakarta.servlet.http.Cookie;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,6 +37,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
@@ -118,6 +122,81 @@ class AuthControllerRefreshTest {
                 .extractingPath("$.data.refreshToken")
                 .isEqualTo("new-refresh-token");
         assertThat(result).bodyJson().extractingPath("$.data.expiresIn").isEqualTo(3600);
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("Should refresh from the cookie when the request body is omitted")
+    void shouldRefreshFromCookie_whenBodyOmitted() {
+        UUID userId = UUID.randomUUID();
+        LoginResponse mockResponse =
+                new LoginResponse(userId, "cookie-access-token", "cookie-rotated-token", 3600L);
+
+        given(tokenRefreshService.refresh(eq("cookie-refresh-token"), any(), any()))
+                .willReturn(mockResponse);
+
+        var result =
+                mvc.post()
+                        .uri("/api/v1/auth/refresh")
+                        .with(csrf())
+                        .cookie(
+                                new Cookie(
+                                        CookieHelper.REFRESH_TOKEN_COOKIE, "cookie-refresh-token"))
+                        .exchange();
+
+        assertThat(result).hasStatusOk();
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.data.accessToken")
+                .isEqualTo("cookie-access-token");
+        BDDMockito.then(tokenRefreshService)
+                .should()
+                .refresh(eq("cookie-refresh-token"), any(), any());
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("Should refresh from the cookie when the refreshToken field is omitted")
+    void shouldRefreshFromCookie_whenRefreshTokenFieldOmitted() {
+        UUID userId = UUID.randomUUID();
+        LoginResponse mockResponse =
+                new LoginResponse(userId, "cookie-access-token", "cookie-rotated-token", 3600L);
+
+        given(tokenRefreshService.refresh(eq("cookie-refresh-token"), any(), any()))
+                .willReturn(mockResponse);
+
+        var result =
+                mvc.post()
+                        .uri("/api/v1/auth/refresh")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")
+                        .cookie(
+                                new Cookie(
+                                        CookieHelper.REFRESH_TOKEN_COOKIE, "cookie-refresh-token"))
+                        .exchange();
+
+        assertThat(result).hasStatusOk();
+        assertThat(result)
+                .bodyJson()
+                .extractingPath("$.data.refreshToken")
+                .isEqualTo("cookie-rotated-token");
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("Should return 400 when neither the body nor the cookie carries a token")
+    void shouldReturn400_whenNoRefreshTokenIsProvided() {
+        assertThat(
+                        mvc.post()
+                                .uri("/api/v1/auth/refresh")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                .hasStatus(400)
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("COMMON_003");
     }
 
     @Test

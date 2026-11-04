@@ -60,6 +60,9 @@ public class TokenRefreshService {
     @Transactional
     public com.ahogek.cttserver.auth.dto.LoginResponse refresh(
             String rawRefreshToken, String ip, String userAgent) {
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            throw new UnauthorizedException(ErrorCode.AUTH_003, "Refresh token is required");
+        }
         String tokenHash = TokenUtils.hashToken(rawRefreshToken);
 
         RefreshToken oldToken =
