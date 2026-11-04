@@ -13,7 +13,7 @@ services:
         APP_PORT: ${APP_PORT:-8080}
     container_name: ${CONTAINER_NAME:-ctt-server}
     ports:
-      - "${APP_EXTERNAL_PORT:-8080}:${APP_PORT:-8080}"
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_EXTERNAL_PORT:-8080}:${APP_PORT:-8080}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -23,6 +23,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: local
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in .env}
+      OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY:?OAUTH_TOKEN_ENCRYPTION_KEY must be set in .env}
       SERVER_PORT: ${APP_PORT:-8080}
       APP_PORT: ${APP_PORT:-8080}
       SPRING_DATASOURCE_URL: jdbc:postgresql://ctt-postgres:5432/${POSTGRES_DB:-ctt_server}
@@ -33,9 +35,7 @@ services:
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-ctt_redis_pass}
       SPRING_MAIL_HOST: ctt-mailpit
       SPRING_MAIL_PORT: 1025
-      # Intentionally unset here: the local profile uses the development fallback in
-      # application.yaml. Production deployments must inject a real key instead of shipping a dev
-      # value through this compose file.
+      # Both keys are required even for local compose; there is no public fallback.
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:${APP_PORT}/ctt-server/actuator/health || exit 1"]
       interval: 10s
@@ -51,7 +51,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ctt}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ctt_local_pass}
     ports:
-      - "${POSTGRES_EXTERNAL_PORT:-15432}:5432"
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_EXTERNAL_PORT:-15432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql   # PostgreSQL 18+ requires parent directory
     healthcheck:
@@ -65,7 +65,7 @@ services:
     container_name: ctt-redis
     command: redis-server --requirepass ${REDIS_PASSWORD:-ctt_redis_pass}
     ports:
-      - "${REDIS_EXTERNAL_PORT:-16379}:6379"
+      - "${REDIS_BIND_ADDRESS:-127.0.0.1}:${REDIS_EXTERNAL_PORT:-16379}:6379"
     healthcheck:
       test: ["CMD-SHELL", "REDISCLI_AUTH=${REDIS_PASSWORD:-ctt_redis_pass} redis-cli ping"]
       interval: 5s
@@ -76,8 +76,8 @@ services:
     image: axllent/mailpit:latest
     container_name: ctt-mailpit
     ports:
-      - "${MAIL_SMTP_EXTERNAL_PORT:-1025}:1025"   # SMTP — spring.mail.port
-      - "${MAIL_UI_EXTERNAL_PORT:-8025}:8025"     # Web UI — http://localhost:8025
+      - "${MAIL_BIND_ADDRESS:-127.0.0.1}:${MAIL_SMTP_EXTERNAL_PORT:-1025}:1025"   # SMTP — spring.mail.port
+      - "${MAIL_BIND_ADDRESS:-127.0.0.1}:${MAIL_UI_EXTERNAL_PORT:-8025}:8025"     # Web UI — http://localhost:8025
     volumes:
       - mailpit_data:/data   # Persistent email storage
     environment:

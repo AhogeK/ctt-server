@@ -25,7 +25,9 @@ pipeline {
             steps {
                 dir("${REPO_DIR}") {
                     sh '''
-                        cat > .env << 'EOF'
+                        JWT_SECRET_KEY=$(openssl rand -base64 48)
+                        OAUTH_TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)
+                        cat > .env << EOF
 POSTGRES_DB=ctt_server
 POSTGRES_USER=ctt
 POSTGRES_PASSWORD=ctt_local_pass
@@ -36,7 +38,8 @@ MAIL_SMTP_EXTERNAL_PORT=1025
 MAIL_UI_EXTERNAL_PORT=8025
 APP_PORT=8004
 APP_EXTERNAL_PORT=8004
-JWT_SECRET_KEY=CI_TEST_SECRET_KEY_MUST_BE_AT_LEAST_256_BITS_LONG_REPLACE_IN_PROD
+JWT_SECRET_KEY=$JWT_SECRET_KEY
+OAUTH_TOKEN_ENCRYPTION_KEY=$OAUTH_TOKEN_ENCRYPTION_KEY
 MAIL_FROM_ADDRESS=noreply@ci.test
 MAIL_FROM_NAME=CTT CI
 FRONTEND_BASE_URL=http://localhost:5173
