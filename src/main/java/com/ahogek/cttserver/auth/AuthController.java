@@ -19,15 +19,18 @@ import com.ahogek.cttserver.auth.service.UserLoginService;
 import com.ahogek.cttserver.auth.twofactor.service.LoginTwoFactorService;
 import com.ahogek.cttserver.auth.util.CookieHelper;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.exception.ConflictException;
+import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.UnauthorizedException;
+import com.ahogek.cttserver.common.exception.ValidationException;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
 import com.ahogek.cttserver.common.security.annotation.PublicApi;
-import com.ahogek.cttserver.common.utils.IpUtils;
 import com.ahogek.cttserver.user.service.UserService;
 
 import jakarta.servlet.http.Cookie;
@@ -331,24 +334,28 @@ public class AuthController {
      *
      * <p>Refreshes access token using refresh token with rotation mechanism.
      *
+     * <p>The refresh token is read from the httpOnly cookie first, then from the request body. When
+     * the cookie carries a token, the body may be omitted entirely.
+     *
      * <p>Security mechanisms:
      *
      * <ul>
      *   <li>Rate limiting: 120 requests per hour per IP address
-     *   <li>Input validation: {@code @Valid} triggers JSR-380 validation on DTO
      *   <li>Token rotation: Old refresh token invalidated, new one issued
      *   <li>IP/User-Agent extraction: Passed to service for audit logging
      * </ul>
      *
-     * @param request the refresh token request (validated)
-     * @param httpRequest the HTTP request for IP/User-Agent extraction
+     * @param request the optional refresh token request
+     * @param httpRequest the HTTP request for cookie, IP and User-Agent extraction
      * @return response containing new JWT access token and refresh token
      */
     @Operation(
             summary = "Refresh access token",
             description =
                     "Token refresh endpoint that rotates refresh tokens and issues new access tokens. "
-                            + "Security mechanisms include rate limiting (120/hour per IP), input validation, "
+                            + "The refresh token is read from the httpOnly cookie first and from the "
+                            + "request body as a fallback; when the cookie is present the body may be "
+                            + "omitted. Security mechanisms include rate limiting (120/hour per IP), "
                             + "token rotation, and automatic IP/User-Agent extraction for audit logging")
     @ApiResponses(
             value = {
@@ -361,25 +368,20 @@ public class AuthController {
                 @ApiResponse(
                         responseCode = "400",
                         description =
-                                "Syntax validation error - COMMON_003: Blank/null refresh token (checked before business logic)",
+                                "COMMON_003: Neither the request body nor the refresh-token cookie supplied a token",
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
                                         examples =
                                                 @ExampleObject(
-                                                        name = "blank-token",
-                                                        summary = "Blank or null refresh token",
+                                                        name = "missing-token",
+                                                        summary =
+                                                                "No refresh token in the body or cookie",
                                                         value =
                                                                 """
                                                                 {
                                                                   "code": "COMMON_003",
-                                                                  "message": "Invalid request parameters",
-                                                                  "details": [
-                                                                    {
-                                                                      "field": "refreshToken",
-                                                                      "message": "Refresh token must not be blank"
-                                                                    }
-                                                                  ],
+                                                                  "message": "Refresh token is required",
                                                                   "traceId": "abc-123",
                                                                   "httpStatus": 400,
                                                                   "timestamp": "2026-04-10T03:23:12Z"
@@ -411,14 +413,17 @@ public class AuthController {
     @RateLimit(limit = 120, windowSeconds = 3600)
     @PostMapping("/refresh")
     public ResponseEntity<RestApiResponse<LoginResponse>> refresh(
-            @Valid @RequestBody RefreshTokenRequest request,
+            @Valid @RequestBody(required = false) RefreshTokenRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
 
-        String ip = IpUtils.getRealIp(httpRequest);
+        String ip = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 
         String refreshToken = readRefreshToken(httpRequest, request);
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new ValidationException(ErrorCode.COMMON_003, "Refresh token is required");
+        }
         LoginResponse response = tokenRefreshService.refresh(refreshToken, ip, userAgent);
 
         CookieHelper.addCookiesToResponse(
@@ -574,7 +579,7 @@ public class AuthController {
     public ResponseEntity<RestApiResponse<EmptyResponse>> requestPasswordReset(
             @Valid @RequestBody PasswordResetRequest request, HttpServletRequest httpRequest) {
 
-        String ip = IpUtils.getRealIp(httpRequest);
+        String ip = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 
         EmptyResponse response = passwordResetService.requestReset(request.email(), ip, userAgent);
@@ -671,7 +676,7 @@ public class AuthController {
             @Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
 
         captchaService.verifyCaptcha(request.captchaToken());
-        String ip = IpUtils.getRealIp(httpRequest);
+        String ip = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 
         EmptyResponse response = passwordResetService.requestReset(request.email(), ip, userAgent);
@@ -801,7 +806,7 @@ public class AuthController {
     public ResponseEntity<RestApiResponse<EmptyResponse>> confirmPasswordReset(
             @Valid @RequestBody ResetPasswordRequest request, HttpServletRequest httpRequest) {
 
-        String ip = IpUtils.getRealIp(httpRequest);
+        String ip = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
 
         passwordResetService.resetPassword(request, ip, userAgent);

@@ -2,11 +2,14 @@ package com.ahogek.cttserver.auth;
 
 import com.ahogek.cttserver.auth.dto.LoginRequest;
 import com.ahogek.cttserver.auth.dto.RefreshTokenRequest;
+import com.ahogek.cttserver.auth.util.CookieHelper;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
 import com.ahogek.cttserver.fixtures.UserFixtures;
 import com.ahogek.cttserver.user.entity.User;
 import com.ahogek.cttserver.user.enums.UserStatus;
 import com.ahogek.cttserver.user.repository.UserRepository;
+
+import jakarta.servlet.http.Cookie;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -122,6 +125,36 @@ class LoginAndTokenIntegrationTest {
                                     .with(csrf())
                                     .header("Authorization", "Bearer " + accessToken))
                     .hasStatus(200);
+        }
+
+        @Test
+        @DisplayName("should refresh from the httpOnly cookie when the request body is omitted")
+        void shouldRefreshFromCookie_whenBodyOmitted() throws Exception {
+            User user = createAndPersistUser("cookie-refresh@example.com");
+
+            var loginResult =
+                    mockMvc.perform(
+                                    post("/api/v1/auth/login")
+                                            .with(csrf())
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .content(
+                                                    loginRequestJson(
+                                                            user.getEmail(), TEST_PASSWORD)))
+                            .andExpect(status().isOk())
+                            .andReturn();
+
+            Cookie refreshCookie =
+                    loginResult.getResponse().getCookie(CookieHelper.REFRESH_TOKEN_COOKIE);
+            assertThat(refreshCookie).as("login must set the refresh token cookie").isNotNull();
+
+            mockMvc.perform(
+                            post("/api/v1/auth/refresh")
+                                    .with(csrf())
+                                    .cookie(refreshCookie)
+                                    .header(USER_AGENT, TEST_USER_AGENT))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                    .andExpect(jsonPath("$.data.refreshToken").isNotEmpty());
         }
     }
 

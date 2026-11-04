@@ -133,6 +133,24 @@ class TokenRefreshServiceTest {
     class TokenValidationErrors {
 
         @Test
+        @DisplayName("should throw AUTH_003 when no refresh token is supplied")
+        void shouldThrowAuth003_whenNoRefreshTokenSupplied() {
+            assertThatThrownBy(() -> tokenRefreshService.refresh(null, TEST_IP, TEST_USER_AGENT))
+                    .isInstanceOf(UnauthorizedException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_003)
+                    .hasMessageContaining("Refresh token is required");
+        }
+
+        @Test
+        @DisplayName("should throw AUTH_003 when the refresh token is blank")
+        void shouldThrowAuth003_whenRefreshTokenBlank() {
+            assertThatThrownBy(() -> tokenRefreshService.refresh("   ", TEST_IP, TEST_USER_AGENT))
+                    .isInstanceOf(UnauthorizedException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.AUTH_003)
+                    .hasMessageContaining("Refresh token is required");
+        }
+
+        @Test
         @DisplayName("should throw AUTH_003 when token not found")
         void shouldThrowAuth003_whenTokenNotFound() {
             when(refreshTokenRepository.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.empty());
