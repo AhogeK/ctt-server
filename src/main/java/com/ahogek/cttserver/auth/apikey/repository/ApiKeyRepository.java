@@ -3,8 +3,12 @@ package com.ahogek.cttserver.auth.apikey.repository;
 import com.ahogek.cttserver.auth.apikey.entity.ApiKey;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -74,4 +78,17 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, UUID> {
      * @return number of currently non-revoked keys for the user
      */
     long countByUserIdAndRevokedAtIsNull(UUID userId);
+
+    /**
+     * Revokes every active key for an account after a credential change.
+     *
+     * @param userId the owning account
+     * @param now the revocation instant
+     * @return number of keys revoked
+     */
+    @Modifying
+    @Query(
+            "UPDATE ApiKey k SET k.revokedAt = :now"
+                    + " WHERE k.user.id = :userId AND k.revokedAt IS NULL")
+    int revokeAllByUserId(@Param("userId") UUID userId, @Param("now") Instant now);
 }

@@ -80,9 +80,37 @@ class PasswordControllerIntegrationTest {
                 CurrentUser.AuthenticationType.WEB_SESSION);
     }
 
+    private CurrentUser apiKeyUser() {
+        return new CurrentUser(
+                USER_ID,
+                "test@example.com",
+                UserStatus.ACTIVE,
+                Set.of("ROLE_USER"),
+                CurrentUser.AuthenticationType.API_KEY);
+    }
+
     @Nested
     @DisplayName("POST /api/v1/users/me/password/set")
     class SetPassword {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should reject API-key callers")
+        void shouldReturn403_whenCallerUsesApiKey() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired()).willReturn(apiKeyUser());
+            BDDMockito.given(currentUserProvider.getActiveUserRequired()).willReturn(apiKeyUser());
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/users/me/password/set")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content("{\"newPassword\":\"" + NEW_PASSWORD + "\"}"))
+                    .hasStatus(403)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_025");
+        }
 
         @Test
         @WithMockUser
@@ -139,7 +167,7 @@ class PasswordControllerIntegrationTest {
                     .willReturn(currentUser());
             BDDMockito.willThrow(new ConflictException(ErrorCode.USER_015))
                     .given(passwordService)
-                    .setPassword(BDDMockito.eq(USER_ID), BDDMockito.any());
+                    .setPassword(BDDMockito.eq(USER_ID), BDDMockito.any(), BDDMockito.any());
 
             String requestBody =
                     """
@@ -167,6 +195,29 @@ class PasswordControllerIntegrationTest {
     class ChangePassword {
 
         private static final String CURRENT_PASSWORD = "CurrentPass123!";
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should reject API-key callers")
+        void shouldReturn403_whenCallerUsesApiKey() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired()).willReturn(apiKeyUser());
+            BDDMockito.given(currentUserProvider.getActiveUserRequired()).willReturn(apiKeyUser());
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/users/me/password/change")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(
+                                            """
+                                            {"currentPassword":"%s","newPassword":"%s"}
+                                            """
+                                                    .formatted(CURRENT_PASSWORD, NEW_PASSWORD)))
+                    .hasStatus(403)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_025");
+        }
 
         @Test
         @WithMockUser
@@ -225,7 +276,11 @@ class PasswordControllerIntegrationTest {
                     .willReturn(currentUser());
             BDDMockito.willThrow(new UnauthorizedException(ErrorCode.USER_014))
                     .given(passwordService)
-                    .changePassword(BDDMockito.eq(USER_ID), BDDMockito.any(), BDDMockito.any());
+                    .changePassword(
+                            BDDMockito.eq(USER_ID),
+                            BDDMockito.any(),
+                            BDDMockito.any(),
+                            BDDMockito.any());
 
             String requestBody =
                     """
@@ -256,7 +311,11 @@ class PasswordControllerIntegrationTest {
                     .willReturn(currentUser());
             BDDMockito.willThrow(new ConflictException(ErrorCode.PASSWORD_SAME_AS_OLD))
                     .given(passwordService)
-                    .changePassword(BDDMockito.eq(USER_ID), BDDMockito.any(), BDDMockito.any());
+                    .changePassword(
+                            BDDMockito.eq(USER_ID),
+                            BDDMockito.any(),
+                            BDDMockito.any(),
+                            BDDMockito.any());
 
             String requestBody =
                     """

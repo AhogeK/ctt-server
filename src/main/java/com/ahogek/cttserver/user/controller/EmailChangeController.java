@@ -1,12 +1,15 @@
 package com.ahogek.cttserver.user.controller;
 
 import com.ahogek.cttserver.auth.CurrentUserProvider;
+import com.ahogek.cttserver.auth.WebSessionGuard;
+import com.ahogek.cttserver.auth.model.CurrentUser;
+import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
-import com.ahogek.cttserver.common.utils.IpUtils;
 import com.ahogek.cttserver.user.dto.EmailChangeConfirmRequest;
 import com.ahogek.cttserver.user.dto.EmailChangeRequest;
 import com.ahogek.cttserver.user.dto.EmailStatusResponse;
@@ -23,8 +26,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -100,26 +101,41 @@ public class EmailChangeController {
                 @ApiResponse(
                         responseCode = "403",
                         description =
-                                "Password verification required - USER_013 when the user has a password"
-                                        + " but the request body omitted it",
+                                "Password verification required (USER_013) or API key caller (AUTH_025)",
                         content =
                                 @Content(
                                         schema = @Schema(implementation = ErrorResponse.class),
-                                        examples =
-                                                @ExampleObject(
-                                                        name = "passwordRequired",
-                                                        summary = "Password required for change",
-                                                        value =
-                                                                """
-                                                                {
-                                                                  "code": "USER_013",
-                                                                  "message": "Password verification required",
-                                                                  "details": [],
-                                                                  "traceId": "abc-123",
-                                                                  "httpStatus": 403,
-                                                                  "timestamp": "2026-07-03T10:00:00Z"
-                                                                }
-                                                                """))),
+                                        examples = {
+                                            @ExampleObject(
+                                                    name = "passwordRequired",
+                                                    summary = "Password required for change",
+                                                    value =
+                                                            """
+                                                            {
+                                                              "code": "USER_013",
+                                                              "message": "Password verification required",
+                                                              "details": [],
+                                                              "traceId": "abc-123",
+                                                              "httpStatus": 403,
+                                                              "timestamp": "2026-07-03T10:00:00Z"
+                                                            }
+                                                            """),
+                                            @ExampleObject(
+                                                    name = "webSessionRequired",
+                                                    summary =
+                                                            "API key cannot request an email change",
+                                                    value =
+                                                            """
+                                                            {
+                                                              "code": "AUTH_025",
+                                                              "message": "This action requires a signed-in session, not an API key",
+                                                              "details": [],
+                                                              "traceId": "abc-123",
+                                                              "httpStatus": 403,
+                                                              "timestamp": "2026-07-03T10:00:00Z"
+                                                            }
+                                                            """)
+                                        })),
                 @ApiResponse(
                         responseCode = "404",
                         description = "User not found",
@@ -182,12 +198,13 @@ public class EmailChangeController {
     @PostMapping("/change-request")
     public ResponseEntity<RestApiResponse<EmptyResponse>> requestEmailChange(
             @Valid @RequestBody EmailChangeRequest request, HttpServletRequest httpRequest) {
-        UUID userId = currentUserProvider.getActiveUserRequired().id();
-        String ip = IpUtils.getRealIp(httpRequest);
+        CurrentUser current =
+                WebSessionGuard.requireWebSession(currentUserProvider.getActiveUserRequired());
+        String ip = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
         EmptyResponse response =
                 emailChangeService.requestEmailChange(
-                        userId, request.newEmail(), request.password(), ip, userAgent);
+                        current.id(), request.newEmail(), request.password(), ip, userAgent);
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -322,7 +339,7 @@ public class EmailChangeController {
     @PostMapping("/change-confirm")
     public ResponseEntity<RestApiResponse<EmptyResponse>> confirmEmailChange(
             @Valid @RequestBody EmailChangeConfirmRequest request, HttpServletRequest httpRequest) {
-        String ip = IpUtils.getRealIp(httpRequest);
+        String ip = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
         emailChangeService.confirmEmailChange(request.token(), ip, userAgent);
         return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok()));
@@ -344,6 +361,29 @@ public class EmailChangeController {
                         content =
                                 @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
+                        responseCode = "403",
+                        description =
+                                "API key caller - AUTH_025: this action requires a browser session",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "webSessionRequired",
+                                                        summary =
+                                                                "API key cannot cancel an email change",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_025",
+                                                                  "message": "This action requires a signed-in session, not an API key",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 403,
+                                                                  "timestamp": "2026-07-03T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
                         responseCode = "401",
                         description = "Unauthorized - missing or invalid JWT",
                         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
@@ -351,8 +391,9 @@ public class EmailChangeController {
     @SecurityRequirement(name = "bearerAuth")
     @DeleteMapping("/change-request")
     public ResponseEntity<RestApiResponse<EmptyResponse>> cancelEmailChange() {
-        UUID userId = currentUserProvider.getCurrentUserRequired().id();
-        emailChangeService.cancelEmailChange(userId);
+        CurrentUser current =
+                WebSessionGuard.requireWebSession(currentUserProvider.getCurrentUserRequired());
+        emailChangeService.cancelEmailChange(current.id());
         return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok()));
     }
 
@@ -371,6 +412,29 @@ public class EmailChangeController {
                         content =
                                 @Content(schema = @Schema(implementation = RestApiResponse.class))),
                 @ApiResponse(
+                        responseCode = "403",
+                        description =
+                                "API key caller - AUTH_025: this action requires a browser session",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "webSessionRequired",
+                                                        summary =
+                                                                "API key cannot read email status",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_025",
+                                                                  "message": "This action requires a signed-in session, not an API key",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 403,
+                                                                  "timestamp": "2026-07-03T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
                         responseCode = "401",
                         description = "Unauthorized - missing or invalid JWT",
                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
@@ -382,8 +446,9 @@ public class EmailChangeController {
     @SecurityRequirement(name = "bearerAuth")
     @GetMapping("/status")
     public ResponseEntity<RestApiResponse<EmailStatusResponse>> getEmailStatus() {
-        UUID userId = currentUserProvider.getCurrentUserRequired().id();
-        EmailStatusResponse status = emailChangeService.getEmailStatus(userId);
+        CurrentUser current =
+                WebSessionGuard.requireWebSession(currentUserProvider.getCurrentUserRequired());
+        EmailStatusResponse status = emailChangeService.getEmailStatus(current.id());
         return ResponseEntity.ok(RestApiResponse.ok(status));
     }
 
@@ -403,6 +468,29 @@ public class EmailChangeController {
                         description = "Email change verification resent",
                         content =
                                 @Content(schema = @Schema(implementation = RestApiResponse.class))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description =
+                                "API key caller - AUTH_025: this action requires a browser session",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "webSessionRequired",
+                                                        summary =
+                                                                "API key cannot resend an email change",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_025",
+                                                                  "message": "This action requires a signed-in session, not an API key",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 403,
+                                                                  "timestamp": "2026-07-03T10:00:00Z"
+                                                                }
+                                                                """))),
                 @ApiResponse(
                         responseCode = "401",
                         description = "Unauthorized - missing or invalid JWT",
@@ -476,11 +564,12 @@ public class EmailChangeController {
     @PostMapping("/resend-verification")
     public ResponseEntity<RestApiResponse<EmptyResponse>> resendEmailChangeVerification(
             HttpServletRequest httpRequest) {
-        UUID userId = currentUserProvider.getActiveUserRequired().id();
-        String ip = IpUtils.getRealIp(httpRequest);
+        CurrentUser current =
+                WebSessionGuard.requireWebSession(currentUserProvider.getActiveUserRequired());
+        String ip = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
         String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
         EmptyResponse response =
-                emailChangeService.resendEmailChangeVerification(userId, ip, userAgent);
+                emailChangeService.resendEmailChangeVerification(current.id(), ip, userAgent);
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 }

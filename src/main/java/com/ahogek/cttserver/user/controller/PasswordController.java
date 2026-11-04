@@ -1,6 +1,8 @@
 package com.ahogek.cttserver.user.controller;
 
 import com.ahogek.cttserver.auth.CurrentUserProvider;
+import com.ahogek.cttserver.auth.WebSessionGuard;
+import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.ratelimit.RateLimit;
 import com.ahogek.cttserver.common.ratelimit.RateLimitType;
 import com.ahogek.cttserver.common.response.EmptyResponse;
@@ -17,8 +19,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -90,6 +90,28 @@ public class PasswordController {
                                                                 }
                                                                 """))),
                 @ApiResponse(
+                        responseCode = "403",
+                        description =
+                                "API key caller - AUTH_025: this action requires a browser session",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "webSessionRequired",
+                                                        summary = "API key cannot set a password",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_025",
+                                                                  "message": "This action requires a signed-in session, not an API key",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 403,
+                                                                  "timestamp": "2026-07-04T10:00:00Z"
+                                                                }
+                                                                """))),
+                @ApiResponse(
                         responseCode = "409",
                         description = "Password already set",
                         content =
@@ -116,8 +138,9 @@ public class PasswordController {
     @PostMapping("/set")
     public ResponseEntity<RestApiResponse<EmptyResponse>> setPassword(
             @Valid @RequestBody SetPasswordRequest request) {
-        UUID userId = currentUserProvider.getActiveUserRequired().id();
-        passwordService.setPassword(userId, request.newPassword());
+        CurrentUser current =
+                WebSessionGuard.requireWebSession(currentUserProvider.getActiveUserRequired());
+        passwordService.setPassword(current.id(), current.sessionId(), request.newPassword());
         return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok()));
     }
 
@@ -135,6 +158,29 @@ public class PasswordController {
                         description = "Password changed successfully",
                         content =
                                 @Content(schema = @Schema(implementation = RestApiResponse.class))),
+                @ApiResponse(
+                        responseCode = "403",
+                        description =
+                                "API key caller - AUTH_025: this action requires a browser session",
+                        content =
+                                @Content(
+                                        schema = @Schema(implementation = ErrorResponse.class),
+                                        examples =
+                                                @ExampleObject(
+                                                        name = "webSessionRequired",
+                                                        summary =
+                                                                "API key cannot change a password",
+                                                        value =
+                                                                """
+                                                                {
+                                                                  "code": "AUTH_025",
+                                                                  "message": "This action requires a signed-in session, not an API key",
+                                                                  "details": [],
+                                                                  "traceId": "abc-123",
+                                                                  "httpStatus": 403,
+                                                                  "timestamp": "2026-07-04T10:00:00Z"
+                                                                }
+                                                                """))),
                 @ApiResponse(
                         responseCode = "400",
                         description = "Validation error",
@@ -226,8 +272,13 @@ public class PasswordController {
     @PostMapping("/change")
     public ResponseEntity<RestApiResponse<EmptyResponse>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request) {
-        UUID userId = currentUserProvider.getActiveUserRequired().id();
-        passwordService.changePassword(userId, request.currentPassword(), request.newPassword());
+        CurrentUser current =
+                WebSessionGuard.requireWebSession(currentUserProvider.getActiveUserRequired());
+        passwordService.changePassword(
+                current.id(),
+                current.sessionId(),
+                request.currentPassword(),
+                request.newPassword());
         return ResponseEntity.ok(RestApiResponse.ok(EmptyResponse.ok()));
     }
 }

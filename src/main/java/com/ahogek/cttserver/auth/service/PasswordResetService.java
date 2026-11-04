@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.apikey.repository.ApiKeyRepository;
 import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
 import com.ahogek.cttserver.auth.entity.PasswordResetToken;
 import com.ahogek.cttserver.auth.enums.TokenStatus;
@@ -52,6 +53,7 @@ public class PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
     private final LoginAttemptService loginAttemptService;
+    private final ApiKeyRepository apiKeyRepository;
 
     public PasswordResetService(
             UserRepository userRepository,
@@ -60,7 +62,8 @@ public class PasswordResetService {
             AuditLogService auditLogService,
             PasswordEncoder passwordEncoder,
             RefreshTokenRepository refreshTokenRepository,
-            LoginAttemptService loginAttemptService) {
+            LoginAttemptService loginAttemptService,
+            ApiKeyRepository apiKeyRepository) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
         this.mailOutboxService = mailOutboxService;
@@ -68,6 +71,7 @@ public class PasswordResetService {
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenRepository = refreshTokenRepository;
         this.loginAttemptService = loginAttemptService;
+        this.apiKeyRepository = apiKeyRepository;
     }
 
     /**
@@ -207,6 +211,7 @@ public class PasswordResetService {
         tokenRepository.save(token);
 
         refreshTokenRepository.revokeAllUserTokens(user.getId(), Instant.now());
+        apiKeyRepository.revokeAllByUserId(user.getId(), Instant.now());
 
         auditLogService.logSuccess(
                 user.getId(),

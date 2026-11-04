@@ -3,6 +3,8 @@ package com.ahogek.cttserver.user.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.apikey.repository.ApiKeyRepository;
+import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
@@ -28,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,12 +40,18 @@ class PasswordServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private AuditLogService auditLogService;
+    @Mock private RefreshTokenRepository refreshTokens;
+    @Mock private ApiKeyRepository apiKeys;
+
+    private static final UUID SESSION_ID = UUID.randomUUID();
 
     private PasswordService service;
 
     @BeforeEach
     void setUp() {
-        service = new PasswordService(userRepository, passwordEncoder, auditLogService);
+        service =
+                new PasswordService(
+                        userRepository, passwordEncoder, auditLogService, refreshTokens, apiKeys);
     }
 
     private User createOAuthUser(UUID userId) {
@@ -78,7 +87,7 @@ class PasswordServiceTest {
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
 
-            service.setPassword(userId, newPassword);
+            service.setPassword(userId, SESSION_ID, newPassword);
 
             assertThat(user.getPasswordHash()).isEqualTo(encodedPassword);
 
@@ -86,6 +95,9 @@ class PasswordServiceTest {
             verify(userRepository).save(userCaptor.capture());
             assertThat(userCaptor.getValue().getPasswordHash()).isEqualTo(encodedPassword);
 
+            verify(refreshTokens)
+                    .revokeAllUserTokensExceptSession(eq(userId), eq(SESSION_ID), any());
+            verify(apiKeys).revokeAllByUserId(eq(userId), any());
             verify(auditLogService)
                     .logSuccess(
                             userId, AuditAction.PASSWORD_SET, ResourceType.USER, userId.toString());
@@ -101,7 +113,7 @@ class PasswordServiceTest {
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
-            assertThatThrownBy(() -> service.setPassword(userId, newPassword))
+            assertThatThrownBy(() -> service.setPassword(userId, SESSION_ID, newPassword))
                     .isInstanceOf(ConflictException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_015);
 
@@ -118,7 +130,7 @@ class PasswordServiceTest {
 
             when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.setPassword(userId, newPassword))
+            assertThatThrownBy(() -> service.setPassword(userId, SESSION_ID, newPassword))
                     .isInstanceOf(NotFoundException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
 
@@ -147,7 +159,7 @@ class PasswordServiceTest {
             when(passwordEncoder.matches(newPassword, user.getPasswordHash())).thenReturn(false);
             when(passwordEncoder.encode(newPassword)).thenReturn(encodedNewPassword);
 
-            service.changePassword(userId, currentPassword, newPassword);
+            service.changePassword(userId, SESSION_ID, currentPassword, newPassword);
 
             assertThat(user.getPasswordHash()).isEqualTo(encodedNewPassword);
 
@@ -155,6 +167,9 @@ class PasswordServiceTest {
             verify(userRepository).save(userCaptor.capture());
             assertThat(userCaptor.getValue().getPasswordHash()).isEqualTo(encodedNewPassword);
 
+            verify(refreshTokens)
+                    .revokeAllUserTokensExceptSession(eq(userId), eq(SESSION_ID), any());
+            verify(apiKeys).revokeAllByUserId(eq(userId), any());
             verify(auditLogService)
                     .logSuccess(
                             userId,
@@ -176,7 +191,10 @@ class PasswordServiceTest {
             when(passwordEncoder.matches(currentPassword, user.getPasswordHash()))
                     .thenReturn(false);
 
-            assertThatThrownBy(() -> service.changePassword(userId, currentPassword, newPassword))
+            assertThatThrownBy(
+                            () ->
+                                    service.changePassword(
+                                            userId, SESSION_ID, currentPassword, newPassword))
                     .isInstanceOf(UnauthorizedException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_014);
 
@@ -198,7 +216,10 @@ class PasswordServiceTest {
             when(passwordEncoder.matches(currentPassword, user.getPasswordHash())).thenReturn(true);
             when(passwordEncoder.matches(newPassword, user.getPasswordHash())).thenReturn(true);
 
-            assertThatThrownBy(() -> service.changePassword(userId, currentPassword, newPassword))
+            assertThatThrownBy(
+                            () ->
+                                    service.changePassword(
+                                            userId, SESSION_ID, currentPassword, newPassword))
                     .isInstanceOf(ConflictException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PASSWORD_SAME_AS_OLD);
 
@@ -218,7 +239,10 @@ class PasswordServiceTest {
 
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
-            assertThatThrownBy(() -> service.changePassword(userId, currentPassword, newPassword))
+            assertThatThrownBy(
+                            () ->
+                                    service.changePassword(
+                                            userId, SESSION_ID, currentPassword, newPassword))
                     .isInstanceOf(ConflictException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_015);
 
@@ -237,7 +261,10 @@ class PasswordServiceTest {
 
             when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.changePassword(userId, currentPassword, newPassword))
+            assertThatThrownBy(
+                            () ->
+                                    service.changePassword(
+                                            userId, SESSION_ID, currentPassword, newPassword))
                     .isInstanceOf(NotFoundException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_004);
 
