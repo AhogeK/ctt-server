@@ -153,4 +153,26 @@ class ActiveAccountGateIntegrationTest {
                                 .exchange())
                 .hasStatusOk();
     }
+
+    @Test
+    @DisplayName("Should still let a locked account cancel a pending email change")
+    void shouldAllowLockedAccount_whenCancellingEmailChange() {
+        assertThat(
+                        mvc.delete()
+                                .uri("/api/v1/users/me/email/change-request")
+                                .header("Authorization", bearerFor(UserStatus.LOCKED))
+                                .exchange())
+                .hasStatusOk();
+    }
+
+    @Test
+    @DisplayName("Should still let a suspended account read its email status")
+    void shouldAllowSuspendedAccount_whenReadingEmailStatus() {
+        assertThat(
+                        mvc.get()
+                                .uri("/api/v1/users/me/email/status")
+                                .header("Authorization", bearerFor(UserStatus.SUSPENDED))
+                                .exchange())
+                .hasStatusOk();
+    }
 }

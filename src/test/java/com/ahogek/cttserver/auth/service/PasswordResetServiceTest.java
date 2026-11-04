@@ -3,6 +3,7 @@ package com.ahogek.cttserver.auth.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.apikey.repository.ApiKeyRepository;
 import com.ahogek.cttserver.auth.dto.ResetPasswordRequest;
 import com.ahogek.cttserver.auth.entity.PasswordResetToken;
 import com.ahogek.cttserver.auth.lockout.LoginAttemptService;
@@ -53,6 +54,7 @@ class PasswordResetServiceTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private LoginAttemptService loginAttemptService;
+    @Mock private ApiKeyRepository apiKeyRepository;
 
     private PasswordResetService service;
 
@@ -66,7 +68,8 @@ class PasswordResetServiceTest {
                         auditLogService,
                         passwordEncoder,
                         refreshTokenRepository,
-                        loginAttemptService);
+                        loginAttemptService,
+                        apiKeyRepository);
     }
 
     private User createActiveUser(UUID userId, String email, String displayName) {
@@ -345,6 +348,7 @@ class PasswordResetServiceTest {
             assertThat(token.getConsumedAt()).isNotNull();
 
             verify(refreshTokenRepository).revokeAllUserTokens(eq(userId), any(Instant.class));
+            verify(apiKeyRepository).revokeAllByUserId(eq(userId), any(Instant.class));
             verify(auditLogService)
                     .logSuccess(
                             userId,

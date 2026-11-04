@@ -82,9 +82,41 @@ class EmailChangeIntegrationTest {
                 CurrentUser.AuthenticationType.WEB_SESSION);
     }
 
+    private CurrentUser apiKeyUser() {
+        return new CurrentUser(
+                USER_ID,
+                "test@example.com",
+                UserStatus.ACTIVE,
+                Set.of("ROLE_USER"),
+                CurrentUser.AuthenticationType.API_KEY);
+    }
+
     @Nested
     @DisplayName("POST /api/v1/users/me/email/change-request")
     class RequestEmailChangeTests {
+
+        @Test
+        @WithMockUser
+        @DisplayName("Should reject API-key callers")
+        void shouldReturn403_whenCallerUsesApiKey() {
+            BDDMockito.given(currentUserProvider.getCurrentUserRequired()).willReturn(apiKeyUser());
+            BDDMockito.given(currentUserProvider.getActiveUserRequired()).willReturn(apiKeyUser());
+
+            assertThat(
+                            mvc.post()
+                                    .uri("/api/v1/users/me/email/change-request")
+                                    .with(csrf())
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(
+                                            """
+                                            {"newEmail":"%s","password":"%s"}
+                                            """
+                                                    .formatted(NEW_EMAIL, CURRENT_PASSWORD)))
+                    .hasStatus(403)
+                    .bodyJson()
+                    .extractingPath("$.code")
+                    .isEqualTo("AUTH_025");
+        }
 
         @Test
         @WithMockUser

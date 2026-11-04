@@ -3,6 +3,8 @@ package com.ahogek.cttserver.user.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.apikey.repository.ApiKeyRepository;
+import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
 import com.ahogek.cttserver.common.exception.ConflictException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
@@ -16,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -35,14 +38,20 @@ public class PasswordService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final RefreshTokenRepository refreshTokens;
+    private final ApiKeyRepository apiKeys;
 
     public PasswordService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            RefreshTokenRepository refreshTokens,
+            ApiKeyRepository apiKeys) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditLogService = auditLogService;
+        this.refreshTokens = refreshTokens;
+        this.apiKeys = apiKeys;
     }
 
     /**
@@ -51,12 +60,13 @@ public class PasswordService {
      * <p>This allows OAuth-only users to add password-based authentication to their account.
      *
      * @param userId the user's unique identifier
+     * @param sessionId the current browser session to keep
      * @param newPassword the new password to set
      * @throws NotFoundException if no user exists with the given ID
      * @throws ConflictException if the user already has a password set
      */
     @Transactional
-    public void setPassword(UUID userId, String newPassword) {
+    public void setPassword(UUID userId, UUID sessionId, String newPassword) {
         User user =
                 userRepository
                         .findById(userId)
@@ -68,6 +78,7 @@ public class PasswordService {
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        revokeOtherSessions(userId, sessionId);
 
         auditLogService.logSuccess(
                 userId, AuditAction.PASSWORD_SET, ResourceType.USER, userId.toString());
@@ -82,6 +93,7 @@ public class PasswordService {
      * identical to the current one.
      *
      * @param userId the user's unique identifier
+     * @param sessionId the current browser session to keep
      * @param currentPassword the user's current password
      * @param newPassword the new password to set
      * @throws NotFoundException if no user exists with the given ID
@@ -90,7 +102,8 @@ public class PasswordService {
      * @throws UnauthorizedException if the current password does not match
      */
     @Transactional
-    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+    public void changePassword(
+            UUID userId, UUID sessionId, String currentPassword, String newPassword) {
         User user =
                 userRepository
                         .findById(userId)
@@ -110,10 +123,21 @@ public class PasswordService {
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        revokeOtherSessions(userId, sessionId);
 
         auditLogService.logSuccess(
                 userId, AuditAction.PASSWORD_CHANGED, ResourceType.USER, userId.toString());
 
         log.info("Password changed for user {}", userId);
+    }
+
+    private void revokeOtherSessions(UUID userId, UUID sessionId) {
+        Instant now = Instant.now();
+        if (sessionId == null) {
+            refreshTokens.revokeAllUserTokens(userId, now);
+        } else {
+            refreshTokens.revokeAllUserTokensExceptSession(userId, sessionId, now);
+        }
+        apiKeys.revokeAllByUserId(userId, now);
     }
 }
