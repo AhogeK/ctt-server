@@ -56,6 +56,10 @@ public class MailOutbox {
     /** Optional reference to the business entity that triggered this email. */
     private UUID bizId;
 
+    /** Account that owns this mail; account deletion removes the row through the FK cascade. */
+    @Column(name = "user_id")
+    private UUID userId;
+
     @Column(nullable = false)
     private String recipient;
 
@@ -136,6 +140,7 @@ public class MailOutbox {
     public void markSent() {
         this.status = MailOutboxStatus.SENT;
         this.sentAt = Instant.now();
+        scrubSensitiveContent();
     }
 
     /**
@@ -171,6 +176,19 @@ public class MailOutbox {
             throw new IllegalStateException("Cannot cancel a terminal state: " + status);
         }
         this.status = MailOutboxStatus.CANCELLED;
+        scrubSensitiveContent();
+    }
+
+    /**
+     * Removes rendered links and template data once the message can no longer be delivered.
+     *
+     * <p>The recipient address and metadata remain for operational history until the retention job
+     * removes the row; verification/reset tokens do not.
+     */
+    private void scrubSensitiveContent() {
+        this.bodyHtml = null;
+        this.bodyText = null;
+        this.payload = new HashMap<>();
     }
 
     // -------------------------------------------------------------------------
@@ -327,5 +345,23 @@ public class MailOutbox {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    /**
+     * Returns the owning account.
+     *
+     * @return owning account id, possibly null for legacy rows
+     */
+    public UUID getUserId() {
+        return userId;
+    }
+
+    /**
+     * Sets the owning account.
+     *
+     * @param userId owning account id
+     */
+    public void setUserId(UUID userId) {
+        this.userId = userId;
     }
 }

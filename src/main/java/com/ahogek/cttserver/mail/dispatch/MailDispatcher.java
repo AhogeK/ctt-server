@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.mail.dispatch;
 
 import com.ahogek.cttserver.common.config.properties.CttMailProperties;
+import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 import com.ahogek.cttserver.mail.entity.MailOutbox;
 
 import jakarta.mail.MessagingException;
@@ -63,7 +64,7 @@ public class MailDispatcher {
                 "Dispatching email [id={}, traceId={}] to {}",
                 outbox.getId(),
                 outbox.getTraceId(),
-                outbox.getRecipient());
+                DesensitizeUtils.maskEmail(outbox.getRecipient()));
 
         MimeMessage message = mailSender.createMimeMessage();
 
@@ -77,6 +78,9 @@ public class MailDispatcher {
 
         mailSender.send(message);
 
-        log.info("Dispatched email [id={}] to {}", outbox.getId(), outbox.getRecipient());
+        log.info(
+                "Dispatched email [id={}] to {}",
+                outbox.getId(),
+                DesensitizeUtils.maskEmail(outbox.getRecipient()));
     }
 }

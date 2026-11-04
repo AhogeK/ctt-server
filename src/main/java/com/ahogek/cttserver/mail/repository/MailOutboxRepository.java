@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -195,4 +196,20 @@ public interface MailOutboxRepository extends JpaRepository<MailOutbox, UUID> {
             """)
     int resetStuckSendingJobs(
             @Param("timeoutThreshold") Instant timeoutThreshold, @Param("now") Instant now);
+
+    /**
+     * Deletes terminal outbox rows older than the retention cutoff.
+     *
+     * <p>Terminal rows may contain rendered verification/reset links; removing them after the token
+     * lifetime has elapsed bounds the window in which a database backup can expose usable tokens.
+     *
+     * @param statuses terminal statuses to remove
+     * @param cutoff rows updated before this instant are eligible
+     * @return number of deleted rows
+     */
+    @Modifying
+    @Query("DELETE FROM MailOutbox m WHERE m.status IN :statuses AND m.updatedAt < :cutoff")
+    int deleteTerminalBefore(
+            @Param("statuses") Collection<MailOutboxStatus> statuses,
+            @Param("cutoff") Instant cutoff);
 }

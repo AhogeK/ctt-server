@@ -86,6 +86,13 @@ class MailOutboxServiceIntegrationTest {
         auditLogRepository.deleteAll();
     }
 
+    private UUID createUser() {
+        User user = new User();
+        user.setEmail("rate-" + UUID.randomUUID() + "@domain.com");
+        user.setDisplayName(TEST_USERNAME);
+        return userRepository.saveAndFlush(user).getId();
+    }
+
     @Nested
     @DisplayName("enqueueVerificationEmail - Happy Path")
     class HappyPathTests {
@@ -215,7 +222,7 @@ class MailOutboxServiceIntegrationTest {
             // Use different bizId for each to avoid idempotency check
             String email = "ratelimit-test@domain.com";
             for (int i = 0; i < 3; i++) {
-                UUID differentUserId = UUID.randomUUID();
+                UUID differentUserId = createUser();
                 mailOutboxService.enqueueVerificationEmail(
                         differentUserId, TEST_USERNAME, email, TEST_TOKEN + i);
             }
@@ -225,7 +232,7 @@ class MailOutboxServiceIntegrationTest {
                     .untilAsserted(() -> assertThat(mailOutboxRepository.count()).isEqualTo(3));
 
             // When: 4th request to same address (same bizId to avoid idempotency)
-            UUID fourthUserId = UUID.randomUUID();
+            UUID fourthUserId = createUser();
             // Then: Should throw TooManyRequestsException
             assertThatThrownBy(
                             () ->

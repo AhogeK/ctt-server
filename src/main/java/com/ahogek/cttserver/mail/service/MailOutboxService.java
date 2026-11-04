@@ -115,6 +115,7 @@ public class MailOutboxService {
         MailOutbox outbox =
                 buildOutboxEntity(
                         userId,
+                        userId,
                         email,
                         BIZ_TYPE_VERIFICATION,
                         "Verify Your Email Address",
@@ -156,6 +157,7 @@ public class MailOutboxService {
 
         MailOutbox outbox =
                 buildOutboxEntity(
+                        userId,
                         userId,
                         email,
                         BIZ_TYPE_PASSWORD_RESET,
@@ -199,6 +201,7 @@ public class MailOutboxService {
         MailOutbox outbox =
                 buildOutboxEntity(
                         userId,
+                        userId,
                         newEmail,
                         BIZ_TYPE_CHANGE_EMAIL,
                         "Confirm Your Email Change",
@@ -233,6 +236,7 @@ public class MailOutboxService {
         var data = new PasskeyAddedTemplateData(username, passkeyName);
         MailOutbox outbox =
                 buildOutboxEntity(
+                        userId,
                         userId,
                         email,
                         BIZ_TYPE_PASSKEY_ADDED,
@@ -272,7 +276,7 @@ public class MailOutboxService {
         if (exists) {
             log.info(
                     "Idempotent skip: email '{}' of type '{}' for user '{}' already exists in window",
-                    recipient,
+                    DesensitizeUtils.maskEmail(recipient),
                     bizType,
                     bizId);
 
@@ -338,6 +342,7 @@ public class MailOutboxService {
     }
 
     private MailOutbox buildOutboxEntity(
+            UUID userId,
             UUID bizId,
             String recipient,
             String bizType,
@@ -348,6 +353,7 @@ public class MailOutboxService {
             Map<String, Object> payload) {
         MailOutbox outbox = new MailOutbox();
         outbox.setBizId(bizId);
+        outbox.setUserId(userId);
         outbox.setRecipient(recipient);
         outbox.setBizType(bizType);
         outbox.setSubject(subject);
