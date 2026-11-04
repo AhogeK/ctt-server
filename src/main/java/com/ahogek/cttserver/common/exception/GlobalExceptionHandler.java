@@ -8,6 +8,7 @@ import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
 import com.ahogek.cttserver.common.response.ErrorResponse;
+import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 
 import jakarta.validation.ConstraintViolationException;
 
@@ -203,7 +204,8 @@ public final class GlobalExceptionHandler {
         if (requestInfo != null) {
             logBuilder =
                     logBuilder
-                            .addKeyValue(CLIENT_IP_KEY, requestInfo.clientIp())
+                            .addKeyValue(
+                                    CLIENT_IP_KEY, DesensitizeUtils.maskIp(requestInfo.clientIp()))
                             .addKeyValue(TARGET_URI_KEY, requestInfo.requestUri());
         }
 

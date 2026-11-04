@@ -23,6 +23,8 @@ import com.ahogek.cttserver.common.idempotent.IdempotentAspect;
 import com.ahogek.cttserver.common.ratelimit.RateLimitAspect;
 import com.ahogek.cttserver.user.enums.UserStatus;
 
+import jakarta.servlet.http.Cookie;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -36,6 +38,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
@@ -70,6 +73,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
                             IdempotentAspect.class,
                             TermsCheckFilter.class
                         }))
+@TestPropertySource(properties = "ctt.security.trusted-proxy-addresses=10.0.0.10")
 @DisplayName("OAuthCallbackController MockMvc Tests")
 class OAuthCallbackControllerMockMvcTest {
 
@@ -146,6 +150,32 @@ class OAuthCallbackControllerMockMvcTest {
                                             payload.action() == OAuthStatePayload.Action.LOGIN
                                                     && payload.currentUserId() == null
                                                     && payload.clientIp() != null));
+        }
+
+        @Test
+        @DisplayName("Should mark the OAuth state cookie Secure behind a trusted TLS proxy")
+        void shouldMarkStateCookieSecure_whenTrustedProxyTerminatesTls() {
+            String stateId = UUID.randomUUID().toString();
+            BDDMockito.given(stateService.generateAndSaveState(any(OAuthStatePayload.class)))
+                    .willReturn(stateId);
+
+            var result =
+                    mvc.get()
+                            .uri("/api/v1/auth/oauth/{provider}/authorize?action=login", "github")
+                            .with(
+                                    request -> {
+                                        request.setRemoteAddr("10.0.0.10");
+                                        request.addHeader("X-Forwarded-Proto", "https");
+                                        return request;
+                                    })
+                            .exchange();
+
+            assertThat(result).hasStatusOk();
+            assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                    .anyMatch(
+                            header ->
+                                    header.startsWith("ctt_oauth_state=")
+                                            && header.contains("Secure"));
         }
 
         @Test
@@ -279,13 +309,14 @@ class OAuthCallbackControllerMockMvcTest {
                             mvc.get()
                                     .uri(
                                             "/api/v1/auth/oauth/github/callback?code=%s&state=%s"
-                                                    .formatted(CODE, STATE)))
+                                                    .formatted(CODE, STATE))
+                                    .cookie(new Cookie("ctt_oauth_state", STATE)))
                     .hasStatus(302)
                     .redirectedUrl()
                     .contains(FRONTEND_URL + "/oauth/callback")
-                    .contains("accessToken=" + ACCESS_TOKEN)
-                    .contains("refreshToken=" + REFRESH_TOKEN)
-                    .contains("termsExpired=false");
+                    .contains("#accessToken=" + ACCESS_TOKEN)
+                    .contains("&refreshToken=" + REFRESH_TOKEN)
+                    .contains("&termsExpired=false");
         }
 
         @Test
@@ -304,6 +335,7 @@ class OAuthCallbackControllerMockMvcTest {
                             .uri(
                                     "/api/v1/auth/oauth/github/callback?code=%s&state=%s"
                                             .formatted(CODE, STATE))
+                            .cookie(new Cookie("ctt_oauth_state", STATE))
                             .exchange();
 
             assertThat(result).hasStatus(302);
@@ -313,7 +345,11 @@ class OAuthCallbackControllerMockMvcTest {
                     .contains("&passkeyCount=2")
                     .doesNotContain("accessToken=")
                     .doesNotContain("refreshToken=");
-            assertThat(result.getResponse().getHeaders("Set-Cookie")).isEmpty();
+            assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                    .noneMatch(
+                            header ->
+                                    header.startsWith("ctt_access_token=")
+                                            || header.startsWith("ctt_refresh_token="));
         }
 
         @Test
@@ -352,6 +388,19 @@ class OAuthCallbackControllerMockMvcTest {
         }
 
         @Test
+        @DisplayName("Should reject a callback without the state cookie")
+        void shouldRejectCallback_whenStateCookieIsMissing() {
+            assertThat(
+                            mvc.get()
+                                    .uri(
+                                            "/api/v1/auth/oauth/github/callback?code=%s&state=%s"
+                                                    .formatted(CODE, STATE)))
+                    .hasStatus(302)
+                    .redirectedUrl()
+                    .contains("code=INVALID_OAUTH_STATE");
+        }
+
+        @Test
         @DisplayName("Should redirect to error page when state is expired or invalid")
         void shouldRedirectToError_whenStateIsExpired() {
             BDDMockito.given(stateService.consumeState(STATE))
@@ -361,7 +410,8 @@ class OAuthCallbackControllerMockMvcTest {
                             mvc.get()
                                     .uri(
                                             "/api/v1/auth/oauth/github/callback?code=%s&state=%s"
-                                                    .formatted(CODE, STATE)))
+                                                    .formatted(CODE, STATE))
+                                    .cookie(new Cookie("ctt_oauth_state", STATE)))
                     .hasStatus(302)
                     .redirectedUrl()
                     .contains("code=AUTH_013");
@@ -404,7 +454,8 @@ class OAuthCallbackControllerMockMvcTest {
                             mvc.get()
                                     .uri(
                                             "/api/v1/auth/oauth/github/callback?code=%s&state=%s"
-                                                    .formatted(CODE, STATE)))
+                                                    .formatted(CODE, STATE))
+                                    .cookie(new Cookie("ctt_oauth_state", STATE)))
                     .hasStatus(302)
                     .redirectedUrl()
                     .contains(FRONTEND_URL + "/settings/profile")
@@ -447,7 +498,8 @@ class OAuthCallbackControllerMockMvcTest {
                             mvc.get()
                                     .uri(
                                             "/api/v1/auth/oauth/github/callback?code=%s&state=%s"
-                                                    .formatted(CODE, STATE)))
+                                                    .formatted(CODE, STATE))
+                                    .cookie(new Cookie("ctt_oauth_state", STATE)))
                     .hasStatus(302)
                     .redirectedUrl()
                     .contains(FRONTEND_URL + "/settings/profile")
@@ -479,7 +531,8 @@ class OAuthCallbackControllerMockMvcTest {
                             mvc.get()
                                     .uri(
                                             "/api/v1/auth/oauth/github/callback?code=%s&state=%s"
-                                                    .formatted(CODE, STATE)))
+                                                    .formatted(CODE, STATE))
+                                    .cookie(new Cookie("ctt_oauth_state", STATE)))
                     .hasStatus(302)
                     .redirectedUrl()
                     .doesNotContain("accessToken=")

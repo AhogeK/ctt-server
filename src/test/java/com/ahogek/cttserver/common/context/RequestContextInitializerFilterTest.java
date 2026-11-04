@@ -31,7 +31,7 @@ class RequestContextInitializerFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new RequestContextInitializerFilter();
+        filter = new RequestContextInitializerFilter("");
         MDC.clear();
     }
 
@@ -58,7 +58,7 @@ class RequestContextInitializerFilterTest {
 
     @Test
     void doFilter_withTraceIdHeader_reusesTraceId() {
-        String existingTraceId = "existing-trace-id-123";
+        String existingTraceId = "0123456789abcdef0123456789abcdef";
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER))
                 .thenReturn(existingTraceId);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
@@ -89,6 +89,25 @@ class RequestContextInitializerFilterTest {
                 .setHeader(
                         eq(RequestContextInitializerFilter.TRACE_HEADER),
                         argThat(s -> s != null && !s.isBlank()));
+    }
+
+    @Test
+    void doFilter_setsHsts_whenTrustedProxyTerminatesTls() throws Exception {
+        RequestContextInitializerFilter proxyAware =
+                new RequestContextInitializerFilter("10.0.0.10");
+        when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
+        when(request.getHeader("User-Agent")).thenReturn("TestAgent");
+        when(request.getRequestURI()).thenReturn("/api/test");
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getRemoteAddr()).thenReturn("10.0.0.10");
+        when(request.getHeader("X-Forwarded-Proto")).thenReturn("https");
+        when(request.getHeader("X-Forwarded-For")).thenReturn(null);
+        when(request.getHeader("X-Real-IP")).thenReturn(null);
+
+        proxyAware.doFilterInternal(request, response, filterChain);
+
+        verify(response)
+                .setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     }
 
     @Test
@@ -143,7 +162,7 @@ class RequestContextInitializerFilterTest {
     @Test
     void doFilter_setsMdcKeys() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER))
-                .thenReturn("test-trace-id");
+                .thenReturn("0123456789abcdef0123456789abcdef");
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
         when(request.getMethod()).thenReturn("POST");
@@ -169,8 +188,8 @@ class RequestContextInitializerFilterTest {
 
         filter.doFilterInternal(request, response, filterChain);
 
-        assertEquals("test-trace-id", capturedTraceId[0]);
-        assertEquals("192.168.1.100", capturedClientIp[0]);
+        assertEquals("0123456789abcdef0123456789abcdef", capturedTraceId[0]);
+        assertEquals("192.168.1.***", capturedClientIp[0]);
         assertEquals("POST", capturedMethod[0]);
         assertEquals("/api/test", capturedUri[0]);
     }
