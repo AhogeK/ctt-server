@@ -1,6 +1,6 @@
 # Active Context
 
-- [2026-11-04] - 安全加固与刷新 Cookie（v0.91.3，未提交）
+- [2026-11-04] - 安全加固与刷新 Cookie（v0.91.3，已推送 develop / master）
     - API key 仅浏览器可改密码/邮箱；密码变更撤销其他 session 与 API keys；JWT/OAuth key 无公开 fallback；actuator 仅 health/info；XFF 仅可信代理；OAuth state cookie + token fragment（可信 TLS 代理下 Secure）；audit trace/IP 校验；mail outbox cascade/retention、显式 user_id、失败日志脱敏；MDC IP 脱敏；sync 批量上限；HSTS 代理；`/auth/refresh` Cookie 优先、body 可省略（无令牌 400，service 空令牌 401）
     - 全量 **1669 tests / 0 failures / 1 skipped**，build/coverage 通过；前端影响见 `.omp/reports/2026-11-04/security-hardening-frontend-report.md` 与 `.omp/reports/2026-11-04/refresh-cookie-only-frontend-report.md`
 
