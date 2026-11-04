@@ -105,7 +105,7 @@ public class MailOutboxProcessor {
                     "Processing email [id={}, traceId={}] to {}",
                     messageId,
                     managedOutbox.getTraceId(),
-                    managedOutbox.getRecipient());
+                    DesensitizeUtils.maskEmail(managedOutbox.getRecipient()));
 
             // Attempt SMTP delivery
             mailDispatcher.dispatch(managedOutbox);
@@ -117,7 +117,7 @@ public class MailOutboxProcessor {
             log.info(
                     "Email sent successfully [id={}] to {}",
                     messageId,
-                    managedOutbox.getRecipient());
+                    DesensitizeUtils.maskEmail(managedOutbox.getRecipient()));
 
             // Publish audit event
             publishMailSentAudit(managedOutbox);
@@ -157,7 +157,7 @@ public class MailOutboxProcessor {
             log.warn(
                     "Email delivery exhausted max retries [id={}] to {} after {} attempts",
                     messageId,
-                    outbox.getRecipient(),
+                    DesensitizeUtils.maskEmail(outbox.getRecipient()),
                     outbox.getRetryCount());
 
             publishMailDeliveryExhaustedAudit(outbox, errorMessage);
@@ -165,7 +165,7 @@ public class MailOutboxProcessor {
             log.warn(
                     "Email delivery failed [id={}] to {}, retry {}/{} scheduled at {}",
                     messageId,
-                    outbox.getRecipient(),
+                    DesensitizeUtils.maskEmail(outbox.getRecipient()),
                     outbox.getRetryCount(),
                     outbox.getMaxRetries(),
                     nextRetryAt);

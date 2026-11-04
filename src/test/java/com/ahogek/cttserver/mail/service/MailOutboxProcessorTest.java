@@ -22,6 +22,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.OptimisticLockingFailureException;
 
 import java.time.Instant;
@@ -37,7 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class MailOutboxProcessorTest {
 
     private static final int MAX_ATTEMPTS = 5;
@@ -131,6 +133,20 @@ class MailOutboxProcessorTest {
                             eq(outbox.getId().toString()),
                             eq(SecuritySeverity.WARNING),
                             any(AuditDetails.class));
+        }
+
+        @Test
+        @DisplayName("should mask the recipient in delivery-failure logs")
+        void shouldMaskRecipient_whenDeliveryFails(CapturedOutput output) throws Exception {
+            MailOutbox outbox = createPendingOutbox();
+            when(outboxRepository.saveAndFlush(any())).thenReturn(outbox);
+            when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
+            doThrow(new MessagingException("SMTP error")).when(mailDispatcher).dispatch(any());
+            when(retryStrategy.calculateNextRetryTime(0)).thenReturn(Instant.now().plusSeconds(60));
+
+            processor.processSingleMessage(outbox);
+
+            assertThat(output).contains("te***@example.com").doesNotContain("test@example.com");
         }
 
         @Test
