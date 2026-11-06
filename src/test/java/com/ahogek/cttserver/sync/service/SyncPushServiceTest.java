@@ -7,7 +7,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
-import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
+import com.ahogek.cttserver.leaderboard.service.LeaderboardRecomputeQueue;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
 import com.ahogek.cttserver.sync.entity.CodingSession;
@@ -51,7 +51,7 @@ class SyncPushServiceTest {
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private DeviceRepository deviceRepository;
     @Mock private AuditLogService auditLogService;
-    @Mock private LeaderboardService leaderboardService;
+    @Mock private LeaderboardRecomputeQueue leaderboardQueue;
 
     @Mock
     private com.ahogek.cttserver.stats.materialization.service.DailyStatsMaterializer
@@ -73,7 +73,7 @@ class SyncPushServiceTest {
                         deviceRepository,
                         auditLogService,
                         jdbcTemplate,
-                        leaderboardService,
+                        leaderboardQueue,
                         dailyStatsMaterializer,
                         achievementService);
         when(deviceRepository.findByIdAndUserId(deviceId, userId))
@@ -198,13 +198,9 @@ class SyncPushServiceTest {
 
             verify(jdbcTemplate, atLeastOnce()).update(anyString(), any(Object[].class));
 
-            verify(auditLogService)
-                    .logSuccess(
-                            userId,
-                            AuditAction.SYNC_PUSH,
-                            ResourceType.CODING_SESSION,
-                            deviceId.toString());
-            verify(leaderboardService).updateUserScores(userId);
+            // Success is application-logged, not audited (see the failure assertions below).
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
+            verify(leaderboardQueue).markDirty(userId);
         }
 
         @Test
@@ -475,12 +471,7 @@ class SyncPushServiceTest {
             assertThat(response.nextCursor()).isEqualTo(7);
             verify(codingSessionRepository, never()).saveAll(any());
             verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
-            verify(auditLogService)
-                    .logSuccess(
-                            userId,
-                            AuditAction.SYNC_PUSH,
-                            ResourceType.CODING_SESSION,
-                            deviceId.toString());
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
         }
 
         @Test

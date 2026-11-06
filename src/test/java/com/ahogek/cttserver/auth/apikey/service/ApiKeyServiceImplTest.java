@@ -506,6 +506,45 @@ class ApiKeyServiceImplTest {
             assertThat(captor.getValue().getLastUsedAt()).isNotNull();
         }
 
+        @Test
+        @DisplayName("shouldSkipTheWrite_whenLastUsedAtIsStillFresh")
+        void shouldSkipTheWrite_whenLastUsedAtIsStillFresh() {
+            // Given: the key authenticated within the last hour, so last_used_at is current.
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            apiKey.setLastUsedAt(Instant.now().minusSeconds(60));
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.findByKeyHash(KEY_HASH)).willReturn(Optional.of(apiKey));
+
+            // When
+            ApiKey result = apiKeyService.validateAndTouch(RAW_KEY);
+
+            // Then: the key still authenticates, but the unchanged value costs no UPDATE.
+            assertThat(result).isSameAs(apiKey);
+            then(apiKeyRepository).should(never()).save(any(ApiKey.class));
+        }
+
+        @Test
+        @DisplayName("shouldWriteLastUsedAt_whenThePreviousWriteHasAgedOut")
+        void shouldWriteLastUsedAt_whenThePreviousWriteHasAgedOut() {
+            // Given: the last write is older than the throttle window.
+            ApiKey apiKey = new ApiKey();
+            apiKey.setId(KEY_ID);
+            apiKey.setUser(user);
+            apiKey.setLastUsedAt(Instant.now().minusSeconds(3601));
+            given(apiKeyHasher.hashKey(RAW_KEY)).willReturn(KEY_HASH);
+            given(apiKeyRepository.findByKeyHash(KEY_HASH)).willReturn(Optional.of(apiKey));
+            given(apiKeyRepository.save(any(ApiKey.class))).willReturn(apiKey);
+
+            // When
+            apiKeyService.validateAndTouch(RAW_KEY);
+
+            // Then
+            then(apiKeyRepository).should().save(apiKey);
+            assertThat(apiKey.getLastUsedAt()).isAfter(Instant.now().minusSeconds(60));
+        }
+
         @ParameterizedTest
         @EnumSource(
                 value = UserStatus.class,

@@ -8,7 +8,7 @@ import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
-import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
+import com.ahogek.cttserver.leaderboard.service.LeaderboardRecomputeQueue;
 import com.ahogek.cttserver.stats.achievement.service.AchievementService;
 import com.ahogek.cttserver.stats.materialization.service.DailyStatsMaterializer;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
@@ -57,7 +57,7 @@ public class SyncPushService {
     private final DeviceRepository deviceRepository;
     private final AuditLogService auditLogService;
     private final JdbcTemplate jdbcTemplate;
-    private final LeaderboardService leaderboardService;
+    private final LeaderboardRecomputeQueue leaderboardQueue;
     private final DailyStatsMaterializer dailyStatsMaterializer;
     private final AchievementService achievementService;
 
@@ -67,7 +67,7 @@ public class SyncPushService {
             DeviceRepository deviceRepository,
             AuditLogService auditLogService,
             JdbcTemplate jdbcTemplate,
-            LeaderboardService leaderboardService,
+            LeaderboardRecomputeQueue leaderboardQueue,
             DailyStatsMaterializer dailyStatsMaterializer,
             AchievementService achievementService) {
         this.codingSessionRepository = codingSessionRepository;
@@ -75,7 +75,7 @@ public class SyncPushService {
         this.deviceRepository = deviceRepository;
         this.auditLogService = auditLogService;
         this.jdbcTemplate = jdbcTemplate;
-        this.leaderboardService = leaderboardService;
+        this.leaderboardQueue = leaderboardQueue;
         this.dailyStatsMaterializer = dailyStatsMaterializer;
         this.achievementService = achievementService;
     }
@@ -100,7 +100,7 @@ public class SyncPushService {
             SyncPushResponse response = doPush(userId, deviceId, sessions);
             updateMaterializedStats(userId, sessions);
             achievementService.evictCache(userId);
-            updateLeaderboard(userId);
+            leaderboardQueue.markDirty(userId);
             return response;
         } catch (Exception e) {
             auditLogService.logFailure(
@@ -203,8 +203,8 @@ public class SyncPushService {
         }
 
         long nextCursor = sessionChangeRepository.findMaxChangeIdForUser(userId);
-        auditLogService.logSuccess(
-                userId, AuditAction.SYNC_PUSH, ResourceType.CODING_SESSION, deviceId.toString());
+        // Success is application-logged below; audit_logs keeps only failures (see push()'s catch).
+        // A push is1-8/day/device, but the success row was still pure data-plane volume.
         log.info(
                 "User {} pushed {} sessions from device {} ({} created, {} updated, {} changes)",
                 userId,
@@ -234,15 +234,6 @@ public class SyncPushService {
         if (!touched.isEmpty()) {
             dailyStatsMaterializer.recomputeDays(userId, new ArrayList<>(touched));
         }
-    }
-
-    /**
-     * Recomputes the pushed user's leaderboard scores so the global ranking reflects the new
-     * sessions immediately. {@link LeaderboardService#updateUserScores} is failure-tolerant and the
-     * next push self-heals, so a transient Redis issue never rolls back the push.
-     */
-    private void updateLeaderboard(UUID userId) {
-        leaderboardService.updateUserScores(userId);
     }
 
     /** A session mutation awaiting persistence together with its change-log entry. */

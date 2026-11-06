@@ -41,6 +41,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,11 +66,23 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String AUTH_FAILURE_KEY_PREFIX = "api_key_auth_fail:";
 
+    /** Sampling window for {@code API_KEY_USED}: one row per key per hour-bucket. */
+    private static final long AUDIT_BUCKET_SECONDS = 3600;
+
+    /**
+     * Size at which stale hour-buckets are dropped. Above a realistic key count the map is pruned
+     * rather than allowed to grow with every key ever issued.
+     */
+    private static final int AUDIT_BUCKET_TRACK_CAP = 1024;
+
     private final ApiKeyService apiKeyService;
     private final AuditLogService auditLogService;
     private final SecurityProperties.ApiKeyProperties apiKeyProperties;
     private final ObjectMapper objectMapper;
     private final RedisRateLimiter redisRateLimiter;
+
+    /** Key id → hour-bucket already audited, so one key writes at most one row per hour. */
+    private final ConcurrentHashMap<UUID, Long> lastAuditedBucket = new ConcurrentHashMap<>();
 
     public ApiKeyAuthenticationFilter(
             ApiKeyService apiKeyService,
@@ -127,11 +141,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                     principal.userId(),
                     principal.keyId());
 
-            auditLogService.logSuccess(
-                    principal.userId(),
-                    AuditAction.API_KEY_USED,
-                    ResourceType.API_KEY,
-                    principal.keyId().toString());
+            auditApiKeyUse(principal);
 
             filterChain.doFilter(request, response);
 
@@ -141,6 +151,47 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             handleAuthFailure(request, response, ex.errorCode());
         } catch (ForbiddenException ex) {
             handleAuthFailure(request, response, ex.errorCode());
+        }
+    }
+
+    /**
+     * Records {@code API_KEY_USED} at most once per key per hour.
+     *
+     * <p>The event answers "is this key in use", not "how often": a plugin polls every few minutes,
+     * so an unconditional row made it (with {@code SYNC_PULL}) 90% of {@code audit_logs}. Sampling
+     * per key keeps every active key visible once an hour, records a first use immediately (an
+     * empty map after restart always logs), and turns a leaked key's trail from hundreds of rows a
+     * day into 24. Failures are never sampled — {@code API_KEY_AUTH_FAILED} still logs every time.
+     *
+     * <p>The map is keyed by key id and holds one hour-bucket long per key, so it is bounded by the
+     * number of API keys; buckets older than the previous hour are dropped when it grows past a key
+     * count an installation realistically has, which keeps a deleted key from pinning memory.
+     *
+     * @param principal the authenticated principal
+     */
+    private void auditApiKeyUse(ApiKeyPrincipal principal) {
+        long bucket = System.currentTimeMillis() / 1000 / AUDIT_BUCKET_SECONDS;
+        AtomicBoolean shouldLog = new AtomicBoolean();
+        lastAuditedBucket.compute(
+                principal.keyId(),
+                (keyId, previous) -> {
+                    if (previous == null || previous < bucket) {
+                        shouldLog.set(true);
+                        return bucket;
+                    }
+                    return previous;
+                });
+
+        if (lastAuditedBucket.size() > AUDIT_BUCKET_TRACK_CAP) {
+            lastAuditedBucket.entrySet().removeIf(entry -> entry.getValue() < bucket - 1);
+        }
+
+        if (shouldLog.get()) {
+            auditLogService.logSuccess(
+                    principal.userId(),
+                    AuditAction.API_KEY_USED,
+                    ResourceType.API_KEY,
+                    principal.keyId().toString());
         }
     }
 
