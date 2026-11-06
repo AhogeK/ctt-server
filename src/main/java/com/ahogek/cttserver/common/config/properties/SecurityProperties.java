@@ -60,11 +60,15 @@ public record SecurityProperties(
             @DefaultValue("DB") String storage) {}
 
     /**
-     * Global rate limiting fallback strategy.
+     * Rate limiting strategy: the top-level switch plus the installation-wide request ceiling.
      *
-     * <p><strong>NOTE:</strong> Currently defined for future use. The fine-grained @RateLimit
-     * annotation-based rate limiting is already implemented. This global fallback will be
-     * integrated in a future phase for defense-in-depth.
+     * <p>{@code enabled} turns every {@code @RateLimit} guard off (tests, local development).
+     * {@code globalMaxRequestsPerSecond} is enforced by {@code GlobalRequestGuard} in front of the
+     * per-dimension buckets: it caps how many rate-limited requests one application instance
+     * accepts per second, so a large fleet of individually well-behaved clients cannot drive the
+     * database past the instance's capacity. It is a per-instance ceiling — an N-instance
+     * deployment has an effective ceiling of N times this value, and a true fleet-wide ceiling
+     * belongs at the edge proxy.
      */
     public record RateLimitProperties(
             @DefaultValue("true") boolean enabled,

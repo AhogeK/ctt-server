@@ -190,7 +190,7 @@ public class LeaderboardController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping
     public ResponseEntity<RestApiResponse<LeaderboardResponse>> leaderboard(
             @RequestParam("dimension") LeaderboardDimension dimension,
@@ -253,7 +253,7 @@ public class LeaderboardController {
                                                                         + "\"httpStatus\":401}"))),
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/languages")
     public ResponseEntity<RestApiResponse<LanguageBoardsResponse>> languages(
             @RequestParam(name = "includeEmpty", defaultValue = "false")

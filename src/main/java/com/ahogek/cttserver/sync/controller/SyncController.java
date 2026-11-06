@@ -198,13 +198,17 @@ public class SyncController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.SYNC)
-    @RateLimit(type = RateLimitType.API, limit = 120, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 600, windowSeconds = 60)
     @PostMapping("/pull")
     public ResponseEntity<RestApiResponse<SyncPullResponse>> pull(
             @Valid @RequestBody SyncPullRequest request) {
         UUID userId = currentUserProvider.getCurrentUserRequired().id();
         SyncPullResponse response =
-                syncPullService.pull(userId, request.deviceId(), request.lastPulledChangeId());
+                syncPullService.pull(
+                        userId,
+                        request.deviceId(),
+                        request.lastPulledChangeId(),
+                        request.replayFromChangeId());
         return ResponseEntity.ok(RestApiResponse.ok(response));
     }
 
@@ -279,7 +283,7 @@ public class SyncController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.SYNC)
-    @RateLimit(type = RateLimitType.API, limit = 120, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 120, windowSeconds = 60)
     @PostMapping("/push")
     public ResponseEntity<RestApiResponse<SyncPushResponse>> push(
             @Valid @RequestBody SyncPushRequest request) {

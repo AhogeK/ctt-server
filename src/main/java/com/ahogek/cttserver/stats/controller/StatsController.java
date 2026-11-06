@@ -192,7 +192,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/summary")
     public ResponseEntity<RestApiResponse<StatsSummaryResponse>> summary(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
@@ -282,7 +282,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/heatmap")
     public ResponseEntity<RestApiResponse<HeatmapResponse>> heatmap(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
@@ -384,7 +384,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/streaks")
     public ResponseEntity<RestApiResponse<StreakStatsResponse>> streaks(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
@@ -478,7 +478,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/distribution")
     public ResponseEntity<RestApiResponse<DistributionResponse>> distribution(
             @RequestParam("type") DistributionType type,
@@ -590,7 +590,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/hourly")
     public ResponseEntity<RestApiResponse<HourlyDistributionResponse>> hourly(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
@@ -706,7 +706,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/hourly-days")
     public ResponseEntity<RestApiResponse<HourlyDaysResponse>> hourlyDays(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
@@ -821,7 +821,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/week-hour")
     public ResponseEntity<RestApiResponse<WeekHourDistributionResponse>> weekHour(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
@@ -930,7 +930,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/recent")
     public ResponseEntity<RestApiResponse<List<RecentSessionResponse>>> recent(
             @RequestParam(name = "limit", defaultValue = "20") @Min(1) @Max(100) int limit,
@@ -983,7 +983,7 @@ public class StatsController {
                                                         value = UNAUTHORIZED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/heatmap-years")
     public ResponseEntity<RestApiResponse<List<Integer>>> heatmapYears(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
@@ -1021,7 +1021,7 @@ public class StatsController {
                                                         value = UNAUTHORIZED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/heatmap-months")
     public ResponseEntity<RestApiResponse<List<String>>> heatmapMonths(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)
@@ -1057,7 +1057,7 @@ public class StatsController {
                                                         value = UNAUTHORIZED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/ide-filters")
     public ResponseEntity<RestApiResponse<List<String>>> ideFilters() {
         CurrentUser currentUser = currentUserProvider.getCurrentUserRequired();
@@ -1117,7 +1117,7 @@ public class StatsController {
                                                         value = RATE_LIMITED_EXAMPLE)))
             })
     @RequiresApiKeyScope(ApiKeyScope.READ)
-    @RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+    @RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
     @GetMapping("/achievements")
     public ResponseEntity<RestApiResponse<List<AchievementResponse>>> achievements(
             @RequestParam(name = "timezoneOffset", defaultValue = "0") @Min(-720) @Max(720)

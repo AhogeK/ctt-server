@@ -5,6 +5,12 @@ package com.ahogek.cttserver.common.ratelimit;
  *
  * <p>Determines how the rate limiting counter is isolated (e.g., per user, per IP).
  *
+ * <p>The former {@code API} dimension — a bucket shared by every caller of one endpoint — was
+ * removed on 2026-11-05. It turned an endpoint-level ceiling into a fleet-wide one, so a single
+ * account could starve every other account. Per-account buckets ({@code USER}) plus the
+ * installation-wide ceiling enforced by {@code GlobalRequestGuard} cover both needs without that
+ * footgun.
+ *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-17
  */
@@ -33,12 +39,5 @@ public enum RateLimitType {
      * <p>Best for preventing email verification bombing attacks. Requires keyExpression to extract
      * email from request.
      */
-    EMAIL,
-
-    /**
-     * Global rate limit for the endpoint regardless of who calls it.
-     *
-     * <p>Best for extremely expensive operations or 3rd party API proxies.
-     */
-    API
+    EMAIL
 }

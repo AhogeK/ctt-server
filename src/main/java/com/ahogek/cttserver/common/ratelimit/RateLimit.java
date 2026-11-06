@@ -13,7 +13,9 @@ import java.lang.annotation.Target;
  * <p>Applied at the controller method level. Uses AOP to enforce limits before the business logic
  * executes.
  *
- * <p>Supports four dimensions: IP, USER, EMAIL (with SpEL), and API (global).
+ * <p>Supports three dimensions: IP, USER (the account owning the session or API key), and EMAIL
+ * (with SpEL). In front of every dimension bucket an installation-wide request ceiling is applied
+ * by {@code GlobalRequestGuard}, so the effective order is ceiling first, dimension second.
  *
  * <p>Can be repeated to apply multiple rate limits on different dimensions simultaneously.
  *

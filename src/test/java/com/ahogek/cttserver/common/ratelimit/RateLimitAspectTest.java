@@ -5,6 +5,7 @@ import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
+import com.ahogek.cttserver.common.ratelimit.core.GlobalRequestGuard;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
@@ -40,6 +41,7 @@ class RateLimitAspectTest {
     private RedisRateLimiter mockRateLimiter;
     private AuditLogService mockAuditLog;
     private CurrentUserProvider mockUserProvider;
+    private GlobalRequestGuard mockGlobalGuard;
     private RateLimitAspect aspect;
     private ProceedingJoinPoint mockJoinPoint;
 
@@ -49,6 +51,8 @@ class RateLimitAspectTest {
         mockRateLimiter = mock(RedisRateLimiter.class);
         mockAuditLog = mock(AuditLogService.class);
         mockUserProvider = mock(CurrentUserProvider.class);
+        mockGlobalGuard = mock(GlobalRequestGuard.class);
+        when(mockGlobalGuard.tryAcquire()).thenReturn(true);
         SpelExpressionResolver mockSpelResolver = mock(SpelExpressionResolver.class);
         SecurityProperties mockSecurity = mock(SecurityProperties.class);
         when(mockSecurity.rateLimit())
@@ -60,7 +64,8 @@ class RateLimitAspectTest {
                         mockAuditLog,
                         mockUserProvider,
                         mockSpelResolver,
-                        mockSecurity);
+                        mockSecurity,
+                        mockGlobalGuard);
         mockJoinPoint = mock(ProceedingJoinPoint.class);
         MethodSignature mockSignature = mock(MethodSignature.class);
 
@@ -131,6 +136,26 @@ class RateLimitAspectTest {
         assertThatThrownBy(() -> aspect.interceptSingle(mockJoinPoint, rateLimit))
                 .isInstanceOf(TooManyRequestsException.class)
                 .satisfies(ex -> assertThat(((TooManyRequestsException) ex).retryAfter()).isNull());
+    }
+
+    @Test
+    void intercept_whenGlobalCeilingExceeded_throwsExceptionBeforeTheDimensionBucket() {
+        RateLimit rateLimit = createRateLimit(10, 60);
+        when(mockGlobalGuard.tryAcquire()).thenReturn(false);
+
+        assertThatThrownBy(() -> aspect.interceptSingle(mockJoinPoint, rateLimit))
+                .isInstanceOf(TooManyRequestsException.class)
+                .hasMessageContaining("Too many requests")
+                .satisfies(
+                        ex ->
+                                assertThat(((TooManyRequestsException) ex).retryAfter())
+                                        .isCloseTo(
+                                                Instant.now().plusSeconds(1),
+                                                within(2, ChronoUnit.SECONDS)));
+
+        // The installation-wide ceiling fires first: no per-dimension bucket is even consulted.
+        verify(mockKeyFactory, never()).generateKey(any(), anyString(), any());
+        verify(mockRateLimiter, never()).checkLimit(anyString(), anyInt(), anyInt());
     }
 
     private Method getTestMethod() throws NoSuchMethodException {
