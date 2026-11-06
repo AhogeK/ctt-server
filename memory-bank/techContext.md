@@ -7,7 +7,7 @@
 | 语言 | Java 25 (Virtual Threads) |
 | 框架 | Spring Boot 4.1.2 |
 | 构建 | Gradle 9.8.2 + Kotlin DSL + Version Catalog |
-| 数据库 | PostgreSQL（测试容器 `postgres:16.3`）+ Flyway 13.11.1 |
+| 数据库 | PostgreSQL **18.6**（生产/开发库实测 `select version()`）；测试容器当前用 `postgres:latest`，按计划 P0.2 与 compose 一并固定到 18；Flyway 13.11.1 |
 | 缓存 | Redis（测试容器 `redis:latest`） |
 | 安全 | Spring Security 7（随 Boot BOM）+ `spring-security-oauth2-jose` |
 | 两步验证 | `otp-java` 2.2.0（RFC 6238）+ `commons-codec` 1.22.0（Base32） |

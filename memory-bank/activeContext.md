@@ -1,10 +1,10 @@
 # Active Context
 
-- [2026-11-06] - 插件接入 replay 与 gzip，服务端修正游标契约；轮询写收敛（v0.92.0 → v0.92.1）
+- [2026-11-07] - 运维与可观测性升级计划（draft，已按要求重写）：`.plans/ctt-server-development-plan.md` §「🔍 运维与可观测性升级」—— 选型全部定案，阶段 P0–P7：P0 修既有状态（隧道改 systemd、端口收口、生产库隔离）、P1 指标与追踪、P2 告警面板、P3 发布链、P4 备份与 Resend、P5 压测演练、P6 文档、P7 对外接入（`ctt.ahogek.com` 阿里云 A 记录 + certbot、GitHub OAuth、Passkey/hCaptcha/CORS）。补「本地先行」一节。**仓库内不写真实 IP 与主机名**（角色名 + `.omp/notes/2026-11-07/deployment-endpoints.md`，`.omp/` 已 gitignore）。deep research 后修正六处：GitHub 单 App 可存 10 个回调但省略 `redirect_uri` 只用第一个；Jenkins 实为 nginx 443 + ufw 默认拒绝（非 8080 公网）；Resend 无 SMTP 服务端日志；可信代理须含 edge 那一跳且 edge 要用 host 网络（否则 IP 限流与审计退化）；`management.server.port` 还需 `management.server.address`；**部署机 ufw 装了但 `ENABLED=no`，PG/Redis 对整段 LAN 全开**（P0.13 改为启用防火墙，实施需你在场输 sudo 密码）
+- [2026-11-06] - 同步容量研究与修复（v0.92.0 → v0.92.1；实测表见 `domains/sync-protocol/references.md`，研究全文 `.omp/research/2026-11-05/`）
     - 插件 0.22.0：每轮 pull 用本机游标作 `replayFromChangeId`、每页应用后持久化游标；老服务端 400 时回退为普通请求并按小时重探；所有请求发 `Accept-Encoding: gzip` 并自行解压
     - 服务端修真实缺陷：`nextCursor` 曾被抬到 watermark，会让落后超过一页的客户端跳过未收到的变更；改为「实际下发页尾」，单调性交给 upsert 的 `GREATEST`
     - 轮询写收敛（v0.92.1）：游标未推进不再 upsert（空轮询不写库）、设备心跳 15 分钟内不重写。审计表实测 29,749 行 / 11 MB、89% 是已停写的数据面行为；收口后增量按活跃 key 计（每 key ≤24 行/天）⇒ **不做清理或分区**，只纠正「20 年后 2.7 GB」的过时推算并留复查阈值（>1 GB 或查询变慢）
-- [2026-11-05] - 同步容量研究：实测与容量表见 `domains/sync-protocol/references.md`，真瓶颈是全局限流桶 / push 内全量重算排行榜 / 空轮询审计写放大，另发现长排空会把乐观 watermark 变成丢页（研究全文 `.omp/research/2026-11-05/`）
 - [2026-11-04] - 安全加固与刷新 Cookie（v0.91.3 已推送 develop / master；v0.91.4 OAuth 恢复修复随 2026-11-06 批次提交）
     - API key 仅浏览器可改密码/邮箱；密码变更撤销其他 session 与 API keys；JWT/OAuth key 无公开 fallback；actuator 仅 health/info；XFF 仅可信代理；OAuth state cookie + token fragment（可信 TLS 代理下 Secure）；audit trace/IP 校验；mail outbox cascade/retention、显式 user_id、失败日志脱敏；MDC IP 脱敏；sync 批量上限；HSTS 代理；`/auth/refresh` Cookie 优先、body 可省略（无令牌 400，service 空令牌 401）；旧 OAuth 密钥密文按缺失处理，避免账户列表 500
     - 全量 **1671 tests / 0 failures / 1 skipped**，build/coverage 通过；前端影响见 `.omp/reports/2026-11-04/security-hardening-frontend-report.md` 与 `.omp/reports/2026-11-04/refresh-cookie-only-frontend-report.md`
@@ -52,7 +52,7 @@
     - 测试: 零会话用户只移除不写入（仅 `growth` 键可写 0）、负增长与零增长仍写入、零时长语言不建榜、TTL 只在写分时设置；集成用例「无活动用户不在榜上且 `totalParticipants` = 1」；状态: 实施完成，待授权提交
 
 - [2026-10-25] - 窗口化 STREAK 回填缺失修复（v0.85.1，已提交推送）
-    - 前端报告核实: **五项断言全部属实**。Redis 实测（192.168.5.178:6379）：`leaderboard:streak`=2，`month/quarter/half-year/year` 四个窗口各 1；`leaderboard:recompute:g2:vocab2` 存在；代码 `SCORE_RULE_GENERATION` 仍为 2
+    - 前端报告核实: **五项断言全部属实**。Redis 实测（部署机，地址不入库）：`leaderboard:streak`=2，`month/quarter/half-year/year` 四个窗口各 1；`leaderboard:recompute:g2:vocab2` 存在；代码 `SCORE_RULE_GENERATION` 仍为 2
     - 根因: 标记键只有「代次 + 词表版本」，0.85.0 放开 `STREAK` 全部周期既没提升代次、标记也不含矩阵信息 ⇒ 旧标记命中，`backfillScores()` 首次判断即 return，未推送过的用户没有窗口键；查不存在的 ZSet 返回 200 + 空列表，前端显示空态而非错误
     - 修复: 代次 2 → 3；标记改为 `g{n}:cov{8位}:vocab{v}`，其中 `cov` 由 `LeaderboardDimension.values() × supports()` 排序后 SHA-256 现算 ⇒ **新增维度或放开周期自动失效**；改公式仍需人工提升代次。新标记 `leaderboard:recompute:g3:covbdc93f7f:vocab2`（41 个合法组合）
     - 测试: 断言不再复用 `g2:vocab2`、矩阵增删即改变指纹、枚举顺序无关，排行榜相关 49 例全绿；**刻意未做**：不在真实 Redis 手工回填（共享数据），部署后由 `ctt.leaderboard.backfill-initial-delay-ms`（60s）触发
@@ -63,7 +63,7 @@
 
 - [2026-10-23] - 数据库连不上诊断（**第二次复发，非代码问题**）
     - 现象: IDEA 内启动应用 ⇒ `flywayInitializer` 取连接失败，根因 `java.net.NoRouteToHostException`（EHOSTUNREACH，SQLState 08001）
-    - 证据: 本批未改任何数据源配置；**系统 shell** 到 `192.168.5.178:5432` 的 `ping` 0% 丢包、`nc -z` 成功；系统日志反复出现 `LocalNetwork: found bundle id com.jetbrains.intellij`
+    - 证据: 本批未改任何数据源配置；**系统 shell** 到部署机 PostgreSQL（地址不入库）的 `ping` 0% 丢包、`nc -z` 成功；系统日志反复出现 `LocalNetwork: found bundle id com.jetbrains.intellij`
     - 结论: macOS「本地网络」权限挡住 **IDEA 进程**（同一地址外部 Terminal 可连）；处置 = 关开该权限 + `Cmd+Q` 完全重启 IDEA，或在系统 Terminal `./gradlew bootRun`
     - 沉淀: `AGENTS.md` R8 新增「环境类故障先对照再怀疑代码」（异常类型对照表 + 用系统 shell 对照）；详细报告 `.omp/reports/2026-10-23/db-unreachable-diagnosis.md`
 

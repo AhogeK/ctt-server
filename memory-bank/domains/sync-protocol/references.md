@@ -83,7 +83,7 @@ list already reports via `lastSeenAt`.
 
 ## 容量实测（2026-11-05，生产库只读测量 + `EXPLAIN ANALYZE`）
 
-口径：`psql` 直查 `192.168.5.178:5432/ctt_server`；研究全文见 `.omp/research/2026-11-05/sync-capacity-study.md`。
+口径：`psql` 直查部署机的生产库 `ctt_server`（主机地址不入库，见私密运维记录）；研究全文见 `.omp/research/2026-11-05/sync-capacity-study.md`。
 
 | 事实 | 数值 |
 | --- | --- |
