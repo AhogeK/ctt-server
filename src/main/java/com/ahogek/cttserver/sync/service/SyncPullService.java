@@ -170,7 +170,13 @@ public class SyncPullService {
         // it.
         long nextCursor = pageLast;
 
-        syncCursorRepository.advancePullWatermark(userId, deviceId, nextCursor);
+        // An idle poll advances nothing, and idle polls are the majority (406-540 per device per
+        // day). Re-storing the same watermark costs a row version and a WAL record while changing
+        // no state, so it is skipped; a device that has never advanced simply has no cursor row,
+        // which reads back as 0.
+        if (nextCursor > persistedCursor) {
+            syncCursorRepository.advancePullWatermark(userId, deviceId, nextCursor);
+        }
         // Data-plane success goes to the application log below, not to audit_logs: a pull is the
         // plugin's heartbeat (406-540/day/device measured 2026-11-05) and success rows were 90% of
         // the table. Failures are still audited in pull()'s catch block.
