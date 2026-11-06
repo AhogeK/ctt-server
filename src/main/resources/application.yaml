@@ -59,6 +59,17 @@ server:
   servlet:
     context-path: /ctt-server
   shutdown: graceful
+  compression:
+    # Negotiated only, never forced: a client that sends no Accept-Encoding receives exactly the
+    # bytes it receives today. That is what makes this safe for the JetBrains plugin — the JDK
+    # HttpClient it uses sends no Accept-Encoding and does not decompress, so a server that
+    # compressed unconditionally would hand it gzip bytes it would try to parse as JSON. Browsers
+    # and the web frontend opt in per request. Responses that carry a token (login, refresh) also
+    # carry no attacker-controlled content, so the BREACH precondition — a secret and attacker
+    # input in one compressed body — does not hold.
+    enabled: true
+    mime-types: application/json,text/plain
+    min-response-size: 2KB
 
 management:
   endpoints:
