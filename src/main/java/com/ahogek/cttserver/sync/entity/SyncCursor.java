@@ -16,8 +16,9 @@ import java.util.UUID;
  *
  * <p>Maps to the {@code sync_cursors} table with the composite primary key {@code (user_id,
  * device_id)} via {@link SyncCursorId}. Tracks how far a device has pulled ({@code
- * last_pulled_change_id}) and when it last pushed, so the pull path can resume from the watermark
- * instead of re-reading the whole change log.
+ * last_pulled_change_id}), so the pull path can resume from the watermark instead of re-reading the
+ * whole change log. Pushes leave no cursor of their own: their watermark is the change id the next
+ * pull resumes from.
  *
  * <p>The watermark is advanced monotonically: {@link #advancePullWatermark(long)} never moves
  * backwards (preferred business path), and the repository-level bulk update guards the same
@@ -41,9 +42,6 @@ public class SyncCursor {
 
     @Column(name = "last_pulled_change_id", nullable = false)
     private long lastPulledChangeId;
-
-    @Column(name = "last_push_at")
-    private Instant lastPushAt;
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
@@ -93,14 +91,6 @@ public class SyncCursor {
 
     public void setLastPulledChangeId(long lastPulledChangeId) {
         this.lastPulledChangeId = lastPulledChangeId;
-    }
-
-    public Instant getLastPushAt() {
-        return lastPushAt;
-    }
-
-    public void setLastPushAt(Instant lastPushAt) {
-        this.lastPushAt = lastPushAt;
     }
 
     public Instant getUpdatedAt() {

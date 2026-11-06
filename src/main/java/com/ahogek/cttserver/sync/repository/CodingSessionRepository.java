@@ -28,8 +28,9 @@ import java.util.UUID;
  *       session_uuid)}; backs the client-session lookup.
  *   <li>{@code idx_sessions_user_time} — partial index on {@code (user_id, start_time, end_time)
  *       WHERE is_deleted = FALSE}; backs per-user listing and counting.
- *   <li>{@code idx_sessions_sync_lookup} — b-tree on {@code (user_id, server_version)}; backs the
- *       LWW watermark query.
+ *   <li>{@code idx_sessions_sync_lookup} and the two project/language access paths were dropped on
+ *       2026-11-05 (migration {@code V20261105120000}): no query used them. The push path resolves
+ *       sessions through the unique constraint above, not a server-version watermark.
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]
@@ -154,20 +155,6 @@ public interface CodingSessionRepository extends JpaRepository<CodingSession, UU
      */
     @Query("SELECT s FROM CodingSession s WHERE s.id IN :ids")
     List<CodingSession> findAllByIdIn(@Param("ids") Collection<UUID> ids);
-
-    /**
-     * Lists live sessions of a user whose server version is above a watermark.
-     *
-     * <p>Used by the LWW push path to detect sessions that changed on the server after a device's
-     * last known version. Backed by {@code idx_sessions_sync_lookup} on {@code (user_id,
-     * server_version)}; the {@code is_deleted} predicate is applied as a residual filter.
-     *
-     * @param userId the owning user id
-     * @param serverVersion the exclusive lower bound on server version
-     * @return matching live sessions; never {@code null}
-     */
-    List<CodingSession> findAllByUserIdAndServerVersionGreaterThanAndIsDeletedFalse(
-            UUID userId, long serverVersion);
 
     /**
      * Lists live sessions of a user that overlap the half-open instant range {@code [start,
