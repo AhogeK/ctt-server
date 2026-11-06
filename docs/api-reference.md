@@ -422,9 +422,9 @@ same machine; per-session attribution is authoritative (see Sync Engine).
 | `/api/v1/sync/push` | POST | Push a batch of session states (LWW) | SYNC |
 
 **Protocol**:
-- `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `sessionUuid`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot — including the session's `ideName`/`ideVersion` (null when the row has none) — plus `nextCursor` and a `hasMore` flag. Responses are paged (`ctt.sync.pull-batch-size`, default 1000): clients continue pulling with the returned cursor until `hasMore` is false. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent).
+- `pull` accepts `{ deviceId, lastPulledChangeId }`, returns change-log entries (`changeId`, `sessionUuid`, `op`, `serverVersion`, `happenedAt`) joined with the winning session snapshot — including the session's `ideName`/`ideVersion` (null when the row has none) — plus `nextCursor` and a `hasMore` flag. Responses are paged (`ctt.sync.pull-batch-size`, default 1000): clients continue pulling with the returned cursor until `hasMore` is false. The per-device watermark advances monotonically; a pull with no new changes returns an empty list and the current cursor (idempotent). A client sends the optional `replayFromChangeId` to name where it wants to read from: the read starts there even though the watermark is further ahead, and `nextCursor` is the end of the page actually delivered — the client continues from what it received, never from the server's watermark. The stored watermark itself still only moves forward (the upsert keeps the greater value).
 - `push` accepts `{ deviceId, sessions[] }` with 1–1000 entries (more is `400 COMMON_003`), routes each session through `ConflictResolver` under LWW rules: incoming wins → fields applied + server version bumped + `UPSERT` change; delete wins → soft delete + `DELETE` change; server wins → idempotent no-op. The whole batch applies in a single transaction. Sessions may carry an optional `ideName`/`ideVersion` describing the IDE that produced them (length-bounded, blank treated as absent); older clients omit both and their new rows stay null, which statistics read as "use the origin device's registration". An update that omits them leaves the stored values untouched, so a client that cannot report an IDE cannot erase one a newer client recorded; a client that starts reporting one fills it in. Returns `nextCursor` for the next pull.
-- `deviceId` ownership is validated (404 `COMMON_002` on mismatch, including devices that have been revoked); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited to 120 req/min (`RATE_LIMIT_001`); successful and failed syncs are audited (`SYNC_PULL` / `SYNC_PUSH`).
+- `deviceId` ownership is validated (404 `COMMON_002` on mismatch, including devices that have been revoked); devices are registered via `POST /api/v1/devices` (see Device Management); endpoints are rate-limited per account — pull 600/min, push 120/min (`RATE_LIMIT_001`) — under an installation-wide ceiling; **failed** syncs are audited (`SYNC_PULL` / `SYNC_PUSH`), successful ones are application-logged only.
 
 ### Statistics & Analytics
 
@@ -633,6 +633,17 @@ Protects against brute-force attacks with automatic temporary lockout:
   remaining seconds until the window resets (read atomically from the Redis TTL)
 
 Locked accounts are automatically unlocked after lockout period expires, either on next login or via scheduled cleanup.
+
+### Response Compression
+
+Responses are compressed only when the client asks. A request that sends `Accept-Encoding: gzip`
+receives `application/json` and `text/plain` bodies of 2 KB or more gzip-encoded; a request that
+sends no `Accept-Encoding` receives identity encoding, exactly the bytes it always received.
+
+That is what makes enabling it safe for the JetBrains plugin: its JDK `HttpClient` sends no
+`Accept-Encoding` and does not decompress, so it keeps receiving plain JSON. A client that opts in
+must be able to decompress. `ResponseCompressionProbeTest` drives a real embedded Tomcat with the
+plugin's own client and asserts both branches.
 
 ## Interactive documentation
 

@@ -8,7 +8,7 @@ Two things are derived today:
 
 | Derived value | Where it lives | Written by |
 | --- | --- | --- |
-| Leaderboard scores | Redis ZSets, one key per legal (dimension, period) pair | every successful sync push, plus a startup backfill |
+| Leaderboard scores | Redis ZSets, one key per legal (dimension, period) pair | a deferred recompute queued by every successful sync push (coalesced per user, drained every `ctt.leaderboard.recompute-drain-interval-ms`), plus a startup backfill |
 | Daily statistics | `daily_stats` rows, one per user per UTC day | every successful sync push, plus a first-read bootstrap |
 
 ## The leaderboard marker

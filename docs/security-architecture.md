@@ -38,7 +38,8 @@ CTT Server implements a defense-in-depth security architecture following OWASP g
 │  - Account status enforcement (ACTIVE required)          │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 5: Rate Limiting & Abuse Prevention               │
-│  - Per-IP, Per-User, Per-Email, Per-API dimensions       │
+│  - Per-IP, Per-User, Per-Email dimensions               │
+│  - Global per-instance rps ceiling (GlobalRequestGuard) │
 │  - Account lockout (brute-force protection)              │
 │  - hCaptcha integration                                  │
 ├─────────────────────────────────────────────────────────┤
@@ -520,12 +521,16 @@ Rate limiting is implemented as a declarative AOP framework using the `@RateLimi
 
 ### Rate Limit Dimensions
 
-| Dimension | Key Source                             | Use Case                               |
-|-----------|----------------------------------------|----------------------------------------|
-| `IP`      | Client IP address from request context | Public endpoints (login, registration) |
-| `USER`    | Authenticated user ID from JWT         | Business APIs (profile, sync)          |
-| `EMAIL`   | Email extracted via SpEL expression    | Email verification, password reset     |
-| `API`     | Global endpoint identifier             | Expensive operations                   |
+| Dimension | Key Source                                       | Use Case                                 |
+|-----------|--------------------------------------------------|------------------------------------------|
+| `IP`      | Client IP address from request context           | Public endpoints (login, registration)   |
+| `USER`    | Authenticated account: JWT principal or API-key owner | Business APIs (profile, sync, stats) |
+| `EMAIL`   | Email extracted via SpEL expression              | Email verification, password reset       |
+
+The `API` dimension (one bucket shared by every caller of an endpoint) was removed on 2026-11-05:
+it measured deployment size rather than abuse, and capped the installation at roughly 320–430
+devices at the measured plugin polling rate. What replaced it is the installation-wide ceiling
+below, which applies to every endpoint rather than to one.
 
 ### Multi-Dimensional Rate Limiting
 
@@ -562,6 +567,24 @@ This prevents:
 | `POST /users/me/2fa/totp/confirm`          | USER       | 5      | 5 minutes       |
 | `POST /users/me/2fa/disable`               | USER       | 5      | 1 hour          |
 | `POST /users/me/2fa/recovery-codes/regenerate` | USER   | 3      | 1 hour          |
+| `POST /api/v1/sync/pull`                  | USER       | 600    | 1 minute        |
+| `POST /api/v1/sync/push`                  | USER       | 120    | 1 minute        |
+
+The table lists the limits that are most often looked up; the codebase carries more. The sync
+limits are per **account**, so one account draining its history (about 106 pages at the
+1000-change page size) never consumes another account's budget.
+
+### Installation-Wide Request Ceiling
+
+`GlobalRequestGuard` caps rate-limited requests per second across the whole instance, ahead of
+every dimension bucket. The configured value is `ctt.security.rate-limit.global-max-requests-per-second`
+(default 200) and it returns the same `429 RATE_LIMIT_001` as a dimension bucket, with a
+`retryAfter` one second out.
+
+It is an in-process fixed-window counter, not a shared Redis counter: it protects the instance it
+runs in, and an N-instance deployment has an effective ceiling of N times the configured value. A
+true fleet-wide ceiling belongs at the edge proxy, which is the only layer that sees the traffic
+this application never receives.
 
 ### Rate Limit Response
 
