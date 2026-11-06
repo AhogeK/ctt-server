@@ -50,7 +50,15 @@ left side
 *** 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）
 *** 登录会话列表与吊销 ✅ 已交付（R2-a v0.81.0 会话身份 · R2-b v0.82.0 两个端点）
 *** 数据导出（可携带）✅ 已交付（v0.83.0，产物可被插件端无缝导入）
-** 运维与可观测性 ⬜
+** 运维与可观测性 🚧 规划完成 · P0 部分落地
+*** 既有状态整修（隧道托管/端口收口/SSH）
+*** 指标出口与业务指标
+*** 告警、面板与值班
+*** CI、镜像发布与蓝绿
+*** 备份、恢复演练与密钥轮换
+*** 压测与故障演练
+*** Runbook 与对外接入（域名/证书/OAuth/Resend）
+** 候选功能（待单独评估）⬜
 *** 统计接口开放调用
 *** 个人统计 Card
 *** GitHub 提交信息联动
@@ -568,7 +576,7 @@ end note
 
 > **发送服务商：** Resend（已注册）
 > SMTP Host: `smtp.resend.com`，Port: `465`，Username: `resend`，Password: API Key（走环境变量）
-> ⚠️ 免费额度限制：**100 封/天**，3000 封/月 — 入队幂等保护必须落实，不能浪费额度
+> ⚠️ 额度与限速：以控制台 Usage 页为准（数值会变，不在文档里固化）；P4.5 用 20 封实测确认日限与突发行为。SMTP 发送只在控制台 emails 表可见，服务端不提供 SMTP 日志，失败原因需自行记录回执码。入队幂等保护必须落实，不能浪费额度。
 
 #### A：Resend 接入与环境配置✅
 
@@ -853,8 +861,7 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 
 > **实现状态：** ✅ **全部完成**（v0.28.0 BIND + v0.29.0 UNBIND）— 通过 `?action=bind` + `OAuthStatePayload.Action.BIND` + `attachToExistingUser/unbindFromExistingUser` + `OAuthAccountController` 实现。
 > 纯 OAuth 用户（无密码）解绑唯一 Provider → 返回 `AUTH_018`（"Cannot unlink last credential"，409）
-验收报告：`.sisyphus/oauth-binding-acceptance-report.md`
-  **目标：** 已登录用户能在账号设置中主动绑定或解绑 OAuth Provider，安全边界清晰
+**目标：** 已登录用户能在账号设置中主动绑定或解绑 OAuth Provider，安全边界清晰
   **绑定流程：**
   - [x] 实现 `OAuthLinkService.initiateLinking(userId, provider): String`：
     - [x] 校验用户已存在且 `status=ACTIVE`
@@ -892,7 +899,6 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 
 具体来说：用户 `status → DELETED` 后 `user_oauth_accounts` 记录被 FK 级联删除（验证 FK 行为符合预期）
 
-**验收报告：** `.sisyphus/oauth-token-lifecycle-acceptance-report.md`
   **目标：** Provider access_token 安全存储，账号生命周期联动
   **Token 刷新（简化）：**
   - [x] GitHub access_token **不过期**（除非用户手动撤权），`token_expires_at` 始终为 `null`
@@ -975,10 +981,6 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 **目标：** 实现生产级 API Key 管理，用于 JetBrains 插件认证，镜像 OAuth 接入模块的结构和严谨性
 
 **架构 & 技术栈：** `auth/apikey/` 包，结构与 `auth/oauth/` 一致；Java 25 / Spring Boot 4 / Spring Security 7 / Spring Data JPA / Flyway / JUnit 5 + Testcontainers
-
-**实施计划：** `.sisyphus/plans/2026-07-07-api-key-management.md`（630 行详细步骤）
-
-**验收报告：** `.sisyphus/api-key-phase-n-acceptance-report.md`
 
 **错误码扩展：**
 
@@ -1164,8 +1166,6 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 **Code Review：** 3 轮审查，修复 8 项（含 OpenAPI 缺失、FQN 类名、@TestPropertySource、测试命名）
 
 **版本：** 0.37.1 → 0.39.0（MINOR）
-
-**验收报告：** `.sisyphus/api-key-phase-p-acceptance-report.md`
 
 #### Q：审计 + 安全事件（v0.40.0）✅
 
@@ -1663,7 +1663,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 - [x] push 后排行即时更新，多用户排名正确
 - [x] 单测 + 集成测试（含并发 push、排名并列）
-**验证：** 全量 tests / 0 failed；jacoco PASS；spotless PASS；单测 7（合并 total / 最长 streak / Redis 失败容忍+锁释放 / 空用户 / 条目映射+竞赛排名 / 未排名 / 分页）+ 集成 7（多用户 total/streak 排名 / 并列同 rank / 并发更新 / 真实 push E2E / 401 / 400 非法 dimension）；真实服务联调验证 push → leaderboard 即时更新 + 多用户排名正确；`.sisyphus/get-token.sh` 可复用 token 引导脚本（注册→Mailpit→验证→登录）
+**验证：** 全量 tests / 0 failed；jacoco PASS；spotless PASS；单测 7（合并 total / 最长 streak / Redis 失败容忍+锁释放 / 空用户 / 条目映射+竞赛排名 / 未排名 / 分页）+ 集成 7（多用户 total/streak 排名 / 并列同 rank / 并发更新 / 真实 push E2E / 401 / 400 非法 dimension）；真实服务联调验证 push → leaderboard 即时更新 + 多用户排名正确；token 引导脚本（注册 → Mailpit → 验证 → 登录）可复用
 
 #### S3：排行进阶（周期与多维度）✅
 
@@ -1695,7 +1695,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 - [x] 非法维度×周期组合返回 400（COMMON_003）
 - [x] 单测 + 集成测试（周期分数 / 窗口聚合 / 跨午夜 / 净增长 / TTL / 非法组合）
 - [x] 真实服务接口验证 8 组合全 PASS + 400 边界
-**验证：** 全量 tests / 0 failed；jacoco PASS；spotless PASS；LSP 0 errors；StatsCalculator +7 窗口用例 + LeaderboardService 14 用例 + LeaderboardIntegrationTest +5；真实服务验证（push 本周 3h + 上周 1h → TOTAL ALL/WEEK/MONTH/YEAR=14400/10800/14400/14400、STREAK=1、NIGHT_OWL=3600、EARLY_BIRD=3600、GROWTH=7200）；`.sisyphus/get-token.sh` token 引导脚本复用
+**验证：** 全量 tests / 0 failed；jacoco PASS；spotless PASS；LSP 0 errors；StatsCalculator +7 窗口用例 + LeaderboardService 14 用例 + LeaderboardIntegrationTest +5；真实服务验证（push 本周 3h + 上周 1h → TOTAL ALL/WEEK/MONTH/YEAR=14400/10800/14400/14400、STREAK=1、NIGHT_OWL=3600、EARLY_BIRD=3600、GROWTH=7200）；token 引导脚本复用
 
 #### S4：成就系统 ✅
 
@@ -2132,12 +2132,374 @@ end note
 
 （P 段出现的枚举名 `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL` 是同一漂移的产物：实际枚举名是 `AUTH_018`。）
 
-### 🔍 运维与可观测性升级
+### 🔍 运维与可观测性升级（生产化全规划）
 
-> **面向生产的非功能性需求，可与功能开发并行推进。**
+> **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测；另有三处需修的既有状态：frp 两端跑在 tmux 里、frps 的代理端口默认绑 `0.0.0.0`、开发与联调共用同一个数据库。部署机上另有既有的公网 Jenkins，用其自身端口对外，本服务与其并存、不占用。
 
-后续可能加的功能：1. 通过KEY直接调用统计接口供用户使用接口获取个人统计数据 2.提供统计Card方便用户像是Github个人页使用 2.通过绑定Github连通Github获取用户提交信息做相关的统计与展示card
+**实现状态：** draft（2026-11-07）—— 未开工。P0 修既有状态，P1–P7 建能力，每步一个可独立验收的交付物。**所有选型已由我决策**，被否决的替代方案写在决策表里；若你要推翻某条，请指名，我按其代价重排。
 
+**目标：** 五个能力，各自可判定。
+
+| 能力 | 判定标准 |
+| --- | --- |
+| 可观测 | 指标可被采集；日志（JSON + `traceId`）可检索；跨端排障能从请求追到日志与追踪 |
+| 可告警 | 规则入库，阈值来自至少 7 天实测分位数；有值班路径与处置手册 |
+| 可发布 | PR 有 CI；镜像按 digest 部署；发布为蓝绿切换，失败一分钟内可退回 |
+| 可恢复 | 时间点恢复（RPO ≤ 5 min，RTO ≤ 60 min）；季度恢复演练有行数比对记录 |
+| 可验证 | 压测脚本与阈值；故障演练覆盖依赖宕机、进程被杀、磁盘满、隧道中断 |
+
+**部署拓扑（实测 2026-11-07）：**
+| 环节 | 实际形态 |
+| --- | --- |
+| 公网入口 | 接入机（境外 VPS，Ubuntu，**1 vCPU / 961 MB / 20 GB，无 Docker**，`ufw` 已启用）；公网地址见私密运维记录，不入库 |
+| 接入层 | 只跑 nginx（80/443，certbot；已服务 `ahogek.com` / `blog.*` / `blogapi.*` / `jenkins.*` / `link.*` / `leetcard.*`）+ frps；`ufw` 默认拒绝入站，放行 22/80/443 与控制端口。实测：8000–8003、8080、18080 从公网均被丢弃（`ufw.log` 记 `[UFW BLOCK]`，`curl` 全部超时） |
+| SSH 入口（仅接入机） | **只有接入机（VPS）的 22 对公网开放**；部署机在 NAT 后、无公网地址，其 sshd 未改动。接入机此前 `PermitRootLogin yes` + `PasswordAuthentication yes`，近 24 小时 **1870 次**口令爆破（集中在少数境外 IP）。2026-11-07 已加固：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`；密钥登录复验通过，口令登录返回 `Permission denied (publickey)`。**入侵痕迹核查**：`last` 三个月内的成功登录全部来自用户自有 ISP 网段，无异地成功登录 |
+| 隧道服务端 | frp **0.71.1**，**已改 systemd 托管**（`Restart=always` + 开机自启，tmux 会话已删）；配置 600 权限；**token 已轮换为 48 位随机值**、`transport.tls.force = true`、`allowPorts` 白名单（8000–8003/8080/18080）；未设 `proxyBindAddr` ⇒ 代理端口仍在 `0.0.0.0` 监听，靠 ufw 挡住 |
+| 隧道客户端 | 同版本；**token 已同步轮换、`transport.tls.enable = true`**，配置 600；既有映射保持现状，新增 `18080 → 18080`（`ctt-edge`，已注册成功）；Jenkins 实际经 `jenkins.*` 的 nginx 443 暴露 |
+| 隧道托管 | frps 已 systemd；**frpc 仍是 tmux**，暂由用户 crontab `@reboot` 兜底，改 systemd 需 sudo（P0.9） |
+| 部署机 | 家庭网络内的自建主机（Ubuntu，**4 vCPU / 32 GB / 916 GB（84% 可用）**，Docker 29.9.3 + Compose v5.7.0）；LAN 地址见私密运维记录。**威胁模型（你确认）**：家庭 LAN 视为可信边界，路由器不转发任何入站端口，**唯一的外部入口是接入机上的隧道** |
+| 部署机现状 | 从 LAN 实测可直连 `5432` / `6379` / `8080` / `8181`（Redis 需口令；PG 与容器端口无认证前置）——**按上述威胁模型属接受项**；PostgreSQL 18.6 与 Redis 8.10.3 为宿主机原生进程，监听 `0.0.0.0` 与 `[::]`；`ufw` 已装未启用（`ENABLED=no`），`nftables` 也未启用 |
+| 数据现状 | 现库 `ctt_server` 同时被开发与联调使用；Redis 无实例或逻辑库划分 |
+| 本服务入口（规划） | `ctt.ahogek.com` → 接入机 nginx 443 → `127.0.0.1:18080` → frps → frpc `18080` → 部署机 `127.0.0.1:18080`（edge 容器）→ blue `18081` / green `18082` |
+
+**本地先行（local-first）：每一阶段先在开发机跑通，再上部署机**
+
+| 阶段 | 本地怎么跑 | 本地验收 |
+| --- | --- | --- |
+| 基线 | `docker compose up -d postgres redis mailpit` 后 `./gradlew bootRun`，或直接 `docker compose up -d app` | 迁移执行；注册/登录可用；邮件进 Mailpit `http://localhost:8025` |
+| 边缘 + 蓝绿（P3.4） | 新增 `docker-compose.local.yaml`：`edge`（Caddy，`127.0.0.1:18080`）、`app-blue`（`18081`）、`app-green`（`18082`，profile `bluegreen`） | `http://localhost:18080/ctt-server/actuator/health` = 200；切上游后响应来自另一色 |
+| 观测（P1.4 / P2） | `--profile obs` 起 Prometheus / Grafana / Loki / Tempo / Alertmanager / blackbox | Grafana 有数据；`promtool check rules` 通过；测试告警送到 Mailpit（Alertmanager 用本地 SMTP） |
+| 备份（P4.1–P4.3） | pgBackRest 指向本地 PG（卷内仓库目录），演练恢复进临时库 | `pgbackrest check` 通过；恢复后行数比对差值为 0 |
+| 邮件（P4.5） | 本地仍走 Mailpit；Resend 只在 staging 真实投递，收件人是自己 | 真实邮件到达且 SPF/DKIM/DMARC 通过 |
+| 接入（P7） | 本地用 `localhost` 模拟：OAuth 走 dev App（回调 `http://localhost:8080/ctt-server/api/v1/auth/oauth/github/callback`），域名用 `/etc/hosts` 造 `ctt.local` | 本地 OAuth 登录成功，回调地址与 App 注册值逐字一致 |
+
+**架构与技术栈（已决策）：**
+
+| 维度 | 选择 | 理由 | 被否决 |
+| --- | --- | --- | --- |
+| 接入层 | **沿用接入机既有 nginx + certbot**，只新增一个 `ctt.ahogek.com` server block | 该机已在为 3 个域名管证书与 TLS；再装一套边缘会多一份证书与续期路径。接入机不部署内容 | 新装 Caddy（与 certbot 重复）、Traefik（配置面更大） |
+| 隧道 | frp（frps 在接入机，frpc 在部署机），**两端改 systemd 托管** | 现有资产就是 frp 0.71.1；改服务单元即得开机自启与崩溃重启 | WireGuard（要改路由与 NAT）、SSH 反向隧道（无多路复用与统计） |
+| 隧道代理端口 | 不改 frps 全局 `proxyBindAddr`（会打断既有公网隧道）；**按端口用 ufw 收口**：控制端口只允许部署机出口 IP，本服务端口拒绝公网（nginx 走回环） | 既有隧道（含公网 Jenkins）依赖默认监听，全局改动会连带打断它们 | 改全局 `proxyBindAddr=127.0.0.1`（会让既有隧道全部失联） |
+| 零停机 | 蓝绿：部署机侧 `edge`（Caddy 容器，只绑 `127.0.0.1:18080`）在 blue/green 间切；frpc 只指向 edge | 切换在部署机完成，隧道不用重连；回滚 = 切回上游 | 单实例重启（有停机）、在接入机侧切上游（要改 nginx 并 reload） |
+| 端口 | 既有服务沿用自身端口不动；本服务 `edge 18080`、蓝 `18081`、绿 `18082`，frpc `remotePort=18080 → localPort=18080` | 与既有服务端口全部错开；三个端口只在回环 | 复用既有端口（会打断在用服务） |
+| 数据分离 | 生产独立库 `ctt_server_prod` + 独立角色 `ctt_app`；Redis 生产用 db 1；开发继续用 `ctt_server` | 现在开发与联调共用一库，误操作会打到生产数据 | 同库不同 schema（迁移与备份边界仍混在一起） |
+| 数据面监听 | 生产实例连 `127.0.0.1`；开发需从局域网访问时，PG/Redis 绑部署机的 LAN 地址并用 ufw 只放行本机所在子网 | 现在两者都在 `0.0.0.0`，任何能进 LAN 的设备都能直连 | 继续 `0.0.0.0`（等于把数据库暴露给整个内网） |
+| 观测落点 | **全部在部署机**（Prometheus / Alertmanager / Grafana / Loki / Alloy / Tempo / exporters）；`blackbox_exporter` 探公网 URL，覆盖 TLS→nginx→隧道→应用四段 | 接入机定位为纯接入层且只有 961 MB，放常驻组件会挤占 nginx 与隧道 | 在接入机放 Alertmanager/blackbox（违背定位，且 1 核抢 CPU） |
+| 整机失联探测 | 一个**免费外部可用性拨测**（只测公网 health URL，不带业务数据），补部署机整机断电/断网时的盲区 | 本机观测随主机一起消失，只能靠外部视角 | 只靠本机自检（主机挂了没人知道） |
+| 备份 | pgBackRest 仓库在部署机（770 GB 可用）+ 每周加密 `pg_dump` 复制到接入机（14 GB，保留 4 份） | 本地 PITR 拿 RPO；接入机容量只够放少量全量 | 只留部署机（主机级故障即全丢）、只留接入机（容量不够 PITR） |
+| CI/CD | GitHub Actions + GHCR；部署机只 `docker compose pull`，不构建 | 部署机同时跑 Jenkins 与生产，本机构建会抢 CPU/内存并污染依赖缓存 | 在部署机上用 Jenkins 构建生产镜像 |
+| 密钥 | Compose `secrets`（宿主 0400 文件）+ 仓库内 SOPS/age 密文；frp token 同样入密文 | 不进 `docker inspect`；可版本化与轮换 | 明文 `.env`、Vault（单机过重） |
+| 扫描与压测 | Trivy（镜像 + 文件系统）、gitleaks、Renovate；k6 | 漏洞门、密钥门、依赖更新、脚本化压测 | 仅 Dependabot（不扫镜像）、JMeter（资源开销） |
+| 环境 | local / staging / prod 三档，共用部署机主机但独立库与端口 | staging 用于发布预演与恢复演练，不拿生产练手 | 只留 prod（无法演练） |
+| 邮件通道 | 生产用 **Resend**（SMTP `smtp.resend.com`；**无 SMTP 服务端日志**，投递结果只在控制台 emails 表可见）；本地 Mailpit；staging 只发给自己 | 应用本来就走 `spring.mail.*`，换凭据即可 | 自建 Postfix（IP 信誉与退信成本高）、Gmail SMTP（条款不适合事务邮件） |
+| 站点与身份 | 子域名 `ctt.ahogek.com`（阿里云 DNS，A → 接入机）；GitHub OAuth **单 App 可存 10 个回调地址，但代码不传 `redirect_uri` 时只用第一个**；Passkey `rp-id=ctt.ahogek.com`；hCaptcha 生产 site key | 不改代码时 dev/prod 各一个 App 最省事；改代码显式传 `redirect_uri` 才能单 App 多环境 | 靠"调整回调顺序"切环境（易错且无提示）、rp-id 用 `ahogek.com`（把其他子域纳入同一凭证域） |
+
+**全局约束：**
+
+| 约束 | 值（照抄自源文件 / 实测） |
+| --- | --- |
+| 运行时 | Java 25（`eclipse-temurin:25-jdk` / `25-jre-noble`）；Spring Boot `4.1.2`；Gradle `9.8.2` |
+| 应用端口 | 蓝 `18081` / 绿 `18082`；上下文 `/ctt-server` |
+| 边缘端口 | 部署机 `edge` 容器 `127.0.0.1:18080`；接入机 frps 代理端口 `18080`（仅回环可被 nginx 访问） |
+| 端口占用 | 接入机：80/443（nginx）+ 自定义隧道控制端口 + 既有隧道代理端口；部署机：既有 Jenkins 与自建搜索服务各占其端口，PG/Redis 用各自默认端口；**全部不与本服务的 18080–18082 重叠** |
+| 优雅停机 | `spring.lifecycle.timeout-per-shutdown-phase: 30s`；compose `stop_grace_period: 45s` |
+| 生产连接池 | Hikari `maximum-pool-size: 20`、`connection-timeout: 20000` |
+| 全局限流 | `ctt.security.rate-limit.global-max-requests-per-second: 200` |
+| 邮件投递 | outbox `poll-interval-ms: 10000`、`batch-size: 100`、`zombie-timeout-seconds: 600` |
+| 代理信任 | `ctt.security.trusted-proxy-addresses` 目前为空；生产须含应用看到的直接上游（edge 用 host 网络时为 `127.0.0.1`）。名单**只支持精确地址，无 CIDR**；多一跳就少一层可信 |
+| 数据版本 | PostgreSQL 18.6、Redis 8.10.3（宿主机原生） |
+| 对外域名 | `ctt.ahogek.com` → 接入机公网地址（阿里云 DNS，NS=`*.alidns.com`，TTL 600；真实地址见私密运维记录）。实测：`ctt` 为 NXDOMAIN，顶点域无 MX/SPF/DMARC ⇒ 新增记录不与现有邮件冲突；证书由接入机 certbot 签发 |
+| 公开路径 | **保留上下文路径**：`https://ctt.ahogek.com/ctt-server/...`，nginx `proxy_pass` 不带 URI（不做前缀重写） |
+| 邮件变量 | `MAIL_SMTP_HOST` / `MAIL_SMTP_PORT` / `MAIL_SMTP_USERNAME` / `MAIL_SMTP_PASSWORD` / `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME`；生产另需 `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true` 与 TLS 开关 |
+| 身份变量 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`（生产 App）、`PASSKEY_RP_ID`、`PASSKEY_ALLOWED_ORIGINS`、`HCAPTCHA_SITE_KEY` / `HCAPTCHA_SECRET_KEY`、`FRONTEND_BASE_URL`、`OAUTH_TOKEN_ENCRYPTION_KEY` |
+| 接入机角色 | 只跑 nginx + certbot + frps，不部署任何应用内容 |
+| 依赖红线 | 新增依赖按 R12 评估；清单已在上文「架构与技术栈」表列全，不隐含新增 |
+
+**实测事实（2026-11-07）：**
+
+| 维度 | 测量值 | 来源 |
+| --- | --- | --- |
+| 指标实现 | `micrometer-core:1.17.2` 已在 `runtimeClasspath` | `dependencyInsight` |
+| 指标出口 | 无 Prometheus registry，`/actuator/prometheus` 不存在 | `grep -nE "prometheus\|micrometer"` → 0 |
+| 指标暴露 | 仅 `health,info` | `application.yaml` management 段 |
+| 自定义健康项 | 0 个 | `grep -rln HealthIndicator src/main/java` → 0 |
+| 业务指标 | 0 处 `MeterRegistry` / `@Timed` | 同上 → 0 |
+| 生产日志 | JSON，走 `JsonEncoder`（无 `%maskedMsg`） | `logback-spring.xml` prod 分支 |
+| 日志脱敏第三层 | `MaskingMessageConverter` 只在 `%maskedMsg` 生效 | 两个 profile 分支对比 |
+| trace 关联 | 自建 `MDC.traceId` + 响应头；无 W3C `traceparent`、无 span | `MdcKey` / `RequestContextInitializerFilter` |
+| 容器健康检查 | compose 打裸 `/ctt-server/actuator/health`（含数据库，无 readiness 组） | `docker-compose.yaml` |
+| 镜像版本 | compose 与测试容器都用 `:latest`（`postgres` / `redis` / `mailpit`） | `docker-compose.yaml`、`TestcontainersConfiguration` |
+| 停止宽限 | compose 未设 `stop_grace_period`，Docker 默认 10 s < Spring 的 30 s | 两处配置对照 |
+| 资源限制 | 无 `mem_limit` / `cpus` / `restart` | `grep -nE "mem_limit\|cpus\|restart"` → 0 |
+| 日志轮转 | 无 `logging.options.max-size`，json-file 无上限 | 同上 → 0 |
+| 构建上下文 | 无 `.dockerignore`（`.git`、`build/`、`.env` 都进上下文） | `ls -a` → 不存在 |
+| 密钥传递 | 无 `secrets:` / `env_file`，密钥作为环境变量内联 | `grep -nE "secrets:\|env_file"` → 0 |
+| 邮件 SMTP 开关 | `auth: false`、`starttls.enable: false` 写死在 yaml | `application.yaml:21-25` |
+| OAuth 回调 | authorize URL **不传 `redirect_uri`**，GitHub 只认 App 里注册的那一个地址 | `OAuthCallbackController.java:196-201` |
+| Passkey | `rp-id` 默认 `localhost`、`allowed-origins` 默认 `http://localhost:5173` | `application.yaml:195-197` |
+| CORS | 只含 `http://localhost:5173` 与占位 `https://ctt.example.com` | `application.yaml:139-143` |
+| hCaptcha | `site-key` / `secret-key` 默认空 | `application.yaml:199-201` |
+| 本地编排 | compose 只有 app / postgres / redis / mailpit，无 edge、无蓝绿、无观测栈、无 profile | `docker-compose.yaml` |
+| 隧道托管 | frps/frpc 均由 tmux 拉起，无 systemd、重启不自启 | 两机 `ps -eo args` |
+| 隧道代理端口 | frps 未设 `proxyBindAddr`，所有代理端口默认在 `0.0.0.0` 监听 | 两机 `ss -lnt` + `frps.toml` |
+| 数据面监听 | PostgreSQL `0.0.0.0:5432`、Redis `0.0.0.0:6379` | `ss -lnt` on 部署机 |
+| 数据隔离 | 开发与联调同用 `ctt_server` | `.env` 与库清单 |
+| 主机规格 | 接入机 1C/961 MB/14 GB 可用；部署机 4C/32 GB/770 GB 可用 | `nproc` / `free -m` / `df -h` |
+| CI | 无 workflow，`.github/` 只有 PR 模板 | `ls .github/workflows` → 不存在 |
+| 压测 | 无 perf/load 测试 | 全仓 grep → 0 |
+| 备份/恢复 | 无脚本、无演练记录 | `ls scripts ops` → 不存在 |
+| runbook | 无 | `ls docs/ops*` → 不存在 |
+| 容量实测 | 一页 1000 条约 0.5 MB、拉取 2.7–5.9 ms；轮询 406–540 次/天/设备；审计 11 MB / 68 天 | `domains/sync-protocol/references.md` |
+| 测试基线 | **1689** tests / 0 failures / 1 skipped | `build/test-results/test/*.xml` |
+| 上联带宽 | **未测**（部署机出口带宽未知，是长排空与压测的真实上限） | 需在 P5.1 用 10 MB 传输实测 |
+
+**关键设计决策与理由：**
+
+| 决策 | 结论 | 依据 / 代价 |
+| --- | --- | --- |
+| 接入机的职责 | 只做接入：nginx（TLS/HSTS/限流/503）+ certbot + frps。不装 Docker、不放观测组件 | 1 核 961 MB；任何常驻组件都会与 nginx、隧道抢资源 |
+| frp 托管 | 两侧写 systemd unit：`Restart=always`、`WantedBy=multi-user.target`、日志进 journald；先删 tmux 会话 | 现在重启主机即断同步且无人知晓；这是可用性项 |
+| 隧道端口收口 | 不动 frps 全局配置；用 ufw 按端口处理：控制端口只 allow 部署机出口 IP，本服务端口 deny 公网（nginx 走回环），既有隧道端口保持现状 | 全局改 `proxyBindAddr` 会打断公网 Jenkins 与既有站点 |
+| 端口 | 既有服务不动；`edge 18080`、蓝 `18081`、绿 `18082` | 与既有端口全部错开；三者只在回环 |
+| 生产数据隔离 | 新建 `ctt_server_prod` 与角色 `ctt_app`；Redis db 1；开发继续 `ctt_server` | 开发与生产共用一库是迟早的事故 |
+| 数据面监听 | 生产连 `127.0.0.1`；开发从 LAN 访问时绑部署机 LAN 地址并用 ufw 放行本子网 | 现在 `0.0.0.0` 对整段内网开放 |
+| 蓝绿切换点 | 部署机侧 `edge`（Caddy 容器，`127.0.0.1:18080`）切 blue/green | 隧道不用重连；回滚是改一个上游 |
+| 客户端 IP | 建立信任链：接入机 nginx 写 `X-Forwarded-For` → frps 原样透传 → 应用侧把 frpc 来源地址加入信任列表 | 否则 IP 限流、登录审计、last-login IP 全部退化成隧道地址 |
+| 观测落点 | 全在部署机；`blackbox_exporter` 探公网 URL | 接入机定位不允许放组件 |
+| 整机失联 | 外部免费拨测（只测可用性）+部署机侧 UPS 与开机自启 | 本机观测随主机一起消失，这是已知盲区，不假装覆盖 |
+| 备份落点 | pgBackRest 仓库在部署机；每周加密 `pg_dump` 到接入机，保留 4 份 | 接入机只剩 14 GB；部署机断电时异地有周级副本 |
+| CI 与构建 | GitHub Actions 构建 → GHCR；部署机只 pull | 部署机跑着 Jenkins 与生产，本机构建会抢资源 |
+| Jenkins 共存 | 给 Jenkins 容器设 `mem_limit` 与 `cpus`，重任务错峰；两个 compose 项目互不干扰 | 4 核 32 GB 够用，但无上限时一次大构建能把应用挤到 OOM |
+| 时钟 | 两机 `chrony`，监控偏差 > 1 s 告警 | TOTP 与 JWT 校验依赖时钟 |
+| 迁移与蓝绿 | 强制 expand/contract；CI 禁止修改已发布迁移 | 蓝绿期间两版本共存，破坏性迁移会让旧色 500 |
+| SLO | 应用侧 pull p95 ≤ 300 ms；边缘侧（含公网与隧道）p95 ≤ 1 s；可用性 99.5%/月；5xx ≤ 0.5%；outbox p95 ≤ 60 s | 边缘目标含未知的家庭出口带宽，先 1 s，实测后收紧 |
+| 告警 | 先 `severity: info` 不寻呼，7 天后按分位数收紧 | 无历史定阈值等于制造噪声 |
+| 追踪 | Micrometer Tracing + OTLP → Tempo；生产 10% 采样、出错全采 | 全采放大存储；10% 足够定位 p95 |
+| 依赖新增 | Prometheus registry、Micrometer Tracing + OTLP exporter；Trivy/k6 属 CI 工具 | 每项在落地提交里附 R12 评估（版本、许可证、传递依赖、Boot 4.1.2 兼容性） |
+| 本地先行 | 每个阶段先在开发机用同一份 compose 与同一批配置跑通，再上部署机 | 上线时唯一的新变量是「环境差异」；本地跑不通的步骤不允许上生产 |
+| 邮件通道 | Resend（SMTP）+ 本地 Mailpit；域名验证记录加在阿里云 DNS | 应用侧只改环境变量；域名未验证的发信会被拒或进垃圾箱 |
+| OAuth 配置 | 两个 GitHub OAuth App：dev 回调 localhost，prod 回调 `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback` | 代码不传 `redirect_uri`，改地址只能改 App；单 App 无法同时服务两端 |
+| 子域名 | `ctt.ahogek.com`，A → 接入机，保留 `/ctt-server` 前缀 | 服务器在境外，不涉及备案；前缀保留让回调、Cookie Path、CORS 全部可预测 |
+| Passkey 域 | `rp-id=ctt.ahogek.com`、`allowed-origins=https://ctt.ahogek.com`（前端若另有域名，以实际 origin 为准） | rp-id 必须与 origin 同注册域；改 rp-id 会让已注册凭证失效 |
+
+**阶段与子任务：**
+
+| 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
+| --- | --- | --- | --- | --- |
+| P0 修既有状态 | P0.0 | **本地一键全栈**：`docker-compose.local.yaml` 加 `edge` / `app-blue` / `app-green`（profile）/ `obs`（profile），一条命令起全栈 | `http://localhost:18080/ctt-server/actuator/health` = 200；`--profile obs` 起观测栈 | 中 |
+| P0 修既有状态 | P0.1 | prod 日志脱敏生效：注册 Logback `messageConverter`，含 `password=` 的日志在 JSON 输出里已打码 | 断言测试 + 一条真实输出 | 中 |
+| | P0.2 | 镜像版本三处一致：`postgres:18.x`、`redis:8.x`、`mailpit` 固定版本（宿主机实际为 PG 18.6 / Redis 8.10.3） | 三处 grep 到同一 tag | 低 |
+| | P0.3 | `.dockerignore` 覆盖 `.git`、`build`、`.env`、`.plans`、`memory-bank`、`docs` | 构建上下文体积下降 | 低 |
+| | P0.4 | compose 加固：`stop_grace_period: 45s`、`mem_limit`、`cpus`、`restart: unless-stopped`、日志轮转、`read_only` + tmpfs、`cap_drop: [ALL]`、`no-new-privileges` | `docker inspect` 逐项核对 | 中 |
+| | P0.5 | 密钥改 Compose `secrets`（宿主 0400），仓库只留 SOPS/age 密文；frp token 同样处理 | `docker inspect` 看不到密钥；缺密钥快速失败 | 中 |
+| | P0.6 | prod 关审计载荷（`log-payloads: false`），保留动作与资源标识 | 新审计记录不含请求体 | 低 |
+| | P0.7 | health 分组：liveness 不依赖数据库、readiness 含数据库与 Redis；compose 与健康检查改打 readiness | 停库演练：readiness `OUT_OF_SERVICE`、liveness `UP` | 中 |
+| | P0.8 | **frps 改 systemd**（接入机）：已完成（2026-11-07）—— unit + 开机自启，顺带轮换 token、强制 TLS、加端口白名单、配置改 600 | 重启接入机后隧道自动恢复 | 中 |
+| | P0.9 | **frpc 改 systemd**（部署机）：**部分完成**——已用用户 crontab `@reboot` 兜底；systemd unit 需 sudo 密码 | 重启部署机后隧道自动恢复（当前靠 cron，开机后约 20 s） | 中 |
+| | P0.10 | 隧道端口收口：**已完成 ufw 侧**（18080 公网不可达、遗留 `2024` 放行已删，`ufw.log` 有 `[UFW BLOCK]` 实证）。控制端口保留对公网开放：家庭出口 IP 不唯一（主机内有代理，接入机看到的来源与主机自报的出口不一致），按 IP 白名单会自断隧道；改为 `TLS + 48 位随机 token + allowPorts` 三重约束。剩 503 维护页与 `limit_req`（域名、证书见 P7.1） | 公网访问 18080 被拒；隧道断开时返回 503 而非超时 | 中 |
+| | P0.11 | 端口与编排：`edge 18080` / 蓝 `18081` / 绿 `18082`；frpc 增加 `remotePort=18080 → localPort=18080`；**edge 用 host 网络**，否则 app 看到的来源是容器桥接 IP，可信代理名单与 IP 限流一起失真 | 三个端口只在回环；`TRUSTED_PROXY_ADDRESSES=127.0.0.1` 真正生效 | 中 |
+| | P0.12 | 生产数据隔离：建 `ctt_server_prod` 与 `ctt_app`；Redis db 1；开发继续原库 | 生产与开发的库名、角色、Redis 库号可区分 | 中 |
+| | P0.13 | 数据面收口：部署机 **ufw 已安装未启用**（`ENABLED=no`），PG/Redis 现对整段 LAN 开放 ⇒ 启用 ufw（或 nftables）只放行本子网，PG/Redis 绑部署机 LAN 地址，生产容器走 `127.0.0.1`；sudo 需要密码，实施时需你在场 | LAN 外不可达；LAN 内开发仍可用 | 中 |
+| | P0.14 | 主机加固与时钟：**接入机 SSH 已完成**（`00-hardening.conf`：关口令、root 仅密钥、`MaxAuthTries 4`；口令登录返回 `Permission denied (publickey)`）。剩：两机 `chrony`、nginx 与 journald 日志上限、日志轮转重复项（部署机 `cloud-init` 与 `cloud-init-base` 重复登记，改名后 `Result=success`）。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 时钟偏差 < 1 s；口令登录不可用 | 中 |
+| P1 指标与追踪 | P1.1 | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ `management.server.port=8081` 且 **`management.server.address=127.0.0.1`**；应用端口不再暴露 metrics | `ActuatorSurfaceTest` 固定两端口暴露面 | 中 |
+| | P1.2 | 5 个业务指标（同步计数与耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量），标签基数 ≤3 | 指标存在性 + 标签集合断言 | 中 |
+| | P1.3 | 追踪：Micrometer Tracing + OTLP，透传 W3C `traceparent`，保留 `traceId`；生产 10% 采样 | 一次请求在 Tempo 可见完整 span，日志可按 `traceId` 聚合 | 高 |
+| | P1.4 | 观测栈（**全部在部署机**）：Prometheus + Alertmanager + Grafana + Tempo + Loki + Alloy + node/postgres/redis/blackbox exporters，保留 30 天 | 各 UI 可访问；blackbox 对公网 URL 的探测有数据 | 中 |
+| P2 告警与面板 | P2.1 | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计增长率；另加隧道中断与证书 14 天到期；先 `severity: info` | `promtool check rules` 通过 | 中 |
+| | P2.2 | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康） | 新环境起栈后面板自动出现 | 中 |
+| | P2.3 | 值班路径：Alertmanager → 邮件 + webhook；外部拨测只测可用性；静默与升级流程写进 runbook | 手动触发一条测试告警并收到通知 | 低 |
+| P3 发布链 | P3.1 | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明 | PR 红/绿可判定；人为坏用例能挡住合并 | 中 |
+| | P3.2 | 镜像发布：GHCR 按 digest 部署，Renovate 管依赖与基础镜像 | 部署清单里是 digest | 中 |
+| | P3.3 | 边缘转发：nginx 设 `X-Forwarded-For` **与 `X-Forwarded-Proto: https`**；edge 侧显式 `header_up X-Forwarded-Proto https`（不写会被改写成 http）；请求体与超时限制、`limit_req`、`return 503` | 外部只走 443；`getRealIp` 与 `isSecureRequest` 都返回真实值 | 高 |
+| | P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察 + 一键回滚；压测下验证零 5xx | 压测中发布一轮，5xx = 0 | 高 |
+| | P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
+| | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
+| P4 备份与恢复 | P4.1 | pgBackRest：每周全量 + 每日差异 + WAL 归档，保留 14 天，加密 | `pgbackrest check` 通过；任取时间点可恢复 | 高 |
+| | P4.2 | 每周加密 `pg_dump` 复制到接入机（保留 4 份）；目标不可达时任务失败并告警 | 备份列表可见两份产物 | 中 |
+| | P4.3 | 恢复演练脚本：临时库恢复 + `audit_logs`/`coding_sessions` 行数比对（差值必须 0）+ 记录模板 | 一次演练产出可归档记录 | 高 |
+| | P4.4 | 密钥轮换：JWT/OAuth/TOTP 的轮换步骤与重叠窗口；旧密钥保留一个有效期 | 轮换期间无用户被登出 | 中 |
+| | P4.5 | 正式邮件切 Resend：域名验证、SMTP 凭据、发件人；**SMTP 5xx = 永久失败（不重试）、4xx = 临时（退避）**，回执码写日志；20 封实测 | 真实邮件 SPF/DKIM/DMARC 通过；坏地址只尝试 1 次 | 中 |
+| P5 压测与演练 | P5.1 | k6 三场景：稳态轮询、单设备 106 页排空（含出口带宽实测）、排行榜读峰值 | 夜间任务输出 p95、带宽与阈值判定 | 中 |
+| | P5.2 | 部署期零 5xx：压测同时做一次蓝绿发布 | 5xx = 0、p95 无尖峰 | 高 |
+| | P5.3 | 故障演练：停 DB、停 Redis、`kill -9` 应用、磁盘写满、outbox 卡死、**frpc 断开** | 六种场景各一份实测记录 | 高 |
+| P6 文档与收口 | P6.1 | `docs/ops-runbook.md`（英文，进 master）：部署、回滚、隧道恢复、告警处置、备份恢复、密钥轮换、故障对照 | 新人按 runbook 能完成一次发布 | 低 |
+| | P6.2 | README 与 `docs/` 索引更新 | 链接可达 | 低 |
+| | P6.3 | 记忆与状态行收口；运行时代码有改动则 PATCH+1 | 状态改为 completed，`memory-bank` 同批更新 | 低 |
+| P7 对外接入 | P7.1 | 阿里云 DNS 加 `ctt` A 记录指向接入机公网地址（值见私密运维记录）；接入机 `certbot --nginx -d ctt.ahogek.com`；server block 上线 | `dig` 指向正确；`curl -I https://ctt.ahogek.com` 正常 | 中 |
+| | P7.2 | GitHub OAuth：dev App（loopback 回调，优先 `http://127.0.0.1:8080/...`）+ prod App（`https://ctt.ahogek.com/ctt-server/...`）；若改代码显式传 `redirect_uri`，可合并为单 App | 生产登录成功；本地登录不回归 | 中 |
+| | P7.3 | 前端与安全项：`FRONTEND_BASE_URL`、CORS 放行真实 origin、`PASSKEY_RP_ID` / `PASSKEY_ALLOWED_ORIGINS`、hCaptcha 生产 key、Cookie `Secure` / `SameSite` 核对 | 生产跨域请求通过；Passkey 注册与登录可用；hCaptcha 通过 | 中 |
+
+**执行记录（2026-11-07）**
+
+> 只记录确实做过的动作与证据。**未列出的 P0–P7 条目一律未开工**：本节不是完成度声明，而是"哪些格子已经变成事实"。
+
+| 条目 | 结果 | 证据 |
+| --- | --- | --- |
+| P0.8 frps 托管 | 完成 | `systemctl is-enabled frps` = `enabled`、`is-active` = `active`、`NRestarts=0`；6 条映射全部 `start proxy success`；tmux 会话已删 |
+| P0.8 附带加固 | 完成 | token 轮换为 48 位随机、`transport.tls.force=true`、`allowPorts` 白名单（8000–8003/8080/18080）、配置权限 `600` |
+| P0.9 frpc 托管 | 部分 | tmux 运行 + 用户 crontab `@reboot`（进程已存在则跳过）；systemd unit 需 sudo |
+| P0.10 端口收口 | 完成（ufw 侧） | 18080、8080、8000–8003 从公网超时；`ufw.log` 记 `[UFW BLOCK]`；遗留 `2024` 放行已删 |
+| P0.14 SSH | 完成（接入机） | `passwordauthentication no`、`permitrootlogin without-password`；密钥登录正常、口令登录被拒 |
+
+**未开工**：P0.0–P0.7、P0.11–P0.13、P1、P2、P3、P4、P5、P6、P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。这些都要改代码或改部署，尚未开始。
+
+**这次踩到的坑（应写进 P6.1 的 runbook）**
+
+| 坑 | 现象 | 规避 |
+| --- | --- | --- |
+| sshd 配置片段排序 | 加固文件命名 `99-` 时 `sshd -T` 仍显示 `PasswordAuthentication yes` | sshd 取**首个**出现的值，加固文件必须命名 `00-`；`50-cloud-init.conf` 会赢 |
+| 判断端口是否对外 | 本机 `bash /dev/tcp` 对任意端口都返回成功（本机代理），一度得出"18080 对外暴露"的错误结论 | 只看对端内核日志（`ufw.log`）+ `curl` 退出码（超时 28 = 被丢弃） |
+| 改别人容器的启动方式 | 把 `--rm` 改成重启策略后，依赖"停止即自动删除"的部署脚本在第 4 步 `docker rmi` 失败，站点中断 | 重启语义要么写进编排文件，要么在容器外做开机恢复；不要改运行中容器的 `--rm` / `AutoRemove` |
+| 日志轮转重复登记 | `logrotate.service` 长期 failed，会掩盖后续真正需要发现的轮转失败 | 同一路径只能有一条规则；`cloud-init` 与 `cloud-init-base` 二选一 |
+
+**运行时拓扑：**
+
+```mermaid
+flowchart TB
+    U["互联网 · 插件与大屏"] -->|"443 TLS · certbot"| N["接入机 nginx<br/>HSTS · limit_req · 503 维护页"]
+    N -->|"127.0.0.1:18080"| S["frps 0.71.1<br/>systemd · 自定义控制端口"]
+    J["公网 Jenkins"] -->|"自身端口（既有设计）"| S
+    S -->|"tcpMux 隧道"| C["frpc 0.71.1<br/>tmux · cron 兜底"]
+    C -->|"127.0.0.1:18080"| E["edge 容器（Caddy）<br/>蓝绿上游切换"]
+    E -->|"18081"| B["app-blue"]
+    E -->|"18082"| G["app-green"]
+    B --> PG[("PostgreSQL 18.6<br/>ctt_server_prod")]
+    G --> PG
+    B --> RD[("Redis 8.10.3<br/>db 1")]
+    G --> RD
+    B -.->|"8081 回环"| P["Prometheus（部署机）"]
+    G -.->|"8081 回环"| P
+    P --> AM["Alertmanager"]
+    AM --> MAIL["邮件 / webhook"]
+    P --> BB["blackbox_exporter<br/>探公网 URL"]
+    P --- G2["Grafana"]
+    P --- LK["Loki + Alloy"]
+    P --- TP["Tempo"]
+    PG --> BR["pgBackRest · WAL"]
+    BR --> HK2["接入机：每周加密 dump（4 份）"]
+    U -.->|"外部拨测（仅可用性）"| EXT["外部拨测服务"]
+```
+
+**发布与回滚（蓝绿）：**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Dev as 开发者
+    participant CI as GitHub Actions
+    participant Reg as GHCR
+    participant Op as 值班
+    participant E as edge 容器
+    participant Old as 旧色
+    participant New as 新色
+    participant DB as PostgreSQL
+    Dev->>CI: 打开 PR
+    CI->>CI: 格式 + 测试 + 覆盖率 + Trivy + gitleaks
+    CI-->>Dev: 红则阻止合并
+    Dev->>CI: 合并到 master
+    CI->>Reg: 推镜像（digest + 来源证明）
+    Op->>DB: pgBackRest 校验点
+    Op->>New: 启动新色（Flyway expand）
+    New-->>Op: readiness UP（经 edge 内部检查）
+    Op->>E: 切换上游到新色
+    Op->>Op: 观察 5 分钟（5xx / p95 / 错误预算）
+    alt 指标正常
+        Op->>Old: 优雅停机（stop_grace_period 45s）
+    else 指标异常
+        Op->>E: 切回旧色
+        Op->>New: 停新色，保留日志与堆转储
+    end
+```
+
+**评审关注点（会在生产真实遇到）：**
+
+| 场景 | 归属 |
+| --- | --- |
+| 隧道断链时全站不可用，且 nginx 默认回 502 | P0.8–P0.10：systemd 自启 + 503 维护页 + 隧道中断告警 |
+| 经 nginx→frps→frpc 之后客户端 IP 变成隧道地址 | P3.3：建立信任链，演练一次真实 IP |
+| 数据库短暂抖动时 readiness 摘掉实例，反而放大故障 | P0.7：数据库检查加超时，写明「连续 N 次失败才判定不健康」 |
+| 指标标签塞 user id / device id 导致基数爆炸 | P1.2：每个 meter 的标签集合在测试里断言上限 |
+| prod JSON 日志绕过脱敏 | P0.1：先修，再谈指标 |
+| 蓝绿期间破坏性迁移让旧色 500 | P3.5：expand/contract 强制，CI 禁止改已发布迁移 |
+| 备份成功但恢复不了（权限、扩展、序列） | P4.3：演练比对行数，不接受只看退出码 |
+| Testcontainers 在 CI 上拉不到镜像 | P3.1：缓存镜像层；失败重试一次再判定（对应 R17 已知抖动） |
+
+**风险与反例：**
+
+| 风险 | 反例 / 已知例外 | 缓解 |
+| --- | --- | --- |
+| frp 是单点 | 隧道断开即全站不可用 | systemd 自启 + 中断告警 + runbook 一键恢复；记录为架构限制 |
+| 部署机整机断电或断网 | 本机观测与告警一起消失 | UPS、开机自启、外部免费拨测；不声称已覆盖 |
+| 部署机出口带宽未知 | 106 页排空可能受上行带宽限制 | P5.1 实测；已开协商压缩，JSON 体积约为原来的十分之一 |
+| Jenkins 与生产争资源 | 一次大构建可把应用挤到 OOM | 容器 `mem_limit`/`cpus`、错峰、生产 compose 独立项目 |
+| 接入机只有 1 核 961 MB | 任何多余常驻进程都可能触发 OOM | 只跑 nginx + frps；日志上限；配置变更前先看 `free -m` |
+| 控制端口对公网开放 | 已开 TLS + 48 位 token + 端口白名单，但 7000 仍对 `Anywhere`；家庭出口 IP 若为动态，按 IP 白名单会中断隧道 | 先确认出口 IP 是否固定；不固定则维持现状并监控失败登录日志 |
+| LAN 内明文与直连数据库 | 已确认接受：路由器不外转、唯一入口是隧道；LAN 内的 `8080`/`5432`/`6379` 明文属已知且接受的状态 | 想加一层纵深时可随时启用 ufw（只放行本子网，对现有使用零影响），命令见私密记录 |
+| SSH 曾开放口令登录 | 24 小时 1870 次爆破；`50-cloud-init.conf` 会覆盖后置 drop-in（sshd 取首个值，故加固文件必须排在 `00-`） | 已关口令、root 仅密钥；后续改 sshd 配置需注意文件排序 |
+| 观测栈自身吃内存 | Prometheus + Grafana + Loki + Tempo 约 2 GB 起 | 全在 32 GB 的部署机，设 `mem_limit`；保留 30 天可下调 |
+| 备份撑爆磁盘 | 每日差异 + WAL 累积 | 保留 14 天，脚本先删过期再写 |
+| 蓝绿双份常驻内存 | 2 × 堆上限 | `MaxRAMPercentage=70`，两色合计仍在容器上限内 |
+| 不可逆迁移让「回滚」变成恢复备份 | 回滚不降级迁移 | runbook 明确：破坏性迁移下一版再做；回滚 = 切上游 + 必要时 PITR |
+| 时钟偏差导致 TOTP/JWT 随机失败 | 两机重启后未同步时间 | chrony + 偏差 > 1 s 告警 |
+| Resend 日限与额度 | 注册高峰被限流会积压 outbox | 用 20 封实测确认限值；退避重试 + 待发数告警 |
+| 新域名进垃圾箱 | `ahogek.com` 无发信历史 | 先用发送子域、DMARC 从 `p=none` 起步、少量自测建立声誉 |
+| OAuth 回调只有一个生效 | 省略 `redirect_uri` 时 GitHub 只用第一个回调地址（单 App 可存 10 个） | 先按两 App 落地；若合并单 App，须代码显式传 `redirect_uri`，换 token 时也要传 |
+| DNS 传播与记录冲突 | 新记录与既有 blog/blogapi 记录并存 | 只增不改；先 `dig` 核对再签证书 |
+| 前缀被重写导致回调 404 | `proxy_pass` 带 URI 会截断 `/ctt-server` | 明确写 `proxy_pass http://127.0.0.1:18080;`（不带路径） |
+
+**对接账号与外部服务（需要你的账号，我给字段、你确认，逐步核对）**
+
+| 事项 | 操作步骤 | 我需要你做的 | 我不会做的 |
+| --- | --- | --- | --- |
+| 阿里云 DNS | 确认解析是否在阿里云（`dig NS ahogek.com +short` 含 `hichina`）；加 `ctt` A → 接入机公网地址（值见私密运维记录）；再加 Resend 要求的 DKIM / SPF / 回信 MX；`_dmarc` 先 `p=none` | 登录控制台按我给的值逐条添加，或明确授权我代操作 | 不索取账号密码；不动既有 blog/blogapi 记录 |
+| 证书 | A 记录生效后接入机执行 `certbot --nginx -d ctt.ahogek.com`，沿用现有续期；新增 `--deploy-hook "systemctl reload nginx"` | 无（用 HTTP-01，不需要 DNS 插件） | 不改动既有域名的证书配置 |
+| GitHub OAuth | 新建 prod App：Homepage `https://ctt.ahogek.com`，回调**逐字** `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback`；dev App 用 `http://127.0.0.1:8080/ctt-server/api/v1/auth/oauth/github/callback`（GitHub 建议 loopback 用 `127.0.0.1` 而非 `localhost`）。单 App 可存 10 个回调，但省略 `redirect_uri` 时只用第一个 | 创建 App 并把 client id / secret 写进宿主 0400 文件或密文 | 不把 secret 写进仓库；不靠"改顺序"切环境 |
+| Resend | 打开 <https://resend.com/home> → Add Domain（`ahogek.com` 或发送子域 `send.ahogek.com`）→ 按提示把 DKIM / SPF / 回信 MX 加进阿里云 DNS → 等 Verified → 建 `ctt-server-prod` key（Sending access、限该域）；SMTP：`smtp.resend.com`、465（SSL）或 587（STARTTLS）、用户名 `resend`、密码 = API key | 注册/登录 Resend，把 API key 存进宿主 0400 文件 | 不把 key 写进仓库；不替你接受付费条款 |
+| 应用邮件配置 | `MAIL_SMTP_*`、`MAIL_FROM_ADDRESS=noreply@<已验证域>`（验证顶点域则用 `noreply@ahogek.com`，改用发送子域则随之改）、`MAIL_FROM_NAME`，并设 `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true`（465 加 `SSL_ENABLE=true`，587 加 `STARTTLS_ENABLE=true`） | 确认发件地址与显示名 | 不用未验证域发信 |
+| hCaptcha | 生产域名新建 site key，填 `HCAPTCHA_SITE_KEY` / `HCAPTCHA_SECRET_KEY` | 在 hCaptcha 后台加域名并取 key | 不复用本地/测试 key 上生产 |
+
+> 说明：Resend 的额度、速率与投递日志字段以其控制台为准，不在此照抄数字；P4.5 用 20 封自测确认日限与突发行为。当前 outbox 没有 provider message id 字段，先按「收件人 + 时间 + 主题」对齐日志；是否新增列另按迁移成本评估（R12 / R22）。
+
+**验收标准：**
+
+- [ ] 公网只能访问 443；`18080` 从公网被拒，`/ctt-server/actuator/prometheus` 不可从公网达，回环 8081 返回指标文本且含 5 个业务指标名
+- [ ] `ActuatorSurfaceTest` 断言两端口暴露面并在 CI 中执行
+- [ ] **重启接入机与重启部署机各一次，隧道自动恢复**（无需人工 tmux）
+- [ ] 停 frpc 时公网返回 503 维护页并在 1 分钟内触发告警；恢复后自动回到 200
+- [ ] 停库演练：readiness `OUT_OF_SERVICE`、liveness `UP`，记录写入 runbook
+- [ ] `promtool check rules` 通过；测试告警 1 分钟内到达邮件与 webhook
+- [ ] PR 上 CI 全绿；人为坏用例与人为密钥串分别被测试与 gitleaks 挡住
+- [ ] 镜像以 digest 部署；`docker inspect` 里看不到任何密钥
+- [ ] 压测下完成一次蓝绿发布：5xx = 0，p95 无尖峰，旧色在宽限内退出
+- [ ] 任取时间点做 PITR：`audit_logs`、`coding_sessions` 行数与基准差值为 0
+- [ ] 六种故障演练各有一份实测记录与恢复动作
+- [ ] 生产与开发使用不同库名、不同角色、不同 Redis 库号；PG/Redis 从 LAN 外不可达
+- [ ] 两机时钟偏差 < 1 s；prod 含 `password=` 的日志在 JSON 输出里已打码
+- [ ] 全量测试不回归（≥1689 tests / 0 failures）
+- [ ] 本地一条命令起全栈：`docker compose --profile obs up -d` 后 `http://localhost:18080/ctt-server/actuator/health` = 200，Grafana 有数据，本地蓝绿切换一次无 5xx
+- [ ] `dig ctt.ahogek.com` 指向接入机公网地址；`curl -I https://ctt.ahogek.com` 返回 200/301，证书由 Let's Encrypt 签发且剩余 > 14 天
+- [ ] 生产 GitHub 登录回调命中 `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback`；本地 dev App 登录不回归
+- [ ] Resend 真实投递 20 封：SPF/DKIM/DMARC 全通过；坏地址只尝试 1 次；outbox 无卡死
+- [ ] Passkey 在 `ctt.ahogek.com` 完成注册与登录；hCaptcha 通过；生产 CORS 只放行真实前端 origin
+- [ ] 应用看到的客户端 IP 是真实公网来源（`audit_logs` 与 `last_login_ip` 不是 `127.0.0.1` 或容器 IP）
+- [ ] 生产登录态 Cookie 带 `Secure`（`X-Forwarded-Proto: https` 在整条链上生效）
+- [ ] frps 控制端口从公网不可达；`2024/tcp` 用途确认或关闭
+
+**不做的事：**
+
+| 不做 | 原因 |
+| --- | --- |
+| 改 frps 全局 `proxyBindAddr` | 会让既有的公网隧道全部失联；按端口用 ufw 收口即可 |
+| 在接入机上放任何常驻组件 | 1 核 961 MB，且接入机定位是纯接入层 |
+| 把既有 Jenkins 迁出 8080 或改它的 TLS 拓扑 | 它已由 `jenkins.*` 的 nginx 443 提供 TLS，隧道端口被 ufw 默认拒绝；属你现有服务，不在本计划范围 |
+| Kubernetes / 服务网格 | 单节点、无自动扩缩容需求 |
+| 多地域与跨可用区 | 无多机房资源；单节点故障由备份与 RTO 兜底 |
+| 托管 APM（Sentry/Datadog 类） | 数据出境与成本；自建指标/日志/追踪已覆盖 |
+| 消息队列与异步化改造 | 现有时延不构成瓶颈；引入 MQ 会新增一致性面 |
+| 蓝绿之外的灰度发布 | 单实例无按比例分流对象 |
+| 自动化扩缩容 | 无编排平台；按实测拐点人工扩容 |
+
+**非本计划范围（候选功能想法，留待单独评估）**：① 用 API Key 直接调用统计接口获取个人统计数据；② 提供可嵌入个人页的统计卡片；③ 绑定 GitHub 拉取提交信息做统计与展示卡片。
 
 ## 会话批量撤销（前端需求，2026-10-29，v0.88.0）
 
