@@ -4,7 +4,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,7 +24,6 @@ class SyncCursorTest {
         c.setUserId(userId);
         c.setDeviceId(deviceId);
         c.setLastPulledChangeId(0);
-        c.setLastPushAt(Instant.parse("2026-08-25T00:00:00Z"));
         return c;
     }
 

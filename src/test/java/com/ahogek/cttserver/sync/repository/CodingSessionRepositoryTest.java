@@ -210,44 +210,4 @@ class CodingSessionRepositoryTest {
                     .isEmpty();
         }
     }
-
-    @Nested
-    @DisplayName("findAllByUserIdAndServerVersionGreaterThanAndIsDeletedFalse")
-    class FindAllByUserIdAndServerVersionGreaterThanAndIsDeletedFalse {
-
-        @Test
-        @DisplayName("shouldReturnLiveSessionsAboveWatermark_excludingDeleted")
-        void shouldReturnLiveSessionsAboveWatermark_excludingDeleted() {
-            CodingSession above = persistLive(UUID.randomUUID());
-            above.setServerVersion(5);
-            em.persistAndFlush(above);
-
-            CodingSession atWatermark = persistLive(UUID.randomUUID());
-            atWatermark.setServerVersion(3);
-            em.persistAndFlush(atWatermark);
-
-            CodingSession deletedAbove = persistDeleted(UUID.randomUUID());
-            deletedAbove.setServerVersion(9);
-            em.persistAndFlush(deletedAbove);
-
-            List<CodingSession> result =
-                    repository.findAllByUserIdAndServerVersionGreaterThanAndIsDeletedFalse(
-                            userId, 3);
-
-            assertThat(result).extracting(CodingSession::getId).containsExactly(above.getId());
-        }
-
-        @Test
-        @DisplayName("shouldReturnEmpty_whenNothingAboveWatermark")
-        void shouldReturnEmpty_whenNothingAboveWatermark() {
-            CodingSession atWatermark = persistLive(UUID.randomUUID());
-            atWatermark.setServerVersion(3);
-            em.persistAndFlush(atWatermark);
-
-            assertThat(
-                            repository.findAllByUserIdAndServerVersionGreaterThanAndIsDeletedFalse(
-                                    userId, 3))
-                    .isEmpty();
-        }
-    }
 }
