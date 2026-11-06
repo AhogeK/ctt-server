@@ -91,7 +91,7 @@ class SyncControllerMockMvcTest {
         @DisplayName("Should return 200 with changes when JWT user pulls")
         void shouldReturn200_whenJwtUserPulls() {
             when(currentUserProvider.getCurrentUserRequired()).thenReturn(currentUser());
-            when(syncPullService.pull(any(), any(), anyLong()))
+            when(syncPullService.pull(any(), any(), anyLong(), any()))
                     .thenReturn(new SyncPullResponse(List.of(), 42L, false));
 
             assertThat(

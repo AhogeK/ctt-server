@@ -135,7 +135,7 @@ class SyncPullServiceTest {
             when(codingSessionRepository.findAllByIdIn(any()))
                     .thenReturn(List.of(live, session(sessionId2, true)));
 
-            SyncPullResponse response = service.pull(userId, deviceId, 10);
+            SyncPullResponse response = service.pull(userId, deviceId, 10, null);
 
             assertThat(response.nextCursor()).isEqualTo(12);
             assertThat(response.changes()).hasSize(2);
@@ -157,12 +157,9 @@ class SyncPullServiceTest {
             assertThat(second.deleted()).isTrue();
 
             verify(syncCursorRepository).advancePullWatermark(userId, deviceId, 12);
-            verify(auditLogService)
-                    .logSuccess(
-                            userId,
-                            AuditAction.SYNC_PULL,
-                            ResourceType.CODING_SESSION,
-                            deviceId.toString());
+            // Success is application-logged, not audited: the heartbeat rate made success rows 90%
+            // of audit_logs. Failures are covered by the logFailure assertions below.
+            verify(auditLogService, never()).logSuccess(any(), any(), any(), any());
         }
 
         @Test
@@ -174,7 +171,7 @@ class SyncPullServiceTest {
                             eq(10L), eq(userId), any()))
                     .thenReturn(List.of());
 
-            service.pull(userId, deviceId, 10);
+            service.pull(userId, deviceId, 10, null);
 
             // The pull is the plugin's heartbeat: it runs every round, including rounds with
             // nothing
@@ -192,7 +189,7 @@ class SyncPullServiceTest {
             when(deviceRepository.findByIdAndUserId(deviceId, userId))
                     .thenReturn(Optional.of(revoked));
 
-            assertThatThrownBy(() -> service.pull(userId, deviceId, 0))
+            assertThatThrownBy(() -> service.pull(userId, deviceId, 0, null))
                     .isInstanceOf(NotFoundException.class);
 
             verify(deviceRepository, never()).touchLastSeen(any(), any(), any());
@@ -207,7 +204,7 @@ class SyncPullServiceTest {
                             eq(10L), eq(userId), any()))
                     .thenReturn(List.of());
 
-            SyncPullResponse response = service.pull(userId, deviceId, 10);
+            SyncPullResponse response = service.pull(userId, deviceId, 10, null);
 
             assertThat(response.changes()).isEmpty();
             assertThat(response.nextCursor()).isEqualTo(10);
@@ -226,7 +223,7 @@ class SyncPullServiceTest {
             when(codingSessionRepository.findAllByIdIn(any()))
                     .thenReturn(List.of(session(sessionId, false)));
 
-            SyncPullResponse response = service.pull(userId, deviceId, 0);
+            SyncPullResponse response = service.pull(userId, deviceId, 0, null);
 
             assertThat(response.changes()).hasSize(1);
             assertThat(response.nextCursor()).isEqualTo(5);
@@ -244,7 +241,7 @@ class SyncPullServiceTest {
                     .thenReturn(List.of(change(11, sessionId, ChangeOp.DELETE, 4)));
             when(codingSessionRepository.findAllByIdIn(any())).thenReturn(List.of());
 
-            SyncPullResponse response = service.pull(userId, deviceId, 10);
+            SyncPullResponse response = service.pull(userId, deviceId, 10, null);
 
             assertThat(response.changes()).hasSize(1);
             assertThat(response.changes().getFirst().sessionUuid()).isNull();
@@ -260,7 +257,7 @@ class SyncPullServiceTest {
             when(deviceRepository.findByIdAndUserId(deviceId, userId))
                     .thenReturn(Optional.of(revoked));
 
-            assertThatThrownBy(() -> service.pull(userId, deviceId, 0))
+            assertThatThrownBy(() -> service.pull(userId, deviceId, 0, null))
                     .isInstanceOf(NotFoundException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COMMON_002);
         }
@@ -270,7 +267,7 @@ class SyncPullServiceTest {
         void shouldThrowNotFoundException_whenDeviceNotOwned() {
             when(deviceRepository.findByIdAndUserId(deviceId, userId)).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> service.pull(userId, deviceId, 0))
+            assertThatThrownBy(() -> service.pull(userId, deviceId, 0, null))
                     .isInstanceOf(NotFoundException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.COMMON_002);
 
@@ -310,7 +307,7 @@ class SyncPullServiceTest {
             when(codingSessionRepository.findAllByIdIn(any()))
                     .thenReturn(List.of(session(sessionId, false)));
 
-            SyncPullResponse response = paged.pull(userId, deviceId, 10);
+            SyncPullResponse response = paged.pull(userId, deviceId, 10, null);
 
             assertThat(response.changes()).hasSize(2);
             assertThat(response.changes().get(0).changeId()).isEqualTo(11);
@@ -340,11 +337,36 @@ class SyncPullServiceTest {
             when(codingSessionRepository.findAllByIdIn(any()))
                     .thenReturn(List.of(session(sessionId, false)));
 
-            SyncPullResponse response = paged.pull(userId, deviceId, 12);
+            SyncPullResponse response = paged.pull(userId, deviceId, 12, null);
 
             assertThat(response.changes()).hasSize(1);
             assertThat(response.hasMore()).isFalse();
             assertThat(response.nextCursor()).isEqualTo(13);
+        }
+
+        @Test
+        @DisplayName(
+                "should re-read below the watermark on replay and resume from the delivered page")
+        void shouldReReadBelowTheWatermark_whenReplayRequested() {
+            UUID sessionId = UUID.randomUUID();
+            when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
+                    .thenReturn(Optional.of(cursor(12)));
+            // The query is stubbed at the replay point, not the watermark: a replay that silently
+            // used max(watermark, requested) would match nothing here and fail the assertion below.
+            when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
+                            eq(5L), eq(userId), any()))
+                    .thenReturn(List.of(change(6, sessionId, ChangeOp.UPSERT, 1)));
+            when(codingSessionRepository.findAllByIdIn(any()))
+                    .thenReturn(List.of(session(sessionId, false)));
+
+            SyncPullResponse response = service.pull(userId, deviceId, 12, 5L);
+
+            assertThat(response.changes()).extracting(SyncChangeDto::changeId).containsExactly(6L);
+            // nextCursor is where this client continues reading, so it is the delivered page's end
+            // (6) even though the server watermark is already 12. Returning 12 here would tell the
+            // client to skip 7..12, which it never received; the upsert's GREATEST keeps 12 stored.
+            assertThat(response.nextCursor()).isEqualTo(6);
+            verify(syncCursorRepository).advancePullWatermark(userId, deviceId, 6);
         }
     }
 }

@@ -102,11 +102,4 @@ class RateLimitKeyFactoryTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("SpEL expression evaluation failed");
     }
-
-    @Test
-    void generateKey_apiType_returnsGlobalKey() {
-        String key = keyFactory.generateKey(RateLimitType.API, "AggregateController.getData", null);
-
-        assertThat(key).isEqualTo("rate_limit:api:AggregateController.getData");
-    }
 }

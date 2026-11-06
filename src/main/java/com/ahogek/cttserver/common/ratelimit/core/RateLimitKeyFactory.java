@@ -55,7 +55,6 @@ public class RateLimitKeyFactory {
                 }
                 yield String.format("%s:email:%s:%s", KEY_PREFIX, apiPath, spElValue);
             }
-            case API -> String.format("%s:api:%s", KEY_PREFIX, apiPath);
         };
     }
 }

@@ -8,6 +8,7 @@ import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
+import com.ahogek.cttserver.common.ratelimit.core.GlobalRequestGuard;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
 import com.ahogek.cttserver.common.ratelimit.core.RedisRateLimiter;
@@ -48,6 +49,7 @@ public class RateLimitAspect {
     private final CurrentUserProvider currentUserProvider;
     private final SpelExpressionResolver spelResolver;
     private final SecurityProperties securityProperties;
+    private final GlobalRequestGuard globalRequestGuard;
 
     public RateLimitAspect(
             RateLimitKeyFactory keyFactory,
@@ -55,13 +57,15 @@ public class RateLimitAspect {
             AuditLogService auditLog,
             CurrentUserProvider currentUserProvider,
             SpelExpressionResolver spelResolver,
-            SecurityProperties securityProperties) {
+            SecurityProperties securityProperties,
+            GlobalRequestGuard globalRequestGuard) {
         this.keyFactory = keyFactory;
         this.redisRateLimiter = redisRateLimiter;
         this.auditLog = auditLog;
         this.currentUserProvider = currentUserProvider;
         this.spelResolver = spelResolver;
         this.securityProperties = securityProperties;
+        this.globalRequestGuard = globalRequestGuard;
     }
 
     /**
@@ -75,6 +79,7 @@ public class RateLimitAspect {
     @Around("@annotation(rateLimit)")
     public Object interceptSingle(ProceedingJoinPoint joinPoint, RateLimit rateLimit)
             throws Throwable {
+        enforceGlobalCeiling();
         enforceRateLimit(joinPoint, rateLimit);
         return joinPoint.proceed();
     }
@@ -93,10 +98,30 @@ public class RateLimitAspect {
     @Around("@annotation(rateLimits)")
     public Object interceptMultiple(ProceedingJoinPoint joinPoint, RateLimits rateLimits)
             throws Throwable {
+        enforceGlobalCeiling();
         for (RateLimit rateLimit : rateLimits.value()) {
             enforceRateLimit(joinPoint, rateLimit);
         }
         return joinPoint.proceed();
+    }
+
+    /**
+     * Enforces the installation-wide request ceiling.
+     *
+     * <p>The per-dimension buckets decide who may consume how much; this ceiling decides how much
+     * the installation as a whole may consume. It runs once per request, before any dimension
+     * bucket, so a caller that exceeds it is rejected regardless of which endpoints it targets.
+     */
+    private void enforceGlobalCeiling() {
+        if (!securityProperties.rateLimit().enabled()) {
+            return;
+        }
+        if (!globalRequestGuard.tryAcquire()) {
+            throw new TooManyRequestsException(
+                    ErrorCode.RATE_LIMIT_001,
+                    "Too many requests, please try again later.",
+                    Instant.now().plusSeconds(1));
+        }
     }
 
     /**

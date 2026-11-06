@@ -99,13 +99,16 @@ public class SyncPullService {
      * @param userId the owning user id
      * @param deviceId the client device id
      * @param lastPulledChangeId the client's last-known change id
+     * @param replayFromChangeId when non-null, re-read from this change id instead of the
+     *     watermark; the watermark and the returned cursor still never regress
      * @return the changes to apply and the next pull cursor
      * @throws NotFoundException if the device is not owned by the user
      */
     @Transactional
-    public SyncPullResponse pull(UUID userId, UUID deviceId, long lastPulledChangeId) {
+    public SyncPullResponse pull(
+            UUID userId, UUID deviceId, long lastPulledChangeId, Long replayFromChangeId) {
         try {
-            return doPull(userId, deviceId, lastPulledChangeId);
+            return doPull(userId, deviceId, lastPulledChangeId, replayFromChangeId);
         } catch (Exception e) {
             auditLogService.logFailure(
                     userId,
@@ -117,7 +120,8 @@ public class SyncPullService {
         }
     }
 
-    private SyncPullResponse doPull(UUID userId, UUID deviceId, long lastPulledChangeId) {
+    private SyncPullResponse doPull(
+            UUID userId, UUID deviceId, long lastPulledChangeId, Long replayFromChangeId) {
         Device device =
                 deviceRepository
                         .findByIdAndUserId(deviceId, userId)
@@ -139,7 +143,15 @@ public class SyncPullService {
                         .findByUserIdAndDeviceId(userId, deviceId)
                         .map(SyncCursor::getLastPulledChangeId)
                         .orElse(0L);
-        long queryCursor = Math.max(persistedCursor, lastPulledChangeId);
+        // A replay names where the client wants to read from, because the server advanced the
+        // watermark before it handed a page over and the client may not have applied it. The
+        // requested point never reads ahead of the watermark (a client cannot skip by claiming a
+        // larger cursor), and it is authoritative for the read: it is the client's own position,
+        // not the server's memory, that decides which changes come back.
+        long queryCursor =
+                replayFromChangeId != null
+                        ? Math.min(replayFromChangeId, persistedCursor)
+                        : Math.max(persistedCursor, lastPulledChangeId);
 
         // Fetch one extra row to detect a next page, then trim it: a single query answers
         // both "the page" and "is there more" without a separate count.
@@ -150,14 +162,18 @@ public class SyncPullService {
         List<SessionChange> changes = hasMore ? fetched.subList(0, pullBatchSize) : fetched;
 
         List<SyncChangeDto> changeDtos = toChangeDtos(changes);
-        long nextCursor =
-                changes.isEmpty()
-                        ? queryCursor
-                        : Math.max(changes.getLast().getChangeId(), lastPulledChangeId);
+        long pageLast = changes.isEmpty() ? queryCursor : changes.getLast().getChangeId();
+        // The cursor answers "where does this client continue reading", so it is the end of what
+        // was actually handed over. Raising it to the persisted watermark would jump a client whose
+        // own position lags more than a page behind over changes it never received; the watermark's
+        // monotonic guard already lives in the upsert (GREATEST), so a lower value cannot rewind
+        // it.
+        long nextCursor = pageLast;
 
         syncCursorRepository.advancePullWatermark(userId, deviceId, nextCursor);
-        auditLogService.logSuccess(
-                userId, AuditAction.SYNC_PULL, ResourceType.CODING_SESSION, deviceId.toString());
+        // Data-plane success goes to the application log below, not to audit_logs: a pull is the
+        // plugin's heartbeat (406-540/day/device measured 2026-11-05) and success rows were 90% of
+        // the table. Failures are still audited in pull()'s catch block.
         log.info(
                 "User {} pulled {} changes for device {} (hasMore: {})",
                 userId,
