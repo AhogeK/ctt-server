@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ApiKeyAuthenticationFilter Tests")
@@ -138,6 +139,33 @@ class ApiKeyAuthenticationFilterTest {
                 .containsExactlyInAnyOrder(ApiKeyScope.READ, ApiKeyScope.SYNC);
         then(auditLogService)
                 .should()
+                .logSuccess(
+                        USER_ID, AuditAction.API_KEY_USED, ResourceType.API_KEY, KEY_ID.toString());
+    }
+
+    @Test
+    @DisplayName("shouldAuditOncePerKeyPerHour_whenTheSameKeyAuthenticatesRepeatedly")
+    void shouldAuditOncePerKeyPerHour_whenTheSameKeyAuthenticatesRepeatedly() throws Exception {
+        User user = new User();
+        user.setId(USER_ID);
+        ApiKey apiKey = new ApiKey();
+        apiKey.setId(KEY_ID);
+        apiKey.setUser(user);
+        apiKey.setScopes(EnumSet.of(ApiKeyScope.READ));
+
+        given(apiKeyService.validateAndTouch(RAW_KEY)).willReturn(apiKey);
+
+        for (int i = 0; i < 5; i += 1) {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.addHeader("Authorization", "Bearer " + RAW_KEY);
+            filter.doFilterInternal(request, new MockHttpServletResponse(), new MockFilterChain());
+            SecurityContextHolder.clearContext();
+        }
+
+        // Five authentications inside one hour-bucket: one row, not five. The key still appears
+        // in audit_logs, which is what "is this key in use" needs; the volume does not.
+        then(auditLogService)
+                .should(times(1))
                 .logSuccess(
                         USER_ID, AuditAction.API_KEY_USED, ResourceType.API_KEY, KEY_ID.toString());
     }

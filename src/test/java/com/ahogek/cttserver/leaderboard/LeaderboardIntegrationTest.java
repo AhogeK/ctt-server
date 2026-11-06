@@ -5,6 +5,7 @@ import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardDimension;
 import com.ahogek.cttserver.leaderboard.enums.LeaderboardPeriod;
+import com.ahogek.cttserver.leaderboard.service.LeaderboardRecomputeQueue;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardService;
 
 import org.junit.jupiter.api.AfterEach;
@@ -55,6 +56,7 @@ class LeaderboardIntegrationTest {
     @Autowired private JdbcClient jdbcClient;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private LeaderboardService leaderboardService;
+    @Autowired private LeaderboardRecomputeQueue leaderboardQueue;
     @Autowired private StringRedisTemplate redisTemplate;
 
     private static final String PASSWORD = "StrongPass123!";
@@ -436,6 +438,11 @@ class LeaderboardIntegrationTest {
                                     .content(pushBody)
                                     .exchange())
                     .hasStatusOk();
+
+            // The push only marks the user dirty; the scheduled drain does the recompute. Run that
+            // drain here rather than waiting for the scheduler, so the assertions below read what
+            // a real drain would have written.
+            leaderboardQueue.drainDirty();
 
             // the pushing user queries with their own READ key, so the current rank is theirs
             String readKey = createApiKey(user.jwt(), "READ");

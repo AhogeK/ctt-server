@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -40,6 +41,16 @@ import java.util.UUID;
 public class ApiKeyServiceImpl implements ApiKeyService {
 
     private static final Logger log = LoggerFactory.getLogger(ApiKeyServiceImpl.class);
+
+    /**
+     * Minimum age of {@code last_used_at} before an authentication writes it again.
+     *
+     * <p>{@code last_used_at} is read as "is this key in use" and is exported for the account
+     * owner; neither needs second-level precision. One hour turns a per-request UPDATE into at most
+     * 24 writes a day per key, on a path that already does a hash lookup and a heartbeat write per
+     * request.
+     */
+    private static final Duration LAST_USED_WRITE_INTERVAL = Duration.ofHours(1);
 
     private final ApiKeyRepository apiKeyRepository;
     private final UserRepository userRepository;
@@ -198,8 +209,14 @@ public class ApiKeyServiceImpl implements ApiKeyService {
             throw createUserInactiveException(user.getStatus());
         }
 
-        apiKey.touchLastUsed(now);
-        apiKeyRepository.save(apiKey);
+        // Throttled: lastUsedAt answers "is this key in use", not "exactly when did it fire".
+        // Every API-key request used to UPDATE this row (406-540 sync polls/day/device plus stats
+        // reads), so an unchanged value is not written again inside the window.
+        Instant lastUsedAt = apiKey.getLastUsedAt();
+        if (lastUsedAt == null || lastUsedAt.isBefore(now.minus(LAST_USED_WRITE_INTERVAL))) {
+            apiKey.touchLastUsed(now);
+            apiKeyRepository.save(apiKey);
+        }
 
         return apiKey;
     }
