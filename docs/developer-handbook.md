@@ -102,7 +102,7 @@ public enum ErrorCode {
 | `API_KEY_CREATED`   | New API key generated                                      | `ApiKeyServiceImpl.createApiKey` |
 | `API_KEY_REVOKED`   | API key revoked                                            | `ApiKeyServiceImpl.revokeApiKey` |
 | `API_KEY_DELETED`   | API key permanently deleted                                | `ApiKeyServiceImpl.deleteApiKey` |
-| `API_KEY_USED`      | Successful API key authentication                          | (Phase O: authentication filter) |
+| `API_KEY_USED`      | Successful API key authentication, **sampled to one row per key per hour** | `ApiKeyAuthenticationFilter.auditApiKeyUse` |
 | `API_KEY_AUTH_FAILED` | Failed API key authentication (revoked/expired/malformed) | (Phase O: authentication filter) |
 | `API_KEY_SCOPE_DENIED` | API key denied access due to insufficient scope | `ApiKeyScopeAspect` |
 
@@ -212,20 +212,25 @@ The sync engine provides bidirectional data synchronization with scope-based acc
 - JWT-authenticated users → bypass scope check
 
 **Protocol (implemented)**:
-- `pull` — request `{ deviceId: UUID, lastPulledChangeId: long }`; response `{ changes: [{ changeId, sessionId, sessionUuid, op, serverVersion, happenedAt, projectName, language, startTime, endTime, clientModifiedAt, clientVersion, deleted }], nextCursor: long }`. The effective query cursor is `max(persistedWatermark, clientCursor)` so a stale client can never rewind the watermark; the response cursor advances the per-device watermark monotonically. No new changes → empty list + current cursor (idempotent). Device ownership is validated first (404 `COMMON_002`).
+- `pull` — request `{ deviceId: UUID, lastPulledChangeId: long, replayFromChangeId?: long }`; response `{ changes: [{ changeId, sessionId, sessionUuid, op, serverVersion, happenedAt, projectName, language, startTime, endTime, clientModifiedAt, clientVersion, deleted }], nextCursor: long, hasMore: boolean }`. Two read paths: a plain pull queries from `max(persistedWatermark, clientCursor)` (a stale client cannot rewind the watermark), while a pull carrying `replayFromChangeId` queries from that value, capped by the watermark. `nextCursor` is always the end of the page actually delivered; the persisted watermark has its own monotonic guard in the upsert (`GREATEST`). No new changes → empty list + current cursor (idempotent). Device ownership is validated first (404 `COMMON_002`).
 - `push` — request `{ deviceId: UUID, sessions: [{ sessionUuid, projectName, language, startTime, endTime, clientModifiedAt, clientVersion, deleted }] }`; response `{ nextCursor: long }`. Each session is looked up **including soft-deleted rows** and routed through `ConflictResolver`: `APPLY_INCOMING` → fields applied + `bumpServerVersion` + `UPSERT` change; `APPLY_DELETE` → soft delete + `DELETE` change; `KEEP_EXISTING` → no-op. New sessions start at server version 1; a client-deleted session the server never had is an idempotent no-op. The whole batch is one transaction (no partial application); the returned cursor is the user's max change id.
-- Both endpoints: `@RequiresApiKeyScope(SYNC)` (JWT bypasses), `@RateLimit(API, 120 req / 60 s)` → 429 `RATE_LIMIT_001` with `retryAfter`, audit `SYNC_PULL` / `SYNC_PUSH` against `CODING_SESSION` resource.
+- Both endpoints: `@RequiresApiKeyScope(SYNC)` (JWT bypasses) and a **per-account** `@RateLimit(USER)` — `pull` 600 req / 60 s, `push` 120 req / 60 s, the account being the API-key owner — plus the installation-wide ceiling (`ctt.security.rate-limit.global-max-requests-per-second`, default 200) applied ahead of the bucket. Exceeding either → 429 `RATE_LIMIT_001` with `retryAfter`, audit `SYNC_PULL` / `SYNC_PUSH` against `CODING_SESSION` resource. The former shared `API` bucket was removed on 2026-11-05: it was keyed `rate_limit:api:{ClassName.methodName}` with no user component, so it capped the installation at roughly 320–430 devices and let one account draining its history starve every other account.
+- Replay: the plugin sends `replayFromChangeId` equal to its own persisted cursor on **every** pull, so a page it failed to apply — or one generated just before the process died — is re-read on the next round instead of being skipped. It persists the cursor after each applied page, which is what makes the replay point exact. A server without the field answers `400`, and the plugin falls back to a plain pull for that server URL (re-probing hourly), so mixed-version deployments degrade instead of failing.
 
 ### Sync Audit Events
 
-| Audit Action | Description            | Trigger Point    |
-|--------------|------------------------|------------------|
-| `SYNC_PULL`  | Sync pull completed    | `SyncPullService` |
-| `SYNC_PUSH`  | Sync push completed    | `SyncPushService` |
+| Audit Action | Description | Trigger Point |
+|--------------|-------------|---------------|
+| `SYNC_PULL`  | Sync pull **failed** | `SyncPullService.pull` catch block |
+| `SYNC_PUSH`  | Sync push **failed** | `SyncPushService.push` catch block |
 
 **Resource Type**: `ResourceType.CODING_SESSION`
 
-**Details**: Successful syncs log via `logSuccess` with the `deviceId` as resource id; failed syncs log via `logFailure` carrying the error code name.
+**Details**: Failed syncs log via `logFailure` carrying the error code name. Successful syncs are
+**not** audited — they go to the application log instead (`"User {} pulled {} changes…"` /
+`"User {} pushed {} sessions…"`). A pull is the plugin's heartbeat at 406–540 requests/day/device
+(measured 2026-11-05), and success rows were 90% of `audit_logs`; the audit table now answers
+"what went wrong", not "is the plugin alive".
 
 ### Sync Data Model (Phase T)
 
@@ -1073,7 +1078,7 @@ JWT resource server filter:
 4. Reject if `revokedAt != null` → `AUTH_012` (403); if `expiresAt <= now` → `AUTH_011` (401).
 5. Resolve holder `User`; reject if status != ACTIVE → `AUTH_004`/`AUTH_005`/`AUTH_006`/`AUTH_022` (403, per status).
 6. Synchronous `apiKey.touchLastUsed(now)` then set `SecurityContext` with `ApiKeyPrincipal`.
-7. Audit: `API_KEY_USED` (success) or `API_KEY_AUTH_FAILED` with failure reason.
+7. Audit: `API_KEY_USED` (success, **sampled to one row per key per hour** — see `auditApiKeyUse`) or `API_KEY_AUTH_FAILED` with failure reason (never sampled).
 
 See `ApiKeyAuthenticationFilter.java` and `ApiKeyServiceImpl.java#validateAndTouch`.
 

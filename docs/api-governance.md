@@ -78,24 +78,42 @@ Endpoints accessed by JetBrains IDE plugins or automated scripts.
     *   `POST /api/v1/sync/push`
     *   `POST /api/v1/sync/pull`
 *   **Authentication**: Required. Token must be `API_KEY`.
-*   **Rate Limiting**: Enforced by **User ID** or **API** (global endpoint limit).
-    *   High capacity per user, but optimized for burst traffic (e.g., Token Bucket with
-        large bucket size but slow refill rate).
+*   **Rate Limiting**: Enforced per **account** (`RateLimitType.USER`), plus an installation-wide
+    ceiling applied in front of the per-dimension buckets.
+    *   `POST /api/v1/sync/pull` uses a per-account bucket of **600 / 60 s** and
+        `POST /api/v1/sync/push` a per-account bucket of **120 / 60 s**. One account draining a
+        full history (about 106 pages at the 1000-change page size) touches only its own bucket,
+        so no other account is starved.
+    *   The former `API` dimension — one bucket shared by every caller of an endpoint, keyed
+        `rate_limit:api:{ClassName.methodName}` — was removed on 2026-11-05. It turned an
+        endpoint-level ceiling into a fleet-wide one: at the measured plugin polling rate
+        (0.28–0.375 pulls per minute per device, measured against the production database on
+        2026-11-05) it capped the whole installation at roughly 320–430 devices, and one new
+        device draining its history consumed the bucket for a minute.
+    *   The ceiling it left behind is `ctt.security.rate-limit.global-max-requests-per-second`
+        (default 200), enforced by `GlobalRequestGuard` **before** any dimension bucket: an
+        in-process, per-instance cap on rate-limited requests per second. It protects one
+        instance; an N-instance deployment has an effective ceiling of N times that value. A
+        true fleet-wide ceiling belongs at the edge proxy, the only layer that sees traffic
+        this application never receives.
+    *   `USER` requires a valid JWT or an API-key principal; the sync endpoints resolve the
+        caller from the API-key owner, so a plugin account cannot be rate-limited by another
+        account's traffic.
 *   **Idempotency**: Mandatory for Push syncs (`server_version` or `change_id` as SpEL key).
 
 ## Rate Limiting Dimensions
 
-The `@RateLimit` annotation supports four isolation dimensions via `RateLimitType`:
+The `@RateLimit` annotation supports three isolation dimensions via `RateLimitType`:
 
 | Type      | Description                                                                 | Use Case                                    |
 |:----------|:----------------------------------------------------------------------------|:--------------------------------------------|
 | `IP`      | Limits by client IP address. No authentication required.                    | Public endpoints (login, registration)      |
-| `USER`    | Limits by authenticated user ID. Requires valid JWT.                        | Business APIs (sync, profile update)        |
+| `USER`    | Limits by authenticated account (JWT or API-key owner).                     | Business APIs (sync, stats, profile update) |
 | `EMAIL`   | Limits by email extracted via SpEL `keyExpression`.                         | Email verification bombing prevention       |
-| `API`     | Global limit for the endpoint regardless of caller.                         | Expensive operations, 3rd party API proxies |
 
 **Note**: `EMAIL` type requires `keyExpression` parameter to extract email from request (e.g., `#request.email`).
-
+**Removed**: `API` — the endpoint-wide bucket shared by every caller. See Tier 4 above for the
+reason; the replacement is per-account buckets plus the installation-wide ceiling.
 
 ### Two-Factor Re-verification
 

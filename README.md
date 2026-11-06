@@ -22,13 +22,15 @@ springdoc-openapi · Thymeleaf · JUnit 6 + Testcontainers.
 - **Sync that survives reinstalls.** The plugin's local database stays the source of truth. The
   server resolves conflicts with last-write-wins, records every accepted change in a monotonic log,
   and keeps a cursor per device — so a new machine pulls the whole history and an idle one catches up
-  without duplicated rows.
+  without duplicated rows. A pull names the client's own cursor, so a page that failed to apply is
+  re-read instead of silently skipped.
 - **Statistics that match the plugin.** The same merge rules, timezone-aware day boundaries and
   per-session accumulations the desktop view uses, served from materialized per-UTC-day rows for the
   common reads.
-- **A leaderboard that only lists activity.** Rankings live in Redis, update on every push, and use
-  competition ordering (1, 2, 2, 4). A user who did none of the measured activity is absent rather
-  than listed at zero — except on the growth board, where zero ("no change") is a measurement.
+- **A leaderboard that only lists activity.** Rankings live in Redis, are recomputed shortly after a
+  push (coalesced per user, off the write path), and use competition ordering (1, 2, 2, 4). A user
+  who did none of the measured activity is absent rather than listed at zero — except on the growth
+  board, where zero ("no change") is a measurement.
 - **A security model, not a demo.** Short-lived JWTs for the dashboard, TOTP two-factor
   authentication and phishing-resistant passkeys with single-use recovery codes, device-bound API
   keys with scopes for plugins, SHA-256 token storage, declarative rate limits, account lockout and
@@ -52,9 +54,10 @@ flowchart LR
     API --> RD[("Redis<br/>leaderboard · rate limits")]
 ```
 
-An accepted push writes four things in one transaction: the session row, its change-log entry, the
-materialized UTC day, and the leaderboard scores. The change log is the only pull source, so every
-device converges on the same state — including soft deletes.
+An accepted push writes three things in one transaction: the session row, its change-log entry, and
+the materialized UTC day. It also leaves a dirty mark, and a scheduled drain recomputes the
+leaderboard from it shortly after — a push never waits on a full-history recompute. The change log is
+the only pull source, so every device converges on the same state — including soft deletes.
 
 A pull delivers the winning snapshot of each change, including the IDE that produced the session:
 
