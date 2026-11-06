@@ -394,8 +394,10 @@ ownership check. Device queries accept either READ or SYNC scope (plugin device-
 another user is rejected with 409 `DEVICE_001`; API-key registration binds the key to the device
 (`api_keys.device_id`). Revocation stamps `revokedAt` on the device (visible to clients); re-registering the device clears it. The endpoint is rate-limited to 10/hour per user.
 
-**Last seen** (`lastSeenAt`): every successful `/sync/pull` and `/sync/push` advances it — a pull is
-the plugin's heartbeat, so it moves on rounds that carry no new sessions too. Registration counts as
+**Last seen** (`lastSeenAt`): every successful `/sync/pull` and `/sync/push` reports activity, but the
+column is rewritten at most once per 15 minutes: a heartbeat inside that window matches no row,
+because the value it would write is already stored and an idle installation should not produce a row
+version every few minutes. Registration counts as
 activity; a revoked device stops advancing while it stays revoked (a revoked device cannot sync
 anyway). The write is a single statement that leaves the entity version untouched, so two syncs from
 the same installation cannot collide into an optimistic-lock failure. Clients derive "active" from

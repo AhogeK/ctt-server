@@ -238,12 +238,12 @@ The sync engine provides bidirectional data synchronization with scope-based acc
 |-------|--------|---------|
 | `coding_sessions` | `CodingSession` | Tracked coding activity; soft-delete via `is_deleted`/`deleted_at`; LWW via `client_version`/`server_version`; per-user unique on `session_uuid` |
 | `session_changes` | `SessionChange` | Incremental change log (BIGSERIAL `change_id` watermark); `op` ∈ `UPSERT`/`DELETE` (ChangeOp enum, aligns with `chk_session_change_op`); scalar UUID refs keep the module dependency-light |
-| `sync_cursors` | `SyncCursor` | Per-device pull watermark (`last_pulled_change_id`), composite PK `(user_id, device_id)`; monotonic advance guarded at both entity and bulk-update level |
+| `sync_cursors` | `SyncCursor` | Per-device pull watermark (`last_pulled_change_id`), composite PK `(user_id, device_id)`; monotonic advance guarded at both entity and bulk-update level; a poll that advances nothing writes no row |
 
 **Design decisions:**
 - Soft-deleted sessions are excluded from every read path by default; never hard-deleted (change-log propagation)
 - `change_id` is a database sequence → safe monotonic pull cursor; per-user isolation enforced in every incremental query
-- `server_version` watermark backs the LWW push path (`idx_sessions_sync_lookup`)
+- `server_version` is the per-session LWW counter; the push path resolves sessions by `session_uuid` (unique constraint), not by a server-version watermark — the index that suggested otherwise was dropped in `V20261105120000`
 - Scalar UUID references (no JPA associations) keep the sync module independent of entity graph loading
 
 ### Sync Conflict Resolution (Phase U)
