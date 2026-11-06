@@ -183,7 +183,7 @@ GET /api/v1/users/me
 POST /api/v1/sync/pull
 ```
 
-限流：每端点每分钟 120 次（`RATE_LIMIT_001`）。
+限流：每账户每分钟 600 次（`RATE_LIMIT_001`；账户 = API key 属主），另有每实例 200 次/秒的全局限流兜底。
 
 ### 请求体
 
@@ -198,6 +198,7 @@ POST /api/v1/sync/pull
 |------|------|------|------|
 | `deviceId` | UUID | 是 | 拥有同步游标的客户端设备 id |
 | `lastPulledChangeId` | long | 是 | 客户端已应用的最后变更 id，服务端从该位置之后继续下发。必须大于等于 0 |
+| `replayFromChangeId` | long | 否 | 指定本次从哪个变更 id 之后开始读。服务端在交付页面**之前**就推进游标，若该页应用失败，下一页会跳过它；传本机已持久化的游标即可重读该页。读取起点不会超过服务端游标（不能靠传大值跳读），`nextCursor` 也只会推进到实际下发的那一页末尾 |
 
 ### 响应体（200 OK）
 
@@ -261,8 +262,8 @@ POST /api/v1/sync/pull
 - **首次拉取**：`lastPulledChangeId` 传 `0`，服务端从第一条变更开始下发。
 - **游标复用**：每次 Pull 后，将响应中的 `nextCursor` 作为下一次请求的 `lastPulledChangeId`。
 - **幂等性**：当没有新变更时，服务端返回空 `changes` 数组和当前游标（`nextCursor` 不变），重复拉取不会产生副作用。
-- **水印单调性**：服务端按设备持久化游标，实际查询游标取「服务端持久化游标」与「客户端传入游标」的较大值，因此客户端无法回退水印；即使客户端传入过期游标，也不会重复下发已消费的变更。
-- **服务端分页（v0.62.0 起）**：单次 Pull 最多返回 `ctt.sync.pull-batch-size`（默认 1000）条变更。响应 `hasMore=true` 表示还有剩余，客户端应**循环 Pull**（用返回的 `nextCursor` 继续请求）直到 `hasMore=false`。每页应用后持久化游标，中断后可从该游标续拉，协议幂等。
+- **游标语义**：不传 `replayFromChangeId` 时，查询游标取「服务端持久化游标」与「客户端传入游标」的较大值（陈旧客户端无法回卷）。传了 `replayFromChangeId` 时，读取从该值开始（上限为服务端游标），因此可以重读服务端游标之前的页；`nextCursor` 始终等于**实际下发页面的末尾**，服务端持久化游标本身仍只增不减（upsert 取较大值）。
+- **服务端分页（v0.62.0 起）**：单次 Pull 最多返回 `ctt.sync.pull-batch-size`（默认 1000）条变更。响应 `hasMore=true` 表示还有剩余，客户端应**循环 Pull**（用返回的 `nextCursor` 继续请求）直到 `hasMore=false`。每页应用后持久化游标；中断后下一轮用该游标作 `replayFromChangeId` 重发，协议幂等。
 - **旧客户端兼容**：忽略 `hasMore` 字段的客户端仍能正常工作——本次拿到前 N 条并推进游标，下次同步续拉剩余部分，数据不丢失，只是收敛变慢。
 - **变更顺序**：`changes` 按 `changeId` 升序返回，插件应按顺序应用。
 
@@ -274,7 +275,7 @@ POST /api/v1/sync/pull
 POST /api/v1/sync/push
 ```
 
-限流：每端点每分钟 120 次（`RATE_LIMIT_001`）。
+限流：每账户每分钟 120 次（`RATE_LIMIT_001`；账户 = API key 属主），另有每实例 200 次/秒的全局限流兜底。
 
 ### 请求体
 
