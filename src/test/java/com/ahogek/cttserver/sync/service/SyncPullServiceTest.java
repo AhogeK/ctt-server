@@ -208,7 +208,9 @@ class SyncPullServiceTest {
 
             assertThat(response.changes()).isEmpty();
             assertThat(response.nextCursor()).isEqualTo(10);
-            verify(syncCursorRepository).advancePullWatermark(userId, deviceId, 10);
+            // The cursor did not move, so the row is not rewritten: idle polls are the majority and
+            // re-storing the same watermark changes no state.
+            verify(syncCursorRepository, never()).advancePullWatermark(any(), any(), anyLong());
         }
 
         @Test
@@ -228,6 +230,23 @@ class SyncPullServiceTest {
             assertThat(response.changes()).hasSize(1);
             assertThat(response.nextCursor()).isEqualTo(5);
             verify(syncCursorRepository).advancePullWatermark(userId, deviceId, 5);
+        }
+
+        @Test
+        @DisplayName("should not create a cursor row when a new device has nothing to pull")
+        void shouldNotCreateCursorRow_whenFreshDeviceHasNoChanges() {
+            when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
+                    .thenReturn(Optional.empty());
+            when(sessionChangeRepository.findAllByChangeIdGreaterThanAndUserIdOrderByChangeIdAsc(
+                            eq(0L), eq(userId), any()))
+                    .thenReturn(List.of());
+
+            SyncPullResponse response = service.pull(userId, deviceId, 0, null);
+
+            // No row exists and nothing advanced, so nothing is created; the next read still sees
+            // 0.
+            assertThat(response.nextCursor()).isZero();
+            verify(syncCursorRepository, never()).advancePullWatermark(any(), any(), anyLong());
         }
 
         @Test
@@ -364,9 +383,12 @@ class SyncPullServiceTest {
             assertThat(response.changes()).extracting(SyncChangeDto::changeId).containsExactly(6L);
             // nextCursor is where this client continues reading, so it is the delivered page's end
             // (6) even though the server watermark is already 12. Returning 12 here would tell the
-            // client to skip 7..12, which it never received; the upsert's GREATEST keeps 12 stored.
+            // client to skip 7..12, which it never received.
             assertThat(response.nextCursor()).isEqualTo(6);
-            verify(syncCursorRepository).advancePullWatermark(userId, deviceId, 6);
+            // This page ends below the stored watermark, so there is nothing to advance and the row
+            // is left alone. A replay whose page crosses the watermark does advance it — the guard
+            // compares the delivered end, not the fact that a replay happened.
+            verify(syncCursorRepository, never()).advancePullWatermark(any(), any(), anyLong());
         }
     }
 }
