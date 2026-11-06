@@ -1,8 +1,12 @@
 package com.ahogek.cttserver.auth.oauth.crypto;
 
+import com.ahogek.cttserver.common.exception.InternalServerErrorException;
+
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -20,6 +24,8 @@ import org.springframework.util.StringUtils;
 @Component
 @Converter
 public class OAuthTokenConverter implements AttributeConverter<String, String> {
+
+    private static final Logger log = LoggerFactory.getLogger(OAuthTokenConverter.class);
 
     private OAuthTokenEncryptor encryptor;
 
@@ -47,6 +53,14 @@ public class OAuthTokenConverter implements AttributeConverter<String, String> {
         if (encryptor == null) {
             throw new IllegalStateException("OAuthTokenEncryptor is not initialized in converter.");
         }
-        return encryptor.decrypt(dbData);
+        try {
+            return encryptor.decrypt(dbData);
+        } catch (InternalServerErrorException _) {
+            // OAuth provider tokens are optional cached credentials; a key rotation or an
+            // interrupted write must not turn an otherwise readable account row into a 500.
+            log.warn(
+                    "Stored OAuth token cannot be decrypted with the configured key; treating it as absent");
+            return null;
+        }
     }
 }
