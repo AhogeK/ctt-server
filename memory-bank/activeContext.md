@@ -1,24 +1,27 @@
 # Active Context
 
-- [2026-11-04] - 安全加固与刷新 Cookie（v0.91.3，已推送 develop / master）
-    - API key 仅浏览器可改密码/邮箱；密码变更撤销其他 session 与 API keys；JWT/OAuth key 无公开 fallback；actuator 仅 health/info；XFF 仅可信代理；OAuth state cookie + token fragment（可信 TLS 代理下 Secure）；audit trace/IP 校验；mail outbox cascade/retention、显式 user_id、失败日志脱敏；MDC IP 脱敏；sync 批量上限；HSTS 代理；`/auth/refresh` Cookie 优先、body 可省略（无令牌 400，service 空令牌 401）
-    - 全量 **1669 tests / 0 failures / 1 skipped**，build/coverage 通过；前端影响见 `.omp/reports/2026-11-04/security-hardening-frontend-report.md` 与 `.omp/reports/2026-11-04/refresh-cookie-only-frontend-report.md`
+- [2026-11-06] - 插件接入 replay 与 gzip，服务端修正游标契约（v0.92.0）
+    - 插件 0.22.0：每轮 pull 用本机游标作 `replayFromChangeId`、每页应用后持久化游标；老服务端 400 时回退为普通请求并按小时重探；所有请求发 `Accept-Encoding: gzip` 并自行解压
+    - 服务端修真实缺陷：`nextCursor` 曾被抬到 watermark，会让落后超过一页的客户端跳过未收到的变更；改为「实际下发页尾」，单调性交给 upsert 的 `GREATEST`
+- [2026-11-05] - 同步容量研究（v0.92.0 工作区）
+    - 实测见 `domains/sync-protocol/references.md`「容量实测」与 `.omp/research/2026-11-05/sync-capacity-study.md`；真瓶颈是 ①全局限流桶（≈320–430 台设备触顶）②push 内按全部历史重算排行榜 ③空轮询的审计写放大；另发现长排空把乐观 watermark 变成丢页
+- [2026-11-04] - 安全加固与刷新 Cookie（v0.91.3 已推送 develop / master；v0.91.4 OAuth 恢复修复随 2026-11-06 批次提交）
+    - API key 仅浏览器可改密码/邮箱；密码变更撤销其他 session 与 API keys；JWT/OAuth key 无公开 fallback；actuator 仅 health/info；XFF 仅可信代理；OAuth state cookie + token fragment（可信 TLS 代理下 Secure）；audit trace/IP 校验；mail outbox cascade/retention、显式 user_id、失败日志脱敏；MDC IP 脱敏；sync 批量上限；HSTS 代理；`/auth/refresh` Cookie 优先、body 可省略（无令牌 400，service 空令牌 401）；旧 OAuth 密钥密文按缺失处理，避免账户列表 500
+    - 全量 **1671 tests / 0 failures / 1 skipped**，build/coverage 通过；前端影响见 `.omp/reports/2026-11-04/security-hardening-frontend-report.md` 与 `.omp/reports/2026-11-04/refresh-cookie-only-frontend-report.md`
 
 - [2026-11-03] - 通行密钥基础 + 第二步（v0.91.0，已交付：6432bc1/2f99161/cc1995e/c1ac658）
     - 新增 `POST /auth/2fa/passkey/options|assert`；options 用 `peek` 校验而不消费 2FA `challengeToken`，WebAuthn challenge 存 `SECOND_FACTOR` 类型与 token 的 SHA-256 绑定；`allowCredentials` 由账号 `userHandle` 生成
     - 失败只消费 WebAuthn challenge，保留 TOTP/恢复码回退；成功才 `GETDEL` 消费 2FA challenge；无 TOTP 的账号不进入第二步；新 session 天然 recent
     - `LoginChallengeResponse` 增加 primitive `passkeyCount`；OAuth 回跳 fragment 同步携带；密码与 OAuth 共用同一端点
-    - 测试/文档: 密码 2FA + passkey 成功、错误签名后 TOTP 仍可用、无 passkey 账号 `passkeyCount=0`、跨账号凭据拒绝；全量 **1645 tests / 0 failures / 1 skipped**，`build` 与 `jacocoTestCoverageVerification` 通过。README、`docs/api-reference.md` / `api-governance.md` / `security-architecture.md` / `developer-handbook.md`、`auth-lifecycle` 领域与前端报告 `.omp/reports/2026-11-03/passkey-second-factor-frontend-report.md` 已同步
-- [2026-11-03] - 通行密钥基础实现（并入 v0.91.0）
     - 新增发现型登录 `POST /auth/passkey/options|assert`（不进入 TOTP）与 `/users/me/passkey/*` 注册/列表/重命名/删除；注册与删除要求近期认证，API key 一律拒绝
     - 依赖 Yubico `webauthn-server-core` 2.10.1；Redis 操作绑定挑战（5 分钟、`GETDEL`）、RP ID/origin、UV/UP、计数器 0 语义、备份标志展示、无 attestation、邮件通知（`REQUIRES_NEW`）；密码/TOTP/恢复码/OAuth 全保留；删除最后凭据仅在有密码或 OAuth 时允许（`AUTH_018`）；新增 `AUTH_032`–`AUTH_035`
+    - 测试/文档: 密码 2FA + passkey 成功、错误签名后 TOTP 仍可用、无 passkey 账号 `passkeyCount=0`、跨账号凭据拒绝；全量 **1645 tests / 0 failures / 1 skipped**，`build` 与 `jacocoTestCoverageVerification` 通过。README、`docs/api-reference.md` / `api-governance.md` / `security-architecture.md` / `developer-handbook.md`、`auth-lifecycle` 领域与前端报告 `.omp/reports/2026-11-03/passkey-second-factor-frontend-report.md` 已同步
     - 文档: README、`docs/api-reference.md` / `api-governance.md` / `security-architecture.md` / `developer-handbook.md`、`auth-lifecycle` 与 `api-contract` 已同步；验证: passkey 目标用例通过，全量 **1645 tests / 0 failures / 1 skipped**，build 通过；RestClient 429 自动重试导致假卡死的排障见 `JdkClientHttpRequestFactory` 修复
 - [2026-10-30] - 两步验证（TOTP + 恢复码）（v0.89.0，已交付）
     - 新增 `/api/v1/users/me/2fa/*`（状态/start/confirm/disable/regenerate）与 `POST /auth/login/2fa`；启用后密码登录返回 202 + 挑战，OAuth 回调以 `#challengeToken` fragment 返回且不写 token/Cookie；新增 `AUTH_026`–`AUTH_031`
     - 安全: TOTP secret AES-256-GCM（`TOTP_ENCRYPTION_KEY`）、恢复码仅存 SHA-256、`totp_last_used_step` 防重放、Redis 一次性挑战（5 次失败 429）、启用/关闭撤销其他会话、API key 创建要求 WEB_SESSION + 2FA 复核
     - **审查修复（10-31）**: ①启动阻断——`TOTP_ENCRYPTION_KEY` 默认空串 + `@NotBlank` 使三条启动路径全挂（曾靠 `@TestPropertySource` 掩盖）；改为本地占位键、prod 无回退、compose 不再传空值；`completeLogin` 现重校验账号状态 ②审计阻断——`LoginTwoFactorService.complete` 的 `@Transactional` 让 `TOTP_CHALLENGE_FAILED`（AFTER_COMMIT）随回滚丢弃并把已消费凭据一并回滚；移除该事务，`completeLogin` 补显式 `save` ③新增 `SecondFactorVerifier` 收敛三处重复判定（位数从配置推导），删除 `UserLoginService.login` 死方法，OAuth 两条 `process*` 合并 ④`markTotpStepUsed` 去掉仓库层 `@Transactional`、`UserController` 改用 `WebSessionGuard`、去掉失效的 `@RequiresApiKeyScope`、10 个实体通配导入展开 ⑤补 7 例测试（OAuth email-merge+2FA、`AUTH_031` 新旧会话、`AUTH_029`、双凭据歧义、端点级 429、`TOTP_CHALLENGE_FAILED` 落库，末者 RED 可复现；另加 2FA 完成后账号被 SUSPENDED 的 403 用例）
-    - 验证: `spotlessCheck` + `jacocoTestCoverageVerification` + 全量 `build` 1618/0/1 skipped；版本 0.89.0；`AGENTS.md` R8 补配置空值与二次认证完成阶段两条边界
-    - **2026-11-02 修复（v0.89.1）**: iOS Google Authenticator 拒扫 52 字符密钥。根因不是版本漂移，而是 `SecretGenerator.generate(160)` 已返回 Base32 字节，`TotpService` 又编码一次（20 字节 → 32 字符 → 52 字符 + `====`）；改为 20 个随机字节只编码一次，返回 32 字符无填充。已启用旧账号需 `disable → start → confirm` 重设；新增密钥长度、start 端点与旧 56 字符 secret 兼容性测试；全量 1620/0/1 skipped
+    - 验证: `spotlessCheck` + `jacocoTestCoverageVerification` + 全量 `build` 1618/0/1 skipped；版本 0.89.0；`AGENTS.md` R8 补配置空值与二次认证完成阶段两条边界。**2026-11-02 修复（v0.89.1）**: iOS Google Authenticator 拒扫 52 字符密钥。根因不是版本漂移，而是 `SecretGenerator.generate(160)` 已返回 Base32 字节，`TotpService` 又编码一次（20 字节 → 32 字符 → 52 字符 + `====`）；改为 20 个随机字节只编码一次，返回 32 字符无填充。已启用旧账号需 `disable → start → confirm` 重设；新增密钥长度、start 端点与旧 56 字符 secret 兼容性测试；全量 1620/0/1 skipped
 - [2026-10-29] - 会话批量撤销（v0.88.0，已提交推送）
     - 新增 `POST /api/v1/users/me/sessions/revoke`（body `{sessionIds}`，去重后 1..100）：按 UUID 升序取会话锁，逐条撤销并写 `SESSION_REVOKED`；不存在的/已撤销的/他人的进 `skipped`，整体 200 且重放幂等；限流 10 次/时；当前会话可撤销（refresh 立即 401，access token 15 分钟内仍有效）；审查后补 401/403/429 独立示例、拆分 `MAX_BATCH_REVOCATIONS`、抽取 `findLiveTokenUnderLock`、429 用例独立成类、补 null 元素用例；前端反馈后补「按端点分桶 + `Retry-After`/`retryAfter`」文档说明（行为不变、纯文档不 bump 版本）
 - [2026-10-28] - 会话列表 500 修复（v0.87.3，待授权提交）
@@ -30,11 +33,9 @@
 - [2026-10-27] - README 重设计（文档，已提交推送）
     - 785 → 226 行：Hero SVG + 徽章、机制图（mermaid）、快速开始、API 总览、数据模型、测试、文档索引；API 细节零丢失迁至 `docs/api-reference.md`（仅标题由 `## API Endpoints` 改为 `## Endpoints`）；新增 `assets/readme/hero.svg`；底部 Support 用 `<div align="center">` + 单行 flat-square 徽章（源码换行会变竖排）
 
-- [2026-10-26] - 会话 IDE 复核补齐（v0.87.1，已提交推送）
+- [2026-10-26] - 会话级 IDE 归属与复核补齐（v0.87.0 / v0.87.1，已提交推送）
     - 前端复核两项属实: pull 的 `SyncChangeDto` 未带 IDE ⇒ 跨设备本地副本回退成拉取方 IDE；`applyIncomingFields` 无条件写 ⇒ 缺少字段的更新把已有 IDE 清成 null
     - 修复: `SyncChangeDto` 加 `ideName`/`ideVersion`，`toChangeDto` 的正常分支与 `session == null` 分支都显式传值；IDE 只在传入非空时写入（旧客户端不清空、升级可补值）；单测/集成覆盖两端，全量 1567 tests / 0 failures
-
-- [2026-10-26] - 会话级 IDE 归属（v0.87.0，已提交推送）
     - 需求核实: 报告属实 —— deviceId 是安装级（同机所有 IDE 共享），`devices.ide_name` 只在注册时写，`coding_sessions` 不存 IDE，统计按设备归属 ⇒ 多 IDE 被合并、IDE 升级不更新；插件端 `SyncSessionMapper` 已按会话发送 IDE
     - 契约: 迁移 `V20261026120000` 加 `coding_sessions.ide_name/ide_version`（可空、不回填）+ 部分索引 `(user_id, ide_name) WHERE is_deleted = FALSE`；`SyncSessionDto` 可选 `ideName`/`ideVersion`（≤100/≤50，空白归一 null）；批量 INSERT 16 → 18 列
     - 统计与设备: 过滤 = 会话 `ide_name` ∪ 旧行回退 origin 设备注册值；`IDES` 桶会话优先、回退设备、再 `Unknown IDE`；`ide-filters` = 两者并集；404 仅当两者都无；设备响应改「最近使用」（`DISTINCT ON` 单查询、无 N+1、回退注册值）；每日汇总表不参与 IDE 筛选
@@ -48,8 +49,7 @@
     - 前端需求核实: `leaderboard:total`/`streak`/`active_days` 各 9 成员其中 7 个 0 分，`night_owl`/`early_bird` 各 8 个 0 分；7 个 AutoTest 账号 `coding_sessions` 为 0 条 ⇒ **不是精度问题，是写入规则**
     - 根因: `writeScore` 无条件 `ZADD`，`recomputeAndWriteAll` 对每个维度×周期都写 ⇒ 无活动账号以 0 分入榜，并计入 `totalParticipants` 与并列名次
     - 修复: `LeaderboardDimension.ranksOnlyPositiveScores()`（除 `GROWTH` 外全部为真）；`writeScore` 在 `score <= 0` 时 `ZREM` 并返回（只查层过滤不行：`totalParticipants`、分页、名次仍会带上 0 分成员）；`LANGUAGE` 的榜索引与 `user:languages` 记录只在正分时维护，零时长语言不建榜；回填代次 3 → 4 以清理存量 0 分成员；`GROWTH` 保留 0/负分（度量而非缺失）
-    - 测试: 零会话用户只移除不写入（仅 `growth` 键可写 0）、负增长与零增长仍写入、零时长语言不建榜、TTL 只在写分时设置；集成用例「无活动用户不在榜上且 `totalParticipants` = 1」
-    - 状态: 实施完成，待授权提交
+    - 测试: 零会话用户只移除不写入（仅 `growth` 键可写 0）、负增长与零增长仍写入、零时长语言不建榜、TTL 只在写分时设置；集成用例「无活动用户不在榜上且 `totalParticipants` = 1」；状态: 实施完成，待授权提交
 
 - [2026-10-25] - 窗口化 STREAK 回填缺失修复（v0.85.1，已提交推送）
     - 前端报告核实: **五项断言全部属实**。Redis 实测（192.168.5.178:6379）：`leaderboard:streak`=2，`month/quarter/half-year/year` 四个窗口各 1；`leaderboard:recompute:g2:vocab2` 存在；代码 `SCORE_RULE_GENERATION` 仍为 2

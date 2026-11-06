@@ -98,3 +98,14 @@ A device id is installation-scoped: every JetBrains IDE on one machine shares it
 - **The device list projects, it does not re-register.** `DeviceResponse.ideName`/`ideVersion` are the
   newest session's IDE (one `DISTINCT ON` query for the whole list), falling back to the registration
   values. Registration still answers with the values submitted in that call.
+
+## 容量：每条路径的成本不是同一个量纲
+
+2026-11-05 实测（见 `references.md` 的「容量实测」段与 `.omp/research/2026-11-05/sync-capacity-study.md`）：
+
+- **Pull 是 O(页大小)，不是 O(历史)。** `session_changes(user_id, change_id)` 复合索引覆盖「用户 + 游标 + 排序」，实测 1001 条一页 2.7–5.9 ms。**不要为了「优化拉取」去改这个查询**，它已经不是瓶颈。
+- **Push 曾是 O(用户全部历史)，这是会随年限变慢的那条路径——已移出写路径。** `SyncPushService.updateLeaderboard` → `LeaderboardService.recomputeAndWriteAll` → `findAllByUserIdAndIsDeletedFalse(userId)`，即每次 push 加载该用户**一生**的会话，重算 7 维度 × 6 周期（语言维度再乘语言数）并整体写 Redis，且在 push 事务内、持用户锁。**2026-11-05 改为脏标记 + 定时排空**：push 只做一次 `SADD leaderboard:dirty`（`afterCommit` 之后才写，避免排空读到未提交快照），`LeaderboardRecomputeQueue` 按 `ctt.leaderboard.recompute-drain-interval-ms`（默认 5 s）`SPOP` 批量重算；同一用户在一个排空周期内的 N 次 push 只重算一次。**陷阱仍在**：写路径上的派生值重算会让成本与用户生涯数据量成正比（10 万行 ≈ 100 MB，第 10 年单次 push 数百毫秒 + 上百 MB 堆），所以规则是「要么改增量/按天聚合，要么移出写路径」——本次选的是后者。
+- **限流桶不是「防滥用」而是「部署规模上限」。** `RateLimitType.API` 的键只有端点路径 ⇒ `/sync/pull` 与 `/sync/push` 曾各有一个**全局** 120/分钟的桶：按实测轮询频率只支撑约 320–430 台设备，一台 20 年历史的新设备排空 106 页就能占满它一分钟。**已于 2026-11-05 修复**——`RateLimitType.API` 枚举值删除，pull/push 改为 `USER` 维度（600/120 每分钟，账户 = API key 属主），另加 `GlobalRequestGuard` 每实例全局限流（`global-max-requests-per-second`，默认 200）在维度桶之前兜底。端点级限流必须带用户/设备维度。
+- **空轮询也在写库——已砍掉其中两笔。** 每次 poll 原本 = API key SELECT+UPDATE、device 心跳 UPDATE、`sync_cursors` upsert、2 条审计 INSERT + 1 条 `API_KEY_USED`。**2026-11-05 起**：成功同步不再写审计（失败仍写）、`API_KEY_USED` 每 key 每小时至多 1 行、`last_used_at` 每小时至多 UPDATE 1 次。剩余：API key SELECT（认证必需）、device 心跳、游标 upsert。**陷阱仍在**：写放大按轮询次数而非业务量增长——审计表无保留策略，20 年后每用户约 2.7 GB、比会话数据大 26 倍，所以「无结果的读请求尽量不落库」这条规则要继续守。
+- **压缩必须协商，不能单方面开。** 插件不发 `Accept-Encoding`，JDK `HttpClient` 也不自动解压 ⇒ 服务端若无条件 gzip，插件会把 gzip 字节当 JSON 解析失败。**2026-11-05 起**开启 Tomcat 协商压缩（`application/json`/`text/plain`，≥2 KB）：不发的客户端拿到原字节，浏览器按请求 opt-in。`ResponseCompressionProbeTest` 用真端口 + 插件同款客户端验证两条分支。
+- **乐观 watermark 在长排空下会变成丢数据——插件已接 replay 闭合。** 服务端在交付页面**之前**就推进该设备的 watermark（同一事务），排空页数随历史线性增长（20 年 = 106 页），中途应用失败 ⇒ 该页对这台设备**永久不再重发**。这是容量问题直接转化为正确性问题。**2026-11-05 起** pull 接受可选 `replayFromChangeId`：读起点从该值开始（上限为 watermark），`nextCursor` 等于**实际下发页面的末尾**（不是 watermark），持久化 watermark 由 upsert 的 `GREATEST` 保持单调。**插件 0.22.0 已接入**：每轮 pull 都用本机持久化游标作重放点、每页应用后写游标，崩溃或应用失败丢的页会在下一轮被重读；遇到不识别该字段的老服务端回退为普通请求并按小时重探。

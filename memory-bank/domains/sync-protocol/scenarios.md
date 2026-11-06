@@ -9,6 +9,7 @@ Trigger → judgement → action.
 | New response field | The plugin parses with lenient JSON (unknown fields ignored) | Additive only; never rename or remove a field the plugin reads |
 | New request field | Old clients omit it | Give it a server-side default that reproduces previous behaviour |
 | Behaviour change for existing clients | Backward compatibility is a hard constraint | Ship it behind a new optional param, or verify the old path degrades identically |
+| New request field the client must send | An older server rejects the unknown property with `400` | Keep the field optional server-side and have the client fall back to a request without it, then re-probe later; both directions must degrade instead of failing |
 | Contract change that the plugin must mirror | The plugin is read-only from here | Write a requirement/bug report (现状 / 期望 / 理由 / 影响面 / 对接方配合) per R3 |
 | New session field (push **and** pull) | A field written by push but missing from pull desynchronizes every other device: the copy is built without it and falls back to the pulling device | Update `SyncSessionDto`, `SyncChangeDto`, the entity, the multi-row INSERT column list/count, every reader, and assert both directions (push stores it, pull delivers it); mirror in README and `references.md` |
 | Optional field on an update | Absence means "this client cannot report it", not "clear it" | Write only non-blank incoming values: an older client must not erase what a newer one stored, and a client that starts reporting it fills it in |
@@ -18,7 +19,7 @@ Trigger → judgement → action.
 | Trigger | Judgement | Action |
 | --- | --- | --- |
 | "A new device pulled everything at once" | Unbounded responses are the failure mode paging solves | Check `pull-batch-size`; the server pages and the client must loop on `hasMore` |
-| "A session is missing on one device" | Distinguish missing data from a skipped page | Compare the device cursor with the server watermark; a watermark ahead of the client means a page was generated but never applied (principle 8) |
+| "A session is missing on one device" | Distinguish missing data from a skipped page | A watermark ahead of the client means a page was generated but never applied (principle 8). The next pull replays from the client cursor and re-delivers it; if it stays missing, check that the client actually sends `replayFromChangeId` |
 | "The same session exists twice" | Content-level dedup should collapse it | Check `session_uuid` uniqueness and whether the re-push carried identical business content |
 | "Editing on device B moved the session out of device A's stats" | Origin vs last-writer confusion | Statistics must filter on `origin_device_id`; if they filter on the writer, that is the defect |
 | "Device stops syncing after reinstall" | Revocation or unknown device | Both answer 404 `COMMON_002`; re-registering the same id clears revocation |
@@ -38,3 +39,4 @@ Trigger → judgement → action.
 | New change-log consumer | `change_id` is the only ordering guarantee | Never reuse ids, never backdate `happened_at` into ordering decisions |
 | Cursor write path | Monotonicity is the safety property | Keep the atomic upsert with `GREATEST`; a plain UPDATE cannot create the first row for a fresh device |
 | Retention/cleanup idea | The log is the pull source of truth | Do not prune without a client-facing resync story |
+| Changing what `nextCursor` means | It is the client's **resume point**, not the server's watermark | Keep it equal to the delivered page's end. Raising it to the stored watermark makes a client whose cursor lags more than a page skip changes it never received; monotonicity belongs in the upsert (`GREATEST`), not in the response |

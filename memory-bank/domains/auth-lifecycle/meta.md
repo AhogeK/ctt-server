@@ -48,7 +48,7 @@ payload semantics, login metadata, lockout thresholds, the audit events each flo
 
 | | |
 | --- | --- |
-| Checked against source | 2026-11-04 · v0.91.3 (credential boundary, OAuth state/token, session-hardening, PII and cookie-only refresh re-checked) |
+| Checked against source | 2026-11-04 · v0.91.4 (credential boundary, OAuth state/token/legacy ciphertext, session-hardening, PII and cookie-only refresh re-checked) |
 | Coverage | Auth/OAuth/user packages, two-factor services, passkey ceremonies and second-factor assertions, API-key creation guard, error codes and session revocation at this revision |
 | Known drift | None known after the 2026-11-04 pass; re-verify the flow you rely on. |
 

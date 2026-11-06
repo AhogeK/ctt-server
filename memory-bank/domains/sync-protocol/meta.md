@@ -39,13 +39,14 @@ once the data lands (`stats-aggregation`), plugin-side storage (`../code-time-tr
 | **Last-writing device** | The device of the most recent accepted mutation |
 | **Soft delete** | `is_deleted = true` with `deleted_at`; rows are never physically removed by sync |
 | **BOLA** | Broken object-level authorization: another user's device/key must not be reachable |
+| **Replay point** | `replayFromChangeId`: the position a client asks to read from, overriding the watermark for that read; `nextCursor` still reports only what was delivered |
 
 ## Verification baseline
 
 | | |
 | --- | --- |
-| Checked against source | 2026-09-11 · v0.67.0 (domain written from source) |
-| Coverage | Built from the `sync` package and its repositories at that revision; not re-verified since |
-| Known drift | Not checked — verify the endpoint or rule you are about to rely on |
+| Checked against source | 2026-11-06 · v0.92.0 (pull/push 路径、replay 契约、插件 0.22.0 实际用法、生产库容量实测均复核) |
+| Coverage | `sync` 包与仓库、插件端同步实现（`SyncCoordinator` / `SyncHttpClient`）、生产库真实数据量与执行计划 |
+| Known drift | 未发现漂移；容量结论依赖当时的数据规模，改动同步路径后需重测 |
 
 Treat unverified parts as a lead to check, not as a fact.

@@ -25,7 +25,7 @@ path is flat: no `success` field, no `data`.
             examples = @ExampleObject(name = "device-not-found",
                 summary = "Device not found or access denied", value = DEVICE_NOT_FOUND_EXAMPLE))) })
 @RequiresApiKeyScope(ApiKeyScope.READ)
-@RateLimit(type = RateLimitType.API, limit = 60, windowSeconds = 60)
+@RateLimit(type = RateLimitType.USER, limit = 60, windowSeconds = 60)
 @GetMapping("/x")
 public ResponseEntity<RestApiResponse<XResponse>> x(...) { }
 ```

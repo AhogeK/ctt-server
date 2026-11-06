@@ -1491,7 +1491,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 - T1：`CodingSession` Entity — 映射 `coding_sessions` 表（`session_uuid` / `user_id` / `project_name` / `language` / `start_time` / `end_time` / `client_modified_at` / `client_version` / `server_version` / `updated_by_device_id` / `is_deleted` / `deleted_at`），LWW 冲突解析所需字段齐备；域方法 `softDelete`（幂等保留 deleted_at）/ `restore` / `bumpServerVersion`；唯一约束 `uk_coding_sessions_user_session_uuid (user_id, session_uuid)`
 - T2：`SessionChange` Entity + `ChangeOp` 枚举 — 映射 `session_changes` 表（`change_id` BIGSERIAL / `user_id` / `device_id` 可空 / `session_id` FK→coding_`sessions.id` / `op` / `server_version` / `happened_at`）；`op` 枚举值严格对齐 `chk_session_change_op` CHECK（UPSERT / DELETE）
-- T3：`SyncCursor` Entity + `SyncCursorId` 复合主键 — 映射 `sync_cursors` 表（复合 PK `(user_id, device_id)` / `last_pulled_change_id` / `last_push_at` / `updated_at`），每设备一条；`advancePullWatermark` 单调守护（永不回退）
+- T3：`SyncCursor` Entity + `SyncCursorId` 复合主键 — 映射 `sync_cursors` 表（复合 PK `(user_id, device_id)` / `last_pulled_change_id` / `updated_at`），每设备一条；`advancePullWatermark` 单调守护（永不回退）。**`last_push_at` 已于 2026-11-05 删除**（迁移 `V20261105120000`，该列无读写方）
 - T4：三个 Repository（`CodingSessionRepository` / `SessionChangeRepository` / `SyncCursorRepository`）— 按 user/device 维度查询、按 change_id 增量拉取（`WHERE change_id > :cursor` + per-user 隔离 + 升序）、软删除过滤；`SyncCursorRepository.advancePullWatermark` 以 `@Modifying` 原子语句实现并发安全单调水印（`lastPulledChangeId < :watermark` 谓词），bulk JPQL 显式设 updated_at
 - ~~T5：DTOs~~ — **推迟至 V 阶段**（pull/push 协议语义未定，提前定义属 Speculative Generality；V 阶段与协议一起定稿）
 **关键设计决策：**
@@ -1545,11 +1545,11 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 **子任务：**
 
-- V1：Pull 语义 ✅ — 请求 `{deviceId, lastPulledChangeId}`；有效查询游标 = max(持久化水印, 客户端游标)（陈旧客户端无法回卷）；按 change_id 升序返回增量 + 胜出会话快照（含软删行，DELETE 事件可送达行身份）；设备水印经 `advancePullWatermark` 原生 SQL 原子 upsert（INSERT ... ON CONFLICT + GREATEST）单调推进；无新增 → 空列表 + 当前游标（幂等）
+- V1：Pull 语义 ✅ — 请求 `{deviceId, lastPulledChangeId, replayFromChangeId?}`；不传重放点时查询游标 = max(持久化水印, 客户端游标)（陈旧客户端无法回卷），传了则从该值读、上限为水印；`nextCursor` 恒等于实际下发页尾（2026-11-06 修正，原实现把它抬到水印，会使落后超过一页的客户端跳过未收到的变更）；按 change_id 升序返回增量 + 胜出会话快照（含软删行，DELETE 事件可送达行身份）；设备水印经 `advancePullWatermark` 原生 SQL 原子 upsert（INSERT ... ON CONFLICT + GREATEST）单调推进；无新增 → 空列表 + 当前游标（幂等）
 - V2：Push 语义 ✅ — 批量 `{deviceId, sessions[]}`；逐条查询含软删行后经 `ConflictResolver` 三路路由：`APPLY_INCOMING`（字段应用 + bumpServerVersion + UPSERT 变更）/ `APPLY_DELETE`（软删 + bump + DELETE 变更）/ `KEEP_EXISTING`（no-op）；新会话 server_version 从 1 起；客户端删除服务端不存在的会话 → 幂等 no-op；整批单事务（部分应用永不发生）；响应返回用户最大 change_id 作为 nextCursor
 - V3：认证集成 ✅ — 复用 `ApiKeyAuthenticationFilter`（`Bearer cttak_*`）+ `@RequiresApiKeyScope(ApiKeyScope.SYNC)`；JWT 用户经既有 Aspect 自动绕过（与现状一致）；deviceId 归属经 `DeviceRepository.findByIdAndUserId` BOLA 校验（未持有 → 404 `COMMON_002`，复用 DeviceService 同款文案，零新增错误码）
-- V4：限流 ✅ — `@RateLimit(API, limit=120, windowSeconds=60)`；429 `RATE_LIMIT_001` + retryAfter 复用既有契约
-- V5：审计 ✅ — 新增 `AuditAction.SYNC_PULL/SYNC_PUSH` + `ResourceType.CODING_SESSION`（未复用 `API_KEY_USED`——独立动作语义更清晰）；成功 `logSuccess` / 失败 `logFailure`（携带错误码名）
+- V4：限流 ✅ — `@RateLimit(API, limit=120, windowSeconds=60)`；429 `RATE_LIMIT_001` + retryAfter 复用既有契约。**⚠ 该维度已于 2026-11-05 移除**：`API` 桶无用户维度，等价于全部署共享的一个 120/分钟桶，实测只支撑约 320–430 台设备且一次新设备排空就能占满。现为 pull `USER` 600/min、push `USER` 120/min + `GlobalRequestGuard` 每实例 200/s（见 `docs/api-governance.md` Tier 4）
+- V5：审计 ✅ — 新增 `AuditAction.SYNC_PULL/SYNC_PUSH` + `ResourceType.CODING_SESSION`（未复用 `API_KEY_USED`——独立动作语义更清晰）；最初成功/失败都落。**2026-11-05 起改为仅失败审计**：成功只进应用日志（一次轮询两条审计行曾占 `audit_logs` 的 90%）
 **关键设计决策：**
 
 - deviceId 来源：请求体显式携带（API Key 的 device 关联可空且插件端不传），服务端按 user+device 校验归属，杜绝跨用户伪造
@@ -2316,3 +2316,49 @@ end note
 > **状态**：implemented（已交付 v0.91.0：6432bc1 / 2f99161 / cc1995e / c1ac658）。实施计划与测试记录：本地 `.omp/plans/2026-11-03/passkey-second-factor-plan.md`（未入库）。
 >
 > 两步验证挑战增加 `passkeyCount`；第二步页面可在 TOTP/恢复码之外使用账号绑定的通行密钥。失败只消费 WebAuthn challenge，保留 TOTP 回退；成功才消费登录 challenge。仅已启用 TOTP 的账号受影响。全量 **1645 tests / 0 failures / 1 skipped**，`build` 与覆盖率门禁通过。
+
+## 🔧 同步容量与限流修复（容量研究 + 插件配合，2026-11-05 → 11-06，v0.92.0）
+
+> **状态**：implemented（服务端 v0.92.0；插件 0.22.0 已接入并提交：`ebd8cdb` / `f8aeea5` / `cae742d`）。研究全文 `.omp/research/2026-11-05/sync-capacity-study.md`，插件需求 `.omp/reports/2026-11-05/plugin-sync-protocol-requirements.md`。
+>
+> 起因不是"觉得慢"，而是对生产库做只读测量后，把四个直觉换成了数字。
+
+### 实测结论（2026-11-05，生产库 + `EXPLAIN ANALYZE`）
+
+| 事实 | 数值 |
+| --- | --- |
+| 最重真实用户 | 3,729 会话 / 258 天 = 14.45 会话/天，34 种语言 |
+| 单行成本 | `coding_sessions` ≈997 B（索引占 80%）、`session_changes` ≈305 B、`audit_logs` ≈380 B |
+| 轮询频率 | 406–540 次/天/设备（多 IDE 共享安装级 device id 而翻倍） |
+| 一页成本 | 1000 条 ≈ 0.5 MB；拉取 2.7–5.9 ms（复合索引命中，**不是瓶颈**） |
+
+结论：带宽和会话数据量都不是瓶颈。真正的三处是 ①全部署共享的限流桶（约 320–430 台设备触顶）②push 事务内按用户全部历史重算排行榜 ③空轮询的审计写放大（20 年后审计 ≈ 会话数据 26 倍）。另外发现长排空会把"乐观水位"变成丢页。
+
+### 六项改动
+
+| # | 问题 | 改动 | 必须守住的检查 |
+| --- | --- | --- | --- |
+| 1 | `RateLimitType.API` 只有一个按端点的桶 | 删除该维度；同步端点改 `USER`（600 / 120 每分钟，账户 = key 属主）；统计与排行榜同批改为按账户 60/分钟；新增 `GlobalRequestGuard` 每实例 200 req/s 前置 | 桶必须带租户维度；全局限流器只覆盖单实例，跨实例上限属边缘代理 |
+| 2 | 每次轮询 2 条审计 + 1 条 `API_KEY_USED` + 1 次 `last_used_at` UPDATE | 成功同步只进应用日志（失败仍审计）；`API_KEY_USED` 每 key 每小时至多 1 行；`last_used_at` 每小时至多写 1 次 | 失败与重放路径一条不减 |
+| 3 | push 内按全部历史重算排行榜 | push 只写待重算标记（提交成功之后），`LeaderboardRecomputeQueue` 每 5 s 批量重算 | 提交后才写标记；同一用户一个周期内多次 push 合并为一次 |
+| 4 | 3 个索引无查询使用 + `sync_cursors.last_push_at` 无读写方 | 迁移 `V20261105120000` 删除；同步删除实体字段、死仓库方法及其测试 | 删除前先证明生产代码无调用方 |
+| 5 | 服务端不区分客户端是否接受压缩 | Tomcat 按请求协商压缩（json/plain，≥2 KB） | 不发 `Accept-Encoding` 的客户端字节完全不变 |
+| 6 | 水位在交付页面之前推进，应用失败的页永久不再重发 | pull 增可选 `replayFromChangeId`：读起点由客户端指定（上限为水印），`nextCursor` 只报告实际下发的页尾 | 可重读历史页，不能把游标往回拨 |
+
+### 插件端实际做法（与最初建议的差异）
+
+最初的需求文档写的是"应用失败时才重放"。插件实现得更强也更简单：**每轮 pull 都用本机持久化游标作 `replayFromChangeId`**，每应用一页就写游标。于是"失败丢页"和"进程被杀丢页"都自动覆盖，不需要单独的错误分支。同时它对不识别该字段的老服务端做了 `400` 兜底（回退为普通请求，按小时重探），因此新旧版本混部不会失败。插件还改为所有请求发送 `Accept-Encoding: gzip` 并自行解压（按响应头判断，而非按请求判断）。
+
+### 跨端核对揪出的真实缺陷（2026-11-06 修正）
+
+服务端最初把 `nextCursor` 取成 `max(页尾, 持久化水印)`，理由是"不让游标回退"。按插件"每轮重放"的用法，这个取值会让**本地游标落后超过一页**的客户端被直接跳到水印：它没收到中间那些变更，却被告知从水印继续，于是永久丢失。修正为 `nextCursor = 实际下发页尾`，单调性交回 upsert 的 `GREATEST`。教训写进 `AGENTS.md` R3：对接方实现后必须回读其代码校准契约，不能按"我们建议的用法"推断。
+
+### 验收
+
+- 全量 **1683 tests / 0 failures / 1 skipped**；`build`、`spotlessCheck`、`jacocoTestCoverageVerification` 全过。
+- 关键用例：`GlobalRequestGuardTest`（窗口与重置）、`LeaderboardRecomputeQueueTest`（提交后写标记、回滚不写、批量取、坏标记不中断）、`ResponseCompressionProbeTest`（真 Tomcat 端口 + 插件同款客户端两分支）、`SyncPullServiceTest#shouldReReadBelowTheWatermark…`（读页尾而非水印）。
+
+### 残留
+
+- 审计表无保留策略：成功行已不再写，但历史存量（20 年外推 ≈2.7 GB/用户）仍需一次清理或分区策略。
+- `sync_cursors` 的 upsert 仍是每次轮询一笔（认证与心跳同理），属"能接受但未消除"的写放大。

@@ -14,11 +14,14 @@ Before the version rules, two **live** states with identical business content (`
 idempotent no-op even when version or clock metadata drifted. Deleted states are exempt so
 delete-version competition keeps its meaning.
 
-## 2. The client never rewinds the server
+## 2. The client's own cursor decides what it reads next
 
-The effective query cursor is `max(persisted watermark, client cursor)`. A stale client cannot make
-the server re-deliver changes it already considers consumed, and a fresh device resumes from its own
-last-known position.
+A plain pull queries from `max(persisted watermark, client cursor)`, so a stale client cannot make
+the server re-deliver changes it already considers consumed. A pull that names `replayFromChangeId`
+queries from that value instead, capped by the watermark: the client's own position becomes
+authoritative for the read, which is what lets it re-read a page the server already advanced past.
+Either way the returned `nextCursor` is the end of the page **actually delivered**, never the
+watermark; the stored watermark keeps its own monotonic guard (`GREATEST` in the upsert).
 
 ## 3. Push is atomic per request
 
@@ -53,10 +56,12 @@ Each write appends exactly one change-log entry; the entry count and the session
 within a transaction. A write that changes no state (keep-existing, no-op delete) appends nothing, so
 downstream devices are not woken for nothing.
 
-## 8. The server watermark is authoritative but optimistic
+## 8. The watermark is optimistic, and the replay field is what closes the gap
 
-The watermark advances when a page is **generated**, not when the client confirms applying it. A
-client that crashes after receiving a page can therefore miss it for that device; the session data
-still exists server-side and reconverges on the next write to those sessions. This is accepted, not
-ideal — a client-confirmed watermark would make it at-least-once. Paging shrinks the exposure from
-"whole response" to "one page".
+The watermark advances when a page is **generated**, not when the client confirms applying it, so a
+client that crashes after receiving a page would miss it forever. `replayFromChangeId` closes that
+without a client-confirmed watermark: the client persists its cursor after each applied page and
+sends it back as the replay point on the next pull, and the unapplied page is simply re-read. The
+plugin does this on **every** pull, not only after a failure, which also covers the page generated
+just before the process died. A client that never sends the field keeps the old exposure — that is a
+client-side choice, not a server gap.
