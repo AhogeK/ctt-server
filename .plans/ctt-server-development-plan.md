@@ -2317,9 +2317,9 @@ end note
 >
 > 两步验证挑战增加 `passkeyCount`；第二步页面可在 TOTP/恢复码之外使用账号绑定的通行密钥。失败只消费 WebAuthn challenge，保留 TOTP 回退；成功才消费登录 challenge。仅已启用 TOTP 的账号受影响。全量 **1645 tests / 0 failures / 1 skipped**，`build` 与覆盖率门禁通过。
 
-## 🔧 同步容量与限流修复（容量研究 + 插件配合，2026-11-05 → 11-06，v0.92.0）
+## 🔧 同步容量与限流修复（容量研究 + 插件配合，2026-11-05 → 11-06，v0.92.0 → v0.92.1）
 
-> **状态**：implemented（服务端 v0.92.0；插件 0.22.0 已接入并提交：`ebd8cdb` / `f8aeea5` / `cae742d`）。研究全文 `.omp/research/2026-11-05/sync-capacity-study.md`，插件需求 `.omp/reports/2026-11-05/plugin-sync-protocol-requirements.md`。
+> **状态**：completed（服务端 v0.92.0 六项 + v0.92.1 空轮询收敛，全量 **1689 tests / 0 failures / 1 skipped**；插件 0.22.0 已接入并提交：`ebd8cdb` / `f8aeea5` / `cae742d`）。研究全文 `.omp/research/2026-11-05/sync-capacity-study.md`，插件需求 `.omp/reports/2026-11-05/plugin-sync-protocol-requirements.md`。
 >
 > 起因不是"觉得慢"，而是对生产库做只读测量后，把四个直觉换成了数字。
 
@@ -2355,10 +2355,11 @@ end note
 
 ### 验收
 
-- 全量 **1683 tests / 0 failures / 1 skipped**；`build`、`spotlessCheck`、`jacocoTestCoverageVerification` 全过。
-- 关键用例：`GlobalRequestGuardTest`（窗口与重置）、`LeaderboardRecomputeQueueTest`（提交后写标记、回滚不写、批量取、坏标记不中断）、`ResponseCompressionProbeTest`（真 Tomcat 端口 + 插件同款客户端两分支）、`SyncPullServiceTest#shouldReReadBelowTheWatermark…`（读页尾而非水印）。
+- 全量 **1687 tests / 0 failures / 1 skipped**；`build`、`spotlessCheck`、`jacocoTestCoverageVerification` 全过。
+- 关键用例：`GlobalRequestGuardTest`（窗口与重置）、`LeaderboardRecomputeQueueTest`（提交后写标记、回滚不写、批量取、坏标记不中断）、`ResponseCompressionProbeTest`（真 Tomcat 端口 + 插件同款客户端两分支）、`SyncPullServiceTest#shouldReReadBelowTheWatermark…`（读页尾而非水印）、`DeviceRepositoryTest`（心跳窗口内 0 行 / 过期后更新 / 已吊销 / 跨账户）。
+- 空转写不再产生行版本：`SyncPullServiceTest#shouldReturnEmpty_whenNoNewChanges` 与重放用例都断言 `advancePullWatermark` 不被调用。
 
 ### 残留
 
-- 审计表无保留策略：成功行已不再写，但历史存量（20 年外推 ≈2.7 GB/用户）仍需一次清理或分区策略。
-- `sync_cursors` 的 upsert 仍是每次轮询一笔（认证与心跳同理），属"能接受但未消除"的写放大。
+- **审计表：不做清理，也不分区。** 实测 29,749 行 / **11 MB**（68 天），其中 89% 是已停写的 `SYNC_PULL` + `API_KEY_USED`。收口后增量按**活跃 key 数**算（`API_KEY_USED` 每 key 至多 24 行/天，另加少量认证事件）：当前库 ≈28 行/天、≈4 MB/年，300 个活跃 key ≈1 GB/年。为 11 MB 删除安全证据是坏交易。改为纠正「20 年后审计 ≈2.7 GB/用户」的过时推算（它按旧的写入速率外推），复查阈值：`audit_logs` >1 GB 或审计查询变慢。
+- **轮询写已收口（v0.92.1）。** 游标没有推进就不再 upsert（空轮询不产生行版本），设备心跳在 15 分钟内不重写。剩余只有 API key SELECT——认证必须读那一行，加缓存会让撤销延迟生效，不值得换。

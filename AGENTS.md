@@ -165,6 +165,7 @@
 - **配置回退与空值**：Spring 的 `${VAR:default}` 只在变量缺失时用 default，**空字符串不算缺失**；Docker Compose 的 `${VAR:-default}` 才把未设置/空都当缺省。密钥类配置加 dev fallback 时，compose 不要显式透传空值，`.env.example` 的占位行保持注释；否则本地启动会被“默认值”打断（2026-10-31 2FA `TOTP_ENCRYPTION_KEY` 踩坑）。
 - **二次认证不是最终认证**：挑战签发后账号状态可能变化，完成阶段必须重新校验 `ACTIVE`（或复用统一的 `validateUserStatus`）后才能签发 token；密码正确不等于可以发凭证（2026-10-31 2FA 完成阶段补此校验）。
 - **环境类故障先对照，再怀疑代码**：连不上数据库/Redis、启动即挂时，先看异常类型与「别处是否可达」再动代码。判据：`NoRouteToHostException`/EHOSTUNREACH = 网络层被挡（多见于 macOS「本地网络」权限，IDE 进程被拦）；`Connection refused` = 服务没起；`UnknownHostException` = 解析失败；`PSQLException: password authentication failed` = 凭据。判别动作：在**系统 shell** 上 `nc -z <host> <port>` 对照一次，通 ⇒ 问题在应用进程/权限侧，不在代码。同类问题已复发两次（2026-09-18、2026-10-23）
+- **优化写放大先分「真写」与「空写」**：同一值的重复写入（空轮询的游标 upsert、心跳 UPDATE）加一个条件谓词就消除，不需要缓存、不需要新表；反过来，为省一次认证 SELECT 去加缓存会让撤销延迟生效，是更坏的交易。判断依据是**实测行数与增量**，不是"看着多"——2026-11-06 实测审计表 29,749 行 / 11 MB、89% 是已停写的数据面行为，结论是**不做**清理或分区，并把过时的"20 年后 2.7 GB"推算改掉。
 
 ### R8.5: 项目一致性优先（强制）
 

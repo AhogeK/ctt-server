@@ -97,6 +97,7 @@ list already reports via `lastSeenAt`.
 | 拉取一页耗时 | **2.7–5.9 ms**（1001 条 join）；`(user_id, change_id)` 复合索引实测命中 |
 | 排行榜全量加载（3,729 行） | SQL **2.7 ms**（Java 侧水合 + 区间合并才是大头） |
 | 全局限流桶（**已移除 2026-11-05**） | 曾为 `rate_limit:api:SyncController.pull` / `…push` = 120/分钟、无用户维度 ⇒ 约 320–430 台设备即触顶；现为 pull `USER` 600/分钟、push `USER` 120/分钟 + `GlobalRequestGuard` 每实例 200/s |
-| 20 年外推（每用户） | 会话 ≈105 MB + 变更 ≈32 MB + 审计 ≈**2.7 GB**；新设备全量拉取 **106 页 / 53 MB** |
+| 20 年外推（每用户） | 会话 ≈105 MB + 变更 ≈32 MB；审计按收口后的增量计（见下行），旧的「2.7 GB/用户」推算已随写入收敛失效 |
+| 审计增量（2026-11-06 实测） | 29,749 行 / **11 MB**（68 天）；89% 是已停写的 `SYNC_PULL` + `API_KEY_USED`。收口后按**每活跃 key 至多 24 行/天**（`API_KEY_USED` 每小时 1 行）计，另加少量认证事件：当前库合计 ≈28 行/天（≈4 MB/年），300 个活跃 key ≈**1 GB/年** ⇒ 不做清理或分区，复查阈值：`audit_logs` >1 GB 或审计查询变慢 |
 
 无查询支撑的索引（占 `coding_sessions` 索引空间约 47%）已于 2026-11-05 删除（迁移 `V20261105120000`）：`idx_sessions_user_project_time`、`idx_sessions_user_language_time`、`idx_sessions_sync_lookup`；同批删除 `sync_cursors.last_push_at`（无读写方）与仅测试调用的 server-version 仓库方法。

@@ -45,7 +45,7 @@ once the data lands (`stats-aggregation`), plugin-side storage (`../code-time-tr
 
 | | |
 | --- | --- |
-| Checked against source | 2026-11-06 · v0.92.0 (pull/push 路径、replay 契约、插件 0.22.0 实际用法、生产库容量实测均复核) |
+| Checked against source | 2026-11-06 · v0.92.1 (pull/push 路径、replay 契约、插件 0.22.0 实际用法、生产库容量实测均复核) |
 | Coverage | `sync` 包与仓库、插件端同步实现（`SyncCoordinator` / `SyncHttpClient`）、生产库真实数据量与执行计划 |
 | Known drift | 未发现漂移；容量结论依赖当时的数据规模，改动同步路径后需重测 |
 
