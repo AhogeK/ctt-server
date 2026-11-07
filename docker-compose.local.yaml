@@ -16,6 +16,25 @@
 # profile so the two colours replace it instead of fighting over the container
 # name and port 8080.
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Mirrors the base file: every service is read-only, drops all capabilities and
+# may not gain privileges. The two colours inherit the same block through
+# `extends`, so only the services defined here repeat it.
+x-hardening: &hardening
+  restart: unless-stopped
+  stop_grace_period: 45s
+  read_only: true
+  logging: *default-logging
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
 services:
   app:
     profiles: !override ["standalone"]
@@ -29,7 +48,6 @@ services:
     # host's proxy, so the local image only packages the jar.
     build:
       dockerfile: deploy/local/Dockerfile
-    mem_limit: 900m
     ports: !override ["127.0.0.1:18081:8080"]
   app-green:
     extends:
@@ -39,16 +57,19 @@ services:
     container_name: ctt-app-green
     build:
       dockerfile: deploy/local/Dockerfile
-    mem_limit: 900m
     ports: !override ["127.0.0.1:18082:8080"]
 
   edge:
+    <<: *hardening
     image: caddy:latest
     container_name: ctt-edge
     depends_on:
       app-blue:
         condition: service_healthy
     mem_limit: 128m
+    cpus: 0.5
+    tmpfs:
+      - /tmp
     ports:
       - "127.0.0.1:18080:18080"
     environment:
@@ -66,6 +87,7 @@ services:
   # after the fact.
 
   prometheus:
+    <<: *hardening
     image: prom/prometheus:latest
     profiles: ["obs"]
     container_name: ctt-prometheus
@@ -73,6 +95,9 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=30d
     mem_limit: 384m
+    cpus: 1.0
+    tmpfs:
+      - /tmp
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
@@ -80,6 +105,7 @@ services:
       - prometheus_data:/prometheus
 
   grafana:
+    <<: *hardening
     image: grafana/grafana:latest
     # First start takes about three minutes: Grafana 13 installs the app
     # platform APIs one by one before it binds :3000. Subsequent starts are
@@ -88,6 +114,10 @@ services:
     container_name: ctt-grafana
     depends_on:
       - prometheus
+    mem_limit: 768m
+    cpus: 1.0
+    tmpfs:
+      - /tmp
     environment:
       # Local-only convenience: the port is bound to 127.0.0.1 and the image
       # never leaves this machine, so the anonymous session is an editor and
@@ -101,7 +131,6 @@ services:
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
-    mem_limit: 768m
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
@@ -111,10 +140,14 @@ services:
       - ./deploy/local/grafana-dashboard.json:/var/lib/grafana/dashboards/ctt-local.json:ro
 
   blackbox:
+    <<: *hardening
     image: prom/blackbox-exporter:latest
     profiles: ["obs"]
     container_name: ctt-blackbox
     mem_limit: 96m
+    cpus: 0.5
+    tmpfs:
+      - /tmp
     ports:
       - "127.0.0.1:9115:9115"
 

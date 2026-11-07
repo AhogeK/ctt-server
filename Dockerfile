@@ -30,4 +30,4 @@ USER appuser
 
 EXPOSE ${APP_PORT}
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=45", "-XX:InitialRAMPercentage=20", "-jar", "app.jar"]
