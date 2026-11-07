@@ -196,6 +196,43 @@ Enabling Testcontainers reuse (`testcontainers.reuse.enable=true` in `~/.testcon
 keeps the containers alive between runs. A new environment can verify its setup with
 `./gradlew test --tests "*TestBaselineSmokeTest"`.
 
+### Local full stack: blue/green, edge and observability
+
+`docker-compose.local.yaml` layers a Caddy edge and two colours over the base compose file, so the
+whole local stack is one command:
+
+```bash
+./deploy/local/up.sh                            # postgres, redis, mailpit, app-blue, edge
+./deploy/local/up.sh --profile obs              # plus Prometheus :9090, Grafana :3000 and blackbox :9115
+./deploy/local/up.sh --profile bluegreen --profile obs
+```
+
+Grafana ships with the `obs` profile and starts with the dashboard `CTT local stack` already
+provisioned (source `Prometheus`, panels over `probe_success` and `probe_duration_seconds`).
+Its first start takes about **three minutes**: version 13 installs the app-platform APIs one by one
+before it binds `:3000`, so a short readiness check looks like a hang. Later starts reuse the volume
+and are quicker.
+
+The edge serves <http://localhost:18080> and proxies to `app-blue` (`app-blue:8080` inside the
+compose network; `:18081` is only the host-side publish); `app-green` takes
+`:18082` when the `bluegreen` profile is on. Prometheus scrapes itself and probes both health endpoints
+through `blackbox_exporter`. The application's own metrics endpoint arrives with the observability
+work, so no dashboard is provisioned yet.
+
+Every service image tracks `latest` on purpose (newest majors included); if a deploy has to be
+reproduced later, capture the digests with `docker inspect --format '{{index .RepoDigests 0}}' <image>`.
+The jar is built on the host and packaged by `deploy/local/Dockerfile`: the in-container Gradle
+build cannot reach Maven Central through this machine's proxy. Production images still use the
+multi-stage `Dockerfile`.
+
+Sizing, measured on a 1.92 GB Docker VM: the default stack plus `obs` without Grafana sits at about
+1.15 GB; adding Grafana takes it to about 1.4 GB and stays stable. Two colours **plus** Grafana does
+not fit — the steady totals are close to 1.7 GB and the second JVM gets OOM-killed during startup
+(observed: `OOMKilled=true`, exit 137). Give the VM **3 GB minimum, 4 GB recommended** if you want
+blue + green + observability at the same time; `MemTotal` is reported by `docker info`.
+Verified on a 4 GB VM (3.81 GiB usable): every profile on at once measured **≈2.06 GB**, all five
+endpoints answered 200 and no container reported `OOMKilled` (Grafana is capped at 768 MB).
+
 ## Documentation
 
 | Document | What it explains |

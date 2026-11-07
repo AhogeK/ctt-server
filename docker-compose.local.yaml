@@ -1,0 +1,125 @@
+# Local-only full stack: edge + blue/green + observability.
+#
+# One command (blue colour + edge, the default acceptance path):
+#   ./deploy/local/up.sh
+#   curl -s http://127.0.0.1:18080/ctt-server/actuator/health
+#
+# Read this file only through that script: the local image packages a jar that
+# the script builds and stages in build/local-image/, so a bare
+# `docker compose ... up --build` cannot work on a clean checkout.
+#
+# Optional profiles:
+#   --profile bluegreen  start the second colour (app-green on 127.0.0.1:18082)
+#   --profile obs        Prometheus + Grafana + blackbox exporter
+#
+# The base file's single `app` service is parked behind the `standalone`
+# profile so the two colours replace it instead of fighting over the container
+# name and port 8080.
+
+services:
+  app:
+    profiles: !override ["standalone"]
+  app-blue:
+    extends:
+      file: docker-compose.yaml
+      service: app
+    container_name: ctt-app-blue
+    # The jar is built on the host first (build/libs, see deploy/local/up.sh):
+    # the in-container Gradle build cannot reach Maven Central through this
+    # host's proxy, so the local image only packages the jar.
+    build:
+      dockerfile: deploy/local/Dockerfile
+    mem_limit: 900m
+    ports: !override ["127.0.0.1:18081:8080"]
+  app-green:
+    extends:
+      file: docker-compose.yaml
+      service: app
+    profiles: ["bluegreen"]
+    container_name: ctt-app-green
+    build:
+      dockerfile: deploy/local/Dockerfile
+    mem_limit: 900m
+    ports: !override ["127.0.0.1:18082:8080"]
+
+  edge:
+    image: caddy:latest
+    container_name: ctt-edge
+    depends_on:
+      app-blue:
+        condition: service_healthy
+    mem_limit: 128m
+    ports:
+      - "127.0.0.1:18080:18080"
+    environment:
+      UPSTREAM: ${EDGE_UPSTREAM:-app-blue:8080}
+    volumes:
+      - ./deploy/local/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # --- observability (profile: obs) -------------------------------------
+  # Loki, Tempo and Alertmanager belong to P1.4/P2; this profile is the
+  # smallest stack that proves scraping works locally. Every service image is
+  # `latest` on purpose (project preference: always newest, majors included);
+  # record the digests with `docker inspect` when a deploy needs to be pinned
+  # after the fact.
+
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["obs"]
+    container_name: ctt-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    mem_limit: 384m
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./deploy/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    # First start takes about three minutes: Grafana 13 installs the app
+    # platform APIs one by one before it binds :3000. Subsequent starts are
+    # faster because that state is in the volume.
+    profiles: ["obs"]
+    container_name: ctt-grafana
+    depends_on:
+      - prometheus
+    environment:
+      # Local-only convenience: the port is bound to 127.0.0.1 and the image
+      # never leaves this machine, so the anonymous session is an editor and
+      # the admin password below is only a fallback.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ctt_local_admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # No outbound calls: the plugin preinstaller and the update check block
+      # startup for minutes when grafana.com is unreachable behind a proxy.
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+    mem_limit: 768m
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/local/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./deploy/local/grafana-dashboard-provider.yml:/etc/grafana/provisioning/dashboards/ctt.yml:ro
+      - ./deploy/local/grafana-dashboard.json:/var/lib/grafana/dashboards/ctt-local.json:ro
+
+  blackbox:
+    image: prom/blackbox-exporter:latest
+    profiles: ["obs"]
+    container_name: ctt-blackbox
+    mem_limit: 96m
+    ports:
+      - "127.0.0.1:9115:9115"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  prometheus_data:
+  grafana_data:
