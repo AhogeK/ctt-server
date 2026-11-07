@@ -208,6 +208,14 @@ whole local stack is one command:
 ./deploy/local/up.sh --profile bluegreen --profile obs
 ```
 
+Mailpit is meant to stay up between sessions (it carries `restart: unless-stopped` and keeps its
+messages in the `mailpit_data` volume). `docker compose down` deletes it along with everything
+else, so stop individual services instead, or restore it right away:
+
+```bash
+docker compose -f docker-compose.yaml up -d mailpit   # back at :8025, previous mail intact
+```
+
 Grafana ships with the `obs` profile and starts with the dashboard `CTT local stack` already
 provisioned (source `Prometheus`, panels over `probe_success` and `probe_duration_seconds`).
 Its first start takes about **three minutes**: version 13 installs the app-platform APIs one by one
