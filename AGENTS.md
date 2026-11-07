@@ -169,6 +169,8 @@
 
 - **容器「端口不响应」先看 OOMKilled 与启动阶段，再怀疑网络**：`docker ps` 显示 Up 不等于在监听。判据顺序：`docker inspect --format '{{.State.OOMKilled}}'` → `docker exec <c> ss -lnt`（进程内是否 bind）→ 日志最后一行 → 才看网络。2026-11-07 两次误判：把「Grafana 首启要 3 分钟装 app-platform API」当成起不来，把「第二个 JVM 被 OOM 杀（exit 137）」当成内存不足与网络故障
 
+- **compose 加固要先验证 entrypoint 的需求，再逐项 `docker inspect` 核对**：`read_only: true` 要求所有写入点都在命名卷或 tmpfs 里；`cap_drop: [ALL]` 会让 `gosu`/`setpriv` 失败——postgres 需加回 `CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID`（前三项用于 chown PGDATA，后两项给 gosu），redis 需加回 `CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID`（没有 FOWNER；SETPCAP 是 setpriv 收窄 bounding set 需要）。2026-11-08 P0.4 实测：`redis:latest` 未声明卷且工作目录在根文件系统，只读根下 chown 报错 ⇒ 给 `/data` 挂 tmpfs。验收以 `docker inspect` 的字段为准，不以 compose 文本为准。
+
 ### R8.5: 项目一致性优先（强制）
 
 **核心原则：按项目来而不是任务需求，需求要变通符合项目的一致性。**
