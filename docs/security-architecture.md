@@ -724,9 +724,11 @@ All security-relevant events are recorded using a five-tuple model:
 |-----------|---------------------------------|---------------------------------------------------|
 | 1. Filter | `DesensitizeUtils.maskHeader()` | Masks Authorization headers in HTTP logging       |
 | 2. DTO    | `MaskSerializer`                | Masks sensitive fields in object serialization    |
-| 3. Global | `MaskingMessageConverter`       | Regex-based fallback for hardcoded sensitive data |
+| 3. Global | `MaskingMessageConverter` (console) / `MaskingJsonEncoder` (production JSON) | Regex-based fallback for hardcoded sensitive data. The console path masks the formatted message; the JSON path masks the formatted message plus the string values of key/value pairs (`kvpList`), which a pattern never sees |
 
 Protected patterns: `password`, `token`, `authorization`, `cookie`, `secret`.
+
+The production profile logs JSON, where a pattern-based converter never runs — there is no pattern to walk. `MaskingJsonEncoder` masks the formatted message and the string values of key/value pairs (for example `query_string`, which carries `token=` on verification links), then delegates to Logback's `JsonEncoder`. One difference from the console path: once text was masked, `arguments` is omitted, because an argument cannot be told apart from data and the rendered text already contains it. Events that need no masking are emitted by the stock encoder, so their schema is unchanged. MDC properties and throwable messages are not masked.
 
 ### Sensitive Field Masking
 

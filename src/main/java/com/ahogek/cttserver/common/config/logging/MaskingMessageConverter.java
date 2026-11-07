@@ -69,15 +69,27 @@ public class MaskingMessageConverter extends ClassicConverter {
      *   <li>authorization: Bearer eyJhbGciOiJIUzI1NiIs...
      *   <li>authorization bearer token123
      * </ul>
+     *
+     * <p>An empty placeholder (<code>{}</code>) is left intact so an unmasked message template
+     * stays readable, while a value that merely starts with <code>{</code> is still masked.
      */
     private static final Pattern SENSITIVE_PATTERN =
             Pattern.compile(
-                    "(?i)(password|passwd|token|cookie|secret)(['\"\\s:=]+)([^\\s,'\"\\]}]+)|"
-                            + "(?i)(authorization)(['\"\\s:=]+)((?:Bearer\\s+|Basic\\s+)?[^\\s,'\"\\]}]+)");
+                    "(?i)(password|passwd|token|cookie|secret)(['\"\\s:=]+)(?!\\{\\})"
+                            + "([^\\s,'\"\\]}]+)|"
+                            + "(?i)(authorization)(['\"\\s:=]+)"
+                            + "((?:Bearer\\s+|Basic\\s+)?(?!\\{\\})[^\\s,'\"\\]}]+)");
 
-    @Override
-    public String convert(ILoggingEvent event) {
-        String message = event.getFormattedMessage();
+    /**
+     * Masks sensitive values in arbitrary text.
+     *
+     * <p>Shared by the pattern converter and the JSON encoder so both output formats apply exactly
+     * the same rules.
+     *
+     * @param message text to inspect; {@code null} and empty input are returned unchanged
+     * @return the same text with every matched value replaced by {@code ******}
+     */
+    public static String mask(String message) {
         if (message == null || message.isEmpty()) {
             return message;
         }
@@ -99,5 +111,10 @@ public class MaskingMessageConverter extends ClassicConverter {
         matcher.appendTail(sb);
 
         return sb.toString();
+    }
+
+    @Override
+    public String convert(ILoggingEvent event) {
+        return mask(event.getFormattedMessage());
     }
 }

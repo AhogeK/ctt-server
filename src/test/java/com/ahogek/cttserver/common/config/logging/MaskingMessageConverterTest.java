@@ -104,6 +104,20 @@ class MaskingMessageConverterTest {
         assertThat(converter.convert(createEvent("Password=secret"))).isEqualTo("Password=******");
     }
 
+    @Test
+    @DisplayName("Should keep an empty placeholder when the value is not rendered yet")
+    void shouldKeepPlaceholder_whenValueIsNotRendered() {
+        assertThat(converter.convert(createEvent("password={} rejected")))
+                .isEqualTo("password={} rejected");
+    }
+
+    @Test
+    @DisplayName("Should mask a value that starts with a brace")
+    void shouldMaskBraceWrappedValue() {
+        assertThat(converter.convert(createEvent("cookie={sessionId=abc123}")))
+                .isEqualTo("cookie=******}");
+    }
+
     private LoggingEvent createEvent(String message) {
         LoggingEvent event = new LoggingEvent();
         event.setLoggerContext(loggerContext);
