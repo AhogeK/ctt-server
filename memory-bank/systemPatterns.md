@@ -123,3 +123,9 @@ OAuth state 必须与 HttpOnly、SameSite Lax 的状态 Cookie 对齐；缺失/�
 ## 空轮询不该产生持久化写入
 
 「什么都没有发生」的轮询若每次都写审计行 + 心跳 + 游标 upsert，写放大会按**轮询次数**而非业务量增长，并与业务数据无关地吃掉存储（收口前实测每设备每天 ~1000 行审计）。无结果的读请求应尽量不落库，审计对空结果应聚合或降级。**2026-11-05 起已按此收口**：成功同步只进应用日志（失败才进审计）、`API_KEY_USED` 每 key 每小时至多 1 行、`last_used_at` 每小时至多 UPDATE 1 次；**2026-11-06 起**空轮询不再产生游标行与心跳行版本。审计增量因此从「按轮询次数」变成「按活跃 key 数」——每 key 至多 24 行/天，旧的「20 年后比会话数据大 26 倍」推算随之失效。
+
+## 容器加固基线（compose 锚点）
+
+本地与生产 compose 共用一套加固：`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only: true`、`cap_drop: [ALL]`、`no-new-privileges:true`、json-file 日志轮转（10m × 3），再由每个服务声明 `mem_limit` / `cpus` 与所需 tmpfs。写成 `x-hardening` 锚点，避免十几处重复漂移。
+
+能力按 entrypoint 精确加回，不做「先全开再收紧」：postgres 需要 `CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID`；redis 需要 `CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID`（没有 FOWNER，SETPCAP 用于 setpriv 收窄 bounding set）；应用、Caddy、Prometheus、Grafana、blackbox、Mailpit 不需要任何附加能力。只读根意味着所有写入点必须落在命名卷或 tmpfs（应用与 Mailpit 用 `/tmp`，postgres 另加 `/var/run/postgresql`，redis 的 `/data` 是缓存、用 tmpfs 即可）。验收方式是 `docker inspect` 逐字段核对（restart、StopTimeout、Memory、NanoCpus、LogConfig、ReadonlyRootfs、Tmpfs、CapDrop/CapAdd、SecurityOpt），而不是看 compose 文件。

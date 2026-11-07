@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-08] - P0.4 compose 加固（v0.93.5）
+    - 交付：两份 compose 共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 再加 SETPCAP
+    - 实测：9 个容器 `docker inspect` 逐项命中；edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条外部探测结果为 1；演练后停掉其余容器，只保留 Mailpit
+    - 坑：`read_only` 下 `redis:latest` 没有声明卷、工作目录在根文件系统，entrypoint 的 chown 直接报只读；`cap_drop: ALL` 又让 setpriv 无法收窄 bounding set（缺 CAP_SETPCAP）⇒ 给 redis 加 tmpfs `/data` 并补 SETPCAP
+    - 双轴复审后修正：三处能力清单文档（AGENTS / 计划 / systemPatterns）改为精确列表（redis 无 FOWNER）；README 的「tmpfs 即卷」与漏 `restart` 改准；生产 `Dockerfile` 的 ENTRYPOINT 补 `-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=20`（原先只有本地镜像带，900m 上限下堆只有约 225 MB）；blue/green 的重复 `mem_limit` 删除，统一继承 base `app`；inspect 记录落在 `.omp/notes/2026-11-08/compose-hardening.md`
 - [2026-11-08] - P0.3 构建上下文收口（v0.93.4）
     - 交付：新增 `.dockerignore`，排除 `.git` / `build` / `.env*` / `.plans` / `memory-bank` / `docs` / `dev-docs` 与 AI 工作区、编辑器状态；保留生产构建所需的 `gradle/`、`gradlew`、构建脚本、`src/`，以及本地镜像暂存的 `build/local-image/app.jar`
     - 实测：复制进镜像的上下文 **249.44 MB → 4.06 MB**（不含暂存 jar）、92.16 MB（含 88 MB jar）；生产前置文件校验通过；本地镜像 `deploy/local/Dockerfile` 构建成功
