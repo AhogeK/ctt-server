@@ -51,7 +51,7 @@ left side
 *** 登录会话列表与吊销 ✅ 已交付（R2-a v0.81.0 会话身份 · R2-b v0.82.0 两个端点）
 *** 数据导出（可携带）✅ 已交付（v0.83.0，产物可被插件端无缝导入）
 ** 运维与可观测性 🚧 P0 部分交付
-*** 既有状态整修 ✅ 隧道托管 / SSH / 端口收口 / 日志轮转
+*** 本地全栈与既有状态整修 ✅（P0.0 两色+边缘+观测 / P0.8 隧道 / P0.10 端口 / P0.14 SSH+日志）
 *** 指标出口与业务指标 ⬜
 *** 告警、面板与值班 ⬜
 *** CI、镜像发布与蓝绿 ⬜
@@ -2134,9 +2134,16 @@ end note
 
 ### 🔍 运维与可观测性升级（生产化全规划）
 
-> **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测。既有状态的现状：**frps 已改 systemd 托管、frpc 仍是 tmux（crontab 兜底）**；frps 的代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝挡住；**开发与联调仍共用同一个数据库**。部署机上另有既有的公网 Jenkins，经 nginx 443 对外，本服务与其并存、不占用。
+> **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测；本地已有一键全栈（P0.0，见下），生产侧仍是单实例 + tmux 起停之外的剩余项。既有状态的现状：**frps 已改 systemd 托管、frpc 仍是 tmux（crontab 兜底）**；frps 的代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝挡住；**开发与联调仍共用同一个数据库**。部署机上另有既有的公网 Jenkins，经 nginx 443 对外，本服务与其并存、不占用。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07）。P0 修既有状态，P1–P7 建能力，每步一个可独立验收的交付物；已完成项在阶段表中标 ✅ 并附证据，未标记的即未开工。**所有选型已由我决策**，被否决的替代方案写在决策表里；若你要推翻某条，请指名，我按其代价重排。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07）。已完成：P0.0 本地全栈、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底；策略已定但尚未做完：P0.2 镜像跟随 `latest` 的 digest 记录。P1–P7 未开工，每步一个可独立验收的交付物。**所有选型已由我决策**，被否决的替代方案写在决策表里；若你要推翻某条，请指名，我按其代价重排。
+
+**本轮交付（2026-11-07）**
+
+- 本地：`docker-compose.local.yaml` + `deploy/local/`（Caddy edge、两色、Prometheus/Grafana/blackbox、`up.sh`）。在 **4 GB** Docker VM 上三组 profile 同开，edge/blue/green/Grafana/Prometheus 五处 **200**，占用约 **2.06 GB**，`oom=false`；1.92 GB 下两色 + Grafana 会把 blue OOM 掉（`exit 137`），该口径已写进 README 与验收
+- 镜像一律 `latest`（含大版本跟随）；`eclipse-temurin` 构建镜像按项目 Java 25 固定，属唯一例外
+- 生产：frps 改 systemd（token 轮换 / TLS 强制 / 端口白名单 / 配置 600）、ufw 端口收口并删除遗留 `2024` 放行、接入机 SSH 关口令、`logrotate` 重复项修复
+- 尚未做：P0.1/P0.3–P0.7、P0.9 的 systemd 化、P0.15、P0.16，以及 P1–P7
 
 **目标：** 五个能力，各自可判定。
 
@@ -2228,7 +2235,7 @@ end note
 | 日志脱敏第三层 | `MaskingMessageConverter` 只在 `%maskedMsg` 生效 | 两个 profile 分支对比 |
 | trace 关联 | 自建 `MDC.traceId` + 响应头；无 W3C `traceparent`、无 span | `MdcKey` / `RequestContextInitializerFilter` |
 | 容器健康检查 | compose 打裸 `/ctt-server/actuator/health`（含数据库，无 readiness 组） | `docker-compose.yaml` |
-| 镜像版本 | compose 与测试容器都用 `:latest`（`postgres` / `redis` / `mailpit`） | `docker-compose.yaml`、`TestcontainersConfiguration` |
+| 镜像版本 | **全部**服务镜像用 `:latest`（`postgres` / `redis` / `mailpit` / `caddy` / Prometheus / Grafana / blackbox），测试容器同 —— 用户决策，含大版本跟随 | `docker-compose.yaml`、`docker-compose.local.yaml`、`TestcontainersConfiguration` |
 | 停止宽限 | compose 未设 `stop_grace_period`，Docker 默认 10 s < Spring 的 30 s | 两处配置对照 |
 | 资源限制 | 无 `mem_limit` / `cpus` / `restart` | `grep -nE "mem_limit\|cpus\|restart"` → 0 |
 | 日志轮转 | 无 `logging.options.max-size`，json-file 无上限 | 同上 → 0 |
@@ -2286,9 +2293,9 @@ end note
 
 | 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- | --- |
-| P0 修既有状态 | P0.0 | **本地一键全栈**：`docker-compose.local.yaml` 加 `edge` / `app-blue` / `app-green`（profile）/ `obs`（profile），一条命令起全栈 | `http://localhost:18080/ctt-server/actuator/health` = 200；`--profile obs` 起观测栈 | 中 |
+| P0 修既有状态 | P0.0 ✅（范围：起栈与观测；切换属 P3.4） | **本地一键全栈**（已交付）：`docker-compose.local.yaml` 叠加 `app-blue`（extends 基础 app）/ `app-green`（profile `bluegreen`）/ `edge`（Caddy）/ `obs`（profile，Prometheus + Grafana + blackbox）；入口脚本 `deploy/local/up.sh`，镜像用 `deploy/local/Dockerfile` 打包**宿主机构建**的 jar | `http://127.0.0.1:18080/ctt-server/actuator/health` = 200；`--profile obs` 三个 target 全 up，Grafana `database: ok` | 中 |
 | P0 修既有状态 | P0.1 | prod 日志脱敏生效：注册 Logback `messageConverter`，含 `password=` 的日志在 JSON 输出里已打码 | 断言测试 + 一条真实输出 | 中 |
-| | P0.2 | 镜像版本三处一致：`postgres:18.x`、`redis:8.x`、`mailpit` 固定版本（宿主机实际为 PG 18.6 / Redis 8.10.3） | 三处 grep 到同一 tag | 低 |
+| | P0.2 🚧 | 镜像**一律 `latest`**（用户决策：始终最新，含大版本）——策略已定、两份 compose 已落实；剩下的是可追溯与可回退：部署时用 `docker inspect --format '{{index .RepoDigests 0}}'` 记 digest（本轮快照已存私密笔记），大版本升级前后各跑一次本地全栈与全量测试 | 部署记录里有 7 个 digest；升级演练前后本地全绿 | 低 |
 | | P0.3 | `.dockerignore` 覆盖 `.git`、`build`、`.env`、`.plans`、`memory-bank`、`docs` | 构建上下文体积下降 | 低 |
 | | P0.4 | compose 加固：`stop_grace_period: 45s`、`mem_limit`、`cpus`、`restart: unless-stopped`、日志轮转、`read_only` + tmpfs、`cap_drop: [ALL]`、`no-new-privileges` | `docker inspect` 逐项核对 | 中 |
 | | P0.5 | 密钥改 Compose `secrets`（宿主 0400），仓库只留 SOPS/age 密文；frp token 同样处理 | `docker inspect` 看不到密钥；缺密钥快速失败 | 中 |
@@ -2349,8 +2356,9 @@ end note
 | P0.9 frpc 托管 | 🚧 部分 | tmux 运行 + 用户 crontab `@reboot`（进程已存在则跳过）；systemd unit 需 sudo |
 | P0.10 端口收口 | ✅ 完成（ufw 侧） | 18080、8080、8000–8003 从公网超时；`ufw.log` 记 `[UFW BLOCK]`；遗留 `2024` 放行已删 |
 | P0.14 SSH 与日志轮转 | ✅ 完成 | `passwordauthentication no`、`permitrootlogin without-password`；密钥登录正常、口令登录被拒；`logrotate` 的 `Result=success` |
+| P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 
-**未开工**：P0.0–P0.7、P0.11–P0.13、P0.15、P0.16、P1、P2、P3、P4、P5、P6、P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。这些都要改代码或改部署，尚未开始。
+**未开工**：P0.1–P0.7、P0.11–P0.13、P0.15、P0.16、P1、P2、P3、P4、P5、P6、P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。这些都要改代码或改部署，尚未开始。
 
 **工程与生产化缺口复查（2026-11-07）**
 
@@ -2486,6 +2494,7 @@ sequenceDiagram
 | 生产暴露接口文档 | `springdoc` 在基础配置开启、prod 未关，`/swagger-ui.html` 与 `/v3/api-docs` 默认可达 | P0.16 在 prod 关闭；验收用 404 证明 |
 | CORS 占位域混进生产 | 占位 `https://ctt.example.com` 若忘记覆盖不会报错 | P0.16 改成必填并删掉占位 |
 | OAuth 生产静默不可用 | client-id/secret 为空时授权地址会带空 client_id，症状是"点了没反应" | P0.16 启动校验；验收用真实登录证明 |
+| 镜像跟随 `latest` 的漂移 | 上游大版本可能不兼容；PostgreSQL 大版本还要换数据目录布局，`docker compose up` 之后容器可能起不来 | P0.2：部署记录 digest；升级前后各跑一次本地全栈与全量测试；PG 大版本先备份再换卷 |
 
 **对接账号与外部服务（需要你的账号，我给字段、你确认，逐步核对）**
 
@@ -2517,7 +2526,8 @@ sequenceDiagram
 - [ ] 生产与开发使用不同库名、不同角色、不同 Redis 库号；PG/Redis 从 LAN 外不可达
 - [ ] 两机时钟偏差 < 1 s；prod 含 `password=` 的日志在 JSON 输出里已打码
 - [ ] 全量测试不回归（≥1689 tests / 0 failures）
-- [ ] 本地一条命令起全栈：`docker compose --profile obs up -d` 后 `http://localhost:18080/ctt-server/actuator/health` = 200，Grafana 有数据，本地蓝绿切换一次无 5xx
+- [x] 本地一条命令起全栈：`./deploy/local/up.sh` 后 `http://127.0.0.1:18080/ctt-server/actuator/health` = 200；`--profile obs` 起 Prometheus/Grafana/blackbox，两条探针 target 全 up；Grafana 预置面板 `CTT local stack` 可查到 `probe_success = 1`（首启约 3 分钟：Grafana 13 先逐个安装 app-platform API 才绑定 3000）
+- [ ] 本地蓝绿切换一次无 5xx（依赖 P3.4 的 edge 上游切换，未做）
 - [ ] `dig ctt.ahogek.com` 指向接入机公网地址；`curl -I https://ctt.ahogek.com` 返回 200/301，证书由 Let's Encrypt 签发且剩余 > 14 天
 - [ ] 生产 GitHub 登录回调命中 `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback`；本地 dev App 登录不回归
 - [ ] Resend 真实投递 20 封：SPF/DKIM/DMARC 全通过；坏地址只尝试 1 次；outbox 无卡死
