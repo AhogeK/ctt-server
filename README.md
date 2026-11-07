@@ -247,7 +247,6 @@ endpoints answered 200 and no container reported `OOMKilled` (Grafana is capped 
 | [Case Normalization](docs/case-normalization.md) | email identity normalization |
 | [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |
 | [Audit Boundary Spec](docs/audit-boundary-spec.md) | what is audited and what is deliberately not |
-| [Terms Acceptance Guide](docs/terms-acceptance-frontend-guide.md) | frontend contract for the terms gate |
 
 ## Related projects
 
