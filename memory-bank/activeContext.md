@@ -1,5 +1,9 @@
 # Active Context
 
+- [2026-11-08] - P0.3 构建上下文收口（v0.93.4）
+    - 交付：新增 `.dockerignore`，排除 `.git` / `build` / `.env*` / `.plans` / `memory-bank` / `docs` / `dev-docs` 与 AI 工作区、编辑器状态；保留生产构建所需的 `gradle/`、`gradlew`、构建脚本、`src/`，以及本地镜像暂存的 `build/local-image/app.jar`
+    - 实测：复制进镜像的上下文 **249.44 MB → 4.06 MB**（不含暂存 jar）、92.16 MB（含 88 MB jar）；生产前置文件校验通过；本地镜像 `deploy/local/Dockerfile` 构建成功
+    - 坑：BuildKit 的 `transferring context` 受内容寻址缓存影响（第二次读数只剩 71 KB），不能当体积证据；改用 `COPY . /ctx` + `du -sb`，已写入 `AGENTS.md` R17
 - [2026-11-08] - 误关用户常驻 Mailpit（已恢复，待授权提交）
     - 事故：P0.2 演练收尾用 `docker compose … down`，把用户长期使用的 `ctt-mailpit`（:8025）一起删除；`mailpit_data` 卷未受影响，历史邮件（`mailpit.db`）完好
     - 恢复：`docker compose -f docker-compose.yaml up -d mailpit` → 容器 healthy、UI 200、SMTP `220 … ready`，数据卷复用
