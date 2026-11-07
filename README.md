@@ -88,8 +88,8 @@ A pull delivers the winning snapshot of each change, including the IDE that prod
 Requires **JDK 25** and **Docker** (PostgreSQL, Redis and Mailpit run in containers).
 
 ```bash
-cp .env.example .env          # set passwords and secrets
-docker compose up -d --build
+./deploy/secrets/render.sh    # decrypt the SOPS payload into 0400 files
+docker compose up -d --build  # Compose mounts those files as secrets
 ```
 
 | Service | URL |
@@ -105,8 +105,9 @@ docker compose up -d postgres redis mailpit
 ./gradlew bootRun
 ```
 
-`bootRun` loads `application-local.yaml`; the container setup uses the environment variables from
-`.env`. Host ports are overridable via `APP_EXTERNAL_PORT`, `POSTGRES_EXTERNAL_PORT`,
+`bootRun` loads `application-local.yaml` and reads `.env`; the container stack reads the
+rendered secret files instead (see [Deployment Secrets](docs/deployment-secrets.md)). Host ports
+are overridable via `APP_EXTERNAL_PORT`, `POSTGRES_EXTERNAL_PORT`,
 `REDIS_EXTERNAL_PORT`, `MAIL_SMTP_EXTERNAL_PORT` and `MAIL_UI_EXTERNAL_PORT`.
 
 ### Configuration
@@ -127,6 +128,13 @@ docker compose up -d postgres redis mailpit
 | `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Sender identity | required, `CTT` |
 
 `.env` and `application-local.yaml` are gitignored; never commit secrets.
+
+The container stack does not read these values from `.env`: `deploy/secrets/render.sh`
+decrypts the SOPS payload (`deploy/secrets/secrets.enc.yaml`, ciphertext only) into `0400`
+files, and Compose mounts them as secrets. The application reads them through Spring's
+configtree, PostgreSQL through `POSTGRES_PASSWORD_FILE` and Redis from the mounted file, so
+no credential appears in `docker inspect`. `.env` remains for `./gradlew bootRun` outside
+Compose. Full workflow, rotation and the frp token: **[Deployment Secrets](docs/deployment-secrets.md)**.
 
 ## API at a glance
 
@@ -275,6 +283,7 @@ endpoints answered 200 and no container reported `OOMKilled` (Grafana is capped 
 | [Case Normalization](docs/case-normalization.md) | email identity normalization |
 | [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |
 | [Audit Boundary Spec](docs/audit-boundary-spec.md) | what is audited and what is deliberately not |
+| [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0400` files, rotation and the frp token |
 
 ## Related projects
 
