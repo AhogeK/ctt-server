@@ -1167,5 +1167,4 @@ async function refreshAccessToken() {
 
 - [Developer Handbook](developer-handbook.md) - Adding error codes, audit events, exceptions, and protected APIs
 - [API Governance](api-governance.md) - API security tiers, rate limiting, and idempotency guidelines
-- [Terms Acceptance Frontend Guide](terms-acceptance-frontend-guide.md) - Frontend integration for terms enforcement
 - [Audit Boundary Spec](audit-boundary-spec.md) - Audit event boundaries and specifications
