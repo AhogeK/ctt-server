@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-08] - 误关用户常驻 Mailpit（已恢复，待授权提交）
+    - 事故：P0.2 演练收尾用 `docker compose … down`，把用户长期使用的 `ctt-mailpit`（:8025）一起删除；`mailpit_data` 卷未受影响，历史邮件（`mailpit.db`）完好
+    - 恢复：`docker compose -f docker-compose.yaml up -d mailpit` → 容器 healthy、UI 200、SMTP `220 … ready`，数据卷复用
+    - 防复发：mailpit 加 `restart: unless-stopped`；README 写明 `down` 会带走它并给出恢复命令；`AGENTS.md` R19 增边界「用户常驻服务不得被清理波及」；`.plans` 的踩坑表补一行（演练收尾不得带走别人的常驻服务）
+    - 版本：PATCH 0.93.3（compose 变更）
 - [2026-11-08] - P0.2 镜像可追溯与升级演练（v0.93.2）
     - 交付：`deploy/local/digests.sh` 从两份 compose 解析 7 个镜像、输出 Markdown 表，`--out` 追加到部署记录；`ctt-server-app` 主机构建，按镜像 id 记录；README 补用法与演练四步
     - 演练：记录 → `up.sh --profile obs`（edge / blue / Prometheus / Grafana 各 200，两条外部探测结果均为 1）→ `clean build --rerun-tasks`（**1695 tests / 0 failures / 1 skipped**）→ 再记录：7 个镜像摘要完全一致，只有 app 镜像 id 随重建变化（预期）
