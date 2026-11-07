@@ -1,0 +1,19 @@
+# Local edge in front of the two colours.
+# Plain HTTP on purpose: TLS termination is the access host's job (P7.1).
+{
+	auto_https off
+	admin off
+}
+
+:18080 {
+	encode zstd gzip
+
+	handle {
+		reverse_proxy {$UPSTREAM:app-blue:8080}
+	}
+
+	# Local maintenance page shape, mirrors the production 503 intent.
+	handle_errors {
+		respond "upstream unavailable: {$UPSTREAM}" 503
+	}
+}
