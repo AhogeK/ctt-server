@@ -2448,6 +2448,7 @@ end note
 | 判断端口是否对外 | 本机 `bash /dev/tcp` 对任意端口都返回成功（本机代理），一度得出"18080 对外暴露"的错误结论 | 只看对端内核日志（`ufw.log`）+ `curl` 退出码（超时 28 = 被丢弃） |
 | 改别人容器的启动方式 | 把 `--rm` 改成重启策略后，依赖"停止即自动删除"的部署脚本在第 4 步 `docker rmi` 失败，站点中断 | 重启语义要么写进编排文件，要么在容器外做开机恢复；不要改运行中容器的 `--rm` / `AutoRemove` |
 | 日志轮转重复登记 | `logrotate.service` 长期 failed，会掩盖后续真正需要发现的轮转失败 | 同一路径只能有一条规则；`cloud-init` 与 `cloud-init-base` 二选一 |
+| 收尾时 `compose down` 带走别人的常驻服务 | P0.2 演练结束用 `docker compose … down`，把用户长期使用的 Mailpit（`:8025`）一并删除；邮件数据在卷里没丢，但服务被打断 | 清理只关本次启动、用户未在用的容器；停栈用 `stop <service>`，必须 `down` 时结束后立刻 `up -d mailpit`；Mailpit 已加 `restart: unless-stopped`（2026-11-08） |
 
 **运行时拓扑：**
 
