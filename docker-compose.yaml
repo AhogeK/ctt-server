@@ -3,8 +3,27 @@
 # Usage: docker compose up -d
 # Prerequisites: Copy .env.example to .env and customize passwords
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Applied to every service. A container has no reason to gain privileges, keep
+# capabilities it never uses, or write outside its volumes.
+x-hardening: &hardening
+  restart: unless-stopped
+  stop_grace_period: 45s
+  read_only: true
+  logging: *default-logging
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
 services:
   app:
+    <<: *hardening
     image: ctt-server-app
     build:
       context: .
@@ -12,6 +31,10 @@ services:
       args:
         APP_PORT: ${APP_PORT:-8080}
     container_name: ${CONTAINER_NAME:-ctt-server}
+    mem_limit: 900m
+    cpus: 2.0
+    tmpfs:
+      - /tmp
     ports:
       - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_EXTERNAL_PORT:-8080}:${APP_PORT:-8080}"
     depends_on:
@@ -44,8 +67,22 @@ services:
       start_period: 30s
 
   postgres:
+    <<: *hardening
     image: postgres:latest
     container_name: ctt-postgres
+    mem_limit: 768m
+    cpus: 2.0
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+    # The entrypoint chowns PGDATA and drops to the postgres user, so it needs
+    # exactly these capabilities back; nothing else.
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ctt_server}
       POSTGRES_USER: ${POSTGRES_USER:-ctt}
@@ -61,8 +98,24 @@ services:
       retries: 5
 
   redis:
+    <<: *hardening
     image: redis:latest
     container_name: ctt-redis
+    mem_limit: 256m
+    cpus: 1.0
+    tmpfs:
+      - /tmp
+      # The image declares no volume and keeps its working directory in the
+      # root filesystem; the cache stays ephemeral either way.
+      - /data
+    # The entrypoint chowns its working directory and drops to redis through
+    # setpriv, which needs CAP_SETPCAP to narrow the bounding set.
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETPCAP
+      - SETUID
     command: redis-server --requirepass ${REDIS_PASSWORD:-ctt_redis_pass}
     ports:
       - "${REDIS_BIND_ADDRESS:-127.0.0.1}:${REDIS_EXTERNAL_PORT:-16379}:6379"
@@ -73,11 +126,15 @@ services:
       retries: 5
 
   mailpit:
+    <<: *hardening
     image: axllent/mailpit:latest
     container_name: ctt-mailpit
-    # The owner keeps Mailpit running between sessions; never let a compose
-    # teardown or a Docker restart leave it stopped.
-    restart: unless-stopped
+    # The owner keeps Mailpit running between sessions; the hardening anchor
+    # carries restart: unless-stopped so a Docker restart cannot leave it down.
+    mem_limit: 256m
+    cpus: 1.0
+    tmpfs:
+      - /tmp
     ports:
       - "${MAIL_BIND_ADDRESS:-127.0.0.1}:${MAIL_SMTP_EXTERNAL_PORT:-1025}:1025"   # SMTP — spring.mail.port
       - "${MAIL_BIND_ADDRESS:-127.0.0.1}:${MAIL_UI_EXTERNAL_PORT:-8025}:8025"     # Web UI — http://localhost:8025

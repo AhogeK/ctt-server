@@ -208,9 +208,9 @@ whole local stack is one command:
 ./deploy/local/up.sh --profile bluegreen --profile obs
 ```
 
-Mailpit is meant to stay up between sessions (it carries `restart: unless-stopped` and keeps its
-messages in the `mailpit_data` volume). `docker compose down` deletes it along with everything
-else, so stop individual services instead, or restore it right away:
+Mailpit is meant to stay up between sessions (like every service it restarts unless stopped, and it
+keeps its messages in the `mailpit_data` volume). `docker compose down` deletes it along with
+everything else, so stop individual services instead, or restore it right away:
 
 ```bash
 docker compose -f docker-compose.yaml up -d mailpit   # back at :8025, previous mail intact
@@ -221,6 +221,12 @@ provisioned (source `Prometheus`, panels over `probe_success` and `probe_duratio
 Its first start takes about **three minutes**: version 13 installs the app-platform APIs one by one
 before it binds `:3000`, so a short readiness check looks like a hang. Later starts reuse the volume
 and are quicker.
+
+Every service runs with the same hardening block: `restart: unless-stopped`, a read-only root
+filesystem, no capabilities (PostgreSQL and Redis get back only what their entrypoints need),
+`no-new-privileges`, a 45-second stop grace period, JSON log rotation (10 MB × 3) and per-service
+memory/CPU limits. Anything a service must write goes to a named volume or an explicit tmpfs mount
+(`/tmp`, PostgreSQL's socket directory, Redis's cache directory), never back into the image.
 
 The edge serves <http://localhost:18080> and proxies to `app-blue` (`app-blue:8080` inside the
 compose network; `:18081` is only the host-side publish); `app-green` takes
