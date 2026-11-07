@@ -167,6 +167,8 @@
 - **环境类故障先对照，再怀疑代码**：连不上数据库/Redis、启动即挂时，先看异常类型与「别处是否可达」再动代码。判据：`NoRouteToHostException`/EHOSTUNREACH = 网络层被挡（多见于 macOS「本地网络」权限，IDE 进程被拦）；`Connection refused` = 服务没起；`UnknownHostException` = 解析失败；`PSQLException: password authentication failed` = 凭据。判别动作：在**系统 shell** 上 `nc -z <host> <port>` 对照一次，通 ⇒ 问题在应用进程/权限侧，不在代码。同类问题已复发两次（2026-09-18、2026-10-23）
 - **优化写放大先分「真写」与「空写」**：同一值的重复写入（空轮询的游标 upsert、心跳 UPDATE）加一个条件谓词就消除，不需要缓存、不需要新表；反过来，为省一次认证 SELECT 去加缓存会让撤销延迟生效，是更坏的交易。判断依据是**实测行数与增量**，不是"看着多"——2026-11-06 实测审计表 29,749 行 / 11 MB、89% 是已停写的数据面行为，结论是**不做**清理或分区，并把过时的"20 年后 2.7 GB"推算改掉。
 
+- **容器「端口不响应」先看 OOMKilled 与启动阶段，再怀疑网络**：`docker ps` 显示 Up 不等于在监听。判据顺序：`docker inspect --format '{{.State.OOMKilled}}'` → `docker exec <c> ss -lnt`（进程内是否 bind）→ 日志最后一行 → 才看网络。2026-11-07 两次误判：把「Grafana 首启要 3 分钟装 app-platform API」当成起不来，把「第二个 JVM 被 OOM 杀（exit 137）」当成内存不足与网络故障
+
 ### R8.5: 项目一致性优先（强制）
 
 **核心原则：按项目来而不是任务需求，需求要变通符合项目的一致性。**
@@ -223,6 +225,7 @@
 - **Spotless 与 google-java-format 要成对升级**：2026-10-27 把 google-java-format 1.36.1 → 1.37.0 后，Spotless 8.10.4 下**每个文件**都抛 `InvocationTargetException`（`LINE_UNDEFINED`）；把 1.37.0 的 all-deps jar 单独跑（带 `--add-exports`）却能正常格式化 ⇒ 是两者的集成缺口，不是 JDK 不兼容。升级前先跑一次 `spotlessJavaCheck`，失败就保留旧版并在报告里写明证据。**2026-11-07 实测可用组合：Spotless 8.11.0 + google-java-format 1.36.1（`spotlessCheck` 通过）；1.37.0 仍未启用**
 
 - **同一模块族的版本只能有一个来源**：`flyway-core` 与 `flyway-database-postgresql` 必须同版本（前者被 Boot BOM 管理，靠 `strictly` 覆盖），字面量要写成 `libs.versions.<name>.get()` 而不是第二次硬编码
+- **容器镜像一律 `latest`（用户决策）**：`postgres` / `redis` / `mailpit` / `caddy` / Prometheus / Grafana / blackbox 都跟随 `latest`，出现新大版本优先升级；因此可追溯性不能靠 tag，部署时用 `docker inspect --format '{{index .RepoDigests 0}}'` 记下 digest，大版本升级前后各跑一次本地全栈与全量测试。构建镜像（`eclipse-temurin`）按 toolchain 的 Java 版本固定，不跟 `latest`（换大版本等于改语言级别）
 - **Gradle wrapper 的升级与依赖同批**：`./gradlew wrapper --gradle-version=X` 会改 `gradle-wrapper.properties`、`gradle-wrapper.jar` 与 `gradlew*`；验证用 `clean build --rerun-tasks`（否则测试可能整批命中缓存，等于没验）
 
 - **新增依赖必须做多维评估（强制）**：至少比较**最新稳定版**、维护活跃度与最近发布、采用度、许可证、已知漏洞、传递依赖体积、**与当前框架/运行时兼容性（Spring Boot BOM、Spring Security、JDK、Jackson 2/3、Servlet/WebFlux、日志栈）**、API 稳定性、可测试性与替换成本；优先使用 BOM/官方管理的版本。禁止因为示例代码、前端建议或“能编译”就直接引入；先记录候选、版本、证据和排除理由，再落代码。解析后必须用 `dependencies` / `dependencyInsight` 核对解析版本，确认没有强制降级、双 Jackson 代际或同一能力重复引入。RC/里程碑不算稳定版。
