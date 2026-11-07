@@ -196,6 +196,7 @@
 - **API key 不是交互凭据**：任何改密码、改邮箱、账号删除等身份/凭据操作必须经过 `WebSessionGuard`；密码变更/重置还要撤销其他 refresh session 与全部 API key。`getActiveUserRequired()` 只证明账号状态，不证明调用者是浏览器会话。
 - **代理头默认不可信**：`X-Forwarded-For`/`X-Real-IP` 只有 socket peer 在 `ctt.security.trusted-proxy-addresses` 中时才可采信；默认使用 `getRemoteAddr()`，否则 IP 限流可被轮换头绕过。
 - **OAuth 浏览器绑定与 token 位置**：state 必须与 HttpOnly SameSite Cookie 对齐；access/refresh token 只放 URL fragment 或一次性交换码，禁止放入 query（会进入历史/代理日志）。
+- **日志脱敏必须覆盖输出通道，而不是只覆盖 pattern（强制）**：Logback 的 `conversionRule`（如 `%maskedMsg`）只对 `PatternLayout` 生效；换成 JSON 等结构化编码器后事件字段被直接序列化，pattern 级脱敏会**静默失效**。2026-11-08 查实 prod JSON 把 `password=` 与 `query_string` 里的 `token=` 原样写出。新增或切换输出编码器时必须确认脱敏在新通道同样生效，并注意 `arguments`、`kvpList` 是独立字段（pattern 看不见它们）；用例要断言真实渲染出的那一行，而不是只测正则函数
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试**：多断言链式调用 `.isX().isY().isZ()`，方法名 `shouldX_whenY`
 - **测试限流时禁用 HTTP 自动重试（强制）**：Apache HttpClient 的默认策略会对 `429` 按 `Retry-After` 睡眠重试；导出的限流用例因此睡满 1 小时窗口、整轮测试卡死 27 分钟。限流/429 用例必须使用不自动重试的客户端（如 `JdkClientHttpRequestFactory`），并直接断言状态码，不能依赖默认 `RestClient.create()`。
