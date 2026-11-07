@@ -16,18 +16,22 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-07 / v0.93.0（本批升级 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0；Spring Boot 4.1.2、springdoc 3.2.0、greenmail 2.1.15、pg 42.7.14、junit-platform 6.1.3 经元数据核对均已是各自最新）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-08 / v0.93.1（本批为安全修复，依赖未变；上一次依赖核对为 2026-11-07 / v0.93.0，含 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0）。
 
 ## 架构
 
 ```
-Package-by-Feature:
-├── common/      # Shared utilities, config, exceptions
-├── auth/        # JWT authentication
-├── apikey/      # API Key management
-├── sync/        # Bidirectional sync engine
-├── stats/       # Statistics aggregation
-└── leaderboard/ # Redis-powered ranking
+Package-by-Feature（`com.ahogek.cttserver`）:
+├── auth/         # JWT、refresh、OAuth、API Key、TOTP/Passkey、条款、密码重置
+├── user/         # 账号、改邮箱、登录会话、数据导出、注销
+├── device/       # 注册、吊销、最后活跃
+├── sync/         # LWW、变更日志、pull/push、物化
+├── stats/        # 聚合、成就
+├── leaderboard/  # Redis ZSet、周期、回填
+├── language/     # 语言词表与归一
+├── audit/        # 审计事件与落库
+├── mail/         # Outbox、模板、投递
+└── common/       # 安全、限流、幂等、错误处理、日志
 ```
 
 ## 常用命令

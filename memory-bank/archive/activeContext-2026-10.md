@@ -3,6 +3,7 @@
 > 冷数据归档（R13）。仅供回溯，不再更新。
 
 > 2026-11-07：热文件达 200 行上限，把 2026-10-12 的两条完整移入本 shard（零改动迁移）。
+> 2026-11-08：热文件再次触顶，把 2026-10-18/10-19 的六条（R1 / R2 / R3 与阶段六计划，原 70 行）完整移入本 shard（零改动迁移）；热文件只保留结论与指向。
 
 
 
@@ -28,3 +29,73 @@
     - 领域沉淀: `stats-aggregation/principles.md` §10（口径闭环 + 基期必须与主值同源 + 三条易错点）；`stats-aggregation/references.md` 响应字段表；`api-contract/practices.md`「null 字段默认缺失，契约要求键在时须 opt out」+ 断言陷阱
     - 顺带: 实跑也走了销号（`DELETE /users/me` 200 → 再登录 401、旧令牌 `/users/me` 404）；**旧令牌 `GET /stats/summary` 仍 200** 属上一批已裁决的 15 分钟窗口（无害空读），非回归。8080 上另有一个**你 9/30 启动的实例**（非我产生，未动）
     - 状态: 实施 + 验证完成；**接口已与前端逐条确认通过**（前端按源码复核属实；首日 `dailyAverage.previousSeconds = 0` 与"物化/实时 ≤1s/天"差异**两项均获接受**；§7 三条事实修正已被其文档吸收并据以改正自身注释），已交付 v0.78.0
+- [2026-10-19] - R3 数据导出（**产物面向插件端无缝导入**，v0.83.0，已交付）
+    - 触发: 用户提出硬约束 —— "要是做导出就必须同步插件端的导入导出，web 导出的插件端一定要能无缝导入，不然这个功能就没有意义"
+    - **只读核实插件端真实导入器后推翻计划的 NDJSON 定案**：插件用 Gson 反序列化为固定模型（`exportVersion` 非 `"1.0"` 直接拒绝；`sessions[]` 字段名固定；时间用 `ISO_LOCAL_DATE_TIME` 解析 ⇒ **带 `Z` 会整体导入失败**；按 `sessionUuid` 去重；`INSERT OR IGNORE` 且一律 `is_deleted=0`；模型字段非空）⇒ 后端改为**单一 JSON 对象**、字段名与插件一致、时间按 `timezoneOffset`（**必填**、±720、超范围 400 `COMMON_003`）转成**无时区本地时间**、扩展数据收进 `serverExport`（Gson 忽略未知字段 ⇒ 扩展与可导入并存）、**不导出软删会话**（否则插件端"复活"已删记录）、无法提供的值写 `""` 绝不 `null`
+    - 交付: `UserExportService`（`JsonGenerator` 手写流式：先 `count` 再按 1000/页遍历 `findByUserIdAndIsDeletedFalse(Pageable)`，不整表装配）+ `GET /api/v1/users/me/export`（`@RequiresApiKeyScope(READ)` + 限流 3/h + `Content-Disposition: attachment; filename="ctt-export-<yyyy-MM-dd>.json"`）+ 审计 `DATA_EXPORTED`（details: 会话数 + 偏移）+ `CodingSessionRepository` 增分页读
+    - 导出范围: `sessions[]`（插件消费）+ `serverExport`（account / devices / dailyStats / achievements / achievementProgress / oauthAccounts / loginSessions / apiKeys —— **零凭据**：无密码、无令牌、无 key hash，已断言）
+    - 测试: `UserExportIntegrationTest` 3 例，**真实 HTTP 流式**（`StreamingResponseBody` 在 MockMvc 下不可观测）：用**插件端同构模型**反序列化 + 每条时间戳 `LocalDateTime.parse(ISO_LOCAL_DATE_TIME)` + 时区换算（00:30Z → 08:30 @+480）+ `platform`/`ideName` 取自设备注册表（未注册设备为 `""`）+ 软删排除 + 无凭据字符串 + 400/401
+    - 全量运行抓到测试自身一处**顺序假设** ✗：导出按 id 排序而 UUID 随机 ⇒ 断言不得取"第一条"，已改为按 `projectName` 定位（单独跑绿、全量跑红 = 典型隔离缺陷）
+    - 文档: README（端点行 + 导出语义段含"为什么必须是这个格式"）；`dev-docs/user/frontend-integration.md`（前端契约：**`timezoneOffset` 必填**、blob 原样存盘不要重编码、文件结构、导入路径）；`docs/developer-handbook.md`（`DATA_EXPORTED`）；`.plans` R3 段补「交付修订」对照表
+    - 已知缺口（诚实记录）: 插件端没有"从 URL 导入"，用户需先下载文件再经 `ImportDataAction` 选文件（插件端既有交互，无需其改动）；web 端尚无导出 UI，本批为其备好契约
+    - 验证: 全量 **1538 tests / 0 failures / 0 errors**（1 skipped 为既有）；新增 7 个验收用例全部通过（`LoginSessionEndpointsIntegrationTest` 9/9、`UserExportIntegrationTest` 5/5、`SessionIdentityIntegrationTest` 5/5、`TokenRefreshService*` 12/12）；`build` PASS（含 spotless 与覆盖率自动检查）
+    - **交付形态评估（用户质疑"单 JSON 会不会是严重等待的接口"）**: 服务端**不是**先组装再发（`JsonGenerator` 逐页写、8KB 缓冲自动 flush，首字节约 = 首次查询）；但客户端必须等整份（插件导入器要完整文件 ⇒ "逐行"对该消费端零收益）。**实测生产库：2 用户 / 3641 行 / 707 kB**，最重真实用户 3639 行 ≈ 707 kB ⇒ 亚秒级、4 次分页。结论：**维持同步流式**（形态 A）；形态 B（一次性票据 + 原生下载 URL，解决内存/进度/重试，成本小）与 C（异步任务 + 产物存储，需项目当前没有的对象存储）都留待触发；并把计划的触发条件从"p99>30s 或 >100MB"**下调为"单用户 >10 MB 或 p95 >5 s"**（原线差两个数量级＝永不触发）。关键区分沉淀到 `systemPatterns`：**格式由消费端决定，通道才是可选的**
+    - **补测（v0.83.1）**: 计划里的验收项全部落实——新增 **7 例**（分页 2500 行跨 3 页 / 导出第 4 次 `429` / `logout-all` 后列表为空 / 会话列表未认证 401 / User-Agent 512 截断 / 轮换后 UA 沿用 / **并发锁串行化**）；仅"堆峰值"一项保留为决策（不可稳定测量，且分页已由用例证明）
+    - 状态: ✅ 已交付（v0.83.0，验收补测于 v0.83.1）
+    - 交付: `GET /api/v1/users/me/sessions`（按 `session_id` 归并一次登录一条；`current` 取自 access token 的 `sid`；`limit` 默认 20 / 上限 100；限流 60/h）+ `DELETE /api/v1/users/me/sessions/{sessionId}`（204；该会话全部未吊销行置 `revoked_at`；非本人或不存在统一 404 `COMMON_002`；限流 10/h；审计 `SESSION_REVOKED`，resource = 会话 id、details 带 `kind`）+ DTO `LoginSessionResponse` 九字段 + `RefreshTokenRepository` 增三条（归并查询 / 会话锁 / 按会话吊销）
+    - **并发保证（本批核心）**: 刷新与吊销**都先取会话级排它锁**（`pg_advisory_xact_lock(hashtext(session_id))`，事务级自动释放）⇒ "踢了就一定失效"。**补测时发现并修复一个真缺陷**：锁原先在"状态判定之后"才取，竞态下刷新读到的是吊销前的旧状态 ⇒ 仍会轮换成功（用例实测 200 而非 401）；现改为**先取锁 → `entityManager.refresh` 重读 → 再判定**，用例转为 401 `AUTH_003`。教训：并发保证必须"锁→重读→判定"，只加锁不复读等于没加
+    - **连带缺陷（R2 引入后才会暴露，已修）**: 吊销会话后该客户端仍会拿旧 refresh token 刷新 —— 原逻辑按**令牌重用**判（`AUTH_009`）并 `revokeAllUserTokens` ⇒ "踢一个会话"会变成"全端登出" ✗。改为先看该会话是否仍有活跃行：无 → 整个会话已被吊销 ⇒ `401 AUTH_003`（只影响该会话）；有 → 重放的是轮换后的旧令牌 ⇒ 才判重用
+    - **查询正确性（用例抓到）**: 会话跨度（`createdAt`=MIN、`lastUsedAt`=MAX、`expiresAt`=MAX）必须跨**该会话全部行**（轮换会吊销上一行），而"哪条会话在用、取谁作活跃行属性"只看**未吊销行** ⇒ 拆成 `session_span` + `live_session` 两个 CTE；只聚合活跃行会把刚刷新的会话报成"从未使用" ✗
+    - 契约细节: DTO 加 `@JsonInclude(ALWAYS)` —— 可空键（`deviceName`/`ideName`/`userAgent`/`lastUsedAt`）**始终出现**（R9 规则），断言必须按键做（本次被 `path(k).isNull()` 对**缺失键**也为 true 坑过一次 ⇒ 改用 `has(k)` + `get(k).isNull()`）
+    - 复用与补漏: 转换器 `sid → CurrentUser.sessionId` 此前**无任何断言**（R2-a 缺口，列表用例把空 sid 暴露出来）→ `JwtToCurrentUserConverterTest` 补"有 sid"/"无 sid"两例
+    - 测试: `LoginSessionEndpointsIntegrationTest` 4 例（一次登录一条目 + PLUGIN 带设备名 + 按最近活动排序 / 只停被踢会话且其余仍可刷新 / 允许吊销当前会话 / 不泄露他人会话且其会话不受影响）
+    - 文档: README（User Profile 表两行 + 会话语义段）；`dev-docs/user/frontend-integration.md` 增完整契约（字段表 + 可空键语义 + 吊销语义）；`docs/developer-handbook.md` 增 `SESSION_REVOKED` 审计动作
+    - **既有测试按新语义更新（5 个类）**: 全局吊销（logout / logout-all / 密码重置）后的刷新期望由 `403 AUTH_009` 改为 **`401 AUTH_003`**；`TokenRefreshServiceTest` 新增「会话仍有活跃行 ⇒ 才判重用（`AUTH_009` + `revokeAllUserTokens`）」与「会话已无活跃行 ⇒ `AUTH_003` 且**不**做全局吊销」两条并列用例；`UserControllerMockMvcTest` 补 `LoginSessionService` mock（构造器新增依赖）。未删测试、未削弱断言
+    - 验证: 全量 **1528 tests / 0 failures / 0 errors**（1 skipped 为既有；1521 + 7 = 4 端点用例 + 2 转换器 sid 用例 + 1 重用/吊销区分用例）；`spotlessApply` 后 `build` PASS。一次 `clean build` 以 `:test FAILED` 且**零结果**中止（无诊断输出），随后单独 `test` 与 `build` 均通过——与依赖升级批次同形的瞬时失败，非代码问题
+    - 状态: ✅ 已交付（v0.83.0，与 R3 同批）
+
+- [2026-10-19] - R2-a 收尾：双轴独立审查与审查修复（并入 v0.81.0，已交付）
+    - 双轴独立审查（标准轴 / 规格轴，另加机械自检：spotlessCheck、jacoco 门禁、注释语言与全限定名扫描、diff 范围）
+    - **两轴独立命中同一个真 bug**: terms 接受路径 `issueTokens` 以 `deviceId=null` 重建行 ⇒ 插件会话在**同一 `session_id`** 下变成 WEB/30 天并丢设备绑定——既违背刚写入领域文件的"续期沿用受众/设备"承诺，也会让 R2-b 的会话列表把插件会话显示成浏览器会话（验收"PLUGIN 才显示设备名"会失效）
+    - TDD 修复: 新增集成用例 `shouldKeepPluginAudience_whenAcceptingTerms`（断言 `issued_for=PLUGIN` + `device_id` + 13~15 天 TTL）→ RED（5 用例 1 失败）→ `issueTokens` 改为**按会话查活动行并沿用受众/设备/UA/相应 TTL**（`RefreshTokenRepository.findFirstByUserIdAndSessionIdAndRevokedAtIsNullOrderByCreatedAtDesc`）→ GREEN（5/5）
+    - 清理（两轴共同指出）: 受众字面量统一到 `RefreshToken.AUDIENCE_*`（删 `UserLoginService` 与 `OAuthLoginOrRegisterService` 两处死常量）、`isPluginSession()` 真正被 `TokenRefreshService` 使用、删除零调用的 2 参 `createRefreshToken`、迁移脚本中文注释改英文、4 个测试方法名规范化为 `shouldX_whenY`、测试文件全限定名 `java.util.UUID` 改短名 + 补 import
+    - 判为不改的 3 项（理由入账）: `TokenUtils.createRefreshToken` 7 参（单一静态工厂、3 调用点各一行；引入 Spec 类型收益不抵）｜`issueTokens` 在无 sid 时自造会话（`issueTokens` 从不传 null，NOT NULL 列下属防御分支，令牌 claim 与响应一致）｜R2-b 两端点（下一批）
+    - 领域知识同步: `domains/auth-lifecycle/practices.md` 增「轮换与一切后续签发沿用会话属性」条款 + 记录该回归与其用例名
+    - 验证: `clean build` **1521 tests / 0 failures / 0 errors**（1 skipped 为既有）；`SessionIdentityIntegrationTest` 5/5、`AuthControllerPasswordResetConfirmIntegrationTest` 13/13；spotless + 覆盖率门禁通过
+    - 状态: ✅ 修复完成，已交付 v0.81.0（2026-10-19）
+
+- [2026-10-19] - R2-a 会话身份与插件会话缺陷修复（v0.81.0，已交付）
+    - 交付: 迁移 `V20261019120000__add_session_identity_to_refresh_tokens.sql`（`session_id` NOT NULL + 回填=id + 默认 + `(user_id, session_id)` 索引；`user_agent` 可空）+ `RefreshToken` 增两列与 `AUDIENCE_WEB/AUDIENCE_PLUGIN` 常量 + `isPluginSession()`；`TokenUtils.createRefreshToken` 增会话/UA 参数（UA 写入前截断 512）；**四条签发路径全部带会话身份**（登录/轮换/OAuth/terms 接受）；access token 增 `sid` claim（无会话则省略）+ `CurrentUser` 增可空 `sessionId`（**5 参便捷构造器 ⇒ 37 处既有构造点零改动**）+ 转换器读取 `sid`
+    - **修掉一个存在已久的缺陷**: 全仓**从没有任何地方写 `PLUGIN`**（`ISSUED_FOR_WEB` 是唯一常量、`refreshTokenTtlPlugin` 是死配置）⇒ 插件会话从**登录**起就被记成 WEB/30 天，刷新后依旧
+    - **Ruling 修正（证据驱动，非猜测）**: 判别信号原定"带 deviceId 即插件" ✗ —— 被 `LoginRequest.deviceId` 的 **`@NotBlank`** 证伪（所有登录都必须带 ✓），且实测**两侧客户端都不发**平台/IDE 头 ✓ ⇒ 改为 **deviceId 已在 `devices` 注册 ⇒ PLUGIN**（注册表是服务端可核实的"这是插件客户端"，也正是该表存在的意义）。代价：插件**首次**登录（尚未注册）仍记 WEB、刷新沿用旧受众，已在用例中按"注册后"验证
+    - TDD: 4 个集成用例先红（`session_id` 列不存在 / 插件仍 WEB-30d / `sid` 缺失）→ 实现 → **4/4 绿**；全量见批次报告
+    - 顺带修一处我自己的早期误判: `TokenRefreshService` 的受众"硬编码 WEB"只是表象 —— 真相是从未被写过 PLUGIN，登录路径同样如此
+
+- [2026-10-18] - R1 修改显示名（`PATCH /api/v1/users/me`，v0.80.0 → v0.80.1）
+    - 交付: `UpdateProfileRequest`（校验复用注册同一常量 `REGEX_DISPLAY_NAME`）+ `UserService.updateDisplayName` + `UserController` PATCH 路由（`getActiveUserRequired` + `@RequiresApiKeyScope(WRITE)` + `@RateLimit(USER,10,3600)`）+ 新审计 `PROFILE_UPDATED`（IAM 分组、`ResourceType.USER`）+ README / `dev-docs` 同步
+    - **Ruling（偏离计划初稿）**: 写方法落 `UserService` 而**不**落 `UserProfileService` —— 后者类注释明文声明只读（"This service is read-only"），塞进写等于削弱一条已声明的约束；`UserService` 本就是"校验 + 持久化 + 审计 + 事务"的应用服务（与 `registerUser` 同形）。代价：若日后判定归 profile 域，移动一个方法
+    - Ruling: 同名提交 = 幂等成功（不写库、不审计），审计只在真实变更时产生；`AuditDetails` 带 `field/oldValue/newValue`
+    - Ruling: 响应由控制器在写后调 `UserProfileService.getCurrentUserProfile` 取 —— 资料投影（含 `emailChangePending`）只应有一个来源；代价：多一次读
+    - 前置核实: `audit_logs.action` **无 CHECK 约束**（只有 `resource_type`/`severity`）⇒ 新审计动作**零迁移** ✓
+    - TDD: 先写 10 个用例 → `compileTestJava` 亲眼看它失败（缺 `updateDisplayName`×4 / `PROFILE_UPDATED`×1，失败原因正确）→ 实现 → 目标类全绿 → **全量 1513 / 0 failures / 0 errors**（上批 1503，+10 与本轮用例数一致）；`spotlessCheck` PASS
+    - 顺带修一处漂移（R25 回源）: `domains/api-contract/references.md` 的 AUTH 错误码计数写 24、**实测 25**（v0.77.0 新增的 `AUTH_025` 未回写），已改并把核对基线刷到 v0.80.0
+    - **顺带修复的既有缺口（用户授权"发现就解决"）**: `DELETE /me` **无限流** → 加 `@RateLimit(USER,5,3600)` —— 该端点每次请求跑 bcrypt（strength 12）校验密码，无限流即 CPU 耗尽面（DoS），与其它凭据端点不一致已一年；TDD 固化（新集成测试，后因扩面更名为 `UserMeRateLimitsIntegrationTest`：第 6 次/小时 → 429，RED→GREEN 各实跑）。`GET /me` **判定不加**：前端 AppHeader 每次渲染都会调用（其对接文档明示）、实现零 bcrypt、一次主键查 —— 加了会破坏已确认用法且收益不成比例。已成领域实践：`api-contract/practices.md`「Rate limits are a property of the controller」
+    - **两条边界已补测（同日复核——用户点出 R1 仍有未打勾项）**: ① `ActiveAccountGateIntegrationTest` 新增「**已删除账号改显示名 → `403 AUTH_022`**」（门存在的理由：删除后旧令牌仍在 15 分钟窗口内有效）；② `UserMeRateLimitsIntegrationTest`（原 `AccountDeletionRateLimitIntegrationTest` 更名扩面）新增「**第 11 次改显示名 → 429**」⇒ 两类 6/6 与 2/2 通过。**Ruling 修正**：初版把这两条判为"可以不建例"被推翻——门与限流同属安全面，钉成用例比省一类测试重要；并修正计划写窄处（门的返回码随令牌状态：`LOCKED`/`PENDING`/`SUSPENDED`/`DELETED` → `AUTH_004`/`006`/`005`/`022`）
+    - 状态: ✅ **已交付 v0.80.0 → v0.80.1**（develop：`28daa85` 功能+测试+README+api-governance、`69e4af3` 版本、`79bba22` 计划与 dev-docs、`f635b93`/`4379be4` 记忆；补测批 `0aa808c` 测试、`05f00b2` 版本、`a5d5a5b` 计划、`d23250a` 记忆 → **全部推送 ✓**；master 逐条 cherry-pick `649c484`+`35544fe`、`1155ec3`+`3a658bc`，纯净检查 0 命中、构建通过 ✓）
+
+- [2026-10-18] - 阶段六《个人设置》后端计划（R1–R3；R1 已交付，R2/R3 未开工）
+    - 触发: ctt-web 阶段六定稿（改显示名 / 登录会话列表与吊销 / 数据导出），要求逐条确认或反提案 + 排期回传
+    - **事实核实（只读全仓）**: 三项**全部不存在**（`@PatchMapping` / `/sessions` / `/export` 各 0 命中）；可复用底座齐备（`REGEX_DISPLAY_NAME`、`UserProfileResponse`、`AuditAction`/`ResourceType`、`@RateLimit`、`@RequiresApiKeyScope`）；**零新增错误码**
+    - **R1 裁决（接受）**: `PATCH /api/v1/users/me`；**不引入显示名唯一性**（列无唯一约束，且本产品无按显示名查找/登录路径，昵称非身份标识）；同名提交=幂等成功（不写库不审计）；`getActiveUserRequired` + `@RequiresApiKeyScope(WRITE)` + `USER 10/3600` + 新审计 `PROFILE_UPDATED`
+    - **R2 裁决（接受 + 反提案）**: 必须新增 `session_id`（独立迁移；轮换携带 ⇒ 一次登录 = 一条会话链）+ access token 增 `sid` claim（`CurrentUser` 加可空 `sessionId`）——否则"会话"在数据层不存在（轮换 = 旧行 revoked + 新行 INSERT），`current` 也无可判定（JWT 无会话标识）
+    - **R3 裁决（接受 + 反提案）**: `GET /users/me/export` 用 **NDJSON 流式**（`StreamingResponseBody` + 项目注入的 `ObjectMapper`；编码会话按 1000 行分页读取，不整表装配）；范围含编码会话本体与每日物化统计；绝不含密码/密钥/令牌/IP；审计 `DATA_EXPORTED`
+    - **顺带发现的真实缺陷（R2 前置修复）**: `TokenRefreshService` 轮换时硬编码 `issued_for = "WEB"` 且恒用 `refreshTokenTtlWeb()`（30d）——`refreshTokenTtlPlugin`（14d）**从未被使用** ⇒ 插件会话每刷新一次即被降级并续成 30 天
+    - **计划文件自身的记录漂移（按 R4 校正）**: OAuth 段 N 的错误码清单语义整体错位（AUTH_013–018 与现码不符 ✗）；P 段的枚举名 `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL` 不存在（实为 `AUTH_018`）→ 两处已改 + 附校正表
+    - 计划落地: `.plans/ctt-server-development-plan.md` 新增「👤 个人设置（账号自助与数据可携带）」节（事实基线 / 裁决摘要 / 三个子项含契约·决策台账·交付物·验收 / 排期与升级条件 / 反向要求 / 明确不做 / 校正记录）+ 3 张 plantuml 图；顺带把原有 `dot` 模块依赖图换成 plantuml（docu.md 渲染管线不认 dot ✗）
+    - 渲染验证: `npx @markdown-viewer/documd …--assets` → **7 diagrams / 0 失败**（退出码 0），并肉眼复核类图与活动图
+    - 状态: 计划定稿（2026-10-18 提交并推送 develop：`62bd6f0` 计划 + `63223fa` 记忆；master 无内容）；**R1 已按本计划实施交付**（见上一条），R2 / R3 未开工
+    - **前端答复（2026-10-18）**: 无契约冲突、顺序无需重排、8 字段够用；**另提一条可选增强并已采纳** —— 会话列表增可空 `userAgent`（原文存储、服务端不解析、写入截断 512 字符、轮换沿用旧值），供前端派生 "Chrome · macOS" 类显示名。回源核实: 刷新与重置密码路径早已从请求头取 UA，**登录路径没有**（`UserLoginService.login(LoginRequest)` 单参 ✗）→ R2 一并补；`RequestInfo` record 已带 `userAgent` 可直接复用。同一迁移脚本加列 ⇒ 排期不变；R3 导出相应增加 `loginSession` 行类型（不含令牌哈希）
+    - 已同步更新: 计划 R2（迁移 / 取法 / 读取 / 验收）+ R3 行类型、`dev-docs` 对接文档、前端报告（文首同步清单 6 → 7 条 + 第七节改为"你们已答复"记录）
+    - **补充同步（同日复核后）**: 会话列表**排序 = `lastUsedAt` 倒序**、API key 调用时 `current` 恒为 false；**"踢会话"与"正在刷新"并发**的洞（刷新插入的新行躲过批量吊销 ⇒ 会话诈尸 ✗）→ 刷新与吊销都先按 `session_id` 取 `pg_advisory_xact_lock` 串行化（该竞态在既有 `logout` 上同样存在，一并覆盖，已加验收项）；给前端的报告新增**第八节五条接口细节**（导出无 JSON 外壳 / 三个端点的 scope 要求 / 插件会话也记 UA / 会话行不返回 `deviceId` / 导出含已删会话）
+    - **文件组织（用户裁定）**: 新反馈**单独成文**，不并进旧文件 ⇒ `.omp/settings-phase6-frontend-report.md` = **对接契约（滚动更新）**，`.omp/settings-phase6-frontend-report-2.md` = 第二轮通知（对前端答复的三问确认 + `userAgent` 采纳 + 六条细节 + 并发说明 + 无变化部分）；第二轮内容已从契约文件移出，只留索引行
+    - **第二轮回执（2026-10-18 同日）**: 前端"全部确认、**无冲突、无新增需求**" ⇒ 该轮往来闭环；`userAgent` 的显示名由前端派生（其设置页工作项，纯函数 + 单测，识别失败回退原文/未知）；前端按 **R1 → R2 → R3** 等待"端点已可用"通知（首个通知要等 R1 实施完成）

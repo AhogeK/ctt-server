@@ -45,6 +45,12 @@ X-Device-ID/X-Platform/X-IDE-Name Header 标准化，业务层不接触 HttpServ
 
 X-Content-Type-Options, X-XSS-Protection, X-Frame-Options, HSTS, CSP。
 
+## 结构化日志格式不能沿用 pattern 级脱敏
+
+Logback 的 `conversionRule`（如 `%maskedMsg`）只对 `PatternLayout` 生效。切到 JSON encoder 后事件字段被直接序列化，基于 pattern 的脱敏不会执行——2026-11-08 查实：prod 的 `JsonEncoder` 让第三层脱敏静默失效，而 console 一直是好的。同一批复核还发现 JSON 会把 `arguments` 与 `kvpList` 作为**独立字段**输出，pattern 永远看不见它们：`RequestLoggingFilter` 用 `addKeyValue("query_string", …)` 记整条查询串，`/verify-email?token=…` 的凭据就是这样进的日志（比 message 里的明文更严重，因为它发生在正常流程上）。
+
+做法：脱敏规则抽成纯函数共享；自定义 encoder 在序列化前包一层事件——把已掩码的 formatted 文本作为 `message` 输出、掩码 `kvpList` 的字符串值，**一旦发生文本掩码就丢弃 `arguments`**（参数无法逐个判断是否敏感，而渲染文本已包含它们），再委托官方 encoder。代价是每个事件一次正则与可能的克隆；收益是未命中事件 schema 完全不变，命中的事件里凭据不再以任何字段形态出现。MDC 与 throwable 文本仍未掩码，是这条防线的已知残余。
+
 ## 测试风格: 轻量级 BDD
 
 采用 `// Given // When // Then` 注释结构组织测试代码，不引入 Cucumber 等重量级 BDD 框架。
