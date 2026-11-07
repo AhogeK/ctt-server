@@ -7,7 +7,7 @@
 | 语言 | Java 25 (Virtual Threads) |
 | 框架 | Spring Boot 4.1.2 |
 | 构建 | Gradle 9.9.0 + Kotlin DSL + Version Catalog |
-| 数据库 | PostgreSQL **18.6**（生产/开发库实测 `select version()`）；测试容器当前用 `postgres:latest`，按计划 P0.2 与 compose 一并固定到 18；Flyway 13.12.1 |
+| 数据库 | PostgreSQL **18.6**（生产/开发库实测 `select version()`）；测试容器与 compose 一律用 `postgres:latest`（用户决策：镜像始终最新，含大版本）；Flyway 13.12.1 |
 | 缓存 | Redis（测试容器 `redis:latest`） |
 | 安全 | Spring Security 7（随 Boot BOM）+ `spring-security-oauth2-jose` |
 | 两步验证 | `otp-java` 2.2.0（RFC 6238）+ `commons-codec` 1.23.0（Base32） |
@@ -16,7 +16,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-07 / v0.92.2（本批升级 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0；Spring Boot 4.1.2、springdoc 3.2.0、greenmail 2.1.15、pg 42.7.14、junit-platform 6.1.3 经元数据核对均已是各自最新）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-07 / v0.93.0（本批升级 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0；Spring Boot 4.1.2、springdoc 3.2.0、greenmail 2.1.15、pg 42.7.14、junit-platform 6.1.3 经元数据核对均已是各自最新）。
 
 ## 架构
 
@@ -39,6 +39,7 @@ Package-by-Feature:
 | `./gradlew build` | 构建 |
 | `./gradlew spotlessApply` | 格式化 |
 | `./gradlew test jacocoTestCoverageVerification` | 覆盖率 |
+| `./deploy/local/up.sh [--profile bluegreen] [--profile obs]` | 本地全栈：Caddy edge(`:18080`) + 两色(`:18081`/`:18082`) +（可选）Prometheus/Grafana/blackbox；镜像 `caddy` / `prom/prometheus` / `grafana/grafana` / `prom/blackbox-exporter` |
 
 ## 配置分层 (12-Factor App)
 
