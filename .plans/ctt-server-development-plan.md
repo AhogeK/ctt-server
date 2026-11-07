@@ -50,14 +50,14 @@ left side
 *** 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）
 *** 登录会话列表与吊销 ✅ 已交付（R2-a v0.81.0 会话身份 · R2-b v0.82.0 两个端点）
 *** 数据导出（可携带）✅ 已交付（v0.83.0，产物可被插件端无缝导入）
-** 运维与可观测性 🚧 规划完成 · P0 部分落地
-*** 既有状态整修（隧道托管/端口收口/SSH）
-*** 指标出口与业务指标
-*** 告警、面板与值班
-*** CI、镜像发布与蓝绿
-*** 备份、恢复演练与密钥轮换
-*** 压测与故障演练
-*** Runbook 与对外接入（域名/证书/OAuth/Resend）
+** 运维与可观测性 🚧 P0 部分交付
+*** 既有状态整修 ✅ 隧道托管 / SSH / 端口收口 / 日志轮转
+*** 指标出口与业务指标 ⬜
+*** 告警、面板与值班 ⬜
+*** CI、镜像发布与蓝绿 ⬜
+*** 备份、恢复演练与密钥轮换 ⬜
+*** 压测与故障演练 ⬜
+*** Runbook 与对外接入（域名/证书/OAuth/Resend）⬜
 ** 候选功能（待单独评估）⬜
 *** 统计接口开放调用
 *** 个人统计 Card
@@ -2134,9 +2134,9 @@ end note
 
 ### 🔍 运维与可观测性升级（生产化全规划）
 
-> **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测；另有三处需修的既有状态：frp 两端跑在 tmux 里、frps 的代理端口默认绑 `0.0.0.0`、开发与联调共用同一个数据库。部署机上另有既有的公网 Jenkins，用其自身端口对外，本服务与其并存、不占用。
+> **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测。既有状态的现状：**frps 已改 systemd 托管、frpc 仍是 tmux（crontab 兜底）**；frps 的代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝挡住；**开发与联调仍共用同一个数据库**。部署机上另有既有的公网 Jenkins，经 nginx 443 对外，本服务与其并存、不占用。
 
-**实现状态：** draft（2026-11-07）—— 未开工。P0 修既有状态，P1–P7 建能力，每步一个可独立验收的交付物。**所有选型已由我决策**，被否决的替代方案写在决策表里；若你要推翻某条，请指名，我按其代价重排。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07）。P0 修既有状态，P1–P7 建能力，每步一个可独立验收的交付物；已完成项在阶段表中标 ✅ 并附证据，未标记的即未开工。**所有选型已由我决策**，被否决的替代方案写在决策表里；若你要推翻某条，请指名，我按其代价重排。
 
 **目标：** 五个能力，各自可判定。
 
@@ -2292,19 +2292,22 @@ end note
 | | P0.3 | `.dockerignore` 覆盖 `.git`、`build`、`.env`、`.plans`、`memory-bank`、`docs` | 构建上下文体积下降 | 低 |
 | | P0.4 | compose 加固：`stop_grace_period: 45s`、`mem_limit`、`cpus`、`restart: unless-stopped`、日志轮转、`read_only` + tmpfs、`cap_drop: [ALL]`、`no-new-privileges` | `docker inspect` 逐项核对 | 中 |
 | | P0.5 | 密钥改 Compose `secrets`（宿主 0400），仓库只留 SOPS/age 密文；frp token 同样处理 | `docker inspect` 看不到密钥；缺密钥快速失败 | 中 |
-| | P0.6 | prod 关审计载荷（`log-payloads: false`），保留动作与资源标识 | 新审计记录不含请求体 | 低 |
+| | P0.6 | prod 关审计载荷（`log-payloads: false`），保留动作与资源标识。**现状证据**：`application-prod.yaml` 里仍是 `log-payloads: true` | 新审计记录不含请求体 | 低 |
 | | P0.7 | health 分组：liveness 不依赖数据库、readiness 含数据库与 Redis；compose 与健康检查改打 readiness | 停库演练：readiness `OUT_OF_SERVICE`、liveness `UP` | 中 |
-| | P0.8 | **frps 改 systemd**（接入机）：已完成（2026-11-07）—— unit + 开机自启，顺带轮换 token、强制 TLS、加端口白名单、配置改 600 | 重启接入机后隧道自动恢复 | 中 |
-| | P0.9 | **frpc 改 systemd**（部署机）：**部分完成**——已用用户 crontab `@reboot` 兜底；systemd unit 需 sudo 密码 | 重启部署机后隧道自动恢复（当前靠 cron，开机后约 20 s） | 中 |
-| | P0.10 | 隧道端口收口：**已完成 ufw 侧**（18080 公网不可达、遗留 `2024` 放行已删，`ufw.log` 有 `[UFW BLOCK]` 实证）。控制端口保留对公网开放：家庭出口 IP 不唯一（主机内有代理，接入机看到的来源与主机自报的出口不一致），按 IP 白名单会自断隧道；改为 `TLS + 48 位随机 token + allowPorts` 三重约束。剩 503 维护页与 `limit_req`（域名、证书见 P7.1） | 公网访问 18080 被拒；隧道断开时返回 503 而非超时 | 中 |
+| | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）—— unit + 开机自启，顺带轮换 token、强制 TLS、加端口白名单、配置改 600 | 重启接入机后隧道自动恢复 | 中 |
+| | P0.9 🚧 | **frpc 改 systemd**（部署机）：**部分完成**——已用用户 crontab `@reboot` 兜底（进程已存在则跳过）；systemd unit 需 sudo 密码 | 重启部署机后隧道自动恢复（当前靠 cron，开机后约 20 s） | 中 |
+| | P0.10 ✅ | 隧道端口收口：**已完成 ufw 侧**（18080 公网不可达、遗留 `2024` 放行已删，`ufw.log` 有 `[UFW BLOCK]` 实证）。控制端口保留对公网开放：家庭出口 IP 不唯一（主机内有代理，接入机看到的来源与主机自报的出口不一致），按 IP 白名单会自断隧道；改为 `TLS + 48 位随机 token + allowPorts` 三重约束。维护页与 `limit_req` 不在本条，归 P7.1 | 公网访问 18080 被拒；隧道断开时返回 503 而非超时 | 中 |
 | | P0.11 | 端口与编排：`edge 18080` / 蓝 `18081` / 绿 `18082`；frpc 增加 `remotePort=18080 → localPort=18080`；**edge 用 host 网络**，否则 app 看到的来源是容器桥接 IP，可信代理名单与 IP 限流一起失真 | 三个端口只在回环；`TRUSTED_PROXY_ADDRESSES=127.0.0.1` 真正生效 | 中 |
 | | P0.12 | 生产数据隔离：建 `ctt_server_prod` 与 `ctt_app`；Redis db 1；开发继续原库 | 生产与开发的库名、角色、Redis 库号可区分 | 中 |
 | | P0.13 | 数据面收口：部署机 **ufw 已安装未启用**（`ENABLED=no`），PG/Redis 现对整段 LAN 开放 ⇒ 启用 ufw（或 nftables）只放行本子网，PG/Redis 绑部署机 LAN 地址，生产容器走 `127.0.0.1`；sudo 需要密码，实施时需你在场 | LAN 外不可达；LAN 内开发仍可用 | 中 |
-| | P0.14 | 主机加固与时钟：**接入机 SSH 已完成**（`00-hardening.conf`：关口令、root 仅密钥、`MaxAuthTries 4`；口令登录返回 `Permission denied (publickey)`）。剩：两机 `chrony`、nginx 与 journald 日志上限、日志轮转重复项（部署机 `cloud-init` 与 `cloud-init-base` 重复登记，改名后 `Result=success`）。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 时钟偏差 < 1 s；口令登录不可用 | 中 |
+| | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
+| | P0.15 | 时钟与日志上限：两机 `chrony`；nginx 与 journald 的日志上限（含轮转策略） | 时钟偏差 < 1 s；日志目录占用有上限 | 中 |
+| | P0.16 | **生产配置收口**：`springdoc.api-docs` 与 `swagger-ui` 在基础配置里开着、prod 未覆盖 ⇒ 生产会暴露接口文档；CORS 仍有占位域 `https://ctt.example.com`；`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认为空且 prod 不校验 ⇒ OAuth 生产静默不可用。与 P7.4 的验证码一起收敛成「生产必填配置启动校验」：缺项直接启动失败 | 生产 `/swagger-ui.html` 与 `/v3/api-docs` 返回 404；CORS 无占位域；缺任一必填项时启动失败 | 中 |
 | P1 指标与追踪 | P1.1 | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ `management.server.port=8081` 且 **`management.server.address=127.0.0.1`**；应用端口不再暴露 metrics | `ActuatorSurfaceTest` 固定两端口暴露面 | 中 |
 | | P1.2 | 5 个业务指标（同步计数与耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量），标签基数 ≤3 | 指标存在性 + 标签集合断言 | 中 |
 | | P1.3 | 追踪：Micrometer Tracing + OTLP，透传 W3C `traceparent`，保留 `traceId`；生产 10% 采样 | 一次请求在 Tempo 可见完整 span，日志可按 `traceId` 聚合 | 高 |
 | | P1.4 | 观测栈（**全部在部署机**）：Prometheus + Alertmanager + Grafana + Tempo + Loki + Alloy + node/postgres/redis/blackbox exporters，保留 30 天 | 各 UI 可访问；blackbox 对公网 URL 的探测有数据 | 中 |
+| | P1.5 | 日志补用户维度：MDC 现在只有 `traceId` / `clientIp`（已脱敏）/ `method` / `uri` / `deviceId` / `platform`，**没有 `userId`** ⇒ 按用户排障只能绕审计表。加 `userId`（UUID，不放邮箱），并确认请求结束会清理 | 一条请求日志能按 `userId` 过滤；响应结束后 MDC 无残留 | 低 |
 | P2 告警与面板 | P2.1 | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计增长率；另加隧道中断与证书 14 天到期；先 `severity: info` | `promtool check rules` 通过 | 中 |
 | | P2.2 | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康） | 新环境起栈后面板自动出现 | 中 |
 | | P2.3 | 值班路径：Alertmanager → 邮件 + webhook；外部拨测只测可用性；静默与升级流程写进 runbook | 手动触发一条测试告警并收到通知 | 低 |
@@ -2314,6 +2317,7 @@ end note
 | | P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察 + 一键回滚；压测下验证零 5xx | 压测中发布一轮，5xx = 0 | 高 |
 | | P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
 | | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
+| | P3.7 | **质量门接线与供应链**：`jacocoTestCoverageVerification` 已定义（指令 80% / 分支 70%）却**没有挂到 `check`**，等于从未执行；`test` 只有 `useJUnitPlatform()`（无超时、无并行）；仓库无依赖校验元数据、无依赖锁定。把校验挂进 `check`、给测试加超时、生成 `gradle/verification-metadata.xml` | 人为把覆盖率降到阈值以下时 `./gradlew check` 失败；离线加校验元数据后构建仍通过 | 中 |
 | P4 备份与恢复 | P4.1 | pgBackRest：每周全量 + 每日差异 + WAL 归档，保留 14 天，加密 | `pgbackrest check` 通过；任取时间点可恢复 | 高 |
 | | P4.2 | 每周加密 `pg_dump` 复制到接入机（保留 4 份）；目标不可达时任务失败并告警 | 备份列表可见两份产物 | 中 |
 | | P4.3 | 恢复演练脚本：临时库恢复 + `audit_logs`/`coding_sessions` 行数比对（差值必须 0）+ 记录模板 | 一次演练产出可归档记录 | 高 |
@@ -2325,23 +2329,55 @@ end note
 | P6 文档与收口 | P6.1 | `docs/ops-runbook.md`（英文，进 master）：部署、回滚、隧道恢复、告警处置、备份恢复、密钥轮换、故障对照 | 新人按 runbook 能完成一次发布 | 低 |
 | | P6.2 | README 与 `docs/` 索引更新 | 链接可达 | 低 |
 | | P6.3 | 记忆与状态行收口；运行时代码有改动则 PATCH+1 | 状态改为 completed，`memory-bank` 同批更新 | 低 |
+| | P6.4 | 安全与运维文档收口：补 `SECURITY.md`（漏洞上报渠道与响应时限）；`docs/security-architecture.md` 与 `docs/api-governance.md` 已覆盖分层与限流，不再重复写；runbook 见 P6.1 | `SECURITY.md` 存在且含联系方式；runbook 覆盖六类故障 | 低 |
 | P7 对外接入 | P7.1 | 阿里云 DNS 加 `ctt` A 记录指向接入机公网地址（值见私密运维记录）；接入机 `certbot --nginx -d ctt.ahogek.com`；server block 上线 | `dig` 指向正确；`curl -I https://ctt.ahogek.com` 正常 | 中 |
 | | P7.2 | GitHub OAuth：dev App（loopback 回调，优先 `http://127.0.0.1:8080/...`）+ prod App（`https://ctt.ahogek.com/ctt-server/...`）；若改代码显式传 `redirect_uri`，可合并为单 App | 生产登录成功；本地登录不回归 | 中 |
-| | P7.3 | 前端与安全项：`FRONTEND_BASE_URL`、CORS 放行真实 origin、`PASSKEY_RP_ID` / `PASSKEY_ALLOWED_ORIGINS`、hCaptcha 生产 key、Cookie `Secure` / `SameSite` 核对 | 生产跨域请求通过；Passkey 注册与登录可用；hCaptcha 通过 | 中 |
+| | P7.3 | 前端与 Cookie：`FRONTEND_BASE_URL`、CORS 只放行真实 origin、Cookie `Secure` / `SameSite` 核对（与 P7.4 的验证码、P7.5 的 Passkey 一起验收） | 生产跨域请求通过；Cookie 带 `Secure` | 中 |
+| | P7.4 | **hCaptcha 切正式**：生产域名新建 site key，填 `HCAPTCHA_SITE_KEY` / `HCAPTCHA_SECRET_KEY`（校验地址 `https://api.hcaptcha.com/siteverify`）。**注意当前实现是 fail-open**：`site-key` 为空时 `CaptchaService` 只记一条 warn 就跳过校验，且 prod 配置没有覆盖它 ⇒ 生产可能悄悄没有验证码。本条要求补一条启动校验（缺 key 直接失败，或至少让告警能发现），再谈“已接入” | 无 token 的注册/重置请求返回 `SECURITY_006`；带真实 token 通过 | 中 |
+| | P7.5 | **Passkey 与二次验证凭据切正式**：`PASSKEY_RP_ID=ctt.ahogek.com`、`PASSKEY_ALLOWED_ORIGINS=https://ctt.ahogek.com`（prod 配置无默认值，缺了会启动失败）；`TOTP_ENCRYPTION_KEY` 换成正式随机密钥（仓库里的开发后备值是公开常量，prod 已禁用它）；确认恢复码的 `recovery-code-count`（默认 10）与“一次性消费”语义。**rp-id 是长期承诺：改它会让已注册的 Passkey 全部失效 ⇒ 必须在正式域名首次上线前定死** | 生产 Passkey 注册 + 登录成功；恢复码能完成二次验证且用后失效 | 中 |
 
-**执行记录（2026-11-07）**
+> 状态列含义：**✅ 已完成** · **🚧 部分完成**（缺口写在条目里）· 未标记 = 未开工。
 
-> 只记录确实做过的动作与证据。**未列出的 P0–P7 条目一律未开工**：本节不是完成度声明，而是"哪些格子已经变成事实"。
+**已完成项与证据（2026-11-07）**
+
+> 与阶段表的 ✅ 一一对应；每条附可复现的证据。未列出的 P0–P7 条目仍未开工。
 
 | 条目 | 结果 | 证据 |
 | --- | --- | --- |
-| P0.8 frps 托管 | 完成 | `systemctl is-enabled frps` = `enabled`、`is-active` = `active`、`NRestarts=0`；6 条映射全部 `start proxy success`；tmux 会话已删 |
-| P0.8 附带加固 | 完成 | token 轮换为 48 位随机、`transport.tls.force=true`、`allowPorts` 白名单（8000–8003/8080/18080）、配置权限 `600` |
-| P0.9 frpc 托管 | 部分 | tmux 运行 + 用户 crontab `@reboot`（进程已存在则跳过）；systemd unit 需 sudo |
-| P0.10 端口收口 | 完成（ufw 侧） | 18080、8080、8000–8003 从公网超时；`ufw.log` 记 `[UFW BLOCK]`；遗留 `2024` 放行已删 |
-| P0.14 SSH | 完成（接入机） | `passwordauthentication no`、`permitrootlogin without-password`；密钥登录正常、口令登录被拒 |
+| P0.8 frps 托管 | ✅ 完成 | `systemctl is-enabled frps` = `enabled`、`is-active` = `active`、`NRestarts=0`；6 条映射全部 `start proxy success`；tmux 会话已删 |
+| P0.8 附带加固 | ✅ 完成 | token 轮换为 48 位随机、`transport.tls.force=true`、`allowPorts` 白名单（8000–8003/8080/18080）、配置权限 `600` |
+| P0.9 frpc 托管 | 🚧 部分 | tmux 运行 + 用户 crontab `@reboot`（进程已存在则跳过）；systemd unit 需 sudo |
+| P0.10 端口收口 | ✅ 完成（ufw 侧） | 18080、8080、8000–8003 从公网超时；`ufw.log` 记 `[UFW BLOCK]`；遗留 `2024` 放行已删 |
+| P0.14 SSH 与日志轮转 | ✅ 完成 | `passwordauthentication no`、`permitrootlogin without-password`；密钥登录正常、口令登录被拒；`logrotate` 的 `Result=success` |
 
-**未开工**：P0.0–P0.7、P0.11–P0.13、P1、P2、P3、P4、P5、P6、P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。这些都要改代码或改部署，尚未开始。
+**未开工**：P0.0–P0.7、P0.11–P0.13、P0.15、P0.16、P1、P2、P3、P4、P5、P6、P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。这些都要改代码或改部署，尚未开始。
+
+**工程与生产化缺口复查（2026-11-07）**
+
+> 把整个仓库扫了一遍（配置、构建、安全、数据、可观测、文档），只列**计划里原先没有**的缺口；已达标项另列，避免以后重复讨论。
+
+| 缺口 | 现状证据 | 归属 |
+| --- | --- | --- |
+| 生产会暴露接口文档 | `application.yaml` 里 `springdoc.api-docs.enabled=true`、`swagger-ui.enabled=true`，prod 未覆盖 | P0.16 |
+| CORS 仍带占位域 | `application.yaml` 的 `allowed-origin-patterns` 含 `https://ctt.example.com` | P0.16 |
+| OAuth 生产可能静默不可用 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认空，prod 不校验 | P0.16 |
+| 覆盖率门槛从未执行 | `jacocoTestCoverageVerification` 在 `build.gradle.kts:116`，`check` 未依赖它 | P3.7 |
+| 无依赖校验元数据与锁定 | 无 `gradle/verification-metadata.xml`、无 lockfile | P3.7 |
+| 日志无用户维度 | MDC 只有 `traceId` / `clientIp` / `method` / `uri` / `deviceId` / `platform` | P1.5 |
+| 缺漏洞上报渠道 | 仓库无 `SECURITY.md` | P6.4 |
+| 生产审计仍写请求体 | `application-prod.yaml` 的 `log-payloads: true` | P0.6（已有，补证据） |
+
+**已达标（记录，不再重复讨论）**
+
+| 项 | 证据 |
+| --- | --- |
+| 会话无状态、优雅停机、不做视图内懒加载 | `SessionCreationPolicy.STATELESS`；`server.shutdown: graceful`；`open-in-view: false` |
+| Flyway 保护 | `clean-disabled: true`、`validate-on-migrate: true`；`baseline-on-migrate: true` 上线前确认是否保留 |
+| 分页有上限 | `PageQuery.size` 默认 20、`@Max(100)` |
+| 容器非 root、两段构建 | `Dockerfile` 建 `appuser` 并 `USER appuser`；运行时 `eclipse-temurin:25-jre-noble` |
+| 错误不外泄 | 全局异常处理返回 `SYSTEM_001` + `traceId`，堆栈只进日志 |
+| Cookie 属性齐全 | `CookieHelper` 设 `HttpOnly` + `Secure` + `SameSite` + 窄 `Path` |
+| 出站调用有超时 | hCaptcha 5 s、GitHub 10 s |
 
 **这次踩到的坑（应写进 P6.1 的 runbook）**
 
@@ -2446,6 +2482,10 @@ sequenceDiagram
 | OAuth 回调只有一个生效 | 省略 `redirect_uri` 时 GitHub 只用第一个回调地址（单 App 可存 10 个） | 先按两 App 落地；若合并单 App，须代码显式传 `redirect_uri`，换 token 时也要传 |
 | DNS 传播与记录冲突 | 新记录与既有 blog/blogapi 记录并存 | 只增不改；先 `dig` 核对再签证书 |
 | 前缀被重写导致回调 404 | `proxy_pass` 带 URI 会截断 `/ctt-server` | 明确写 `proxy_pass http://127.0.0.1:18080;`（不带路径） |
+| hCaptcha 未配置时静默放行 | `CaptchaService` 在 `site-key` 为空时只 warn 后跳过；prod 未覆盖该配置 ⇒ 生产可能没有验证码而不自知 | P7.4 补启动校验或 prod 强制配置；验收用「无 token 应被拒」证明 |
+| 生产暴露接口文档 | `springdoc` 在基础配置开启、prod 未关，`/swagger-ui.html` 与 `/v3/api-docs` 默认可达 | P0.16 在 prod 关闭；验收用 404 证明 |
+| CORS 占位域混进生产 | 占位 `https://ctt.example.com` 若忘记覆盖不会报错 | P0.16 改成必填并删掉占位 |
+| OAuth 生产静默不可用 | client-id/secret 为空时授权地址会带空 client_id，症状是"点了没反应" | P0.16 启动校验；验收用真实登录证明 |
 
 **对接账号与外部服务（需要你的账号，我给字段、你确认，逐步核对）**
 
@@ -2456,7 +2496,8 @@ sequenceDiagram
 | GitHub OAuth | 新建 prod App：Homepage `https://ctt.ahogek.com`，回调**逐字** `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback`；dev App 用 `http://127.0.0.1:8080/ctt-server/api/v1/auth/oauth/github/callback`（GitHub 建议 loopback 用 `127.0.0.1` 而非 `localhost`）。单 App 可存 10 个回调，但省略 `redirect_uri` 时只用第一个 | 创建 App 并把 client id / secret 写进宿主 0400 文件或密文 | 不把 secret 写进仓库；不靠"改顺序"切环境 |
 | Resend | 打开 <https://resend.com/home> → Add Domain（`ahogek.com` 或发送子域 `send.ahogek.com`）→ 按提示把 DKIM / SPF / 回信 MX 加进阿里云 DNS → 等 Verified → 建 `ctt-server-prod` key（Sending access、限该域）；SMTP：`smtp.resend.com`、465（SSL）或 587（STARTTLS）、用户名 `resend`、密码 = API key | 注册/登录 Resend，把 API key 存进宿主 0400 文件 | 不把 key 写进仓库；不替你接受付费条款 |
 | 应用邮件配置 | `MAIL_SMTP_*`、`MAIL_FROM_ADDRESS=noreply@<已验证域>`（验证顶点域则用 `noreply@ahogek.com`，改用发送子域则随之改）、`MAIL_FROM_NAME`，并设 `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true`（465 加 `SSL_ENABLE=true`，587 加 `STARTTLS_ENABLE=true`） | 确认发件地址与显示名 | 不用未验证域发信 |
-| hCaptcha | 生产域名新建 site key，填 `HCAPTCHA_SITE_KEY` / `HCAPTCHA_SECRET_KEY` | 在 hCaptcha 后台加域名并取 key | 不复用本地/测试 key 上生产 |
+| hCaptcha | 生产域名新建 site key，把 `HCAPTCHA_SITE_KEY` / `HCAPTCHA_SECRET_KEY` 写进生产密钥文件；校验地址用官方 `https://api.hcaptcha.com/siteverify`。**缺 site-key 时代码会静默跳过校验**，所以配完要按验收里的“无 token 应被拒”验证一次 | 在 hCaptcha 后台加域名并取 key | 不复用本地/测试 key 上生产 |
+| Passkey 与 2FA 凭据 | `PASSKEY_RP_ID` / `PASSKEY_ALLOWED_ORIGINS` 用正式域名（prod 配置无默认值，缺则启动失败）；`TOTP_ENCRYPTION_KEY` 生成 32 字节随机并 Base64；**rp-id 上线后不要改** | 生成并保管这些密钥（与 JWT 密钥同等级），写进宿主 0400 文件或密文 | 不使用仓库里的开发后备密钥 |
 
 > 说明：Resend 的额度、速率与投递日志字段以其控制台为准，不在此照抄数字；P4.5 用 20 封自测确认日限与突发行为。当前 outbox 没有 provider message id 字段，先按「收件人 + 时间 + 主题」对齐日志；是否新增列另按迁移成本评估（R12 / R22）。
 
@@ -2481,9 +2522,16 @@ sequenceDiagram
 - [ ] 生产 GitHub 登录回调命中 `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback`；本地 dev App 登录不回归
 - [ ] Resend 真实投递 20 封：SPF/DKIM/DMARC 全通过；坏地址只尝试 1 次；outbox 无卡死
 - [ ] Passkey 在 `ctt.ahogek.com` 完成注册与登录；hCaptcha 通过；生产 CORS 只放行真实前端 origin
+- [ ] 生产环境 `HCAPTCHA_SITE_KEY` 为空时启动失败（或至少有一条告警覆盖）；无 token 的注册请求返回 `SECURITY_006`，带真实 token 通过
+- [ ] 恢复码能完成一次二次验证且用后失效；用尽后可重新生成；`TOTP_ENCRYPTION_KEY` 不是仓库里的开发后备值
+- [ ] `PASSKEY_RP_ID` 与前端 origin 同注册域，Passkey 注册与登录均成功；上线后 rp-id 未再变更
 - [ ] 应用看到的客户端 IP 是真实公网来源（`audit_logs` 与 `last_login_ip` 不是 `127.0.0.1` 或容器 IP）
 - [ ] 生产登录态 Cookie 带 `Secure`（`X-Forwarded-Proto: https` 在整条链上生效）
 - [ ] frps 控制端口从公网不可达；`2024/tcp` 用途确认或关闭
+- [ ] 生产 `/swagger-ui.html`、`/v3/api-docs` 返回 404；`GITHUB_CLIENT_ID` / `HCAPTCHA_SITE_KEY` 任一缺失时启动失败
+- [ ] `./gradlew check` 会执行覆盖率校验：人为把覆盖率降到阈值以下应当失败
+- [ ] 请求日志能按 `userId` 过滤，且请求结束后 MDC 无残留
+- [ ] `SECURITY.md` 存在并写明漏洞上报渠道
 
 **不做的事：**
 
