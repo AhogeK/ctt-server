@@ -7,6 +7,26 @@
 > - `memory-bank/` —— AI 自用的记忆与领域知识
 >
 > 迁移自 Notion《🖥️ ctt-server 开发计划》（2026-09-01 快照），此后以本文件为准。
+>
+> **怎么读**（2026-11-08 增补）：
+>
+> - 前半部分（到「运维与可观测性升级」为止）是**阶段计划**：目标 → 子任务 → 交付清单 → 验收；已完成的节在标题与清单上带版本号，写完即回填，不留「需创建」这类旧状态。
+> - 从「会话批量撤销」开始是**按主题追加的交付记录**：标题带日期与版本，新条目追加在文末，不保证严格排序。查找用上面的能力索引与版本号，不要顺序通读。
+> - 版本号一律以 `gradle/libs.versions.toml` 的 `appVersion` 为准；本文件只记录到版本，不复述发布流程。
+>
+> | 能力面 | 计划节 | 状态 | 最近一次变更 |
+> |---|---|---|---|
+> | 基础建设（骨架 / 日志 / 审计 / 校验 / 治理 / 测试基线） | 1–6 | ✅ | v0.93.1 生产 JSON 脱敏补强 |
+> | 认证闭环（注册 / 登录 / 刷新 / 重置 / 锁定） | H–M | ✅ | v0.92.0 限流改为按账户分桶 |
+> | 邮件基础设施（Resend / Outbox / 模板 / 重试） | A–G | ✅ | v0.87.2 依赖升级 |
+> | OAuth 接入（GitHub） | N–S | ✅ | v0.78.1 错误码按 `ErrorCode.java` 校正 |
+> | API Key（生命周期 / 认证 / scope / 审计） | N–S（本节编号自成一套，与 OAuth 无关） | ✅ | v0.92.0 删除 `API` 限流维度 |
+> | 设备（模型 / 注册 / 查询与吊销） | D1–D3 | ✅ | v0.86.1 心跳刷新 `lastSeenAt` |
+> | 编码会话同步（模型 / LWW / Pull-Push / 插件契约） | T–W | ✅ | v0.92.1 空轮询不再写游标 |
+> | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
+> | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
+> | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.1 / P0.8 / P0.10 / P0.14 已完成） | v0.93.1 P0.1 完成 |
 
 ## 🗺️ 计划总览
 
@@ -42,16 +62,20 @@ left side
 *** API Key 生命周期
 *** Scopes 权限系统
 ** 数据通路 ✅
-*** 设备管理
-*** 编码会话双向同步
-*** 统计聚合
-*** 排行榜与成就
+*** 设备管理（注册 / 查询 / 心跳刷新）
+*** 编码会话双向同步（LWW + 增量游标）
+*** 统计聚合（9 维度 + 设备 / IDE / 时段细分）
+*** 排行榜（7 维度 × 6 周期）与成就（15 项 + 扩展梯子）
 ** 个人设置（账号自助）✅ 全部交付
 *** 修改显示名 ✅ 已交付（v0.80.0 → v0.80.1）
 *** 登录会话列表与吊销 ✅ 已交付（R2-a v0.81.0 会话身份 · R2-b v0.82.0 两个端点）
 *** 数据导出（可携带）✅ 已交付（v0.83.0，产物可被插件端无缝导入）
+** 账号安全 ✅
+*** 账号注销（硬删除 + 级联清理，v0.77.0）
+*** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
+*** 通行密钥（v0.91.0：独立登录 + 作为第二步）
 ** 运维与可观测性 🚧 P0 部分交付
-*** 本地全栈与既有状态整修 ✅（P0.0 两色+边缘+观测 / P0.8 隧道 / P0.10 端口 / P0.14 SSH+日志）
+*** 本地全栈与既有状态整修 ✅（P0.0 两色+边缘+观测 / P0.8 隧道 / P0.10 端口 / P0.14 SSH+日志 / P0.1 prod JSON 脱敏）
 *** 指标出口与业务指标 ⬜
 *** 告警、面板与值班 ⬜
 *** CI、镜像发布与蓝绿 ⬜
@@ -248,7 +272,7 @@ end note
 
 ## 🗺️ 第二阶段以后：功能开发大纲
 
-> 这部分是基础建设完成后要继续开展的功能方向，目前不展开细节。
+> 基础建设之后的能力面：认证闭环、邮件、OAuth、API Key、设备、会话同步、统计与排行、个人设置都已在下面逐阶段展开并交付。本部分保留每阶段的原始目标、子任务与验收，作为决策溯源；尚未展开的只剩运维与可观测性的 P1–P7。
 
 ### 🔐 认证闭环 — 细化开发计划✅
 
@@ -279,7 +303,7 @@ end note
   - ✅ `password`：`@StrongPassword` 校验（8-72 字符、含大小写、数字）
   - ✅ `displayName`：`@Pattern` 校验（2-50 字符）
 
-**2. 注册服务（需扩展 `UserService`）**
+**2. 注册服务（扩展 `UserService`，已交付）**
 
 - [x] 扩展 `UserService.registerUser()`：
   - [x] 邮箱唯一性检查（`existsByEmailIgnoreCase`，冲突抛 `ConflictException(ErrorCode.AUTH_002)`）
@@ -314,7 +338,7 @@ end note
   - [x] 委托 `EmailVerificationService.verify(token)`
   - [x] 成功返回 `200 OK` + `ApiResponse<EmptyResponse>`
 
-**6. 重新发送验证邮件（需扩展）**
+**6. 重新发送验证邮件（扩展，已交付）**
 
 - [x] 创建 `EmailVerificationService.resendVerificationEmail(String email)`：
   - [x] 用户必须处于 `PENDING_VERIFICATION` 状态（`UserValidator.assertCanVerifyEmail()`）
@@ -323,7 +347,7 @@ end note
   - [x] 限流：复用现有 `MailOutboxService` 的限流逻辑（**3 次/1 分钟**，⚠️ 不是 10 分钟 3 次）
   - [x] 落审计事件 `EMAIL_VERIFICATION_SENT`
 
-**7. Repository 层（需新建）**
+**7. Repository 层（新建，已交付）**
 
 - [x] 创建 `EmailVerificationTokenRepository`：
   - [x] `Optional<EmailVerificationToken> findByTokenHash(String tokenHash)`
@@ -334,10 +358,10 @@ end note
 
 | 类型 | 文件 | 状态 |
 |---|---|---|
-| Service | `UserService`（扩展） | 已有，需添加 token 生成逻辑 |
-| Service | `EmailVerificationService`（新建） | 需创建 |
-| Controller | `EmailVerificationController`（新建） | 需创建 |
-| Repository | `EmailVerificationTokenRepository`（新建） | 需创建 |
+| Service | `UserService`（扩展） | ✅ 已交付（token 生成与入队在同一事务） |
+| Service | `EmailVerificationService`（新建） | ✅ 已交付 |
+| Controller | `EmailVerificationController`（新建） | ✅ 已交付 |
+| Repository | `EmailVerificationTokenRepository`（新建） | ✅ 已交付 |
 | DTO | `UserRegisterRequest` | ✅ 已有 |
 | Entity | `EmailVerificationToken` | ✅ 已有（含 `revoke()` 方法） |
 | Migration | `V20260322120000__add_revoked_at_to_email_verification_tokens.sql` | ✅ 已有 |
@@ -536,7 +560,7 @@ end note
 - [x] `POST /api/v1/auth/login` 响应被锁定用户时，在 `ErrorResponse.details` 中附 `retryAfter` 时间戳
 **交付物：** `LoginAttemptService` / `login_attempts` 表 DDL / `AccountUnlockScheduler` / 锁定配置项 / Service Test（覆盖第 5 次失败触发锁定、锁定窗口到期自动解锁）
 
-**验收：** 连续 5 次密码错误后 `users.status` 变 `LOCKED`；锁定期间任何密码均返回 `AUTH_ACCOUNT_LOCKED` + `retryAfter`；30 分钟后可正常登录；审计记录可追溯完整失败序列
+**验收：** 连续 5 次密码错误后 `users.status` 变 `LOCKED`；锁定期间任何密码均返回 `403 AUTH_004`（Account locked）+ `retryAfter`；30 分钟后可正常登录；审计记录可追溯完整失败序列
 
 #### M：认证闭环集成测试✅
 
@@ -549,7 +573,7 @@ end note
 
 - [x] `LoginAndTokenIntegrationTest`：
   - [x] 正常登录 → 返回双 Token → 用 Access Token 访问受保护接口 200
-  - [x] 错误密码 5 次 → 第 6 次返回 `AUTH_ACCOUNT_LOCKED`
+  - [x] 错误密码 5 次 → 第 6 次返回 `AUTH_004`（Account locked）
   - [x] 刷新：旧 Refresh Token 换新双 Token → 再用旧 Refresh Token → 触发 `REFRESH_TOKEN_REUSE_DETECTED` → 全设备下线
 
 - [x] `PasswordResetIntegrationTest`：
@@ -701,7 +725,7 @@ end note
 
 **验收：** `./gradlew test` 全绿；并发安全测试在重复运行 10 次中无重复投递
 
-### 🔗 OAuth 接入
+### 🔗 OAuth 接入 ✅（N–S 全部交付）
 
 > **前置依赖：** 认证闭环（H–M）全部 ✅，`UserStateMachine`、`AuditLogService`、`CurrentUserProvider`、`Testcontainers` 基线全部就绪。本阶段复用所有已有基础设施，不重新发明认证框架。
 > **设计原则：** OAuth 是「另一种凭据来源」，核心用户实体（`users` 表）保持不变，OAuth 身份通过独立的 `user_oauth_accounts` 表关联。新用户走 OAuth 直接激活（跳过邮箱验证），老用户可自助绑定/解绑 OAuth 提供方。
@@ -857,43 +881,43 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 1. State 无 HMAC 签名：采用纯 UUID + Redis TTL 方案，Redis 作为 server-side store，防 CSRF 核心语义已满足
 2. `GitHubOAuthProperties` 内嵌在 `SecurityProperties` 中：符合 Spring Boot 单一配置树最佳实践
 
-#### P：已有账号绑定 / 解绑 OAuth 提供方 ✅（已完成）
+#### P：已有账号绑定 / 解绑 OAuth 提供方 ✅
 
 > **实现状态：** ✅ **全部完成**（v0.28.0 BIND + v0.29.0 UNBIND）— 通过 `?action=bind` + `OAuthStatePayload.Action.BIND` + `attachToExistingUser/unbindFromExistingUser` + `OAuthAccountController` 实现。
 > 纯 OAuth 用户（无密码）解绑唯一 Provider → 返回 `AUTH_018`（"Cannot unlink last credential"，409）
 **目标：** 已登录用户能在账号设置中主动绑定或解绑 OAuth Provider，安全边界清晰
   **绑定流程：**
-  - [x] 实现 `OAuthLinkService.initiateLinking(userId, provider): String`：
+  - [x] 发起绑定：`GET /api/v1/auth/oauth/{provider}/authorize?action=bind`，由 `OAuthLoginOrRegisterService` 生成带 `userId` 的 state
     - [x] 校验用户已存在且 `status=ACTIVE`
-    - [x] 校验该用户尚未绑定该 Provider（已绑定则抛 `OAUTH_ACCOUNT_ALREADY_LINKED`）
+    - [x] 校验该用户尚未绑定该 Provider（已绑定则抛 `AUTH_016`）
     - [x] 生成 state 时在 payload 中携带 `userId`（区分「登录流」与「绑定流」）
     - [x] 返回授权 URL
   - [x] 在 `OAuthCallbackController.callback` 中根据 state payload 判断流程类型：
-    - [x] `userId` 存在 → 绑定流：调 `OAuthLinkService.completeLinking(userId, provider, providerUserInfo)`
-      - [x] 确认该 `(provider, provider_user_id)` 未被其他用户占用（已占用抛 `OAUTH_ACCOUNT_ALREADY_LINKED`）
+    - [x] `userId` 存在 → 绑定流：调 `OAuthLoginOrRegisterService.attachToExistingUser(userId, provider, providerUserInfo)`
+      - [x] 确认该 `(provider, provider_user_id)` 未被其他用户占用（已占用抛 `AUTH_016`）
       - [x] 插入 `user_oauth_accounts` 记录
       - [x] 落审计事件 `OAUTH_ACCOUNT_LINKED`
       - [x] 重定向前端「绑定成功」页
     - [x] `userId` 不存在 → 登录/注册流（走 O 阶段逻辑）
   **解绑：**
-  - [x] 实现 `OAuthLinkService.unlink(userId, provider)`：
-    - [x] 查询 `user_oauth_accounts` 确认绑定存在（不存在抛 `OAUTH_ACCOUNT_NOT_LINKED`）
-    - [x] **安全校验（最后凭据保护）**：若用户 `password_hash = null`（纯 OAuth 用户）且 `user_oauth_accounts` 只剩此一条 → 拒绝解绑，抛 `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL`（防止用户将自己锁在系统外）
+  - [x] 实现 `OAuthLoginOrRegisterService.unbindFromExistingUser(userId, provider)`：
+    - [x] 查询 `user_oauth_accounts` 确认绑定存在（不存在抛 `AUTH_017`）
+    - [x] **安全校验（最后凭据保护）**：若用户 `password_hash = null`（纯 OAuth 用户）且 `user_oauth_accounts` 只剩此一条 → 拒绝解绑，抛 `AUTH_018`（409；防止用户把自己锁在系统外）
     - [x] 删除 `user_oauth_accounts` 记录
     - [x] 落审计事件 `OAUTH_ACCOUNT_UNLINKED`
-  - [x] 实现 `DELETE /api/v1/auth/oauth/{provider}/link`（受保护接口，需有效 JWT）
-  - [x] 实现 `GET /api/v1/users/me/oauth-connections`（受保护接口）：返回当前用户已绑定的所有 Provider 列表（脱敏：只返回 `provider`、`providerUserId` 后四位脱敏、`createdAt`，不返回 token）
-  **交付物：** `OAuthLinkService` / `DELETE /api/v1/auth/oauth/{provider}/link` / `GET /api/v1/users/me/oauth-connections` / 「最后凭据保护」逻辑 ✅
+  - [x] 实现 `DELETE /api/v1/auth/oauth/accounts/{provider}`（受保护接口，需有效 JWT）
+  - [x] 实现 `GET /api/v1/auth/oauth/accounts`（受保护接口）：返回当前用户已绑定的 Provider 列表（只含 `provider`、`providerLogin` 等展示字段，不含任何 token）
+ **交付物：** `OAuthLoginOrRegisterService.attachToExistingUser` / `unbindFromExistingUser` / `DELETE /api/v1/auth/oauth/accounts/{provider}` / `GET /api/v1/auth/oauth/accounts` / 「最后凭据保护」逻辑 ✅
 
-实际实现：`OAuthLoginOrRegisterService.attachToExistingUser/unbindFromExistingUser`（合并到登录注册服务） + `DELETE /api/v1/auth/oauth/accounts/{provider}` + `GET /api/v1/auth/oauth/accounts` + 最后凭据保护逻辑已实现
+（定稿时设想的 `OAuthLinkService` 与 `/api/v1/users/me/oauth-connections` 未按原名落地：实施合并进登录注册服务，端点改为 `/api/v1/auth/oauth/accounts`；错误码以 `ErrorCode.java` 为准，见文末「校正记录」。）
   **验收：**
   - [x] 已登录用户发起绑定 GitHub → 授权后 `user_oauth_accounts` 新增记录，审计事件 `OAUTH_ACCOUNT_LINKED` 正确
-  - [x] 同一 GitHub 账号被两个不同 ctt 用户尝试绑定 → 第二次返回 `OAUTH_ACCOUNT_ALREADY_LINKED`
-  - [x] 纯 OAuth 用户（无密码）解绑唯一 Provider → 返回 `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL`
+  - [x] 同一 GitHub 账号被两个不同 ctt 用户尝试绑定 → 第二次返回 `AUTH_016`（409）
+  - [x] 纯 OAuth 用户（无密码）解绑唯一 Provider → 返回 `AUTH_018`（409）
   - [x] 有密码用户解绑 OAuth → 成功，`user_oauth_accounts` 记录删除，审计事件正确
-  - [x] `GET /api/v1/users/me/oauth-connections` 返回数据不含任何 token 明文
+  - [x] `GET /api/v1/auth/oauth/accounts` 返回数据不含任何 token 明文
 
-#### Q：OAuth Token 生命周期管理 ✅（已完成）
+#### Q：OAuth Token 生命周期管理 ✅
 
 **实现状态：** ✅ **全部完成** — Token 加密基础设施、账号生命周期联动、密钥轮换服务均已实现（v0.35.0）。
 
@@ -904,7 +928,7 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
   - [x] GitHub access_token **不过期**（除非用户手动撤权），`token_expires_at` 始终为 `null`
   - [x] ⚠️ `OAuthTokenRefreshService` **本阶段不需要实现**，仅保留接口预留。待后续接入第二个 Provider（如 Google）时再实现刷新逻辑
   **账号生命周期联动：**
-  - [x] 用户注销账号（`DELETE /api/v1/users/me`，预留接口）或 `status → DELETED` 时：
+  - [x] 用户注销账号（`DELETE /api/v1/users/me`，v0.77.0 起已交付）或 `status → DELETED` 时：
     - [x] 级联删除 `user_oauth_accounts` 记录（由 FK `ON DELETE CASCADE` 自动处理，无需 Service 层额外清理）✅
   - [x] 管理员暂停用户（`status → SUSPENDED`）时：
     - [x] `user_oauth_accounts` 记录**保留**（不删除），用户再次 OAuth 登录时在 `OAuthLoginOrRegisterService` 中被状态机拦截返回 403 ✅
@@ -939,14 +963,14 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 - [x] 场景 1：全新 GitHub 账号 → 系统创建用户（`status=ACTIVE`，`password_hash=null`），`user_oauth_accounts` 写入，返回有效双 Token（`OAuthLoginOrRegisterServiceTest`）
 - [x] 场景 2：已有绑定账号 → 正常登录，`access_token_encrypted` 更新（`OAuthLoginOrRegisterServiceTest`）
 - [x] 场景 3：GitHub 邮箱与已有本地账号一致 → 自动合并，`user_oauth_accounts` 插入，不创建新 `users` 行（`OAuthLoginOrRegisterServiceTest`）
-- [x] 场景 4：state 过期 → 返回 `OAUTH_STATE_INVALID`（400）（`OAuthStateServiceTest` + `OAuthCallbackControllerMockMvcTest`）
-- [x] 场景 5：GitHub API 返回 401（access_token 失效）→ 映射为 `OAUTH_PROVIDER_ERROR`（502）（`GitHubOAuthClientTest` + `OAuthCallbackControllerMockMvcTest`）
-- [x] 场景 6：锁定用户 OAuth 登录 → 403（`AUTH_ACCOUNT_LOCKED`）（`OAuthLoginOrRegisterServiceTest`）
+- [x] 场景 4：state 过期 → 返回 `AUTH_013`（403）（`OAuthStateServiceTest` + `OAuthCallbackControllerMockMvcTest`）
+- [x] 场景 5：GitHub API 返回 401（access_token 失效）→ 映射为 `AUTH_015`（502）（`GitHubOAuthClientTest` + `OAuthCallbackControllerMockMvcTest`）
+- [x] 场景 6：锁定用户 OAuth 登录 → 403（`AUTH_004`）（`OAuthLoginOrRegisterServiceTest`）
 **`OAuthLinkingIntegrationTest`（等效实现）：**
 
 - [x] 场景 1：已登录用户绑定 GitHub → `user_oauth_accounts` 新增，审计事件 `OAUTH_ACCOUNT_LINKED`（`OAuthAccountControllerMockMvcTest`）
-- [x] 场景 2：同一 GitHub 账号绑定第二个 ctt 用户 → `OAUTH_ACCOUNT_ALREADY_LINKED`（409）（`OAuthAccountControllerMockMvcTest`）
-- [x] 场景 3：纯 OAuth 用户解绑唯一 Provider → `OAUTH_CANNOT_UNLINK_LAST_CREDENTIAL`（422）（`OAuthAccountControllerMockMvcTest`）
+- [x] 场景 2：同一 GitHub 账号绑定第二个 ctt 用户 → `AUTH_016`（409）（`OAuthAccountControllerMockMvcTest`）
+- [x] 场景 3：纯 OAuth 用户解绑唯一 Provider → `AUTH_018`（409）（`OAuthAccountControllerMockMvcTest`）
 - [x] 场景 4：有密码用户解绑 OAuth → 成功（`OAuthAccountControllerMockMvcTest`）
 **交付物：** `OAuthCallbackControllerMockMvcTest`（14+ tests）/ `OAuthLoginOrRegisterServiceTest`（13+ tests）/ `OAuthAccountControllerMockMvcTest`（11+ tests）/ `OAuthStateServiceTest`（10+ tests）/ `GitHubOAuthClientTest`（15+ tests）/ 其他 6 个测试文件
 
@@ -976,17 +1000,19 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 
 #### N：API Key 核心生命周期（CRUD + 端点）✅
 
+> 编号说明：本节字母（N–S）自成一套，与 OAuth 接入的 N–S 无关；下文「Phase N/O/P/Q」均指本节。
+
 **实现状态：** ✅ **全部完成**（v0.36.0）— 68 个测试全部通过，Code Review 修复已完成
 
 **目标：** 实现生产级 API Key 管理，用于 JetBrains 插件认证，镜像 OAuth 接入模块的结构和严谨性
 
-**架构 & 技术栈：** `auth/apikey/` 包，结构与 `auth/oauth/` 一致；Java 25 / Spring Boot 4 / Spring Security 7 / Spring Data JPA / Flyway / JUnit 5 + Testcontainers
+**架构 & 技术栈：** `auth/apikey/` 包，结构与 `auth/oauth/` 一致；Java 25 / Spring Boot 4 / Spring Security 7 / Spring Data JPA / Flyway / JUnit 6 + Testcontainers
 
 **错误码扩展：**
 
 - [x] `AUTH_010` (401) — API Key 无效（格式错误、哈希不匹配）
 - [x] `AUTH_011` (401) — API Key 已过期（`expires_at < now()`）— 预留给 Phase O
-- [x] `AUTH_012` (401) — API Key 已吊销（`revoked_at IS NOT NULL`）— 预留给 Phase O
+- [x] `AUTH_012` (403) — API Key 已吊销（`revoked_at IS NOT NULL`）— 在 Phase O 接入
 - [x] `AUTH_020` (403) — API Key 缺少必要 scope — 预留给 Phase P
 - [x] `AUTH_021` (401) — API Key header 格式错误 — 预留给 Phase O
 **数据层前置确认：**
@@ -1155,10 +1181,10 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 
 **验收：**
 
-- [x] Scope enforcement live; 403 when key lacks required scope
-- [x] Audit log records scope denials (`API_KEY_SCOPE_DENIED`)
-- [x] No regression: WEB JWT users bypass scope check
-- [x] 403 response has OpenAPI documentation (AUTH_020 example)
+- [x] scope 在执行点强制生效：key 缺少所需 scope 时返回 403
+- [x] 审计记录 scope 拒绝（`API_KEY_SCOPE_DENIED`）
+- [x] 无回归：Web 端 JWT 用户绕过 scope 检查
+- [x] 403 响应带 OpenAPI 文档（`AUTH_020` 示例）
 - [x] 集成测试验证完整请求管道（认证过滤器 → scope 切面 → 控制器）
 
 ---
@@ -1210,7 +1236,7 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 - [x] RedisRateLimiter 竞态条件已修复（先增后查）
 - [x] 集成测试：`./gradlew test --tests "*ApiKeyAuthenticationFilterTest"` — 9/9 PASS
 
-#### R：集成测试（API Key）
+#### R：集成测试（API Key）✅
 
 **目标：** 完整生命周期覆盖：create → use → revoke，使用真实 Spring 上下文和 Testcontainers PostgreSQL
 
@@ -1221,15 +1247,15 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 | 场景 | 描述 |
 |---|---|
 | happy_path | create → authenticate → use → revoke 全流程 |
-| revoke | 吊销后使用 → 401 AUTH_012 |
-| expire | 创建 key with expiresAt = now + 1s → 时间旅行 → 401 AUTH_011 |
-| scope_deny | 创建 key with only READ scope → 访问 SYNC 端点 → 403 AUTH_020 |
-| BOLA | User A 创建 key，User B 尝试吊销 → 404 |
+| revoke | 吊销后使用 → 403 AUTH_012 |
+| expire | 创建 `expiresAt = now + 1s` 的 key，时间推进后 → 401 AUTH_011 |
+| scope_deny | 创建仅 READ scope 的 key → 访问 SYNC 端点 → 403 AUTH_020 |
+| BOLA | 用户 A 创建 key，用户 B 尝试吊销 → 401 AUTH_010（防 UUID 枚举，不返回 404） |
 | rate_limit | 11 次失败认证/60s → 第 11 次返回 429 |
 
 **覆盖率：**
 
-- [x] **Task R.2: Coverage verification ✓ INSTRUCTION 93.5% / BRANCH 83.5%** — instruction ≥ 85%, branch ≥ 80%
+- [x] **Task R.2：覆盖率核验通过** — 指令覆盖率 93.5%、分支覆盖率 83.5%（阈值 85% / 80%）
 **基线：**
 
 - [x] **Task R.3: Test baseline ✓** — `./gradlew test --tests "*TestBaselineSmokeTest"` — green
@@ -1239,7 +1265,7 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 
 - [x] `./gradlew test --tests "*ApiKeyIntegration*" ✓ 7/7 PASS` — 全部通过
 - [x] E2E 场景：create → authenticate → use → revoke 全流程 ✓
-- [x] 测试覆盖率：INSTRUCTION 93.5% / BRANCH 83.5%（远超阈值）✓
+- [x] 测试覆盖率：指令 93.5% / 分支 83.5%（远超阈值）
 
 ---
 
@@ -1250,7 +1276,7 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 - 1 个集成测试文件：`src/test/java/com/ahogek/cttserver/auth/apikey/ApiKeyIntegrationTest.java`（454 行，6 个 E2E 场景 + 7 个测试方法）
 - 5 个原子化提交（fix / test / docs / chore: bump version / docs(memory-bank)）
 - 4 个非 AI commit 已 cherry-pick 到 master（零冲突）；1 个 AI memory-bank commit 留在 develop
-- 全量测试：1041 tests / 0 failed；coverage INSTRUCTION 93.5% / BRANCH 83.5%；spotlessCheck PASS；build PASS
+- 全量测试：1041 tests / 0 failed；覆盖率 指令 93.5% / 分支 83.5%；spotlessCheck PASS；build PASS
 **顺手修复的 4 个 Phase N/O 隐藏 bug**（执行集成测试时暴露）
 
 | # | Bug | 根因 | 修复 |
@@ -1273,23 +1299,23 @@ GitHub → GET /api/v1/auth/oauth/github/callback?code=...&state=...
 
 **状态**：✅ Phase R 完成 + 4 bug 修复 + review 修复 + 文档同步 + 远端推送
 
-#### S：文档 + UI 集成
+#### S：文档 + UI 集成 ✅
 
 **目标：** 端到端文档化新模块；与 `ctt-web` 协调 "API Keys" 设置页面
 
 **开发者文档：**
 
-- [x] **Task S.1: ✓ 已完成** — `developer-handbook.md` — 错误码注册表 + 审计事件 + API Key 认证章节
-- [x] **Task S.2: ✓ 已完成** — `api-governance.md` — API Key 认证安全层级 + 限流策略
+- [x] **Task S.1：已完成** — `developer-handbook.md`：错误码注册表 + 审计事件 + API Key 认证章节
+- [x] **Task S.2：已完成** — `api-governance.md`：API Key 认证安全层级 + 限流策略
 **用户文档：**
 
-- [x] **Task S.3: ✓ 已完成** — `README.md` — API 端点表 + 技术栈确认
+- [x] **Task S.3：已完成** — `README.md`：API 端点表 + 技术栈确认
 **前端集成：**
 
-- [x] **Task S.4: ✓ 已完成** — `dev-docs/apikey/frontend-integration.md` — 前端集成指南
+- [x] **Task S.4：已完成** — `dev-docs/apikey/frontend-integration.md`：前端集成指南
 **OpenAPI：**
 
-- [x] **Task S.5: ✓ 已完成OpenAPI examples** — 完整的 Swagger 示例审查
+- [x] **Task S.5：已完成** — OpenAPI 示例完整，Swagger 示例逐项审查
 **交付物：** 4 个文档更新 + 1 个新文档
 
 **验收：**
@@ -1348,7 +1374,7 @@ S.4 为唯一新增交付物：
 
 ### 📱 设备管理
 
-> **前置依赖：** 认证闭环（H–M）、API Key 管理 。设备模型已在 `devices` 表中预留，本阶段已激活并与同步模块联动（插件需求驱动，v0.48.0 完成）。
+> **前置依赖：** 认证闭环（H–M）与 API Key 管理。设备模型已在 `devices` 表中预留，本阶段已激活并与同步模块联动（插件需求驱动，v0.48.0 完成）。
 
 #### D1：设备模型激活 ✅
 
@@ -1485,7 +1511,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 **目标：** 激活 `coding_sessions` / `session_changes` / `sync_cursors` 三张已在 init 迁移中预置的表，建立可支撑双向同步的领域模型。
 
-**架构 & 技术栈：** `sync/` 包，含 `entity/` / `enums/` / `repository/`；Java 25 / Spring Boot 4 / Spring Data JPA / Flyway / JUnit 5 + Testcontainers
+**架构 & 技术栈：** `sync/` 包，含 `entity/` / `enums/` / `repository/`；Java 25 / Spring Boot 4 / Spring Data JPA / Flyway / JUnit 6 + Testcontainers
 
 **子任务：**
 
@@ -1515,7 +1541,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 **目标：** 实现基于 server_version 的 Last-Write-Wins 冲突解析，保证多设备并发上报时不丢数据、不乱序。
 
-**架构 & 技术栈：** `sync/service/` 包；纯领域组件（无 Spring/DB 依赖、不改变体）；Java 25 / JUnit 5
+**架构 & 技术栈：** `sync/service/` 包；纯领域组件（无 Spring/DB 依赖、不改变体）；Java 25 / JUnit 6
 
 **子任务：**
 
@@ -1541,7 +1567,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 **目标：** 实现 `POST /api/v1/sync/pull` 与 `POST /api/v1/sync/push` 的真实业务逻辑，替换当前仅演示 scope 的占位实现。
 
-**架构 & 技术栈：** `sync/service/`（SyncPullService / SyncPushService）+ `sync/dto/`（6 个请求/响应记录）+ `SyncController`；Java 25 / Spring Boot 4 / JUnit 5
+**架构 & 技术栈：** `sync/service/`（SyncPullService / SyncPushService）+ `sync/dto/`（6 个请求/响应记录）+ `SyncController`；Java 25 / Spring Boot 4 / JUnit 6
 
 **子任务：**
 
@@ -1669,6 +1695,8 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 
 **实现状态：** ✅ **全部完成**（v0.55.0）— LeaderboardPeriod 周期（ALL/WEEK/MONTH/YEAR）+ 趣味维度（nightOwl/earlyBird/growth）落地，全量测试通过，双轴 Code Review 通过（含跨午夜窗口漏计修复），真实服务接口验证 8 组合全 PASS。
 
+> **口径提示（2026-11-08）：** 本节记的是 v0.55.0 的交付状态。周期后来扩到 6 个、维度扩到 7 个、`STREAK` 已放开全部周期，聚合口径也补了设备 / IDE / 时段细分。**当前口径以 S6 为准**，本节的组合矩阵与端点示例属历史值。
+
 **目标：** 排行支持周期与更多趣味维度。
 
 **能力：**
@@ -1678,13 +1706,13 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 - earlyBird — 早起鸟排行（UTC 06:00-09:00 窗口合并时长）
 - growth — 本周增长最快排行（本周 − 上周净增长秒，固定 WEEK）
 - streak — 保持全局 ALL（累积指标，周期内语义弱）
-- languages / projects 维度排行（计划稿标注可选，未实施）
-**端点：** GET /api/v1/leaderboard?dimension=TOTAL/STREAK/NIGHT_OWL/EARLY_BIRD/GROWTH&period=ALL/WEEK/MONTH/YEAR&limit=&offset=（period 默认 ALL，GROWTH 默认 WEEK；响应含当前用户排名，并列同 rank；非法维度×周期组合 400 COMMON_003）
+- languages / projects 维度：projects 至今未做；语言维度在 v0.75 / v0.76 以 `dimension=LANGUAGE` 落地，见 S6
+**端点（历史值）：** GET /api/v1/leaderboard?dimension=TOTAL/STREAK/NIGHT_OWL/EARLY_BIRD/GROWTH&period=ALL/WEEK/MONTH/YEAR&limit=&offset=（当时的 8 个合法组合；当前矩阵见 S6）
 
 **关键设计决策：**
 
-- 维度-周期合法组合显式校验：TOTAL×{ALL,WEEK,MONTH,YEAR} / STREAK×ALL / NIGHT_OWL,EARLY_BIRD×ALL / GROWTH×WEEK（非法组合 400 COMMON_003，与参数校验错误码一致）
-- 周期键滚动：键按周期起始分桶（周=ISO 周一、月=1 号、年=1 月 1 日），写入刷新 TTL（WEEK 8d/MONTH 32d/YEAR 370d）自清理旧键；ALL 键无 TTL，S2 键名不变向后兼容
+- 维度-周期合法组合由 `LeaderboardDimension.supports` 单点判定（当时 8 个组合，现为 41 个）；非法组合 400 COMMON_003，与参数校验错误码一致
+- 周期键滚动：键按周期起始分桶（周=ISO 周一、月=1 号、季=1/4/7/10 月首日、半年=1/7 月首日、年=1 月 1 日），写入刷新 TTL（WEEK 8d / MONTH 32d / QUARTER 93d / HALF_YEAR 185d / YEAR 370d）自清理旧键；ALL 键无 TTL，S2 键名不变向后兼容
 - 时段维度复用 stats 聚合语义：mergedDurationInDailyWindow（每日窗口合并时长，支持跨午夜；凌晨会话归前一天窗口——审查修复的漏计缺陷）
 - 增长排行按周键对比：score = 本周合并时长 − 上周合并时长（DB 重算，无需物化表；净增长秒避免涨幅比例除零）
 - 更新策略延续 S2：push 后重算覆盖，updateUserScores 一次锁 + 一次 DB 查询 + 批量写 8 键（Redis 失败容忍自愈）
@@ -1759,6 +1787,28 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 - [x] 真实服务验证：push 1h → UTC summary total=3600；push 11h 重叠会话 → total=39600（合并语义）；achievements 缓存失效后 TOTAL_10_HOURS 解锁；heatmap 稠密补零；非 UTC 回退实时
 **验证：** 全量 tests / 0 failed；jacoco PASS；spotless PASS；LSP 0 errors；DailyStatsMaterializerTest 6 用例 + StatsServiceTest 5 用例（UTC 物化 / 非 UTC 实时 / bootstrap 不可用）+ StatsIntegrationTest +2（物化一致性含软删重算 / 缓存失效 E2E）；真实服务验证（push 1h → UTC total=3600；push 11h 重叠 → total=39600；缓存失效后立即解锁；heatmap 稠密 0 值补位；非 UTC 实时回退）
 
+#### S6：统计与排行的后续演进（v0.58 → v0.79）✅
+
+> S1–S5 立的是骨架，之后一年的增量都收敛在这张表里，免得读者把 v0.57 的口径当成现状。逐条细节见文末对应日期的交付记录；`v0.84` 起的周期扩展与窗口化 STREAK 也各有独立记录。
+
+| 版本 | 能力 | 要点 |
+|---|---|---|
+| v0.58–v0.61 | 统计面扩展 | 设备维度、`IDES` 分布、`ideName` 过滤与 `/ide-filters`、`/heatmap-years` |
+| v0.62–v0.67 | 时间口径补齐 | pull 分页协议、`week-hour` 端点、hourly 日期范围、时刻分桶、distribution 日期窗口、heatmap 年月选项 |
+| v0.68–v0.72 | 成就体系扩展 | 扩展梯子与元数据、`unlockedAt` 以「达成瞬时」为准、进度单调不回退、窗口化成就与周期历史字段 |
+| v0.73 | 排行语义定稿 | 竞技排名：并列同名次、下一名次跳过空位（1,2,2,4）；页首 rank 用 `ZCOUNT(nextUp(score), +inf) + 1` 而非 `offset+1`（中途进入并列段会给出错名次）；响应补 `totalParticipants` |
+| v0.74 | 语言词表 v1 → v2 | 词表是「标准本身」（Linguist 全集），不是「本机 IDE 能枚举的 fileType」：92 → **842 canonical / 489 aliases / 76 nonLanguages**；未知值照存不建榜，留待分类 |
+| v0.75–v0.76 | 语言分榜与目录 | `dimension=LANGUAGE`（每语言一榜，`language` 必填）；`GET /api/v1/leaderboard/languages` 默认只列有人榜，`includeEmpty=true` 列全量；词表变更靠**回填失效**（标记键含规则代号 + 词表版本），不靠人记 |
+| v0.77 | 账号注销 | `DELETE /api/v1/users/me`（硬删除 + 级联）；排行榜与语言索引在事务提交后清理 |
+| v0.79 | 每日小时分布 | `/stats/hourly` 支持日期范围与逐日分布（原为 24 小时平均值） |
+
+**当前口径（2026-11 核对，以枚举与代码为准）：**
+
+- 维度 7：`TOTAL` / `STREAK` / `NIGHT_OWL` / `EARLY_BIRD` / `GROWTH` / `ACTIVE_DAYS` / `LANGUAGE`；周期 6：`ALL` / `WEEK` / `MONTH` / `QUARTER` / `HALF_YEAR` / `YEAR`。
+- 合法组合 41（7 × 6），其中 35 个带周期键与 TTL；**唯一**非法组合是 `GROWTH × ALL`；`GROWTH` 缺省周期为 `WEEK`，其余维度缺省 `ALL`。
+- 0 分不入榜（`GROWTH` 例外：0 与负值都是度量），见 v0.86.0 记录。
+- 窗口化 `STREAK` = 完全落在窗口内的最长连续天数（两端切断），见 v0.85.0 记录。
+
 #### 统计与排行总交付清单
 
 | 阶段 | 交付项 | 核心产出 | 说明 | 状态 |
@@ -1768,6 +1818,7 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 | S3 | 排行进阶 | 周期 + 多维度排行 | 周 / 月 / 年滚动 + 夜猫子 / 早起鸟 / 增长率维度 | ✅ 已完成（v0.55.0） |
 | S4 | 成就系统 | achievements 配置化规则 + 解锁记录 | 连续 / 累计 / 语言 / 时段 / 爆发 / 全勤徽章，惰性判定 | ✅ 已完成（v0.56.0） |
 | S5 | 性能与物化 | 物化表 + Redis 缓存 + 索引优化 | 大数据量聚合稳定，push 增量物化 | ✅ 已完成（v0.57.0） |
+| S6 | 演进收口 | 词表 v2 / 语言分榜 / 排行语义 / 成就扩展 / 时段细分 | v0.58–v0.79 的增量按版本收敛成一张表，并给出当前维度、周期与组合矩阵 | ✅ 已完成 |
 
 **关键决策：**
 
@@ -1778,8 +1829,8 @@ S --> P : 增量变更 + 胜出会话快照（无新增 → 空列表，幂等�
 - **迁移策略**：sync 模块（coding_sessions 等）已落地，后续统计 / 排行的数据库变更（物化表、成就表等）一律走独立迁移脚本（如 V20260830xxxx__xxx.sql），不再回填 init 迁移
 **新增接口：**
 
-- GET /api/v1/stats/summary、/heatmap、/streaks、/distribution、/recent、/achievements
-- GET /api/v1/leaderboard（dimension=total/streak/nightOwl/earlyBird/growth，period=week/month/year/all）
+- GET /api/v1/stats/summary、/heatmap、/heatmap-years、/streaks、/distribution、/recent、/achievements、/ide-filters
+- GET /api/v1/leaderboard（`dimension` 7 值 × `period` 6 值，`LANGUAGE` 必带 `language`）与 GET /api/v1/leaderboard/languages
 
 ### 👤 个人设置（账号自助与数据可携带）✅ 全部交付（v0.80.0 → v0.83.1）
 
@@ -2010,31 +2061,30 @@ end note
 
 **目标：** 一键带走"我的全部数据"，补齐数据可携带能力。
 
-**契约（定案）：**
+**契约（交付实现；定稿原稿见上方「交付修订」）：**
 
 | 项 | 值 |
 |---|---|
 | 方法 / 路径 | `GET /api/v1/users/me/export` |
-| 响应 | `200` + `application/x-ndjson`（**流式**，逐行一个 JSON 对象，UTF-8），`Content-Disposition: attachment; filename="ctt-export-<userId>-<yyyyMMdd>.ndjson"` |
+| 响应 | `200` + `application/json`（`.json` 附件，服务端分页流式写出），`Content-Disposition: attachment; filename="ctt-export-<yyyy-MM-dd>.json"`；`timezoneOffset` 必填（±720） |
 | 认证 | `getActiveUserRequired()` + `@RequiresApiKeyScope(READ)` |
 | 限流 | `@RateLimit(type = USER, limit = 3, windowSeconds = 3600)` |
 | 审计 | 新增 `AuditAction.DATA_EXPORTED`（`ResourceType.USER`，`details = {sections}`） |
-| 错误码 | 零新增（`401` / `403` / `429`） |
+| 错误码 | 零新增（`400 COMMON_003` / `401` / `403` / `429`） |
 
-**数据范围（每行带 `type` 判别；首行是头）：**
+**数据范围（`sessions[]` 是插件可导入的部分；其余收在 `serverExport`，插件会忽略未知字段）：**
 
-| 行 `type` | 内容 | 排除 |
+| 块 | 内容 | 排除 |
 |---|---|---|
-| `header` | `version: 1` / `generatedAt` / `userId` | — |
-| `account` | email / displayName / emailVerified / createdAt / lastLoginAt / termsVersion | `passwordHash`、`lastLoginIp` |
-| `device` | deviceName / platform / ideName / lastSeenAt / revokedAt | — |
-| `codingSession` | sessionUuid / startTime / endTime / projectName / language / clientVersion / isDeleted | —（软删的也带 `isDeleted: true` 导出，是忠实副本） |
-| `dailyStat` | date / mergedSeconds | — |
-| `achievement` | code / periodKey / unlockedAt | — |
-| `achievementProgress` | achievementType / progress | — |
-| `oauthAccount` | provider / providerLogin / providerEmail / createdAt | `accessToken` / `refreshToken`（即便已加密也不导出） |
-| `loginSession` | id / kind / createdAt / lastUsedAt / expiresAt / userAgent / deviceId | 刷新令牌哈希（会话本体是用户数据，凭据不是） |
-| `apiKey` | name / scopes / createdAt / lastUsedAt / revokedAt | `keyHash`、明文 |
+| 顶层 | `exportVersion`（`1.0`）/ `exportTime`（本地时间）/ `totalSessions` / `sessions[]` / `serverExport{}` | — |
+| `sessions[]` | sessionUuid / startTime / endTime / projectName / language / ideName / ideVersion / clientVersion | 软删会话（导出后会在插件端"复活"） |
+| `serverExport.account` | id / email / displayName / emailVerified / createdAt / lastLoginAt / termsVersion | `passwordHash`、`lastLoginIp` |
+| `serverExport.devices` | id / deviceName / platform / ideName / ideVersion / createdAt / lastSeenAt / revokedAt | — |
+| `serverExport.dailyStats` | date / mergedSeconds | — |
+| `serverExport.achievements` | code / periodKey / unlockedAt | — |
+| `serverExport.oauthAccounts` | provider / providerLogin / providerEmail / createdAt | `accessToken` / `refreshToken`（即便已加密也不导出） |
+| `serverExport.loginSessions` | id / kind / createdAt / lastUsedAt / expiresAt / userAgent / deviceId | 刷新令牌哈希（会话本体是用户数据，凭据不是） |
+| `serverExport.apiKeys` | name / scopes / createdAt / lastUsedAt / revokedAt | `keyHash`、明文 |
 
 **实现要点：**
 
@@ -2136,14 +2186,15 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测；本地已有一键全栈（P0.0，见下），生产侧仍是单实例 + tmux 起停之外的剩余项。既有状态的现状：**frps 已改 systemd 托管、frpc 仍是 tmux（crontab 兜底）**；frps 的代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝挡住；**开发与联调仍共用同一个数据库**。部署机上另有既有的公网 Jenkins，经 nginx 443 对外，本服务与其并存、不占用。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07）。已完成：P0.0 本地全栈、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底；策略已定但尚未做完：P0.2 镜像跟随 `latest` 的 digest 记录。P1–P7 未开工，每步一个可独立验收的交付物。**所有选型已由我决策**，被否决的替代方案写在决策表里；若你要推翻某条，请指名，我按其代价重排。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1）。已完成：P0.0 本地全栈、P0.1 prod 日志脱敏、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底；策略已定但尚未做完：P0.2 镜像跟随 `latest` 的 digest 记录。P1–P7 未开工，每步一个可独立验收的交付物。选型已定案，被否决的替代方案写在决策表里。
 
 **本轮交付（2026-11-07）**
 
 - 本地：`docker-compose.local.yaml` + `deploy/local/`（Caddy edge、两色、Prometheus/Grafana/blackbox、`up.sh`）。在 **4 GB** Docker VM 上三组 profile 同开，edge/blue/green/Grafana/Prometheus 五处 **200**，占用约 **2.06 GB**，`oom=false`；1.92 GB 下两色 + Grafana 会把 blue OOM 掉（`exit 137`），该口径已写进 README 与验收
 - 镜像一律 `latest`（含大版本跟随）；`eclipse-temurin` 构建镜像按项目 Java 25 固定，属唯一例外
 - 生产：frps 改 systemd（token 轮换 / TLS 强制 / 端口白名单 / 配置 600）、ufw 端口收口并删除遗留 `2024` 放行、接入机 SSH 关口令、`logrotate` 重复项修复
-- 尚未做：P0.1/P0.3–P0.7、P0.9 的 systemd 化、P0.15、P0.16，以及 P1–P7
+- P0.1（2026-11-08，v0.93.1）：prod JSON 日志脱敏生效。新增 `MaskingJsonEncoder`，掩码 formatted 文本与 `kvpList` 字符串值，命中即省略 `arguments`；`query_string` 里的验证 token 同批收口。明细见文末「prod 日志脱敏」一节
+- 尚未做：P0.3–P0.7、P0.9 的 systemd 化、P0.15、P0.16，以及 P1–P7
 
 **目标：** 五个能力，各自可判定。
 
@@ -2231,8 +2282,8 @@ end note
 | 指标暴露 | 仅 `health,info` | `application.yaml` management 段 |
 | 自定义健康项 | 0 个 | `grep -rln HealthIndicator src/main/java` → 0 |
 | 业务指标 | 0 处 `MeterRegistry` / `@Timed` | 同上 → 0 |
-| 生产日志 | JSON，走 `JsonEncoder`（无 `%maskedMsg`） | `logback-spring.xml` prod 分支 |
-| 日志脱敏第三层 | `MaskingMessageConverter` 只在 `%maskedMsg` 生效 | 两个 profile 分支对比 |
+| 生产日志 | JSON，走 `JsonEncoder`（无 `%maskedMsg`）；P0.1 已改用 `MaskingJsonEncoder`（2026-11-08） | `logback-spring.xml` prod 分支 |
+| 日志脱敏第三层 | `MaskingMessageConverter` 只在 `%maskedMsg` 生效；P0.1 已补 JSON 通道（2026-11-08） | 两个 profile 分支对比 |
 | trace 关联 | 自建 `MDC.traceId` + 响应头；无 W3C `traceparent`、无 span | `MdcKey` / `RequestContextInitializerFilter` |
 | 容器健康检查 | compose 打裸 `/ctt-server/actuator/health`（含数据库，无 readiness 组） | `docker-compose.yaml` |
 | 镜像版本 | **全部**服务镜像用 `:latest`（`postgres` / `redis` / `mailpit` / `caddy` / Prometheus / Grafana / blackbox），测试容器同 —— 用户决策，含大版本跟随 | `docker-compose.yaml`、`docker-compose.local.yaml`、`TestcontainersConfiguration` |
@@ -2294,7 +2345,7 @@ end note
 | 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- | --- |
 | P0 修既有状态 | P0.0 ✅（范围：起栈与观测；切换属 P3.4） | **本地一键全栈**（已交付）：`docker-compose.local.yaml` 叠加 `app-blue`（extends 基础 app）/ `app-green`（profile `bluegreen`）/ `edge`（Caddy）/ `obs`（profile，Prometheus + Grafana + blackbox）；入口脚本 `deploy/local/up.sh`，镜像用 `deploy/local/Dockerfile` 打包**宿主机构建**的 jar | `http://127.0.0.1:18080/ctt-server/actuator/health` = 200；`--profile obs` 三个 target 全 up，Grafana `database: ok` | 中 |
-| P0 修既有状态 | P0.1 | prod 日志脱敏生效：注册 Logback `messageConverter`，含 `password=` 的日志在 JSON 输出里已打码 | 断言测试 + 一条真实输出 | 中 |
+| P0 修既有状态 | P0.1 ✅ | prod 日志脱敏生效：JSON 通道改用 `MaskingJsonEncoder`（`messageConverter` 在 JSON 下无处执行，等价机制替代并更强）——掩码 formatted 文本与 `kvpList` 的字符串值，文本命中即省略 `arguments`；顺带收口 `query_string` 里的 `token=` | 断言测试（含 kvp 与占位符用例）+ prod profile 实跑的一条 JSON | 中 |
 | | P0.2 🚧 | 镜像**一律 `latest`**（用户决策：始终最新，含大版本）——策略已定、两份 compose 已落实；剩下的是可追溯与可回退：部署时用 `docker inspect --format '{{index .RepoDigests 0}}'` 记 digest（本轮快照已存私密笔记），大版本升级前后各跑一次本地全栈与全量测试 | 部署记录里有 7 个 digest；升级演练前后本地全绿 | 低 |
 | | P0.3 | `.dockerignore` 覆盖 `.git`、`build`、`.env`、`.plans`、`memory-bank`、`docs` | 构建上下文体积下降 | 低 |
 | | P0.4 | compose 加固：`stop_grace_period: 45s`、`mem_limit`、`cpus`、`restart: unless-stopped`、日志轮转、`read_only` + tmpfs、`cap_drop: [ALL]`、`no-new-privileges` | `docker inspect` 逐项核对 | 中 |
@@ -2357,8 +2408,9 @@ end note
 | P0.10 端口收口 | ✅ 完成（ufw 侧） | 18080、8080、8000–8003 从公网超时；`ufw.log` 记 `[UFW BLOCK]`；遗留 `2024` 放行已删 |
 | P0.14 SSH 与日志轮转 | ✅ 完成 | `passwordauthentication no`、`permitrootlogin without-password`；密钥登录正常、口令登录被拒；`logrotate` 的 `Result=success` |
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
+| P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.1–P0.7、P0.11–P0.13、P0.15、P0.16、P1、P2、P3、P4、P5、P6、P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。这些都要改代码或改部署，尚未开始。
+**未开工**：P0.3–P0.7、P0.11–P0.13、P0.15、P0.16、P1、P2、P3、P4、P5、P6、P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。这些都要改代码或改部署，尚未开始。
 
 **工程与生产化缺口复查（2026-11-07）**
 
@@ -2783,3 +2835,28 @@ sequenceDiagram
 
 - **审计表：不做清理，也不分区。** 实测 29,749 行 / **11 MB**（68 天），其中 89% 是已停写的 `SYNC_PULL` + `API_KEY_USED`。收口后增量按**活跃 key 数**算（`API_KEY_USED` 每 key 至多 24 行/天，另加少量认证事件）：当前库 ≈28 行/天、≈4 MB/年，300 个活跃 key ≈1 GB/年。为 11 MB 删除安全证据是坏交易。改为纠正「20 年后审计 ≈2.7 GB/用户」的过时推算（它按旧的写入速率外推），复查阈值：`audit_logs` >1 GB 或审计查询变慢。
 - **轮询写已收口（v0.92.1）。** 游标没有推进就不再 upsert（空轮询不产生行版本），设备心跳在 15 分钟内不重写。剩余只有 API key SELECT——认证必须读那一行，加缓存会让撤销延迟生效，不值得换。
+
+## prod 日志脱敏（安全修复，2026-11-08，v0.93.1）
+
+> 对应「运维与可观测性升级」的 P0.1。结论不是读代码推测出来的：先在 `prod` profile 实跑看到 JSON 行，再对照 Logback 的 `JsonEncoder` 追到字段级。
+
+| 项 | 结论 |
+|---|---|
+| 根因 | ① `MaskingMessageConverter` 只挂在 console 模式的 `%maskedMsg` 上，prod 走 `JsonEncoder`，第三层脱敏在生产静默失效；② JSON 把 `arguments` 与 `kvpList` 当独立字段写出，pattern 永远看不到它们 |
+| 触发证据 | `RequestLoggingFilter` 用 `addKeyValue("query_string", …)` 记整条查询串，`GET /verify-email?token=…` 的凭据因此原样进日志。这是正常流程，不依赖任何错误分支 |
+| 修复 | 脱敏规则抽成 `MaskingMessageConverter.mask()` 静态共享；新增 `MaskingJsonEncoder`：掩码 formatted 文本并作为 `message` 输出、掩码 `kvpList` 的字符串值、文本命中即省略 `arguments`；模板占位符用 `(?!\{\})` 前置断言保护，而不是把 `{` 排除出值字符类（那会让 `cookie={sessionId=…}` 完全不再匹配） |
+| 约束 | 任何进入 `arguments` 的秘密必然也出现在 formatted 文本里，所以文本命中即可整体丢弃参数，不会漏 |
+| 验证 | `MaskingJsonEncoderTest` 4 例 + `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过；prod 实跑 `GET /api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`，整行无 token 原文 |
+| 残余 | MDC 属性与 throwable 消息未掩码；过度掩码（如 `Password set for user …` 变成 `Password ****** for user …`）是既有空白分隔规则的代价，已写进 `docs/security-architecture.md` |
+| 文档 | `docs/security-architecture.md` 三层防线表与说明；`memory-bank/systemPatterns.md` 的「结构化日志不能沿用 pattern 级脱敏」补上 `arguments` / `kvpList` 两条独立通道 |
+
+## 账号注销（合规能力，2026-09-18，v0.77.0）
+
+| 项 | 结论 |
+|---|---|
+| 端点 | `DELETE /api/v1/users/me`（受保护；限流 USER 5/小时。该请求每次都跑 bcrypt，无限流即 CPU 耗尽面） |
+| 语义 | 硬删除 + 数据库级联，不是软删。软删一条内容都不删，GDPR 意义上的"删除"不成立 |
+| 调用者限制 | 拒绝 API key 调用（`403 AUTH_025`）：改密码、删账号这类身份操作必须来自浏览器会话，key 只证明账号状态 |
+| 事务边界 | 排行榜与语言索引的清理放在事务提交之后，避免回滚后留下指向已删用户的成员 |
+| 不变量 | access token 在 15 分钟窗口内仍有效（自包含凭据的既有取舍）；refresh 立即失效 |
+| 验证 | 集成用例覆盖：本人注销成功、API key 调用被拒、他人数据不受影响、排行榜成员被移除 |
