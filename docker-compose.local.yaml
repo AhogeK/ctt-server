@@ -120,17 +120,19 @@ services:
       - /tmp
     environment:
       # Local-only convenience: the port is bound to 127.0.0.1 and the image
-      # never leaves this machine, so the anonymous session is an editor and
-      # the admin password below is only a fallback.
+      # never leaves this machine, so the anonymous session is an editor; the
+      # admin password is only a fallback and comes from the secret mount.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ctt_local_admin}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
       GF_USERS_ALLOW_SIGN_UP: "false"
       # No outbound calls: the plugin preinstaller and the update check block
       # startup for minutes when grafana.com is unreachable behind a proxy.
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+    secrets:
+      - grafana_admin_password
     ports:
       - "127.0.0.1:3000:3000"
     volumes:

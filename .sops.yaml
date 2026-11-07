@@ -1,0 +1,14 @@
+# SOPS configuration (P0.5).
+#
+# Only encrypted payloads live in the repository; the age private key stays on
+# the operator's machine (~/.config/sops/age/keys.txt, mode 600) and on the
+# deploy host. Replace the recipient below with your own public key when the
+# deployment identity changes:
+#
+#   age-keygen -y ~/.config/sops/age/keys.txt
+#
+# Edit a file with `sops deploy/secrets/secrets.enc.yaml`; it decrypts in
+# memory, opens $EDITOR and re-encrypts on save.
+creation_rules:
+  - path_regex: deploy/secrets/.*\.enc\.ya?ml$
+    age: age12l5gu0rcpmwkt3zrawt4q7685gnqgtz2zt9schy7u26vtczel9zq2p89uf

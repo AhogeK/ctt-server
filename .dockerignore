@@ -28,6 +28,7 @@ bin
 # Local secrets and machine-only configuration
 .env
 .env.*
+deploy/secrets
 
 # Plans, docs and AI workspaces
 .plans

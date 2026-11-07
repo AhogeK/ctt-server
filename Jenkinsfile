@@ -63,6 +63,7 @@ EOF
         stage('Infra Up') {
             steps {
                 dir("${REPO_DIR}") {
+                    sh './deploy/secrets/render.sh'
                     sh 'docker compose up -d postgres redis mailpit'
                     sh '''
                         docker network connect ctt-server_default jenkins-blueocean 2>/dev/null || true
