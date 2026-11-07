@@ -1,6 +1,13 @@
 # Active Context
 
 - [2026-11-07] - 运维与可观测性升级计划（draft，已按要求重写）：`.plans/ctt-server-development-plan.md` §「🔍 运维与可观测性升级」—— 选型全部定案，阶段 P0–P7：P0 修既有状态（隧道改 systemd、端口收口、生产库隔离）、P1 指标与追踪、P2 告警面板、P3 发布链、P4 备份与 Resend、P5 压测演练、P6 文档、P7 对外接入（`ctt.ahogek.com` 阿里云 A 记录 + certbot、GitHub OAuth、Passkey/hCaptcha/CORS）。补「本地先行」一节。**仓库内不写真实 IP 与主机名**（角色名 + `.omp/notes/2026-11-07/deployment-endpoints.md`，`.omp/` 已 gitignore）。deep research 后修正六处：GitHub 单 App 可存 10 个回调但省略 `redirect_uri` 只用第一个；Jenkins 实为 nginx 443 + ufw 默认拒绝（非 8080 公网）；Resend 无 SMTP 服务端日志；可信代理须含 edge 那一跳且 edge 要用 host 网络（否则 IP 限流与审计退化）；`management.server.port` 还需 `management.server.address`；**部署机 ufw 装了但 `ENABLED=no`，PG/Redis 对整段 LAN 全开**（P0.13 改为启用防火墙，实施需你在场输 sudo 密码）
+- [2026-11-07] - 依赖升级（v0.92.2）与计划收口
+    - 升级：flyway 13.11.1→13.12.1（core 与 database-postgresql 同版本）、commons-codec 1.22.0→1.23.0、spotless 8.10.4→8.11.0、ben-manes 0.66.0→0.67.0、Gradle wrapper 9.8.2→9.9.0；Spring Boot 4.1.2 / springdoc 3.2.0 / greenmail 2.1.15 / pg 42.7.14 / junit-platform 6.1.3 / otp-java 2.2.0 / webauthn 2.10.1 已是各自最新（4.2.0-RC2 属 RC，按策略跳过）
+    - 验证：分层 clean build —— 库依赖 3m23s、插件 17s、wrapper 全量 `--rerun-tasks` 3m49s；**1689 tests / 0 failures / 1 skipped**；`spotlessCheck` 通过；升级后 `dependencyUpdates` 报 0 项、Gradle 无更新
+    - 事实：ben-manes 报告仍只列 4 项（Spring Boot 等漏报），版本一律以 Maven Central / Plugin Portal 元数据为准；spotless **8.11.0 + google-java-format 1.36.1 组合实测可用**（1.37.0 仍不用）
+    - 计划：`### 🔍 运维与可观测性升级` 完成态处理（P0.8/P0.10/P0.14 ✅、P0.9 🚧，新增 P0.15/P0.16、P1.5、P3.7、P6.4），补「工程与生产化缺口复查」「踩坑表」；修正总览图归类、Resend 额度断言、`.sisyphus` 死链、拓扑图 frpc 标签
+    - 仍缺（计划条目，未实施）：覆盖率校验未挂 `check`、prod 未关 springdoc、CORS 占位域、OAuth 与验证码缺键无 fail-fast
+    - 规则（R14 记录）：`AGENTS.md` R12 补两条实测事实——报告漏报需查元数据（2026-11-07 复核仍只列 4 项）；Spotless 8.11.0 + google-java-format 1.36.1 为当前可用组合；新增「wrapper 与依赖同批、用 `--rerun-tasks` 验证」
 - [2026-11-06] - 同步容量研究与修复（v0.92.0 → v0.92.1；实测表见 `domains/sync-protocol/references.md`，研究全文 `.omp/research/2026-11-05/`）
     - 插件 0.22.0：每轮 pull 用本机游标作 `replayFromChangeId`、每页应用后持久化游标；老服务端 400 时回退为普通请求并按小时重探；所有请求发 `Accept-Encoding: gzip` 并自行解压
     - 服务端修真实缺陷：`nextCursor` 曾被抬到 watermark，会让落后超过一页的客户端跳过未收到的变更；改为「实际下发页尾」，单调性交给 upsert 的 `GREATEST`
@@ -171,29 +178,6 @@
     - 顺带核实: `devices`/`IDEs` 分布经 `aggregateByLabel(sessions, …)` 逐会话聚合 = **raw**；已把「哪个面合并、哪个面原始」列为 `references.md` 新表（前端正是被同类清单误导过）
     - 验证: 计算器 **7/7**、集成 **22/22** 绿；全量 **1503 tests / 0 failures / 0 errors**（上批 1494，+9 = 计算器 7 + 集成 2）；jacoco INSTRUCTION **95%** / BRANCH **84%**（阈值 80/70）；`spotlessCheck` PASS
     - 状态: ✅ **已交付 v0.79.0**（develop `a98f662` / master `6a33c6a`，2026-10-15 提交并推送）
-
-- [2026-10-12] - 账号状态门控接线 + 生产侧 FQCN 清理（v0.78.1）
-    - **先纠正我自己报错的数字**: 上批收尾我说"仓库还剩 9 处全限定类名 / 8 个文件"，实测是**生产 4 处 + 测试 91 处**（前后两次 grep 过滤条件不一致 ✗）。教训：规模必须用同一条命令复算，不能凭中间结果拼凑
-    - **裁决 1（门控）= 把已实现却从未接线的 `getActiveUserRequired()` 接上，而不是改文档就范**: 接口 Javadoc 明写"适合要求账号完全激活的业务操作"并按状态映射错误码（`AUTH_006`/`004`/`005`/`022`）、`SpringSecurityCurrentUserProviderTest` 已逐状态钉死、`docs/api-governance.md` Tier 3 以它作为 Gate —— 三者齐备 ⇒ 属"**意图在、接线缺**"的**缺陷**（R25：文档记录的是意图而代码违反时，改文档就范是错的 ✗）
-    - 接线 **7 处**（只挑会改**凭证 / 身份 / 账号本身**的）: password set/change、email change-request/resend、`DELETE /users/me`、`POST /auth/api-keys`、OAuth unbind；**故意放行** logout / logout-all / 取消待改邮箱 / 读自己资料 / 撤销与清除 API key（这些是锁定账号的**自救通道**，设门会把封禁变成陷阱 ✗）
-    - **效力边界（不夸大）**: 状态取自**令牌 claim** 而非查库 ⇒ 它拦的是"令牌签发/刷新时账号已非激活"，**并不缩短**"签发时激活、之后状态变化"的那个 15 分钟窗口（缩短要每请求查库，是本领域早已裁决拒绝的取舍）
-    - 测试: 新增 `ActiveAccountGateIntegrationTest`（**真实 provider + 真实安全链** 5 例，含 **LOCKED 仍可 `logout-all` → 200** 的放行证明）；连带修 **20 个既有切片测试** —— 每文件加**一个转发桩**（切片代表 ACTIVE 用户；拒绝路径由新集成测试覆盖），而非逐处改 20 次
-    - **裁决 2（FQCN）**: 生产 4 处修掉（`Pattern`/`Locale`/`Optional`/`ScanOptions`，均核实无 import 冲突）；**测试侧 91 处留给独立的一次机械清理**（与安全修复混批会污染提交边界 ✗）→ 记为待办；AGENTS.md R9 的禁令保持通用、**不缩窄**（缩窄正好放过我上次翻车的那类位置 ✗）
-    - 领域沉淀: `auth-lifecycle/principles.md` §10（门控原则 / 效力边界 / 防御性例外）+ `scenarios.md` 新增触发行（新增加凭证类端点该用哪个 provider 方法）
-    - 验证: `spotlessCheck` + 全量 **1494 tests / 0 failures / 0 errors** + 覆盖率 **95.25% / 84.60%**（阈值 80/70 通过）+ 生产代码 FQCN 终扫 **0** ✓
-    - 状态: ✅ 已交付 v0.78.1（代码 + 测试 + 文档 + 领域知识；AI 记忆独立提交）
-
-- [2026-10-12] - summary 涨跌对比（对比上一完整周期，v0.78.0，已交付）
-    - 触发: 前端交来需求报告（自称已回源核对）。逐条复核其 **6 项断言: 5 属实、1 不实** —— 报告称"沿用 60s 缓存"，实际 `src/main` 全无 `@Cacheable`/`Cache-Control`/`CacheManager`，60s 只是**限速窗口**；端点本就无缓存，稳定性来自纯计算（故其验收 7「重复请求稳定」天然成立）
-    - **报告未覆盖、却决定实现的三个事实**: ①全局 `spring.jackson.default-property-inclusion: non_null`（`application.yaml:29`）会**整键丢弃 null**，与需求「五个键恒在、`changePercent` 用 null 表达」**直接冲突** → 组件级 `@JsonInclude(ALWAYS)` 覆盖（项目已有先例: `StatsIntegrationTest` 注释「字段是 primitive 才能在 non_null 下存活」）②两路径对**未来日期**上界本就不同（物化开放 / 实时截到本周期末）—— 既有行为，不特判（基期窗口都是有界历史区间，不受影响）③`StatsCalculator.Summary` 仅 `liveSummary` 与测试使用、测试只读访问器 → 加字段安全
-    - 口径决策（报告缺口处由我定）: 首日 `dailyAverage.previousSeconds` 取 **0**（首日无"昨天"；实践上 `total == today` 与报告公式同值，仅在未来日期数据时更诚实，且自然落入「previous == 0 → null」免特例）；四舍五入用 `BigDecimal` **HALF_UP（远离零）**（中文"四舍五入"语义；JSON 里 double 写 `-100.0`，解析后与 `-100.00` 同值）；**现有周期口径一律不动**（当前值是回归红线）
-    - 实现: `StatsCalculator.Summary` 加 `previous`（`PreviousPeriods`）+ 4 次 `mergedDurationSeconds(prevStart, prevEnd)`（同一份已加载区间，**无新增查询**）+ 基线 `daysSinceFirst > 1 ? (total − today)/(D − 1) : 0`；物化路径按 `[start, end)` 有界区间求和（当前周期保持原有开放下界语义），两条路径共用 `toResponse(Summary)` 装配；percent/null 规则收口在 `StatsComparison.of`
-    - **实跑（真 HTTP + 真库，端口 18080）**: 推 A(昨 1h) + B(今 1h) + C(昨日 15:30–16:30Z，对 UTC+8 恰跨本地午夜) → UTC 物化 `today=3600 / prev=7200 / −50.0%`，UTC+8 实时 `today=5400 / prev=5400 / 0.0%`（C 被正确切成 1800+1800）—— **同一份数据在两个时区各自正确归属** ✓；基期为 0 时响应中 `changePercent` **键存在且为 null** ✓；`/v3/api-docs` 已含五键与字段文档 ✓
-    - 测试: **1486 tests / 0 failures**（+16: DTO 6 + 计算器 3 + 服务 5 + 集成 2）。集成用例用 `asMap().containsEntry(k, null)` 断言键存在 —— `extractingPath(...).isNull()` **对缺失键同样通过** ✗ 分不清"键不存在"与"值为 null"
-    - 我自己的三处算错（跑出来才发现，非逻辑错）: ①"上一周"用例当前周也有值 → 应为 +20.0 ②`dailyAverage` 基线**不受基期窗口影响**（800 天历史时上一日均值非 0，断言不能是 null）③实跑脚本按 30 分钟写 C 却推了 1 小时 → 期望应为 −50% 而非 −33.33%（**系统对、我的期望过期**）
-    - 领域沉淀: `stats-aggregation/principles.md` §10（口径闭环 + 基期必须与主值同源 + 三条易错点）；`stats-aggregation/references.md` 响应字段表；`api-contract/practices.md`「null 字段默认缺失，契约要求键在时须 opt out」+ 断言陷阱
-    - 顺带: 实跑也走了销号（`DELETE /users/me` 200 → 再登录 401、旧令牌 `/users/me` 404）；**旧令牌 `GET /stats/summary` 仍 200** 属上一批已裁决的 15 分钟窗口（无害空读），非回归。8080 上另有一个**你 9/30 启动的实例**（非我产生，未动）
-    - 状态: 实施 + 验证完成；**接口已与前端逐条确认通过**（前端按源码复核属实；首日 `dailyAverage.previousSeconds = 0` 与"物化/实时 ≤1s/天"差异**两项均获接受**；§7 三条事实修正已被其文档吸收并据以改正自身注释），已交付 v0.78.0
 
 ---
 

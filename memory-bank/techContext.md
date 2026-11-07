@@ -6,17 +6,17 @@
 |------|------|
 | 语言 | Java 25 (Virtual Threads) |
 | 框架 | Spring Boot 4.1.2 |
-| 构建 | Gradle 9.8.2 + Kotlin DSL + Version Catalog |
-| 数据库 | PostgreSQL **18.6**（生产/开发库实测 `select version()`）；测试容器当前用 `postgres:latest`，按计划 P0.2 与 compose 一并固定到 18；Flyway 13.11.1 |
+| 构建 | Gradle 9.9.0 + Kotlin DSL + Version Catalog |
+| 数据库 | PostgreSQL **18.6**（生产/开发库实测 `select version()`）；测试容器当前用 `postgres:latest`，按计划 P0.2 与 compose 一并固定到 18；Flyway 13.12.1 |
 | 缓存 | Redis（测试容器 `redis:latest`） |
 | 安全 | Spring Security 7（随 Boot BOM）+ `spring-security-oauth2-jose` |
-| 两步验证 | `otp-java` 2.2.0（RFC 6238）+ `commons-codec` 1.22.0（Base32） |
+| 两步验证 | `otp-java` 2.2.0（RFC 6238）+ `commons-codec` 1.23.0（Base32） |
 | 通行密钥 | `webauthn-server-core` 2.10.1（Yubico WebAuthn；Jackson 2；Java 11+ bytecode） |
 | API文档 | springdoc-openapi 3.2.0 |
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
-| 代码质量 | Spotless 插件 8.10.4（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
+| 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-06 / v0.92.1（本批未改依赖；通行密钥第二步复用 Yubico 2.10.1；2FA 依赖 v0.89.0 引入；其余沿用 2026-10-27 的核实结果）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-07 / v0.92.2（本批升级 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0；Spring Boot 4.1.2、springdoc 3.2.0、greenmail 2.1.15、pg 42.7.14、junit-platform 6.1.3 经元数据核对均已是各自最新）。
 
 ## 架构
 
