@@ -199,6 +199,7 @@
 - **代理头默认不可信**：`X-Forwarded-For`/`X-Real-IP` 只有 socket peer 在 `ctt.security.trusted-proxy-addresses` 中时才可采信；默认使用 `getRemoteAddr()`，否则 IP 限流可被轮换头绕过。
 - **OAuth 浏览器绑定与 token 位置**：state 必须与 HttpOnly SameSite Cookie 对齐；access/refresh token 只放 URL fragment 或一次性交换码，禁止放入 query（会进入历史/代理日志）。
 - **日志脱敏必须覆盖输出通道，而不是只覆盖 pattern（强制）**：Logback 的 `conversionRule`（如 `%maskedMsg`）只对 `PatternLayout` 生效；换成 JSON 等结构化编码器后事件字段被直接序列化，pattern 级脱敏会**静默失效**。2026-11-08 查实 prod JSON 把 `password=` 与 `query_string` 里的 `token=` 原样写出。新增或切换输出编码器时必须确认脱敏在新通道同样生效，并注意 `arguments`、`kvpList` 是独立字段（pattern 看不见它们）；用例要断言真实渲染出的那一行，而不是只测正则函数
+- **容器密钥只走 Compose secrets，不进环境变量（强制）**：`docker inspect .Config.Env` 是公开可见面，任何密码/密钥/令牌放进去等于泄露。仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml`，`.sops.yaml` 只放 age 公钥），`deploy/secrets/render.sh` **先解密到临时目录、成功后才替换**成 0400 文件；应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`、PostgreSQL 用 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 把口令写进 tmpfs 配置并 `setpriv` 降权（口令不进进程表）、Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`。`.env` 只服务 `bootRun`。缺身份、缺文件、空 JWT 键都必须**启动前失败**，且渲染失败不得清掉上一份可用文件；验收看 `docker inspect`、`/run/secrets` 权限与进程参数（2026-11-08 P0.5）
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试**：多断言链式调用 `.isX().isY().isZ()`，方法名 `shouldX_whenY`
 - **测试限流时禁用 HTTP 自动重试（强制）**：Apache HttpClient 的默认策略会对 `429` 按 `Retry-After` 睡眠重试；导出的限流用例因此睡满 1 小时窗口、整轮测试卡死 27 分钟。限流/429 用例必须使用不自动重试的客户端（如 `JdkClientHttpRequestFactory`），并直接断言状态码，不能依赖默认 `RestClient.create()`。
