@@ -1,0 +1,47 @@
+# Docker build context (P0.3).
+#
+# Only the two Dockerfiles matter here: the multi-stage one copies `gradle/`,
+# `gradlew`, the build scripts and `src/`; the local one copies the jar staged
+# by `deploy/local/up.sh`. Everything else is repository, docs or AI workspace
+# and has no business travelling to the daemon.
+
+# Version control, editor and OS state
+.git
+.github
+.gitignore
+.gitattributes
+.idea
+.settings
+.classpath
+.project
+.vscode
+.DS_Store
+
+# Build output and caches; the staged local-image jar is re-included below
+build/*
+!build/local-image/
+build/local-image/*
+!build/local-image/app.jar
+.gradle
+bin
+
+# Local secrets and machine-only configuration
+.env
+.env.*
+
+# Plans, docs and AI workspaces
+.plans
+memory-bank
+dev-docs
+docs
+.agents
+.omp
+.opencode
+.omo
+.claude
+.gstack
+.sisyphus
+.codegraph
+
+# Assets that only the README uses
+assets
