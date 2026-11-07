@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测；本地已有一键全栈（P0.0，见下），生产侧仍是单实例 + tmux 起停之外的剩余项。既有状态的现状：**frps 已改 systemd 托管、frpc 仍是 tmux（crontab 兜底）**；frps 的代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝挡住；**开发与联调仍共用同一个数据库**。部署机上另有既有的公网 Jenkins，经 nginx 443 对外，本服务与其并存、不占用。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.4）。已完成：P0.0 本地全栈、P0.1 prod 日志脱敏、P0.2 镜像可追溯、P0.3 构建上下文收口、P0.4 compose 加固、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底。P1–P7 未开工，每步一个可独立验收的交付物。选型已定案，被否决的替代方案写在决策表里。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.5）。已完成：P0.0 本地全栈、P0.1 prod 日志脱敏、P0.2 镜像可追溯、P0.3 构建上下文收口、P0.4 compose 加固、P0.5 密钥改 Compose secrets、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底。P1–P7 未开工，每步一个可独立验收的交付物。选型已定案，被否决的替代方案写在决策表里。
 
 **本轮交付（2026-11-07）**
 
@@ -2197,7 +2197,8 @@ end note
 - P0.2（2026-11-08，v0.93.2）：镜像可追溯。新增 `deploy/local/digests.sh`（从两份 compose 解析 7 个镜像并记录 digest，`--out` 追加带时间戳的表），README 补用法与演练步骤。演练：记录 → `up.sh --profile obs`（edge / blue / Prometheus / Grafana 四处 200，两条探测结果均为 1）→ `clean build --rerun-tasks`（**1695 tests / 0 failures / 1 skipped**）→ 再记录：7 个镜像 digest 完全一致，只有本地构建的 `ctt-server-app` 镜像 id 随重建变化（预期）
 - P0.3（2026-11-08，v0.93.4）：构建上下文收口。新增 `.dockerignore`，排除 `.git` / `build` / `.env*` / `.plans` / `memory-bank` / `docs` / `dev-docs` 与 AI 工作区、编辑器状态，保留生产构建所需的 `gradle/`、`gradlew`、构建脚本与 `src/`，以及本地镜像的 `build/local-image/app.jar`。实测复制进镜像的上下文：**249.44 MB → 4.06 MB**（不含暂存 jar）、**92.16 MB**（含 88 MB jar）
 - P0.4（2026-11-08，v0.93.5）：compose 加固。两份 compose 用 `x-hardening` 锚点统一 `restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 日志轮转（10m × 3），逐服务补 `mem_limit` / `cpus` / tmpfs；能力按 entrypoint 精确加回：postgres `CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID`，redis `CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID`（后者无 FOWNER，SETPCAP 供 setpriv 收窄 bounding set）。生产镜像 ENTRYPOINT 同步补 `-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=20`，与 900m 上限对齐。9 个容器 `docker inspect` 逐项核对通过，edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条探测结果为 1
-- 尚未做：P0.5–P0.7、P0.9 的 systemd 化、P0.15、P0.16，以及 P1–P7
+- P0.5（2026-11-08，v0.93.6）：密钥改 Compose secrets。仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml`，`.sops.yaml` 只放 age 公钥），`render.sh` 先解密到临时目录再替换（失败不破坏旧文件）、写出 0400 文件，`up.sh` 与 `Jenkinsfile` 在起栈前调用；应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除。frp token 由 `frp-token.sh` 在接入机渲染为 600 文件（见 `docs/deployment-secrets.md`）
+- 尚未做：P0.6–P0.7、P0.9 的 systemd 化、P0.15、P0.16，以及 P1–P7
 
 **目标：** 五个能力，各自可判定。
 
@@ -2352,7 +2353,7 @@ end note
 | | P0.2 ✅ | 镜像**一律 `latest`**（始终最新，含大版本）。可追溯性由 `deploy/local/digests.sh` 承担：解析两份 compose 的 7 个镜像、记录 digest，`--out` 追加到部署记录；升级演练前后各记录一次并比对 | 部署记录有 7 个镜像的 digest；演练前后本地全栈四处 200、全量 1695 tests / 0 failures / 1 skipped | 低 |
 | | P0.3 ✅ | `.dockerignore` 覆盖 `.git`、`build`、`.env`、`.plans`、`memory-bank`、`docs`，并排除 AI 工作区与编辑器状态；保留生产构建所需的 `gradle/`、`gradlew`、构建脚本、`src/`，以及本地镜像的 `build/local-image/app.jar` | 实测复制进镜像的上下文 249.44 MB → 4.06 MB（不含暂存 jar）/ 92.16 MB（含 88 MB jar）；生产构建前置文件校验通过 | 低 |
 | | P0.4 ✅ | compose 加固：两份文件共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、日志 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 加回 CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID（无 FOWNER）；生产镜像 ENTRYPOINT 补堆上限标志 | 9 个容器 `docker inspect` 逐项核对：restart、45s、mem、nano cpus、日志选项、只读根、tmpfs、cap_drop/cap_add、安全选项全部命中；六处端点 200、两条探测为 1 | 中 |
-| | P0.5 | 密钥改 Compose `secrets`（宿主 0400），仓库只留 SOPS/age 密文；frp token 同样处理 | `docker inspect` 看不到密钥；缺密钥快速失败 | 中 |
+| | P0.5 ✅ | 密钥改 Compose secrets：仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml` + `.sops.yaml` 的 age 公钥），`render.sh` 先解密到临时目录再替换成 0400 文件，`up.sh` / `Jenkinsfile` 起栈前调用；应用走 configtree、PostgreSQL 走 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 写 tmpfs 配置并 `setpriv` 降权、Grafana 走 `GF_SECURITY_ADMIN_PASSWORD__FILE`；frp token 由 `frp-token.sh` 在接入机渲染成 600 文件（`docs/deployment-secrets.md`） | 运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 0400 且容器用户可读；缺渲染文件时 Compose 拒绝创建容器（bind source 不存在）；缺 age 身份或密钥错误时 `render.sh` 退出 1 且旧文件保留；Redis 进程参数只有 `redis-server *:6379`；缺/空 JWT 键启动失败 | 中 |
 | | P0.6 | prod 关审计载荷（`log-payloads: false`），保留动作与资源标识。**现状证据**：`application-prod.yaml` 里仍是 `log-payloads: true` | 新审计记录不含请求体 | 低 |
 | | P0.7 | health 分组：liveness 不依赖数据库、readiness 含数据库与 Redis；compose 与健康检查改打 readiness | 停库演练：readiness `OUT_OF_SERVICE`、liveness `UP` | 中 |
 | | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）—— unit + 开机自启，顺带轮换 token、强制 TLS、加端口白名单、配置改 600 | 重启接入机后隧道自动恢复 | 中 |

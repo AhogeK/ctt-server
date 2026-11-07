@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-08] - P0.5 密钥改 Compose secrets（v0.93.6）
+    - 交付：`.sops.yaml`（只放 age 公钥）+ `deploy/secrets/secrets.enc.yaml`（6 个键，仅密文）+ `render.sh`（解密成 0400 文件，`--mode` 可改，输出目录有护栏，重跑会先清旧文件）+ `frp-token.sh`（接入机渲染 600 文件）+ `run/` 加入 gitignore；`up.sh` 与 `Jenkinsfile` 起栈前调用渲染
+    - compose：应用走 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置里的 `${...}` 引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除
+    - 验证：运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 0400 且容器用户可读；缺渲染文件时 Compose 报 bind source 不存在并拒绝创建；缺 age 身份时 `render.sh` 退出 1；redis `/proc/1/cmdline` 只有 `redis-server *:6379`
+    - 文档与规则：新增 `docs/deployment-secrets.md`（初始化/日常/轮换/frp token/Linux 可读性/验证），README 快速开始与配置段、文档索引、`.env.example` 抬头同步；`AGENTS.md` R9 增「容器密钥只走 Compose secrets」
+    - 复审修复（双轴）：`.dockerignore` 补 `deploy/secrets`（此前解密文件会进构建上下文）；`render.sh` 重跑不再因 0400 写入失败、并清理已移除的键；README 快速开始补渲染步骤；Jenkinsfile 补渲染；Redis 口令改为配置文件 + `setpriv`；Grafana 口令 secret 化
+    - 复审二期修复（Standards 轴）：`render.sh` 改为**先解密到临时目录、成功后才替换**（旧版先删后解密，密钥错误会清掉上一份可用文件），并把解密结果写到独立目录避免把合并明文带进 `run/`；新机器文档不再教 `age-keygen` 后直接 `updatekeys`（没有已授权身份无法解开数据密钥）；计划/AGENTS 的 Redis 描述改为 wrapper + `setpriv`、补 Grafana 消费者
 - [2026-11-08] - P0.4 compose 加固（v0.93.5）
     - 交付：两份 compose 共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 再加 SETPCAP
     - 实测：9 个容器 `docker inspect` 逐项命中；edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条外部探测结果为 1；演练后停掉其余容器，只保留 Mailpit

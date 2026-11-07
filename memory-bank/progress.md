@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.93.6` | 2026-11-08 | feat(deploy): move credentials to SOPS-backed Compose secrets |
 | `0.93.5` | 2026-11-08 | chore(compose): harden every local service (read-only, caps, limits, logs) |
 | `0.93.4` | 2026-11-08 | chore(build): keep the Docker context to build inputs |
 | `0.93.3` | 2026-11-08 | fix(deploy): keep the mail sandbox running across teardowns |

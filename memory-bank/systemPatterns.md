@@ -129,3 +129,7 @@ OAuth state 必须与 HttpOnly、SameSite Lax 的状态 Cookie 对齐；缺失/�
 本地与生产 compose 共用一套加固：`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only: true`、`cap_drop: [ALL]`、`no-new-privileges:true`、json-file 日志轮转（10m × 3），再由每个服务声明 `mem_limit` / `cpus` 与所需 tmpfs。写成 `x-hardening` 锚点，避免十几处重复漂移。
 
 能力按 entrypoint 精确加回，不做「先全开再收紧」：postgres 需要 `CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID`；redis 需要 `CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID`（没有 FOWNER，SETPCAP 用于 setpriv 收窄 bounding set）；应用、Caddy、Prometheus、Grafana、blackbox、Mailpit 不需要任何附加能力。只读根意味着所有写入点必须落在命名卷或 tmpfs（应用与 Mailpit 用 `/tmp`，postgres 另加 `/var/run/postgresql`，redis 的 `/data` 是缓存、用 tmpfs 即可）。验收方式是 `docker inspect` 逐字段核对（restart、StopTimeout、Memory、NanoCpus、LogConfig、ReadonlyRootfs、Tmpfs、CapDrop/CapAdd、SecurityOpt），而不是看 compose 文件。
+
+## 密钥通道：SOPS → 0400 文件 → Compose secrets
+
+仓库只放 SOPS 密文（`deploy/secrets/secrets.enc.yaml`），`.sops.yaml` 只含 age 公钥；`deploy/secrets/render.sh` 用本机身份解成「一个键一个文件、权限 0400」，写入 `deploy/secrets/run/`（gitignore）。Compose 以文件形式挂成 secrets：应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` 读取（属性名等于文件名，现有 `${DB_PASSWORD}` / `${JWT_SECRET_KEY}` 占位符不用改），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 由 entrypoint 与健康检查 `cat` 文件。结果：`docker inspect` 的 `.Config.Env` 不含任何密钥；缺 age 身份、缺渲染文件、空值都在启动前失败。`.env` 仅保留给 `bootRun`，容器栈不再读它。
