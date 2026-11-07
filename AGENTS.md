@@ -218,11 +218,12 @@
 
 **升级依赖时（两次踩坑后固化）**：
 
-- **版本以 Maven Central / Gradle Plugin Portal 元数据为准**，`dependencyUpdates` 报告会**漏报关键坐标**（实测只列出 5 项，Spring Boot / spotless / postgresql 全缺）——按坐标逐个查 `maven-metadata.xml`，插件 id 查 Plugin Portal；里程碑与 RC **不算"最新稳定版"**
+- **版本以 Maven Central / Gradle Plugin Portal 元数据为准**，`dependencyUpdates` 报告会**漏报关键坐标**（实测只列出 5 项，Spring Boot / spotless / postgresql 全缺）——按坐标逐个查 `maven-metadata.xml`，插件 id 查 Plugin Portal；里程碑与 RC **不算"最新稳定版"**。2026-11-07 复核依旧：报告只列 4 项（flyway / commons-codec / spotless / ben-manes），Spring Boot、springdoc、greenmail、postgresql、junit-platform 等均未列出，逐个查元数据后才确认它们已是最新
 - **升级后必须同批更新 `techContext.md` 的版本快照**（R2 的「技术栈变化」包含依赖升级；该表曾长期停留在 Spring Boot 4.0.5 / Flyway 11.4.0 而实际已 4.1.1 / 13.7.0，且留着已移除的依赖）
-- **Spotless 与 google-java-format 要成对升级**：2026-10-27 把 google-java-format 1.36.1 → 1.37.0 后，Spotless 8.10.4 下**每个文件**都抛 `InvocationTargetException`（`LINE_UNDEFINED`）；把 1.37.0 的 all-deps jar 单独跑（带 `--add-exports`）却能正常格式化 ⇒ 是两者的集成缺口，不是 JDK 不兼容。升级前先跑一次 `spotlessJavaCheck`，失败就保留旧版并在报告里写明证据。
+- **Spotless 与 google-java-format 要成对升级**：2026-10-27 把 google-java-format 1.36.1 → 1.37.0 后，Spotless 8.10.4 下**每个文件**都抛 `InvocationTargetException`（`LINE_UNDEFINED`）；把 1.37.0 的 all-deps jar 单独跑（带 `--add-exports`）却能正常格式化 ⇒ 是两者的集成缺口，不是 JDK 不兼容。升级前先跑一次 `spotlessJavaCheck`，失败就保留旧版并在报告里写明证据。**2026-11-07 实测可用组合：Spotless 8.11.0 + google-java-format 1.36.1（`spotlessCheck` 通过）；1.37.0 仍未启用**
 
 - **同一模块族的版本只能有一个来源**：`flyway-core` 与 `flyway-database-postgresql` 必须同版本（前者被 Boot BOM 管理，靠 `strictly` 覆盖），字面量要写成 `libs.versions.<name>.get()` 而不是第二次硬编码
+- **Gradle wrapper 的升级与依赖同批**：`./gradlew wrapper --gradle-version=X` 会改 `gradle-wrapper.properties`、`gradle-wrapper.jar` 与 `gradlew*`；验证用 `clean build --rerun-tasks`（否则测试可能整批命中缓存，等于没验）
 
 - **新增依赖必须做多维评估（强制）**：至少比较**最新稳定版**、维护活跃度与最近发布、采用度、许可证、已知漏洞、传递依赖体积、**与当前框架/运行时兼容性（Spring Boot BOM、Spring Security、JDK、Jackson 2/3、Servlet/WebFlux、日志栈）**、API 稳定性、可测试性与替换成本；优先使用 BOM/官方管理的版本。禁止因为示例代码、前端建议或“能编译”就直接引入；先记录候选、版本、证据和排除理由，再落代码。解析后必须用 `dependencies` / `dependencyInsight` 核对解析版本，确认没有强制降级、双 Jackson 代际或同一能力重复引入。RC/里程碑不算稳定版。
 
