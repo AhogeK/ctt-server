@@ -221,8 +221,22 @@ through `blackbox_exporter`, and Grafana's provisioned dashboard charts those pr
 application's own metrics endpoint arrives with the observability work (P1.1); business-metric
 panels come with it.
 
-Every service image tracks `latest` on purpose (newest majors included); if a deploy has to be
-reproduced later, capture the digests with `docker inspect --format '{{index .RepoDigests 0}}' <image>`.
+### Recording image digests
+
+A `latest` tag does not identify what ran, so a deploy record needs digests. The script reads
+every image from both compose files and appends a timestamped table:
+
+```bash
+./deploy/local/digests.sh --out ~/deploy-records/ctt-local.md
+```
+
+`ctt-server-app` is built on the host, so it is reported by image id instead. An upgrade
+rehearsal is: record, `./deploy/local/up.sh --profile obs`, `./gradlew clean build`, record
+again, then compare the two tables — a changed digest explains a changed behaviour, and the
+record is what makes a rollback to the previous images possible.
+
+Every service image tracks `latest` on purpose (newest majors included); the digests above are
+the record that keeps such a deploy reproducible.
 The jar is built on the host and packaged by `deploy/local/Dockerfile`: the in-container Gradle
 build cannot reach Maven Central through this machine's proxy. Production images still use the
 multi-stage `Dockerfile`.
