@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-08] - P0.2 镜像可追溯与升级演练（v0.93.2）
+    - 交付：`deploy/local/digests.sh` 从两份 compose 解析 7 个镜像、输出 Markdown 表，`--out` 追加到部署记录；`ctt-server-app` 主机构建，按镜像 id 记录；README 补用法与演练四步
+    - 演练：记录 → `up.sh --profile obs`（edge / blue / Prometheus / Grafana 各 200，两条外部探测结果均为 1）→ `clean build --rerun-tasks`（**1695 tests / 0 failures / 1 skipped**）→ 再记录：7 个镜像摘要完全一致，只有 app 镜像 id 随重建变化（预期）
+    - 注意：首次 `clean build` 1 秒完成是任务缓存命中（`:check UP-TO-DATE`），按 R12 用 `--rerun-tasks` 重跑才是真验证
+    - 部署记录：`.omp/notes/2026-11-08/image-digests.md`（已 gitignore，含两次带时间戳的表）；演练后 `docker compose … down`，18080/9090/3000 均已释放
 - [2026-11-08] - 收口：README 纠错、规则与记忆维护（随本批提交）
     - README：修正「no dashboard is provisioned yet」与上文「已有预置面板」的自相矛盾（改为「面板展示的是外部探测结果，应用自身指标随 P1.1 到来」）；安全段补「prod JSON 日志掩码文本与结构化字段」
     - `AGENTS.md` R9 新增「日志脱敏必须覆盖输出通道」；`techContext` 包结构改为实际目录（补 user/device/mail/audit/language，删不存在的 apikey/）、核对基线刷到 v0.93.1；`progress` 补 0.93.1 里程碑并修正 0.92.x 与 0.93.0 的排序

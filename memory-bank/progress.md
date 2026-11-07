@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.93.2` | 2026-11-08 | feat(deploy): record local-stack image digests for upgrade rehearsals |
 | `0.93.1` | 2026-11-08 | fix(logging): mask production JSON logs and their key/value fields |
 | `0.93.0` | 2026-11-07 | feat(dev): one-command local stack with edge, blue/green and observability |
 | `0.92.2` | 2026-11-07 | chore(deps): upgrade flyway, commons-codec, spotless, the versions plugin and Gradle |
