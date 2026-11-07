@@ -4,6 +4,7 @@
     - README：修正「no dashboard is provisioned yet」与上文「已有预置面板」的自相矛盾（改为「面板展示的是外部探测结果，应用自身指标随 P1.1 到来」）；安全段补「prod JSON 日志掩码文本与结构化字段」
     - `AGENTS.md` R9 新增「日志脱敏必须覆盖输出通道」；`techContext` 包结构改为实际目录（补 user/device/mail/audit/language，删不存在的 apikey/）、核对基线刷到 v0.93.1；`progress` 补 0.93.1 里程碑并修正 0.92.x 与 0.93.0 的排序
     - R13：10-18/10-19 六条（R1–R3 与阶段六计划，70 行）完整移入 `archive/activeContext-2026-10.md`，热文件降到 136 行、只留结论
+    - 死链修复：README 与 `docs/security-architecture.md` 都链到 `docs/terms-acceptance-frontend-guide.md`，而该文件按内容判定属对接方指南、master 上不存在（`0be68a1` 曾刻意移除）⇒ 生产分支两个死链。已删两处引用，指南保留在 develop
 - [2026-11-08] - 计划文件完成总结与纠偏（纯文档，不 bump 版本）
     - 补：顶部加「怎么读」与能力索引（11 个能力面 → 节 → 状态 → 最近变更）；思维导图补「账号安全」与 P0.1；统计与排行新增 S6（v0.58–v0.79 演进：7 维 × 6 周期 = 41 组合 / 35 带 TTL、词表 v2 842/489/76、排行 `ZCOUNT` 语义）；文末补「prod 日志脱敏（v0.93.1）」与「账号注销（v0.77.0）」两条交付记录
     - 纠偏（以代码为准）：锁定 / OAuth / API Key 三处的枚举别名与 HTTP 码（`AUTH_004/013/015/016/017/018`；`AUTH_012` 是 403）、OAuth 账号端点 `/auth/oauth/accounts`、导出契约（单 JSON + `ctt-export-<yyyy-MM-dd>.json` + `exportVersion 1.0` + `serverExport` 分块）、JUnit 5 → 6、H 章「需创建」→ 已交付、章节标题状态标记、中英混排条目
