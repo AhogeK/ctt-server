@@ -58,3 +58,6 @@ src/main/resources/application-local.properties
 # AI plan files (internal, not for public docs)
 .sisyphus/
 .omp/
+
+# Rendered compose secrets (P0.5); only the SOPS payload is committed
+deploy/secrets/run/

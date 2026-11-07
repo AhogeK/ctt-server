@@ -11,14 +11,17 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-echo "[1/3] building the boot jar"
+echo "[1/4] rendering compose secrets"
+./deploy/secrets/render.sh
+
+echo "[2/4] building the boot jar"
 ./gradlew -q bootJar -x test
 
-echo "[2/3] staging it for the local image"
+echo "[3/4] staging it for the local image"
 mkdir -p build/local-image
 jar="$(ls -t build/libs/*.jar | grep -v -- '-plain\.jar' | sed -n '1p')"
 cp "$jar" build/local-image/app.jar
 echo "      using $(basename "$jar")"
 
-echo "[3/3] starting the stack"
+echo "[4/4] starting the stack"
 exec docker compose -f docker-compose.yaml -f docker-compose.local.yaml "$@" up -d --build
