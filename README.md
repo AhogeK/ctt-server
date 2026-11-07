@@ -33,9 +33,10 @@ springdoc-openapi · Thymeleaf · JUnit 6 + Testcontainers.
   board, where zero ("no change") is a measurement.
 - **A security model, not a demo.** Short-lived JWTs for the dashboard, TOTP two-factor
   authentication and phishing-resistant passkeys with single-use recovery codes, device-bound API
-  keys with scopes for plugins, SHA-256 token storage, declarative rate limits, account lockout and
-  an append-only audit trail. Existing 2FA accounts can complete the second step with a passkey
-  instead of a code.
+  keys with scopes for plugins, SHA-256 token storage, declarative rate limits, account lockout,
+  an append-only audit trail, and production JSON logs that mask credential-bearing text and
+  structured fields. Existing 2FA accounts can complete the second step with a passkey instead of
+  a code.
 
 ## How it works
 
@@ -216,8 +217,9 @@ and are quicker.
 The edge serves <http://localhost:18080> and proxies to `app-blue` (`app-blue:8080` inside the
 compose network; `:18081` is only the host-side publish); `app-green` takes
 `:18082` when the `bluegreen` profile is on. Prometheus scrapes itself and probes both health endpoints
-through `blackbox_exporter`. The application's own metrics endpoint arrives with the observability
-work, so no dashboard is provisioned yet.
+through `blackbox_exporter`, and Grafana's provisioned dashboard charts those probes. The
+application's own metrics endpoint arrives with the observability work (P1.1); business-metric
+panels come with it.
 
 Every service image tracks `latest` on purpose (newest majors included); if a deploy has to be
 reproduced later, capture the digests with `docker inspect --format '{{index .RepoDigests 0}}' <image>`.

@@ -27,7 +27,7 @@
 
     <springProfile name="prod">
         <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="ch.qos.logback.classic.encoder.JsonEncoder"/>
+            <encoder class="com.ahogek.cttserver.common.config.logging.MaskingJsonEncoder"/>
         </appender>
 
       <!-- Request access logging for production -->
