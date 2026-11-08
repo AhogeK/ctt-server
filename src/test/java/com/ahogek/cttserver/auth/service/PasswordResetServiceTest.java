@@ -162,7 +162,7 @@ class PasswordResetServiceTest {
                             null,
                             AuditAction.PASSWORD_RESET_EMAIL_NOT_FOUND,
                             ResourceType.UNKNOWN,
-                            email,
+                            null,
                             "Email not found or user not active");
 
             verify(tokenRepository, never()).revokeActiveTokensByUserId(any(), any());
@@ -195,7 +195,7 @@ class PasswordResetServiceTest {
                             null,
                             AuditAction.PASSWORD_RESET_EMAIL_NOT_FOUND,
                             ResourceType.UNKNOWN,
-                            email,
+                            null,
                             "Email not found or user not active");
 
             verify(tokenRepository, never()).revokeActiveTokensByUserId(any(), any());

@@ -90,7 +90,7 @@ class MailOutboxProcessorTest {
             AuditDetails details = auditDetailsCaptor.getValue();
             assertThat(details.ext()).containsEntry("mailOutboxId", outbox.getId().toString());
             assertThat(details.ext()).containsEntry("templateName", outbox.getTemplateCode());
-            assertThat(details.ext()).containsEntry("recipientMasked", "te***@example.com");
+            assertThat(details.ext()).doesNotContainKey("recipientMasked");
             assertThat(details.ext()).containsEntry("retryCount", outbox.getRetryCount());
         }
     }
@@ -209,7 +209,7 @@ class MailOutboxProcessorTest {
             AuditDetails details = auditDetailsCaptor.getValue();
             assertThat(details.ext()).containsEntry("mailOutboxId", outbox.getId().toString());
             assertThat(details.ext()).containsEntry("retryCount", MAX_ATTEMPTS);
-            assertThat(details.ext()).containsEntry("lastError", "SMTP error");
+            assertThat(details.ext()).doesNotContainKey("lastError");
         }
     }
 
@@ -262,7 +262,7 @@ class MailOutboxProcessorTest {
             AuditDetails details = auditDetailsCaptor.getValue();
             assertThat(details.ext()).containsEntry("mailOutboxId", outbox.getId().toString());
             assertThat(details.ext()).containsEntry("templateName", outbox.getTemplateCode());
-            assertThat(details.ext()).containsEntry("recipientMasked", "te***@example.com");
+            assertThat(details.ext()).doesNotContainKey("recipientMasked");
             assertThat(details.ext()).containsEntry("retryCount", 0);
             assertThat(details.ext()).doesNotContainKey("lastError");
         }
@@ -297,18 +297,19 @@ class MailOutboxProcessorTest {
 
             AuditDetails details = auditDetailsCaptor.getValue();
             assertThat(details.ext()).containsEntry("retryCount", 2);
-            assertThat(details.ext()).containsEntry("lastError", "Connection timeout");
+            assertThat(details.ext()).doesNotContainKey("lastError");
         }
 
         @Test
-        @DisplayName("should truncate lastError to 500 characters")
-        void shouldTruncateLastError_to500Chars() throws Exception {
+        @DisplayName("should not store provider error text when delivery fails")
+        void shouldNotStoreProviderError_whenDeliveryFails() throws Exception {
             // Given
             MailOutbox outbox = createPendingOutbox();
             when(outboxRepository.saveAndFlush(any())).thenReturn(outbox);
             when(outboxRepository.findById(outbox.getId())).thenReturn(Optional.of(outbox));
-            String longError = "x".repeat(600);
-            doThrow(new MessagingException(longError)).when(mailDispatcher).dispatch(any());
+            doThrow(new MessagingException("user@example.com SMTP error"))
+                    .when(mailDispatcher)
+                    .dispatch(any());
             when(retryStrategy.calculateNextRetryTime(0)).thenReturn(Instant.now().plusSeconds(60));
 
             // When
@@ -325,8 +326,10 @@ class MailOutboxProcessorTest {
                             auditDetailsCaptor.capture());
 
             AuditDetails details = auditDetailsCaptor.getValue();
-            String lastError = (String) details.ext().get("lastError");
-            assertThat(lastError).hasSize(503).endsWith("...");
+            assertThat(details.ext()).doesNotContainKey("lastError");
+            assertThat(details.ext().toString())
+                    .doesNotContain("user@example.com")
+                    .doesNotContain("SMTP error");
         }
     }
 

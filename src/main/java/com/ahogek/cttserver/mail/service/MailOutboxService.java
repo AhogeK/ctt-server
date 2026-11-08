@@ -284,14 +284,12 @@ public class MailOutboxService {
                     bizId,
                     AuditAction.MAIL_IDEMPOTENT_SKIP,
                     ResourceType.MAIL_OUTBOX,
-                    recipient,
+                    bizId.toString(),
                     SecuritySeverity.INFO,
                     AuditDetails.extension(
                             Map.of(
                                     "bizType",
                                     bizType,
-                                    "recipientMasked",
-                                    DesensitizeUtils.maskEmail(recipient),
                                     "windowMinutes",
                                     IDEMPOTENT_WINDOW.toMinutes())));
 
@@ -308,13 +306,7 @@ public class MailOutboxService {
                 ResourceType.MAIL_OUTBOX,
                 outbox.getId().toString(),
                 SecuritySeverity.INFO,
-                AuditDetails.extension(
-                        Map.of(
-                                "mailOutboxId", outbox.getId().toString(),
-                                "templateName", outbox.getTemplateCode(),
-                                "recipientMasked",
-                                        DesensitizeUtils.maskEmail(outbox.getRecipient()),
-                                "retryCount", outbox.getRetryCount())));
+                MailOutboxAuditDetails.of(outbox));
     }
 
     private String buildVerificationLink(String token) {

@@ -342,7 +342,7 @@ class MailOutboxServiceTest {
                             eq(userId),
                             eq(AuditAction.MAIL_IDEMPOTENT_SKIP),
                             eq(ResourceType.MAIL_OUTBOX),
-                            eq(email),
+                            eq(userId.toString()),
                             eq(SecuritySeverity.INFO),
                             any(AuditDetails.class));
         }
@@ -377,7 +377,7 @@ class MailOutboxServiceTest {
                             eq(userId),
                             eq(AuditAction.MAIL_IDEMPOTENT_SKIP),
                             eq(ResourceType.MAIL_OUTBOX),
-                            eq(email),
+                            eq(userId.toString()),
                             eq(SecuritySeverity.INFO),
                             any(AuditDetails.class));
         }
@@ -406,7 +406,7 @@ class MailOutboxServiceTest {
                             eq(userId),
                             eq(AuditAction.MAIL_IDEMPOTENT_SKIP),
                             eq(ResourceType.MAIL_OUTBOX),
-                            eq(email),
+                            eq(userId.toString()),
                             eq(SecuritySeverity.INFO),
                             any(AuditDetails.class));
         }
@@ -601,7 +601,7 @@ class MailOutboxServiceTest {
             AuditDetails details = auditDetailsCaptor.getValue();
             assertThat(details.ext()).containsEntry("mailOutboxId", saved.getId().toString());
             assertThat(details.ext()).containsEntry("templateName", "email-verification");
-            assertThat(details.ext()).containsEntry("recipientMasked", "te***@example.com");
+            assertThat(details.ext()).doesNotContainKey("recipientMasked");
             assertThat(details.ext()).containsEntry("retryCount", 0);
         }
 
@@ -624,7 +624,7 @@ class MailOutboxServiceTest {
                             eq(userId),
                             eq(AuditAction.MAIL_IDEMPOTENT_SKIP),
                             eq(ResourceType.MAIL_OUTBOX),
-                            eq(email),
+                            eq(userId.toString()),
                             eq(SecuritySeverity.INFO),
                             any(AuditDetails.class));
             verify(auditLog, never())

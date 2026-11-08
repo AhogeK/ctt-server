@@ -251,8 +251,8 @@ class UserProfileIntegrationTest {
                             .single();
             assertThat(details)
                     .contains("displayName")
-                    .contains(DISPLAY_NAME)
-                    .contains("RenamedUser");
+                    .doesNotContain(DISPLAY_NAME)
+                    .doesNotContain("RenamedUser");
         }
 
         @Test

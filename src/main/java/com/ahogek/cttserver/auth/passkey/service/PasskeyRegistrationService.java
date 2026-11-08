@@ -212,7 +212,7 @@ public class PasskeyRegistrationService {
                 ResourceType.USER,
                 userId.toString(),
                 SecuritySeverity.INFO,
-                AuditDetails.extension(Map.of("name", name)));
+                AuditDetails.empty());
         notifications.credentialAdded(userId, user.getDisplayName(), user.getEmail(), name);
         return PasskeyResponse.fromEntity(passkey);
     }

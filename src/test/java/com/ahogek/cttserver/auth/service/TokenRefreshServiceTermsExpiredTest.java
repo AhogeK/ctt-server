@@ -29,7 +29,6 @@ import org.mockito.quality.Strictness;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -51,8 +50,6 @@ class TokenRefreshServiceTermsExpiredTest {
     private static final String NEW_ACCESS_TOKEN = "new.access.token";
     private static final Duration ACCESS_TOKEN_TTL = Duration.ofMinutes(15);
     private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(7);
-    private static final String TEST_IP = "192.168.1.100";
-    private static final String TEST_USER_AGENT = "Mozilla/5.0 Test Browser";
     private static final String CURRENT_TERMS_VERSION = "1.0.0";
 
     @Mock private RefreshTokenRepository refreshTokenRepository;
@@ -100,8 +97,7 @@ class TokenRefreshServiceTermsExpiredTest {
             when(refreshTokenRepository.save(any(RefreshToken.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
-            LoginResponse response =
-                    tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT);
+            LoginResponse response = tokenRefreshService.refresh(RAW_TOKEN);
 
             assertThat(response.termsExpired()).isFalse();
             assertThat(response.userId()).isEqualTo(USER_ID);
@@ -115,8 +111,7 @@ class TokenRefreshServiceTermsExpiredTest {
                             ResourceType.REFRESH_TOKEN,
                             TOKEN_ID.toString(),
                             SecuritySeverity.INFO,
-                            AuditDetails.extension(
-                                    Map.of("ip", TEST_IP, "userAgent", TEST_USER_AGENT)));
+                            AuditDetails.empty());
         }
 
         @Test
@@ -132,8 +127,7 @@ class TokenRefreshServiceTermsExpiredTest {
             when(refreshTokenRepository.save(any(RefreshToken.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
-            LoginResponse response =
-                    tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT);
+            LoginResponse response = tokenRefreshService.refresh(RAW_TOKEN);
 
             assertThat(response.termsExpired()).isTrue();
             assertThat(response.userId()).isEqualTo(USER_ID);
@@ -153,8 +147,7 @@ class TokenRefreshServiceTermsExpiredTest {
             when(refreshTokenRepository.save(any(RefreshToken.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
-            LoginResponse response =
-                    tokenRefreshService.refresh(RAW_TOKEN, TEST_IP, TEST_USER_AGENT);
+            LoginResponse response = tokenRefreshService.refresh(RAW_TOKEN);
 
             assertThat(response.termsExpired()).isTrue();
             assertThat(response.userId()).isEqualTo(USER_ID);

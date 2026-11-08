@@ -417,14 +417,11 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
 
-        String ip = RequestContext.current().map(RequestInfo::clientIp).orElse(null);
-        String userAgent = httpRequest.getHeader(HttpHeaders.USER_AGENT);
-
         String refreshToken = readRefreshToken(httpRequest, request);
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new ValidationException(ErrorCode.COMMON_003, "Refresh token is required");
         }
-        LoginResponse response = tokenRefreshService.refresh(refreshToken, ip, userAgent);
+        LoginResponse response = tokenRefreshService.refresh(refreshToken);
 
         CookieHelper.addCookiesToResponse(
                 httpResponse, response.accessToken(), response.refreshToken(), refreshTokenPath());

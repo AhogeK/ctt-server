@@ -99,7 +99,7 @@ class MailOutboxServiceIntegrationTest {
 
         @Test
         @DisplayName(
-                "should enqueue verification email and persist audit log with desensitized recipient")
+                "should enqueue verification email and persist audit log without recipient data")
         void shouldEnqueueVerificationEmailAndAuditSuccessfully() {
             // When
             mailOutboxService.enqueueVerificationEmail(
@@ -134,11 +134,8 @@ class MailOutboxServiceIntegrationTest {
                                 assertThat(details.ext())
                                         .containsEntry("mailOutboxId", outbox.getId().toString())
                                         .containsEntry("templateName", "email-verification")
-                                        .containsKey("recipientMasked")
+                                        .doesNotContainKey("recipientMasked")
                                         .containsEntry("retryCount", 0);
-
-                                String maskedEmail = (String) details.ext().get("recipientMasked");
-                                assertThat(maskedEmail).contains("***").endsWith("@domain.com");
                                 assertThat(details.ext().toString()).doesNotContain(testUserEmail);
                             });
         }
@@ -201,10 +198,10 @@ class MailOutboxServiceIntegrationTest {
                                 AuditDetails details = latestAudit.getDetails();
                                 assertThat(details.ext())
                                         .containsEntry("bizType", "REGISTER_VERIFY")
-                                        .containsEntry("windowMinutes", 10);
-
-                                String maskedEmail = (String) details.ext().get("recipientMasked");
-                                assertThat(maskedEmail).contains("***");
+                                        .containsEntry("windowMinutes", 10)
+                                        .doesNotContainKey("recipientMasked");
+                                assertThat(latestAudit.getResourceId())
+                                        .isEqualTo(testUserId.toString());
                                 assertThat(details.ext().toString()).doesNotContain(testUserEmail);
                             });
         }
@@ -250,12 +247,12 @@ class MailOutboxServiceIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Email Desensitization")
+    @DisplayName("Email Data Minimisation")
     class DesensitizationTests {
 
         @Test
-        @DisplayName("should desensitize email in audit log JSONB field")
-        void shouldMaskEmailInAuditDetails() {
+        @DisplayName("should not store any email in audit details")
+        void shouldNotStoreEmailInAuditDetails() {
             // Given
             String[] testEmails = {"user@domain.com", "a@b.com", "test.user@example.org"};
 
@@ -275,16 +272,10 @@ class MailOutboxServiceIntegrationTest {
 
                                 for (AuditLog audit : audits) {
                                     AuditDetails details = audit.getDetails();
-                                    String maskedEmail =
-                                            (String) details.ext().get("recipientMasked");
-
-                                    assertThat(maskedEmail).contains("***");
-
+                                    assertThat(details.ext()).doesNotContainKey("recipientMasked");
                                     String detailsString = details.ext().toString();
                                     for (String email : testEmails) {
-                                        if (!email.equals(maskedEmail)) {
-                                            assertThat(detailsString).doesNotContain(email);
-                                        }
+                                        assertThat(detailsString).doesNotContain(email);
                                     }
                                 }
                             });

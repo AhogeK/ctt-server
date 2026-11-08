@@ -94,7 +94,7 @@ class AuthControllerRefreshTest {
         LoginResponse mockResponse =
                 new LoginResponse(userId, "new-access-token", "new-refresh-token", 3600L);
 
-        given(tokenRefreshService.refresh(any(), any(), any())).willReturn(mockResponse);
+        given(tokenRefreshService.refresh(any())).willReturn(mockResponse);
 
         String request =
                 """
@@ -132,8 +132,7 @@ class AuthControllerRefreshTest {
         LoginResponse mockResponse =
                 new LoginResponse(userId, "cookie-access-token", "cookie-rotated-token", 3600L);
 
-        given(tokenRefreshService.refresh(eq("cookie-refresh-token"), any(), any()))
-                .willReturn(mockResponse);
+        given(tokenRefreshService.refresh(eq("cookie-refresh-token"))).willReturn(mockResponse);
 
         var result =
                 mvc.post()
@@ -149,9 +148,7 @@ class AuthControllerRefreshTest {
                 .bodyJson()
                 .extractingPath("$.data.accessToken")
                 .isEqualTo("cookie-access-token");
-        BDDMockito.then(tokenRefreshService)
-                .should()
-                .refresh(eq("cookie-refresh-token"), any(), any());
+        BDDMockito.then(tokenRefreshService).should().refresh(eq("cookie-refresh-token"));
     }
 
     @Test
@@ -162,8 +159,7 @@ class AuthControllerRefreshTest {
         LoginResponse mockResponse =
                 new LoginResponse(userId, "cookie-access-token", "cookie-rotated-token", 3600L);
 
-        given(tokenRefreshService.refresh(eq("cookie-refresh-token"), any(), any()))
-                .willReturn(mockResponse);
+        given(tokenRefreshService.refresh(eq("cookie-refresh-token"))).willReturn(mockResponse);
 
         var result =
                 mvc.post()
@@ -203,7 +199,7 @@ class AuthControllerRefreshTest {
     @WithMockUser
     @DisplayName("Should return 401 when refresh token is invalid")
     void shouldReturn401_whenRefreshTokenInvalid() {
-        given(tokenRefreshService.refresh(any(), any(), any()))
+        given(tokenRefreshService.refresh(any()))
                 .willThrow(new UnauthorizedException(ErrorCode.AUTH_003, "Invalid refresh token"));
 
         String request =
@@ -229,7 +225,7 @@ class AuthControllerRefreshTest {
     @WithMockUser
     @DisplayName("Should return 401 when refresh token expired")
     void shouldReturn401_whenRefreshTokenExpired() {
-        given(tokenRefreshService.refresh(any(), any(), any()))
+        given(tokenRefreshService.refresh(any()))
                 .willThrow(
                         new UnauthorizedException(ErrorCode.AUTH_007, "Refresh token has expired"));
 
@@ -256,7 +252,7 @@ class AuthControllerRefreshTest {
     @WithMockUser
     @DisplayName("Should return 403 when refresh token reuse detected")
     void shouldReturn403_whenRefreshTokenReuseDetected() {
-        given(tokenRefreshService.refresh(any(), any(), any()))
+        given(tokenRefreshService.refresh(any()))
                 .willThrow(
                         new ForbiddenException(
                                 ErrorCode.AUTH_009,

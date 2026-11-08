@@ -6,6 +6,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -252,13 +253,11 @@ public final class AuditFixtures {
                 .severity(SecuritySeverity.INFO)
                 .details(
                         AuditDetails.extension(
-                                java.util.Map.of(
+                                Map.of(
                                         "mailOutboxId",
                                         outboxId.toString(),
                                         "templateName",
                                         "email-verification",
-                                        "recipientMasked",
-                                        "te***@example.com",
                                         "retryCount",
                                         0)));
     }
@@ -279,13 +278,11 @@ public final class AuditFixtures {
                 .severity(SecuritySeverity.INFO)
                 .details(
                         AuditDetails.extension(
-                                java.util.Map.of(
+                                Map.of(
                                         "mailOutboxId",
                                         outboxId.toString(),
                                         "templateName",
                                         "email-verification",
-                                        "recipientMasked",
-                                        "te***@example.com",
                                         "retryCount",
                                         0)));
     }
@@ -307,12 +304,13 @@ public final class AuditFixtures {
                 .severity(SecuritySeverity.WARNING)
                 .details(
                         AuditDetails.extension(
-                                java.util.Map.of(
-                                        "mailOutboxId", outboxId.toString(),
-                                        "templateName", "email-verification",
-                                        "recipientMasked", "te***@example.com",
-                                        "retryCount", retryCount,
-                                        "lastError", "MessagingException: Connection timed out")));
+                                Map.of(
+                                        "mailOutboxId",
+                                        outboxId.toString(),
+                                        "templateName",
+                                        "email-verification",
+                                        "retryCount",
+                                        retryCount)));
     }
 
     /**
@@ -331,38 +329,31 @@ public final class AuditFixtures {
                 .severity(SecuritySeverity.CRITICAL)
                 .details(
                         AuditDetails.extension(
-                                java.util.Map.of(
-                                        "mailOutboxId", outboxId.toString(),
-                                        "templateName", "email-verification",
-                                        "recipientMasked", "te***@example.com",
-                                        "retryCount", 5,
-                                        "lastError",
-                                                "MessagingException: SMTP Authentication failed")));
+                                Map.of(
+                                        "mailOutboxId",
+                                        outboxId.toString(),
+                                        "templateName",
+                                        "email-verification",
+                                        "retryCount",
+                                        5)));
     }
 
     /**
      * Creates a mail idempotent skip audit event.
      *
      * @param userId user who triggered the email
-     * @param recipientMasked masked recipient email
      * @return builder for further customization
      */
-    public static Builder mailIdempotentSkip(UUID userId, String recipientMasked) {
+    public static Builder mailIdempotentSkip(UUID userId) {
         return builder()
                 .action(AuditAction.MAIL_IDEMPOTENT_SKIP)
                 .resourceType(ResourceType.MAIL_OUTBOX)
-                .resourceId(recipientMasked)
+                .resourceId(userId.toString())
                 .userId(userId)
                 .severity(SecuritySeverity.INFO)
                 .details(
                         AuditDetails.extension(
-                                java.util.Map.of(
-                                        "bizType",
-                                        "REGISTER_VERIFY",
-                                        "recipientMasked",
-                                        recipientMasked,
-                                        "windowMinutes",
-                                        10L)));
+                                Map.of("bizType", "REGISTER_VERIFY", "windowMinutes", 10L)));
     }
 
     /**

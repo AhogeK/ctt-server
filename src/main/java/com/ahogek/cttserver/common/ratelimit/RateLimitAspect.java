@@ -151,11 +151,12 @@ public class RateLimitAspect {
                 redisRateLimiter.checkLimit(cacheKey, rateLimit.limit(), rateLimit.windowSeconds());
 
         if (!result.allowed()) {
+            UUID actorId = getCurrentUserId();
             auditLog.logFailure(
-                    getCurrentUserId(),
+                    actorId,
                     AuditAction.RATE_LIMIT_EXCEEDED,
                     ResourceType.UNKNOWN,
-                    cacheKey,
+                    actorId == null ? null : actorId.toString(),
                     "Rate limit exceeded for " + rateLimit.type().name());
 
             Instant retryAfter =

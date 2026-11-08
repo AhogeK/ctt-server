@@ -3,6 +3,7 @@ package com.ahogek.cttserver.user.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
+import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -308,6 +310,8 @@ class UserServiceTest {
             // Then
             assertThat(user.getDisplayName()).isEqualTo("NewName");
             verify(userRepository).save(user);
+            ArgumentCaptor<AuditDetails> detailsCaptor =
+                    ArgumentCaptor.forClass(AuditDetails.class);
             verify(auditLogService)
                     .log(
                             eq(userId),
@@ -315,7 +319,10 @@ class UserServiceTest {
                             eq(ResourceType.USER),
                             eq(userId.toString()),
                             eq(SecuritySeverity.INFO),
-                            any());
+                            detailsCaptor.capture());
+            assertThat(detailsCaptor.getValue().ext())
+                    .containsOnlyKeys("field")
+                    .containsEntry("field", "displayName");
         }
 
         @Test
