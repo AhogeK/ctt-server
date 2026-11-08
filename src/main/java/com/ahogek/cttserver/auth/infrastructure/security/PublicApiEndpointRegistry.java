@@ -45,6 +45,8 @@ public class PublicApiEndpointRegistry {
         // System endpoints
         publicUrls.add("/error");
         publicUrls.add("/actuator/health");
+        publicUrls.add("/actuator/health/liveness");
+        publicUrls.add("/actuator/health/readiness");
         publicUrls.add("/actuator/info");
 
         // API documentation (Springdoc OpenAPI)

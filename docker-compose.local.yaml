@@ -2,7 +2,7 @@
 #
 # One command (blue colour + edge, the default acceptance path):
 #   ./deploy/local/up.sh
-#   curl -s http://127.0.0.1:18080/ctt-server/actuator/health
+#   curl -s http://127.0.0.1:18080/ctt-server/actuator/health/readiness
 #
 # Read this file only through that script: the local image packages a jar that
 # the script builds and stages in build/local-image/, so a bare
