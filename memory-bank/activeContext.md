@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-09] - P0.7 health 分组(v0.95.0)
+    - liveness 仅 `livenessState`；readiness 含 `readinessState`/`db`/`redis`；只对 readiness 将 DOWN/UNKNOWN 映射为 OUT_OF_SERVICE；两个检查端点公开
+    - 实现补充：当前上下文未自动注册 Redis contributor，readiness 显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 继续委托
+    - compose 与 blackbox 改打 readiness；本地栈停 PostgreSQL 实测 liveness UP/200、readiness OUT_OF_SERVICE/503
+    - 测试：`HealthProbeIntegrationTest` 覆盖分组/真实 contributor/503/UNKNOWN/匿名访问，`PublicApiEndpointRegistryTest` 覆盖公开路径
 - [2026-11-09] - 审计保留配置注释与版本同步(v0.94.1)
     - `application.yaml` 注释改为「默认 0 永久保留；生产设 180」，与 ADR-0002 一致
     - `appVersion` 0.94.1；仅注释与版本，无行为变更

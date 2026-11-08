@@ -55,6 +55,10 @@ Logback 的 `conversionRule`（如 `%maskedMsg`）只对 `PatternLayout` 生效�
 
 `audit_logs.details` 只承载动作、资源、原因、状态与计数；请求/响应体与姓名、邮箱、passkey 标签、原始 SMTP 错误永不入库（ADR-0001，P0.6b 已收口）。历史行的保留清理由 `AuditRetentionJob` 按 `ctt.audit.retention.days` 执行（默认 0=保留，每批独立事务）；保留策略已定 180 天整行删除（ADR-0002），生产启用按部署清单，量级见 P0.16b。无生产消费者的配置键先追溯引入意图，再决定接线或删除；不保留假开关。
 
+## 健康探针：liveness 与 readiness 分离
+
+liveness 只包含 `livenessState`，不能纳入数据库/Redis；readiness 包含 `readinessState`、`db`、`redis`。readiness 依赖失败或状态未知时由专用 `HealthEndpointGroupsPostProcessor` 将 `DOWN`/`UNKNOWN` 映射为 `OUT_OF_SERVICE`（HTTP 503），只包装 readiness，不改变 liveness 或根健康。当前上下文未自动注册 Redis contributor，需显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 必须继续委托。compose 与 blackbox 使用 readiness；停 PostgreSQL 演练实测 liveness `UP`/200、readiness `OUT_OF_SERVICE`/503。
+
 ## 测试风格: 轻量级 BDD
 
 采用 `// Given // When // Then` 注释结构组织测试代码，不引入 Cucumber 等重量级 BDD 框架。
