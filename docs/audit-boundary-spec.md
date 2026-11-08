@@ -23,6 +23,17 @@ Any action triggering **Control Plane** changes or crossing trust boundaries:
 - **Security Violations**: Consecutive password failures, rate limit triggers, 401/403 intercepts
 - **High-Value Resource Destruction**: Account deletion, permanent core asset removal
 
+### Never Store Request or Response Bodies
+
+Request and response bodies are **data-plane content**, not accountability metadata. They carry
+credentials, personal data and the user's own work (sync pushes accept up to 1000 sessions), so
+they never enter `audit_logs` in any environment. Record the security facts instead: the action,
+the resource, the outcome, the reason and the correlation identifiers.
+
+If a diagnosis needs more than that, record **shape only** — field names, types, sizes and
+validation error codes — never values. The full rationale, rejected alternatives and the revisit
+trigger are in [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md).
+
 ### Use `log.atInfo()` (ELK/Loki Observability)
 
 **Data Plane** routine CRUD and middleware states:

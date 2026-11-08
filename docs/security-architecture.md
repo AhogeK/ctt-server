@@ -723,32 +723,28 @@ All security-relevant events are recorded using a five-tuple model:
 | Layer     | Component                       | Mechanism                                         |
 |-----------|---------------------------------|---------------------------------------------------|
 | 1. Filter | `DesensitizeUtils.maskHeader()` | Masks Authorization headers in HTTP logging       |
-| 2. DTO    | `MaskSerializer`                | Masks sensitive fields in object serialization    |
+| 2. DTO    | `MaskSerializer`                | Available for a field that may be serialised |
 | 3. Global | `MaskingMessageConverter` (console) / `MaskingJsonEncoder` (production JSON) | Regex-based fallback for hardcoded sensitive data. The console path masks the formatted message; the JSON path masks the formatted message plus the string values of key/value pairs (`kvpList`), which a pattern never sees |
 
-Protected patterns: `password`, `token`, `authorization`, `cookie`, `secret`.
+Protected patterns: `password`, `passwd`, `token`, `authorization`, `cookie`, `secret`.
 
 The production profile logs JSON, where a pattern-based converter never runs — there is no pattern to walk. `MaskingJsonEncoder` masks the formatted message and the string values of key/value pairs (for example `query_string`, which carries `token=` on verification links), then delegates to Logback's `JsonEncoder`. One difference from the console path: once text was masked, `arguments` is omitted, because an argument cannot be told apart from data and the rendered text already contains it. Events that need no masking are emitted by the stock encoder, so their schema is unchanged. MDC properties and throwable messages are not masked.
 
-### Sensitive Field Masking
+### Audit Storage Boundary
 
-The audit system automatically masks sensitive fields in request payloads:
+The audit trail never stores request or response bodies, in any environment. A row carries the
+action, the resource type and identifier, the severity and outcome, environment metadata, and
+structured `details` (`reason`, `errorCode`, `attemptCount`, `stateBefore`, `stateAfter`, plus an
+optional extension map) — see `AuditDetails`.
 
-```yaml
-ctt:
-  security:
-    audit:
-      log-payloads: true
-      masked-fields:
-        - password
-        - passwordConfirm
-        - oldPassword
-        - token
-        - access_token
-        - refresh_token
-        - secret
-        - key
-```
+A former `ctt.security.audit.log-payloads` switch had no production consumer (only a binding test)
+and was removed in v0.93.7 rather than left as a misleading knob. Body capture was evaluated and
+rejected: audit rows survive account deletion, the only masking is text-oriented rather than
+JSON-aware, one sync push may carry up to 1000 sessions, and ASVS 16.3.2 requires logging access
+decisions without the sensitive data itself. The full argument, alternatives and revisit trigger
+are in [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md). If diagnostics ever need more,
+record shape only (field names, sizes, validation codes), never values.
+
 
 ---
 
@@ -1037,10 +1033,6 @@ ctt:
       enabled: true
       global-max-requests-per-second: 200
 
-    audit:
-      log-payloads: true
-      masked-fields: [password, token, ...]
-
     cors:
       allowed-origins: ["https://ctt.example.com"]
       allowed-origin-patterns: ["https://ctt.example.com"]
@@ -1148,7 +1140,7 @@ async function refreshAccessToken() {
 - **Use `@PublicApi` sparingly**: Every public endpoint is an attack surface. Document the reason.
 - **Apply rate limiting**: Use `@RateLimit` on all endpoints. Prefer multi-dimensional limits for sensitive operations.
 - **Validate CSRF**: Include `X-XSRF-TOKEN` header on all mutating requests from browser clients.
-- **Mask sensitive data**: Never log passwords, tokens, or secrets. Use the audit framework's built-in masking.
+- **Mask sensitive data**: Never log passwords, tokens, or secrets, and never put them or request bodies into audit details. See [Audit Storage Boundary](#audit-storage-boundary).
 - **Test authorization**: Verify that users cannot access other users' resources (BOLA protection).
 - **Use `CurrentUserProvider`**: Never extract user identity directly from JWT in business code.
 

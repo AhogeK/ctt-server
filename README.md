@@ -34,9 +34,9 @@ springdoc-openapi · Thymeleaf · JUnit 6 + Testcontainers.
 - **A security model, not a demo.** Short-lived JWTs for the dashboard, TOTP two-factor
   authentication and phishing-resistant passkeys with single-use recovery codes, device-bound API
   keys with scopes for plugins, SHA-256 token storage, declarative rate limits, account lockout,
-  an append-only audit trail, and production JSON logs that mask credential-bearing text and
-  structured fields. Existing 2FA accounts can complete the second step with a passkey instead of
-  a code.
+  an append-only audit trail that records security facts and never request bodies, and production
+  JSON logs that mask credential-bearing text and structured fields. Existing 2FA accounts can
+  complete the second step with a passkey instead of a code.
 
 ## How it works
 
@@ -283,6 +283,7 @@ endpoints answered 200 and no container reported `OOMKilled` (Grafana is capped 
 | [Case Normalization](docs/case-normalization.md) | email identity normalization |
 | [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |
 | [Audit Boundary Spec](docs/audit-boundary-spec.md) | what is audited and what is deliberately not |
+| [Audit Payload Boundary](docs/decisions/ADR-0001-audit-payload-boundary.md) | why request bodies stay out of the audit trail |
 | [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0400` files, rotation and the frp token |
 
 ## Related projects
