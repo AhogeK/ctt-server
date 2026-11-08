@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.1 / P0.8 / P0.10 / P0.14 已完成） | v0.93.1 P0.1 完成 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.6 / P0.8 / P0.10 / P0.14 已完成；未完成项见阶段表状态列，含 P0.6b、P0.17） | v0.93.7 P0.6 完成 |
 
 ## 🗺️ 计划总览
 
@@ -75,7 +75,7 @@ left side
 *** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
 *** 通行密钥（v0.91.0：独立登录 + 作为第二步）
 ** 运维与可观测性 🚧 P0 部分交付
-*** 本地全栈与既有状态整修 ✅（P0.0 两色+边缘+观测 / P0.8 隧道 / P0.10 端口 / P0.14 SSH+日志 / P0.1 prod JSON 脱敏）
+*** 本地全栈与既有状态整修 ✅（P0.0 两色+边缘+观测 / P0.8 隧道 / P0.10 端口 / P0.14 SSH+日志 / P0.1 prod JSON 脱敏 / P0.2 镜像摘要 / P0.3 构建上下文 / P0.4 compose 加固 / P0.5 密钥通道 / P0.6 审计载荷）
 *** 指标出口与业务指标 ⬜
 *** 告警、面板与值班 ⬜
 *** CI、镜像发布与蓝绿 ⬜
@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测；本地已有一键全栈（P0.0，见下），生产侧仍是单实例 + tmux 起停之外的剩余项。既有状态的现状：**frps 已改 systemd 托管、frpc 仍是 tmux（crontab 兜底）**；frps 的代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝挡住；**开发与联调仍共用同一个数据库**。部署机上另有既有的公网 Jenkins，经 nginx 443 对外，本服务与其并存、不占用。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.5）。已完成：P0.0 本地全栈、P0.1 prod 日志脱敏、P0.2 镜像可追溯、P0.3 构建上下文收口、P0.4 compose 加固、P0.5 密钥改 Compose secrets、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底。P1–P7 未开工，每步一个可独立验收的交付物。选型已定案，被否决的替代方案写在决策表里。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6）。已完成：P0.0 本地全栈、P0.1 prod 日志脱敏、P0.2 镜像可追溯、P0.3 构建上下文收口、P0.4 compose 加固、P0.5 密钥改 Compose secrets、P0.6 审计载荷收口、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底。P1–P7 未开工，每步一个可独立验收的交付物。选型已定案，被否决的替代方案写在决策表里。
 
 **本轮交付（2026-11-07）**
 
@@ -2197,8 +2197,10 @@ end note
 - P0.2（2026-11-08，v0.93.2）：镜像可追溯。新增 `deploy/local/digests.sh`（从两份 compose 解析 7 个镜像并记录 digest，`--out` 追加带时间戳的表），README 补用法与演练步骤。演练：记录 → `up.sh --profile obs`（edge / blue / Prometheus / Grafana 四处 200，两条探测结果均为 1）→ `clean build --rerun-tasks`（**1695 tests / 0 failures / 1 skipped**）→ 再记录：7 个镜像 digest 完全一致，只有本地构建的 `ctt-server-app` 镜像 id 随重建变化（预期）
 - P0.3（2026-11-08，v0.93.4）：构建上下文收口。新增 `.dockerignore`，排除 `.git` / `build` / `.env*` / `.plans` / `memory-bank` / `docs` / `dev-docs` 与 AI 工作区、编辑器状态，保留生产构建所需的 `gradle/`、`gradlew`、构建脚本与 `src/`，以及本地镜像的 `build/local-image/app.jar`。实测复制进镜像的上下文：**249.44 MB → 4.06 MB**（不含暂存 jar）、**92.16 MB**（含 88 MB jar）
 - P0.4（2026-11-08，v0.93.5）：compose 加固。两份 compose 用 `x-hardening` 锚点统一 `restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 日志轮转（10m × 3），逐服务补 `mem_limit` / `cpus` / tmpfs；能力按 entrypoint 精确加回：postgres `CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID`，redis `CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID`（后者无 FOWNER，SETPCAP 供 setpriv 收窄 bounding set）。生产镜像 ENTRYPOINT 同步补 `-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=20`，与 900m 上限对齐。9 个容器 `docker inspect` 逐项核对通过，edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条探测结果为 1
-- P0.5（2026-11-08，v0.93.6）：密钥改 Compose secrets。仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml`，`.sops.yaml` 只放 age 公钥），`render.sh` 先解密到临时目录再替换（失败不破坏旧文件）、写出 0400 文件，`up.sh` 与 `Jenkinsfile` 在起栈前调用；应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除。frp token 由 `frp-token.sh` 在接入机渲染为 600 文件（见 `docs/deployment-secrets.md`）
-- 尚未做：P0.6–P0.7、P0.9 的 systemd 化、P0.15、P0.16，以及 P1–P7
+- P0.5（2026-11-08，v0.93.6）：密钥改 Compose secrets。仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml`，`.sops.yaml` 只放 age 公钥），`render.sh` 先解密到临时目录再替换（失败不破坏旧文件）、写出 0400 文件，`up.sh` 与 `Jenkinsfile` 在起栈前调用；应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除。frp token 由 `frp-token.sh` 在接入机渲染为 600 文件（见 `docs/deployment-secrets.md`）。**尚未完成的收尾见阶段表 P0.17 与 P0.16**
+- P0.6（2026-11-08，v0.93.7）：审计载荷收口。`ctt.security.audit.log-payloads` / `masked-fields` 无生产读取方（仅绑定测试），已连同 base/prod 两份受版本控制的 YAML 的 `audit` 块与 `SecurityProperties.AuditProperties` 一起删除（`application-local.yaml` 被 gitignore，仅本地改动）；`docs/security-architecture.md` 增「Audit Storage Boundary」：审计永不存请求体，`details` 只应承载动作/资源/原因/状态，**现有写入点仍有姓名/邮箱等待收口（P0.6b）**。验证：定向测试全绿；实跑 `POST /auth/login`，审计行仅 `{"reason":"Invalid email or password","errorCode":"AUTH_001"}`，全库检索请求体中的密码串 = 0；全量 1691 tests / 0 failures
+- 未完成项**只以阶段表的状态列为准**（⬜ 未开工 / 🚧 部分完成）；已完成项回填版本与证据，本节不再另设清单
+
 
 **目标：** 五个能力，各自可判定。
 
@@ -2353,8 +2355,9 @@ end note
 | | P0.2 ✅ | 镜像**一律 `latest`**（始终最新，含大版本）。可追溯性由 `deploy/local/digests.sh` 承担：解析两份 compose 的 7 个镜像、记录 digest，`--out` 追加到部署记录；升级演练前后各记录一次并比对 | 部署记录有 7 个镜像的 digest；演练前后本地全栈四处 200、全量 1695 tests / 0 failures / 1 skipped | 低 |
 | | P0.3 ✅ | `.dockerignore` 覆盖 `.git`、`build`、`.env`、`.plans`、`memory-bank`、`docs`，并排除 AI 工作区与编辑器状态；保留生产构建所需的 `gradle/`、`gradlew`、构建脚本、`src/`，以及本地镜像的 `build/local-image/app.jar` | 实测复制进镜像的上下文 249.44 MB → 4.06 MB（不含暂存 jar）/ 92.16 MB（含 88 MB jar）；生产构建前置文件校验通过 | 低 |
 | | P0.4 ✅ | compose 加固：两份文件共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、日志 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 加回 CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID（无 FOWNER）；生产镜像 ENTRYPOINT 补堆上限标志 | 9 个容器 `docker inspect` 逐项核对：restart、45s、mem、nano cpus、日志选项、只读根、tmpfs、cap_drop/cap_add、安全选项全部命中；六处端点 200、两条探测为 1 | 中 |
-| | P0.5 ✅ | 密钥改 Compose secrets：仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml` + `.sops.yaml` 的 age 公钥），`render.sh` 先解密到临时目录再替换成 0400 文件，`up.sh` / `Jenkinsfile` 起栈前调用；应用走 configtree、PostgreSQL 走 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 写 tmpfs 配置并 `setpriv` 降权、Grafana 走 `GF_SECURITY_ADMIN_PASSWORD__FILE`；frp token 由 `frp-token.sh` 在接入机渲染成 600 文件（`docs/deployment-secrets.md`） | 运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 0400 且容器用户可读；缺渲染文件时 Compose 拒绝创建容器（bind source 不存在）；缺 age 身份或密钥错误时 `render.sh` 退出 1 且旧文件保留；Redis 进程参数只有 `redis-server *:6379`；缺/空 JWT 键启动失败 | 中 |
-| | P0.6 | prod 关审计载荷（`log-payloads: false`），保留动作与资源标识。**现状证据**：`application-prod.yaml` 里仍是 `log-payloads: true` | 新审计记录不含请求体 | 低 |
+| | P0.5 ✅ | 密钥改 Compose secrets：仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml` + `.sops.yaml` 的 age 公钥），`render.sh` 先解密到临时目录再替换成 0400 文件，`up.sh` / `Jenkinsfile` 起栈前调用；应用走 configtree、PostgreSQL 走 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 写 tmpfs 配置并 `setpriv` 降权、Grafana 走 `GF_SECURITY_ADMIN_PASSWORD__FILE`；frp token 由 `frp-token.sh` 在接入机渲染成 600 文件（`docs/deployment-secrets.md`）。**收尾（token 值、Linux 实测）归 P0.17** | 运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 0400 且容器用户可读；缺渲染文件时 Compose 拒绝创建容器（bind source 不存在）；缺 age 身份或密钥错误时 `render.sh` 退出 1 且旧文件保留；Redis 进程参数只有 `redis-server *:6379`；缺/空 JWT 键启动失败 | 中 |
+| | P0.6 ✅ | **评估后删除未接线的审计载荷开关**。`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方（仅绑定测试）；多维度评估（引入意图、实现代价、账号删除冲突、体积、脱敏可靠性、OWASP/GDPR/ASVS）结论是**不引入请求体审计**，理由与替代方案见 `docs/decisions/ADR-0001-audit-payload-boundary.md`；base/prod 两份受版本控制的 YAML（`application-local.yaml` 被 gitignore）与 `SecurityProperties` 删除该块，审计 `details` 仍只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext。脱敏可靠性实测：正则可掩码普通字符串，但不是 JSON 感知（`pwd` / `otp` / `apiKey` 漏，空值/对象值会破坏文本），不能当作载荷掩码器 | `grep` 证明无生产消费者；定向测试通过；实跑 `POST /auth/login`（body 含 `password`）审计行只有 `reason`/`errorCode`，全库检索该密码串 = 0；全量 1691 tests / 0 failures | 低 |
+| | P0.6b ⬜ | **审计内容最小化**：`details` / `resource_id` 不再写姓名、邮箱、passkey 标签、原始 SMTP 错误；`TokenRefresh` 去掉重复的 IP / UA；只保留 action、资源 id、布尔、枚举、计数。历史行与 IP / UA 的保留期需运维/合规确认后配置清理任务 | 单测断言 details 不含姓名 / 邮箱；全量测试通过；grep 审计写入点无自由文本个人数据；在生产库只读实测一次 `audit_logs` 行数与大小，确认量级 | 中 |
 | | P0.7 | health 分组：liveness 不依赖数据库、readiness 含数据库与 Redis；compose 与健康检查改打 readiness | 停库演练：readiness `OUT_OF_SERVICE`、liveness `UP` | 中 |
 | | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）—— unit + 开机自启，顺带轮换 token、强制 TLS、加端口白名单、配置改 600 | 重启接入机后隧道自动恢复 | 中 |
 | | P0.9 🚧 | **frpc 改 systemd**（部署机）：**部分完成**——已用用户 crontab `@reboot` 兜底（进程已存在则跳过）；systemd unit 需 sudo 密码 | 重启部署机后隧道自动恢复（当前靠 cron，开机后约 20 s） | 中 |
@@ -2364,7 +2367,8 @@ end note
 | | P0.13 | 数据面收口：部署机 **ufw 已安装未启用**（`ENABLED=no`），PG/Redis 现对整段 LAN 开放 ⇒ 启用 ufw（或 nftables）只放行本子网，PG/Redis 绑部署机 LAN 地址，生产容器走 `127.0.0.1`；sudo 需要密码，实施时需你在场 | LAN 外不可达；LAN 内开发仍可用 | 中 |
 | | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
 | | P0.15 | 时钟与日志上限：两机 `chrony`；nginx 与 journald 的日志上限（含轮转策略） | 时钟偏差 < 1 s；日志目录占用有上限 | 中 |
-| | P0.16 | **生产配置收口**：`springdoc.api-docs` 与 `swagger-ui` 在基础配置里开着、prod 未覆盖 ⇒ 生产会暴露接口文档；CORS 仍有占位域 `https://ctt.example.com`；`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认为空且 prod 不校验 ⇒ OAuth 生产静默不可用。与 P7.4 的验证码一起收敛成「生产必填配置启动校验」：缺项直接启动失败 | 生产 `/swagger-ui.html` 与 `/v3/api-docs` 返回 404；CORS 无占位域；缺任一必填项时启动失败 | 中 |
+| | P0.16 | **生产配置收口**：`springdoc.api-docs` 与 `swagger-ui` 在基础配置里开着、prod 未覆盖 ⇒ 生产会暴露接口文档；CORS 仍有占位域 `https://ctt.example.com`；`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认为空且 prod 不校验 ⇒ OAuth 生产静默不可用；**生产密钥（DB / Redis / JWT / OAuth / Grafana / Resend）仍是开发值**，需换成生产值并写入 SOPS 载荷。与 P7.4 的验证码一起收敛成「生产必填配置启动校验」：缺项直接启动失败 | 生产 `/swagger-ui.html` 与 `/v3/api-docs` 返回 404；CORS 无占位域；缺任一必填项时启动失败；载荷中不再有开发值 | 中 |
+| | P0.17 ⬜ | **密钥收尾与真实宿主验证**：把 `FRP_TOKEN` 写入 SOPS 载荷，用 `frp-token.sh` 在接入机渲染 `600` 文件并重启 frp；在 Linux 部署机确认容器用户能读 `/run/secrets`（不可读时 `render.sh --mode 0440`），结论回填 P0.5 | 载荷含 `FRP_TOKEN`；接入机 token 文件 `600` 且隧道正常；Linux 上容器可读 secrets | 低 |
 | P1 指标与追踪 | P1.1 | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ `management.server.port=8081` 且 **`management.server.address=127.0.0.1`**；应用端口不再暴露 metrics | `ActuatorSurfaceTest` 固定两端口暴露面 | 中 |
 | | P1.2 | 5 个业务指标（同步计数与耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量），标签基数 ≤3 | 指标存在性 + 标签集合断言 | 中 |
 | | P1.3 | 追踪：Micrometer Tracing + OTLP，透传 W3C `traceparent`，保留 `traceId`；生产 10% 采样 | 一次请求在 Tempo 可见完整 span，日志可按 `traceId` 聚合 | 高 |
@@ -2373,7 +2377,7 @@ end note
 | P2 告警与面板 | P2.1 | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计增长率；另加隧道中断与证书 14 天到期；先 `severity: info` | `promtool check rules` 通过 | 中 |
 | | P2.2 | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康） | 新环境起栈后面板自动出现 | 中 |
 | | P2.3 | 值班路径：Alertmanager → 邮件 + webhook；外部拨测只测可用性；静默与升级流程写进 runbook | 手动触发一条测试告警并收到通知 | 低 |
-| P3 发布链 | P3.1 | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明 | PR 红/绿可判定；人为坏用例能挡住合并 | 中 |
+| P3 发布链 | P3.1 | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明；**CI 节点持有 age 身份**，流水线内 `render.sh` 成功（当前 Jenkins 只加了调用，未验证） | PR 红/绿可判定；人为坏用例能挡住合并；Jenkins 构建不再依赖明文 `.env` | 中 |
 | | P3.2 | 镜像发布：GHCR 按 digest 部署，Renovate 管依赖与基础镜像 | 部署清单里是 digest | 中 |
 | | P3.3 | 边缘转发：nginx 设 `X-Forwarded-For` **与 `X-Forwarded-Proto: https`**；edge 侧显式 `header_up X-Forwarded-Proto https`（不写会被改写成 http）；请求体与超时限制、`limit_req`、`return 503` | 外部只走 443；`getRealIp` 与 `isSecureRequest` 都返回真实值 | 高 |
 | | P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察 + 一键回滚；压测下验证零 5xx | 压测中发布一轮，5xx = 0 | 高 |
@@ -2414,9 +2418,11 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.3–P0.7、P0.11–P0.13、P0.15、P0.16、P1、P2、P3、P4、P5、P6、P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。这些都要改代码或改部署，尚未开始。
+**未开工**：P0.7、P0.11–P0.13、P0.15–P0.17、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
+
+> 本表是 2026-11-07 的审计快照，每条已按「归属」并入阶段表；**状态以阶段表为准**，此处只保留证据与当时的判断。
 
 > 把整个仓库扫了一遍（配置、构建、安全、数据、可观测、文档），只列**计划里原先没有**的缺口；已达标项另列，避免以后重复讨论。
 
@@ -2429,7 +2435,8 @@ end note
 | 无依赖校验元数据与锁定 | 无 `gradle/verification-metadata.xml`、无 lockfile | P3.7 |
 | 日志无用户维度 | MDC 只有 `traceId` / `clientIp` / `method` / `uri` / `deviceId` / `platform` | P1.5 |
 | 缺漏洞上报渠道 | 仓库无 `SECURITY.md` | P6.4 |
-| 生产审计仍写请求体 | `application-prod.yaml` 的 `log-payloads: true` | P0.6（已有，补证据） |
+| ~~生产审计写请求体~~（配置声明了未实现的能力） | `log-payloads` 无生产读取方；评估后决定不引入该能力（ADR-0001），P0.6 已删除开关与两份受版本控制的 YAML | P0.6 ✅ |
+| 审计 `details` / `resource_id` 含个人数据 | `PROFILE_UPDATED` 写旧/新显示名；passkey 注册/改名/删除写标签；`MAIL_IDEMPOTENT_SKIP` 的 resource_id 是原始收件邮箱；邮件审计写 `recipientMasked` 与可能含地址的 `lastError` | P0.6b |
 
 **已达标（记录，不再重复讨论）**
 
@@ -2568,6 +2575,8 @@ sequenceDiagram
 > 说明：Resend 的额度、速率与投递日志字段以其控制台为准，不在此照抄数字；P4.5 用 20 封自测确认日限与突发行为。当前 outbox 没有 provider message id 字段，先按「收件人 + 时间 + 主题」对齐日志；是否新增列另按迁移成本评估（R12 / R22）。
 
 **验收标准：**
+
+> 本节是**验收口径**（怎样算完成），不是待办清单；未完成项与状态只看阶段表。
 
 - [ ] 公网只能访问 443；`18080` 从公网被拒，`/ctt-server/actuator/prometheus` 不可从公网达，回环 8081 返回指标文本且含 5 个业务指标名
 - [ ] `ActuatorSurfaceTest` 断言两端口暴露面并在 CI 中执行
