@@ -16,7 +16,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-08 / v0.93.7（v0.93.1–v0.93.7 都是行为、部署、加固、密钥通道与审计边界，依赖未变；上一次依赖核对为 2026-11-07 / v0.93.0，含 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-08 / v0.93.8（v0.93.8 删除无生产使用的 `MaskSerializer`，依赖未变；上一次依赖核对为 2026-11-07 / v0.93.0，含 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0）。
 
 ## 架构
 

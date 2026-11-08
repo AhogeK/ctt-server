@@ -4,9 +4,9 @@
  - 核查:`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方(仅绑定测试);`AuditDetails` 只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext
  - 决策:不是「无消费者就删」,而是先问「要不要这个能力」→ **不引入请求体审计**。依据:审计行 `ON DELETE SET NULL` 会永久保留用户内容,与注销承诺冲突;生产脱敏是文本正则,不是 JSON 掩码(`pwd` / `otp` / `apiKey` 不匹配,空值/对象值会被破坏);`SyncPushRequest` 单次最多 1000 会话;ASVS 16.3.2 要求访问审计不记录敏感数据,GDPR 5(1)(c)(e)/17(1)(a) 要求最小化与可删除。完整分析见 `docs/decisions/ADR-0001-audit-payload-boundary.md`
  - 交付:删除 `AuditProperties` 与 base/prod 两份受版本控制的 YAML 的 audit 块(`application-local.yaml` 被 gitignore,仅本地改动),修正 5 处测试构造器与 `SecurityPropertiesTest`;`security-architecture` 增 Audit Storage Boundary;`audit-boundary-spec` 增「不存请求体」规则;AGENTS R9 改为「先追溯意图再决定接线或删除」
- - 验证:compile + 定向测试全绿;实跑 local profile 的 `POST /auth/login`(body 含 `password`),审计行只有 `{"reason":"Invalid email or password","errorCode":"AUTH_001"}`,全库检索该密码串 = 0;全量 1691 tests / 0 failures
+ - 验证:compile + 定向测试全绿;实跑 local profile 的 `POST /auth/login`(body 含 `password`),审计行只有 `{"reason":"Invalid email or password","errorCode":"AUTH_001"}`,全库检索该密码串 = 0;全量 1691 tests / 0 failures(P0.6 批次;v0.93.8 删除 `MaskSerializerTest` 后为 1687 tests / 0 failures / 1 skipped)
  - 后续(P0.6b):边界尚未完全落地——`PROFILE_UPDATED` 写旧/新显示名,passkey 写标签,`MAIL_IDEMPOTENT_SKIP` 的 resource_id 是原始邮箱,邮件审计写 `recipientMasked` 与可能含地址的 `lastError`,`TokenRefresh` 重复写 IP/UA;这些会随审计行在注销后保留。计划改为只写 action/资源 id/布尔/枚举/计数,并另定 IP/UA 的保留期
- - 复审(双轴):ADR 证据曾用 `Matcher.replaceAll` 冒充 `MaskingMessageConverter.mask()`——已修正为真实行为(`newPassword` 正确掩码;空值/对象值才破坏文本);`MaskSerializer` 保留为可选工具(文档不再宣称已启用);计划 P0.6b 的状态、顺序与生产量级验收已补齐
+ - 复审(双轴):ADR 证据曾用 `Matcher.replaceAll` 冒充 `MaskingMessageConverter.mask()`——已修正为真实行为(`newPassword` 正确掩码;空值/对象值才破坏文本);无生产使用的 `MaskSerializer` 已在 v0.93.8 删除,文档改为两层;计划 P0.6b 的状态、顺序与生产量级验收已补齐
 - [2026-11-08] - P0.5 密钥改 Compose secrets（v0.93.6）
     - 交付：`.sops.yaml`（只放 age 公钥）+ `deploy/secrets/secrets.enc.yaml`（6 个键，仅密文）+ `render.sh`（解密成 0400 文件，`--mode` 可改，输出目录有护栏，重跑会先清旧文件）+ `frp-token.sh`（接入机渲染 600 文件）+ `run/` 加入 gitignore；`up.sh` 与 `Jenkinsfile` 起栈前调用渲染
     - compose：应用走 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置里的 `${...}` 引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除
@@ -44,7 +44,7 @@
     - 纠偏（以代码为准）：锁定 / OAuth / API Key 三处的枚举别名与 HTTP 码（`AUTH_004/013/015/016/017/018`；`AUTH_012` 是 403）、OAuth 账号端点 `/auth/oauth/accounts`、导出契约（单 JSON + `ctt-export-<yyyy-MM-dd>.json` + `exportVersion 1.0` + `serverExport` 分块）、JUnit 5 → 6、H 章「需创建」→ 已交付、章节标题状态标记、中英混排条目
     - 校验：表格列数一致、代码围栏配平、无重复 H2、无 TODO/占位、两个子计划链接可达；未改代码与版本号
 - [2026-11-08] - P0.1 prod 日志脱敏生效（v0.93.1，已提交 `7749ac7`；版本 `709b098`）
-    - 根因（两处，评审核实）：① prod 用 `JsonEncoder`，而 `MaskingMessageConverter` 只挂在 console 的 `%maskedMsg` 上 ⇒ 生产 JSON 绕过第三层脱敏；② JSON 把 `arguments` 与 `kvpList` 当**独立字段**输出——`RequestLoggingFilter` 用 `addKeyValue("query_string", …)` 记整条查询串，`/verify-email?token=…` 的凭据在正常流程上就进了日志
+    - 根因（两处，评审核实）：① prod 用 `JsonEncoder`，而 `MaskingMessageConverter` 只挂在 console 的 `%maskedMsg` 上 ⇒ 生产 JSON 绕过 pattern 级脱敏；② JSON 把 `arguments` 与 `kvpList` 当**独立字段**输出——`RequestLoggingFilter` 用 `addKeyValue("query_string", …)` 记整条查询串，`/verify-email?token=…` 的凭据在正常流程上就进了日志
     - 交付：`MaskingMessageConverter.mask()` 抽成静态共享（用 `(?!\{\})` 前置断言保住模板里的 `{}`，而不是把 `{` 排除出值字符类——那会让 `cookie={sessionId=…}` 完全不再匹配）；新增 `MaskingJsonEncoder`——掩码 formatted 文本并将其作为 `message` 输出、掩码 `kvpList` 字符串值、一旦文本命中就丢弃 `arguments`，未命中则原样交给 `JsonEncoder`；`logback-spring.xml` 的 prod encoder 切换
     - 验证：`MaskingJsonEncoderTest` 4 例（含 kvp/query_string 与占位符两例）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过；prod profile 实跑——请求 `/api/v1/auth/verify-email?token=leakcheck123` 后，访问日志里是 `"query_string":"token=******"`，全行无 token 原文
     - 文档：`docs/security-architecture.md` 三层防线表与说明改准（写明命中事件的 `arguments` 会被省略、MDC 与 throwable 未覆盖）；`systemPatterns` 的「结构化日志不能沿用 pattern 级脱敏」补上 `arguments`/`kvpList` 两条独立通道
