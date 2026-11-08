@@ -742,6 +742,11 @@ free-text provider errors.
 The same rule applies to `resource_id`: it identifies the resource without exposing an email
 address or any key derived from one.
 
+Retention is controlled by `ctt.audit.retention.days` (default 0, keep every row). The scheduled
+`AuditRetentionJob` deletes older whole rows in bounded batches once operations/compliance has
+recorded a period; it does not redact IP/UA while keeping the event, so the sign-off must accept
+that trade-off. No application default deletes audit evidence.
+
 A former `ctt.security.audit.log-payloads` switch had no production consumer (only a binding test)
 and was removed in v0.93.7 rather than left as a misleading knob. Body capture was evaluated and
 rejected: audit rows survive account deletion, the only masking is text-oriented rather than

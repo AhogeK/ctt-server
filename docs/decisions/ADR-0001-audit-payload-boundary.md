@@ -41,7 +41,7 @@ A configuration switch for this capability is not kept. A flag with no consumer 
 operators that the capability exists; it is worse than no flag, because it invites reliance on a
 control that never ran.
 
-## Resolution (v0.93.9)
+## Resolution (v0.93.9, retention v0.94.0)
 
 The writers named here were changed in P0.6b, so the boundary is now enforced by the current code:
 
@@ -55,9 +55,10 @@ The writers named here were changed in P0.6b, so the boundary is now enforced by
   email is not stored.
 - `RateLimitAspect` logs the actor id (or null), never the email-keyed Redis cache key.
 
-Retention of the remaining security metadata (IP, User-Agent, timestamps) and of historical rows
-still needs a defined period, a cleanup job and operations/compliance sign-off. That remains an
-explicit open item; it is not part of the code change.
+Retention is enforced by `AuditRetentionJob` when `ctt.audit.retention.days` is positive. The
+default is 0 (keep indefinitely) because the period is an operations/compliance decision; the
+scheduled job deletes older rows in bounded batches. It removes the whole row, not just IP/UA;
+the sign-off must accept that trade-off. Historical rows therefore await that decision.
 
 
 ## Alternatives considered
