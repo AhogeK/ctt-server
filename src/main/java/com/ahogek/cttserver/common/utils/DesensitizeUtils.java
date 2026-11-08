@@ -6,7 +6,7 @@ import java.util.Set;
  * Sensitive data desensitization utility.
  *
  * <p>Provides masking methods for headers, emails, passwords, tokens, and other sensitive
- * information. This is the first line of defense in the three-layer desensitization architecture.
+ * information. This is the first line of defense in the two-layer desensitization architecture.
  *
  * <p><strong>Usage in RequestLoggingFilter:</strong>
  *
@@ -16,12 +16,11 @@ import java.util.Set;
  * log.atDebug().addKeyValue("header_Authorization", maskedValue).log("Request header");
  * }</pre>
  *
- * <p><strong>Three-Layer Defense:</strong>
+ * <p><strong>Two-Layer Defense:</strong>
  *
  * <ul>
  *   <li>Layer 1 (Filter): Use this utility to mask headers before logging
- *   <li>Layer 2 (DTO): {@code MaskSerializer} is available for a field that may be serialised
- *   <li>Layer 3 (Global): Logback {@code MaskingMessageConverter} provides regex-based fallback
+ *   <li>Layer 2 (Global): Logback {@code MaskingMessageConverter} provides regex-based fallback
  * </ul>
  *
  * @author AhogeK [ahogek@gmail.com]

@@ -45,7 +45,7 @@ CTT Server implements a defense-in-depth security architecture following OWASP g
 ├─────────────────────────────────────────────────────────┤
 │  Layer 6: Audit & Monitoring                             │
 │  - Structured audit events (five-tuple model)            │
-│  - Log message desensitization (three-layer defense)     │
+│  - Log message desensitization (two-layer defense)     │
 │  - Trace ID correlation                                  │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -718,13 +718,12 @@ All security-relevant events are recorded using a five-tuple model:
 | **Security**    | `RATE_LIMIT_EXCEEDED`, `UNAUTHORIZED_ACCESS`, `CSRF_VIOLATION`                                                                           |
 | **Terms**       | `TERMS_ACCEPTED`                                                                                                                         |
 
-### Log Desensitization (Three-Layer Defense)
+### Log Desensitization (Two-Layer Defense)
 
 | Layer     | Component                       | Mechanism                                         |
 |-----------|---------------------------------|---------------------------------------------------|
 | 1. Filter | `DesensitizeUtils.maskHeader()` | Masks Authorization headers in HTTP logging       |
-| 2. DTO    | `MaskSerializer`                | Available for a field that may be serialised |
-| 3. Global | `MaskingMessageConverter` (console) / `MaskingJsonEncoder` (production JSON) | Regex-based fallback for hardcoded sensitive data. The console path masks the formatted message; the JSON path masks the formatted message plus the string values of key/value pairs (`kvpList`), which a pattern never sees |
+| 2. Global | `MaskingMessageConverter` (console) / `MaskingJsonEncoder` (production JSON) | Regex-based fallback for hardcoded sensitive data. The console path masks the formatted message; the JSON path masks the formatted message plus the string values of key/value pairs (`kvpList`), which a pattern never sees |
 
 Protected patterns: `password`, `passwd`, `token`, `authorization`, `cookie`, `secret`.
 

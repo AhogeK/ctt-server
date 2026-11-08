@@ -4,14 +4,13 @@
  * <p>This package contains infrastructure configuration including:
  *
  * <ul>
- *   <li>Jackson: JSON serialization configuration and custom serializers (e.g., {@code
- *       MaskSerializer})
+ *   <li>Jackson: JSON serialization configuration
  *   <li>Logging: Logback converters and filters for structured logging
  *   <li>Security: Spring Security configuration
  *   <li>Web: WebMvc configuration and interceptors
  * </ul>
  *
- * <h2>Three-Layer Data Desensitization Architecture</h2>
+ * <h2>Two-Layer Data Desensitization Architecture</h2>
  *
  * <p>To comply with GDPR and personal information protection laws, sensitive data must never appear
  * in logs in plain text. We implement defense in depth:
@@ -24,16 +23,7 @@
  *   <li>Usage: Call {@code maskHeader()} in filters or controllers
  * </ul>
  *
- * <h3>Layer 2: DTO Layer (Domain)</h3>
- *
- * <ul>
- *   <li>Location: {@link com.ahogek.cttserver.common.config.jackson.MaskSerializer}
- *   <li>Purpose: Mask sensitive fields during JSON serialization
- *   <li>Usage: {@code @JsonSerialize(using = MaskSerializer.class)} on a field that may be
- *       serialised
- * </ul>
- *
- * <h3>Layer 3: Global Layer (Framework)</h3>
+ * <h3>Layer 2: Global Layer (Framework)</h3>
  *
  * <ul>
  *   <li>Location: {@link com.ahogek.cttserver.common.config.logging.MaskingMessageConverter}
