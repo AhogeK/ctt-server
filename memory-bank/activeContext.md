@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-08] - P0.6 审计载荷开关：评估后删除(v0.93.7)
+ - 核查:`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方(仅绑定测试);`AuditDetails` 只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext
+ - 决策:不是「无消费者就删」,而是先问「要不要这个能力」→ **不引入请求体审计**。依据:审计行 `ON DELETE SET NULL` 会永久保留用户内容,与注销承诺冲突;生产脱敏是文本正则,不是 JSON 掩码(`pwd` / `otp` / `apiKey` 不匹配,空值/对象值会被破坏);`SyncPushRequest` 单次最多 1000 会话;ASVS 16.3.2 要求访问审计不记录敏感数据,GDPR 5(1)(c)(e)/17(1)(a) 要求最小化与可删除。完整分析见 `docs/decisions/ADR-0001-audit-payload-boundary.md`
+ - 交付:删除 `AuditProperties` 与 base/prod 两份受版本控制的 YAML 的 audit 块(`application-local.yaml` 被 gitignore,仅本地改动),修正 5 处测试构造器与 `SecurityPropertiesTest`;`security-architecture` 增 Audit Storage Boundary;`audit-boundary-spec` 增「不存请求体」规则;AGENTS R9 改为「先追溯意图再决定接线或删除」
+ - 验证:compile + 定向测试全绿;实跑 local profile 的 `POST /auth/login`(body 含 `password`),审计行只有 `{"reason":"Invalid email or password","errorCode":"AUTH_001"}`,全库检索该密码串 = 0;全量 1691 tests / 0 failures
+ - 后续(P0.6b):边界尚未完全落地——`PROFILE_UPDATED` 写旧/新显示名,passkey 写标签,`MAIL_IDEMPOTENT_SKIP` 的 resource_id 是原始邮箱,邮件审计写 `recipientMasked` 与可能含地址的 `lastError`,`TokenRefresh` 重复写 IP/UA;这些会随审计行在注销后保留。计划改为只写 action/资源 id/布尔/枚举/计数,并另定 IP/UA 的保留期
+ - 复审(双轴):ADR 证据曾用 `Matcher.replaceAll` 冒充 `MaskingMessageConverter.mask()`——已修正为真实行为(`newPassword` 正确掩码;空值/对象值才破坏文本);`MaskSerializer` 保留为可选工具(文档不再宣称已启用);计划 P0.6b 的状态、顺序与生产量级验收已补齐
 - [2026-11-08] - P0.5 密钥改 Compose secrets（v0.93.6）
     - 交付：`.sops.yaml`（只放 age 公钥）+ `deploy/secrets/secrets.enc.yaml`（6 个键，仅密文）+ `render.sh`（解密成 0400 文件，`--mode` 可改，输出目录有护栏，重跑会先清旧文件）+ `frp-token.sh`（接入机渲染 600 文件）+ `run/` 加入 gitignore；`up.sh` 与 `Jenkinsfile` 起栈前调用渲染
     - compose：应用走 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置里的 `${...}` 引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除
@@ -7,6 +14,7 @@
     - 文档与规则：新增 `docs/deployment-secrets.md`（初始化/日常/轮换/frp token/Linux 可读性/验证），README 快速开始与配置段、文档索引、`.env.example` 抬头同步；`AGENTS.md` R9 增「容器密钥只走 Compose secrets」
     - 复审修复（双轴）：`.dockerignore` 补 `deploy/secrets`（此前解密文件会进构建上下文）；`render.sh` 重跑不再因 0400 写入失败、并清理已移除的键；README 快速开始补渲染步骤；Jenkinsfile 补渲染；Redis 口令改为配置文件 + `setpriv`；Grafana 口令 secret 化
     - 复审二期修复（Standards 轴）：`render.sh` 改为**先解密到临时目录、成功后才替换**（旧版先删后解密，密钥错误会清掉上一份可用文件），并把解密结果写到独立目录避免把合并明文带进 `run/`；新机器文档不再教 `age-keygen` 后直接 `updatekeys`（没有已授权身份无法解开数据密钥）；计划/AGENTS 的 Redis 描述改为 wrapper + `setpriv`、补 Grafana 消费者
+    - 未闭环项**不再单设清单**，按阶段归入阶段表：P0.17（`FRP_TOKEN` 值 + Linux 上 0400 可读性实测）、P0.16（生产密钥从开发值换生产值）、P3.1（CI 节点须持有 age 身份）；`docs/deployment-secrets.md` 同步指向这些条目。教训：待办只能有一处真相，散落的「滚动清单」会让状态无法快速聚焦
 - [2026-11-08] - P0.4 compose 加固（v0.93.5）
     - 交付：两份 compose 共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 再加 SETPCAP
     - 实测：9 个容器 `docker inspect` 逐项命中；edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条外部探测结果为 1；演练后停掉其余容器，只保留 Mailpit

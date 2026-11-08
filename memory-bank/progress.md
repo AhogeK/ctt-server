@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.93.1`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.93.7`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流 |
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.93.7` | 2026-11-08 | fix(audit): remove the never-wired payload switch |
 | `0.93.6` | 2026-11-08 | feat(deploy): move credentials to SOPS-backed Compose secrets |
 | `0.93.5` | 2026-11-08 | chore(compose): harden every local service (read-only, caps, limits, logs) |
 | `0.93.4` | 2026-11-08 | chore(build): keep the Docker context to build inputs |
@@ -116,6 +117,7 @@
 | 错误监控（Sentry 等） | 依赖与代码中无集成 | 未做 |
 | CI 流水线 | 无 `.github/workflows/` | 未做 |
 | 部署脚本配套 | 本地 `docker-compose.yaml` 已有；生产编排/自动化部署脚本未落地 | 部分完成 |
+| 审计 details 个人数据收口 | 计划阶段表 P0.6b ⬜ | 未做 |
 
 旧 `progress.md` 中列出的「CodingSession 数据模型 / SyncCursor / SyncPullService / SyncPushService /
 ConflictResolver(LWW) / Redis ZSet 排行榜」**均已交付**（v0.45–v0.73），当时清单已过期；其原文在归档中保留。

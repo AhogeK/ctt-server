@@ -61,6 +61,10 @@ state, devices, API keys, refresh tokens, OAuth links — while the audit trail 
 `audit_logs` uses `ON DELETE SET NULL`, keeping the events with the account reference cleared (the
 `ACCOUNT_DELETED` event carries the deleted id as its `resource_id`, since its `user_id` cannot).
 
+That survival is only acceptable while `details` carry security facts, not user content. The
+remaining writers that still carry names, emails or provider error text are tracked as P0.6b
+(see [ADR-0001](../../../docs/decisions/ADR-0001-audit-payload-boundary.md)).
+
 Deleting the row rather than marking it (`status = 'DELETED'`) is the deliberate part: a hand-written
 list of tables to clean up rots silently, missing whichever table is added next, while a cascade
 cannot. Anonymizing the row was the earlier candidate and it was rejected as incomplete — it cleared
