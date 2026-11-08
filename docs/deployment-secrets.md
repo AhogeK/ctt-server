@@ -21,6 +21,11 @@ The encrypted payload currently carries `POSTGRES_PASSWORD`, `REDIS_PASSWORD`,
 Add keys with `sops deploy/secrets/secrets.enc.yaml`: it decrypts in memory, opens `$EDITOR`
 and re-encrypts on save.
 
+Two limits are deliberate and live in the plan's phase table, not only here: the payload currently
+holds **local development values** (production values land with P0.16), and `FRP_TOKEN` is **not in
+it yet** — `frp-token.sh` fails with "not in payload" until the token is added (P0.17). Do not
+assume either is in place on a production host.
+
 ## Setup on a new machine
 
 An age keypair alone cannot open an existing payload: SOPS needs one identity that is already a
