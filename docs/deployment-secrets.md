@@ -126,4 +126,4 @@ docker exec ctt-app-blue ls -l /run/secrets
 ```
 
 The acceptance for this work is exactly those two checks plus a healthy
-`/actuator/health`, with the missing-file case reproduced at least once.
+`/actuator/health/readiness`, with the missing-file case reproduced at least once.
