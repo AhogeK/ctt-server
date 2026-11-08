@@ -68,6 +68,12 @@ public enum ErrorCode {
 
 ## Adding Audit Events
 
+**Details boundary.** Details carry security facts (reason, error code, state, counts, IDs), never
+request or response bodies, display names, email addresses, credentials or free-text provider
+errors. [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md) explains the decision; P0.6b tracks
+the existing writers that still need to be brought in line (profile name, passkey label, mail
+recipient/error).
+
 ### Audit Event Categories
 
 | Category | Description                    | Examples                                                                                    |
