@@ -240,7 +240,8 @@ memory/CPU limits. Anything a service must write goes to a named volume or an ex
 
 The edge serves <http://localhost:18080> and proxies to `app-blue` (`app-blue:8080` inside the
 compose network; `:18081` is only the host-side publish); `app-green` takes
-`:18082` when the `bluegreen` profile is on. Prometheus scrapes itself and probes both health endpoints
+`:18082` when the `bluegreen` profile is on. Prometheus scrapes itself and probes both the edge and
+app-blue readiness endpoints
 through `blackbox_exporter`, and Grafana's provisioned dashboard charts those probes. The
 application's own metrics endpoint arrives with the observability work (P1.1); business-metric
 panels come with it.

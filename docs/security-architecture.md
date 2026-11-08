@@ -206,8 +206,13 @@ public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest requ
 
 The registry also includes system endpoints by default:
 - `/error`
-- `/actuator/health`, `/actuator/info`
+- `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, `/actuator/info`
 - `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**`
+
+**Health check semantics.** `/actuator/health/liveness` reports only `livenessState`.
+`/actuator/health/readiness` includes `readinessState`, `db` and `redis`, and maps `DOWN` or
+`UNKNOWN` to `OUT_OF_SERVICE` with HTTP 503. Compose and the blackbox checks use readiness rather
+than the aggregate root.
 
 ---
 

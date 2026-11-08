@@ -17,6 +17,9 @@ Endpoints accessible without any authentication. High risk of abuse.
     *   `POST /api/v1/auth/refresh`
     *   `GET  /api/v1/config/public`
     *   `GET  /actuator/health/liveness` (Spring Boot Actuator)
+    *   `GET  /actuator/health/readiness` (Spring Boot Actuator)
+*   **Actuator checks**: health endpoints are unauthenticated and are not covered by the
+    application rate limiter.
 *   **Authentication**: None.
 *   **Rate Limiting**: Strictly enforced by **IP Address**.
     *   Low capacity (e.g., 5 requests / minute for login).
