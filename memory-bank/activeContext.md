@@ -1,5 +1,9 @@
 # Active Context
 
+- [2026-11-08] - P0.6b 审计内容最小化(v0.93.9)
+ - 交付:显示名只写 `field`;passkey 注册/改名/删除 details 置空;邮件幂等跳过 `resource_id` 改 `bizId` 并移除 `recipientMasked`;邮件与 SMTP `lastError` 移除;`TokenRefresh` 去掉重复 IP/UA 并收敛签名;`PasswordReset` / `RateLimit` 的 `resource_id` 不再写邮箱;fixtures 与 Audit 契约注释同步
+ - 验证:定向测试通过;全量 1688 tests / 0 failures / 1 skipped;grep 审计写入点无姓名/邮箱/passkey 标签/`recipientMasked`/`lastError`
+ - 未闭环:历史行与 IP/UA 的保留期需运维/合规确认后配置清理任务;生产库 `ctt_server_prod` 在 `.env` 主机不存在,仅开发库 `ctt_server` 只读实测 29,801 行 / 11 MB(参考)
 - [2026-11-08] - P0.6 审计载荷开关：评估后删除(v0.93.7)
  - 核查:`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方(仅绑定测试);`AuditDetails` 只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext
  - 决策:不是「无消费者就删」,而是先问「要不要这个能力」→ **不引入请求体审计**。依据:审计行 `ON DELETE SET NULL` 会永久保留用户内容,与注销承诺冲突;生产脱敏是文本正则,不是 JSON 掩码(`pwd` / `otp` / `apiKey` 不匹配,空值/对象值会被破坏);`SyncPushRequest` 单次最多 1000 会话;ASVS 16.3.2 要求访问审计不记录敏感数据,GDPR 5(1)(c)(e)/17(1)(a) 要求最小化与可删除。完整分析见 `docs/decisions/ADR-0001-audit-payload-boundary.md`

@@ -64,10 +64,9 @@ projection from its single source, so the body a client syncs from matches what 
 
 - A submission equal to the stored value is a successful no-op — no write, **no audit row** — so the
   trail contains only real changes.
-- A real change emits one `PROFILE_UPDATED` (IAM group, `ResourceType.USER`) carrying `field`,
-  `oldValue` and `newValue`. **Boundary (ADR-0001):** details must not carry names or emails; the
-  current `oldValue`/`newValue` pair is a known violation tracked by P0.6b, which reduces it to
-  `field` only. `audit_logs.action` has **no** CHECK constraint (only `resource_type`
+- A real change emits one `PROFILE_UPDATED` (IAM group, `ResourceType.USER`) carrying `field` only.
+  **Boundary (ADR-0001):** details must not carry names or emails; P0.6b removed the old/new values.
+  `audit_logs.action` has **no** CHECK constraint (only `resource_type`
   and `severity` do), so a new action needs no migration.
 - Display names are **not unique**: the schema has no constraint and nothing resolves a user by name.
   `USER_005` ("Display name already taken") therefore stays unused until a real identifier — not a

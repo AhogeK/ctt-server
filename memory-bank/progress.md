@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.93.8`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.93.9`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流 |
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.93.9` | 2026-11-08 | fix(audit): keep personal data out of audit details |
 | `0.93.8` | 2026-11-08 | refactor(audit): drop the unused DTO mask serializer |
 | `0.93.7` | 2026-11-08 | fix(audit): remove the never-wired payload switch |
 | `0.93.6` | 2026-11-08 | feat(deploy): move credentials to SOPS-backed Compose secrets |
