@@ -3,7 +3,11 @@ package com.ahogek.cttserver.audit.repository;
 import com.ahogek.cttserver.audit.entity.AuditLog;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +22,23 @@ import java.util.UUID;
  * @since 2026-03-16
  */
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
+
+    /**
+     * Deletes one bounded batch of audit rows older than the cutoff.
+     *
+     * <p>Must run inside a transaction; {@code AuditRetentionJob} supplies one per batch.
+     *
+     * @param cutoff rows created before this instant are eligible
+     * @param batchSize maximum rows to delete in this statement
+     * @return number of deleted rows
+     */
+    @Modifying
+    @Query(
+            value =
+                    "DELETE FROM audit_logs WHERE id IN"
+                            + " (SELECT id FROM audit_logs WHERE created_at < :cutoff LIMIT :batchSize)",
+            nativeQuery = true)
+    int deleteBatchBefore(@Param("cutoff") Instant cutoff, @Param("batchSize") int batchSize);
 
     List<AuditLog> findByUserId(UUID userId);
 }
