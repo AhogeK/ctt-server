@@ -40,15 +40,12 @@ class AesGcmTokenEncryptorTest {
                         12, 5, Duration.ofMinutes(30), 900, Duration.ofHours(720), "DB");
         SecurityProperties.RateLimitProperties rateLimit =
                 new SecurityProperties.RateLimitProperties(true, 200);
-        SecurityProperties.AuditProperties audit =
-                new SecurityProperties.AuditProperties(true, List.of("password", "token"));
         SecurityProperties.Cors cors = createCorsProperties();
 
         return new SecurityProperties(
                 jwt,
                 password,
                 rateLimit,
-                audit,
                 cors,
                 createOAuthProperties(base64Key),
                 new SecurityProperties.CookieProperties("/api/v1/auth/refresh"),

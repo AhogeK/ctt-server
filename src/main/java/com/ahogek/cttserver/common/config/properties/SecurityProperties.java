@@ -30,7 +30,6 @@ public record SecurityProperties(
         @NotNull JwtProperties jwt,
         @NotNull PasswordProperties password,
         @NotNull RateLimitProperties rateLimit,
-        @NotNull AuditProperties audit,
         @NotNull Cors cors,
         @NotNull OAuthProperties oauth,
         @NotNull CookieProperties cookie,
@@ -73,13 +72,6 @@ public record SecurityProperties(
     public record RateLimitProperties(
             @DefaultValue("true") boolean enabled,
             @Min(1) @DefaultValue("200") int globalMaxRequestsPerSecond) {}
-
-    /** Audit log masking strategy. */
-    public record AuditProperties(
-            @DefaultValue("true") boolean logPayloads,
-            @DefaultValue(
-                            "password,passwordConfirm,oldPassword,token,access_token,refresh_token,secret,key")
-                    List<String> maskedFields) {}
 
     /** OAuth token encryption and provider settings. */
     public record OAuthProperties(

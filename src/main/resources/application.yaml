@@ -124,18 +124,6 @@ ctt:
       enabled: true
       global-max-requests-per-second: 200
 
-    audit:
-      log-payloads: true
-      masked-fields:
-        - password
-        - passwordConfirm
-        - oldPassword
-        - token
-        - access_token
-        - refresh_token
-        - secret
-        - key
-
     cors:
       allowed-origins:
         - "http://localhost:5173"

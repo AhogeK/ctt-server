@@ -24,7 +24,6 @@ class GlobalRequestGuardTest {
                 null,
                 null,
                 null,
-                null,
                 null);
     }
 
