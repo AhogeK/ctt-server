@@ -82,7 +82,7 @@ services:
       - source: oauth_token_encryption_key
         target: OAUTH_TOKEN_ENCRYPTION_KEY
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:${APP_PORT}/ctt-server/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:${APP_PORT}/ctt-server/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12

@@ -34,7 +34,13 @@ class PublicApiEndpointRegistryTest {
     void baseWhitelist_includesSystemEndpoints() {
         Set<String> publicUrls = registry.getPublicUrlSet();
 
-        assertThat(publicUrls).contains("/error", "/actuator/health", "/actuator/info");
+        assertThat(publicUrls)
+                .contains(
+                        "/error",
+                        "/actuator/health",
+                        "/actuator/health/liveness",
+                        "/actuator/health/readiness",
+                        "/actuator/info");
     }
 
     @Test

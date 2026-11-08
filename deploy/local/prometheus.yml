@@ -17,8 +17,8 @@ scrape_configs:
       module: [http_2xx]
     static_configs:
       - targets:
-          - http://edge:18080/ctt-server/actuator/health
-          - http://app-blue:8080/ctt-server/actuator/health
+          - http://edge:18080/ctt-server/actuator/health/readiness
+          - http://app-blue:8080/ctt-server/actuator/health/readiness
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
