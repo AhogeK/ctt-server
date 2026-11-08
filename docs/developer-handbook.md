@@ -69,10 +69,10 @@ public enum ErrorCode {
 ## Adding Audit Events
 
 **Details boundary.** Details carry security facts (reason, error code, state, counts, IDs), never
-request or response bodies, display names, email addresses, credentials or free-text provider
-errors. [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md) explains the decision; P0.6b tracks
-the existing writers that still need to be brought in line (profile name, passkey label, mail
-recipient/error).
+request or response bodies, display names, email addresses, credentials, passkey labels or
+free-text provider errors. `resource_id` follows the same rule: use a stable non-personal
+identifier, never an email or a key containing one. [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md)
+explains the decision; the current writers follow this boundary.
 
 ### Audit Event Categories
 
@@ -148,7 +148,7 @@ rejection.
 
 **Resource Type**: `ResourceType.USER`
 
-**Details**: credential label or a generic reason only. Never include the credential ID, public key,
+**Details**: a generic reason only. Never include the credential label, credential ID, public key,
 challenge, signature, or user handle.
 
 ### API Key Authentication Rate Limiting
