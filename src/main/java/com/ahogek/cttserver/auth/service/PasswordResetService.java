@@ -106,7 +106,7 @@ public class PasswordResetService {
                     null,
                     AuditAction.PASSWORD_RESET_EMAIL_NOT_FOUND,
                     ResourceType.UNKNOWN,
-                    email,
+                    null,
                     "Email not found or user not active");
             return EmptyResponse.ok(
                     "If your email address exists in our database, you will receive a password recovery link at your email address in a few minutes.",

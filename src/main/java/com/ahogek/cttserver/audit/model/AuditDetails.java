@@ -10,8 +10,17 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * <p>Provides strongly-typed, schema-on-write structure to prevent key name chaos in PostgreSQL
  * JSONB documents.
  *
+ * <p>Details carry security facts only. Never store request or response bodies, display names,
+ * email addresses, credential values or free-text provider errors.
+ *
  * <p>Fields are automatically excluded when null via {@code @JsonInclude}.
  *
+ * @param reason the security reason for the event
+ * @param errorCode the internal error code, if the event failed
+ * @param attemptCount the attempt counter, if the event is retryable
+ * @param stateBefore the status or enum before the change
+ * @param stateAfter the status or enum after the change
+ * @param ext optional extension fields; never personal data or credentials
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-16
  */

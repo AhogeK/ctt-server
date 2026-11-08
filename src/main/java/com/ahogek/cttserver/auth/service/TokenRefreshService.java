@@ -5,6 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
+import com.ahogek.cttserver.auth.dto.LoginResponse;
 import com.ahogek.cttserver.auth.entity.RefreshToken;
 import com.ahogek.cttserver.auth.enums.TokenStatus;
 import com.ahogek.cttserver.auth.repository.RefreshTokenRepository;
@@ -25,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 
 /** Token refresh service with rotation and reuse detection. */
 @Service
@@ -58,8 +58,7 @@ public class TokenRefreshService {
 
     /** Execute token refresh with rotation. Includes reuse detection for security. */
     @Transactional
-    public com.ahogek.cttserver.auth.dto.LoginResponse refresh(
-            String rawRefreshToken, String ip, String userAgent) {
+    public LoginResponse refresh(String rawRefreshToken) {
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
             throw new UnauthorizedException(ErrorCode.AUTH_003, "Refresh token is required");
         }
@@ -163,13 +162,13 @@ public class TokenRefreshService {
                 ResourceType.REFRESH_TOKEN,
                 oldToken.getId().toString(),
                 SecuritySeverity.INFO,
-                AuditDetails.extension(Map.of("ip", ip, "userAgent", userAgent)));
+                AuditDetails.empty());
 
         String currentVersion = termsProperties.currentVersion();
         String userTermsVersion = user.getTermsVersion();
         boolean termsExpired = userTermsVersion == null || !currentVersion.equals(userTermsVersion);
 
-        return new com.ahogek.cttserver.auth.dto.LoginResponse(
+        return new LoginResponse(
                 user.getId(),
                 newAccessToken,
                 newRtPair.rawToken(),

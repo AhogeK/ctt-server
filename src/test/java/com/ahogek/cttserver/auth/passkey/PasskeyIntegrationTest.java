@@ -5,6 +5,7 @@ import com.ahogek.cttserver.auth.dto.UserRegisterRequest;
 import com.ahogek.cttserver.auth.twofactor.service.TotpService;
 import com.ahogek.cttserver.common.BaseIntegrationTest;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 import java.util.Base64;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -87,6 +89,9 @@ class PasskeyIntegrationTest {
                                 .query(Long.class)
                                 .single())
                 .isEqualTo(1);
+        assertThat(auditDetails("PASSKEY_REGISTERED", userId(email)))
+                .doesNotContain("Integration Passkey")
+                .doesNotContain("\"name\"");
 
         JsonNode assertionOptions = body(anonymousOptions());
         String assertion = authenticator.assertCredential(assertionOptions, registration, 1);
@@ -135,6 +140,9 @@ class PasskeyIntegrationTest {
                                 .content("{\"name\":\"Renamed passkey\"}")
                                 .exchange());
         assertThat(renamed.path("name").asText()).isEqualTo("Renamed passkey");
+        assertThat(auditDetails("PASSKEY_RENAMED", userId(email)))
+                .doesNotContain("Renamed passkey")
+                .doesNotContain("Integration Passkey");
 
         assertThat(
                         mvc.delete()
@@ -144,6 +152,8 @@ class PasskeyIntegrationTest {
                                 .exchange())
                 .hasStatus(204);
         assertThat(body(managementGet(accessToken))).isEmpty();
+        assertThat(auditDetails("PASSKEY_DELETED", userId(email)))
+                .doesNotContain("Renamed passkey");
     }
 
     @Test
@@ -658,6 +668,24 @@ class PasskeyIntegrationTest {
                         .exchange();
         assertThat(result).hasStatus(201);
         return createdBody(result).path("rawKey").asText();
+    }
+
+    private String auditDetails(String action, UUID userId) {
+        return Awaitility.await()
+                .atMost(5, TimeUnit.SECONDS)
+                .until(
+                        () ->
+                                jdbcClient
+                                        .sql(
+                                                "SELECT details::text FROM audit_logs"
+                                                        + " WHERE action = ? AND user_id = ?"
+                                                        + " ORDER BY created_at DESC LIMIT 1")
+                                        .param(action)
+                                        .param(userId)
+                                        .query(String.class)
+                                        .optional()
+                                        .orElse(null),
+                        value -> value != null);
     }
 
     private UUID userId(String email) {

@@ -122,8 +122,30 @@ class RateLimitAspectTest {
                         userId,
                         com.ahogek.cttserver.audit.enums.AuditAction.RATE_LIMIT_EXCEEDED,
                         com.ahogek.cttserver.audit.enums.ResourceType.UNKNOWN,
-                        "rate_limit:ip:TestController.testMethod",
+                        userId.toString(),
                         "Rate limit exceeded for IP");
+    }
+
+    @Test
+    void intercept_whenEmailBucketExceeded_doesNotStoreEmailAsResourceId() {
+        RateLimit rateLimit = createRateLimit(RateLimitType.EMAIL, "#request.email", 5, 300);
+        String email = "user@example.com";
+        String cacheKey = "rate_limit:email:TestController.testMethod:" + email;
+        when(mockKeyFactory.generateKey(any(), anyString(), any())).thenReturn(cacheKey);
+        when(mockRateLimiter.checkLimit(anyString(), anyInt(), anyInt()))
+                .thenReturn(RateLimitResult.rejected(300));
+        when(mockUserProvider.getCurrentUser()).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> aspect.interceptSingle(mockJoinPoint, rateLimit))
+                .isInstanceOf(TooManyRequestsException.class);
+
+        verify(mockAuditLog)
+                .logFailure(
+                        null,
+                        com.ahogek.cttserver.audit.enums.AuditAction.RATE_LIMIT_EXCEEDED,
+                        com.ahogek.cttserver.audit.enums.ResourceType.UNKNOWN,
+                        null,
+                        "Rate limit exceeded for EMAIL");
     }
 
     @Test
@@ -163,15 +185,20 @@ class RateLimitAspectTest {
     }
 
     private RateLimit createRateLimit(int limit, int windowSeconds) {
+        return createRateLimit(RateLimitType.IP, "", limit, windowSeconds);
+    }
+
+    private RateLimit createRateLimit(
+            RateLimitType type, String keyExpression, int limit, int windowSeconds) {
         return new RateLimit() {
             @Override
             public RateLimitType type() {
-                return RateLimitType.IP;
+                return type;
             }
 
             @Override
             public String keyExpression() {
-                return "";
+                return keyExpression;
             }
 
             @Override

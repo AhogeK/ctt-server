@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -72,7 +71,6 @@ public class PasskeyManagementService {
     public PasskeyResponse rename(UUID userId, UUID passkeyId, String name) {
         String normalized = PasskeyName.forRename(name);
         UserPasskey passkey = requireOwned(userId, passkeyId);
-        String previous = passkey.getName();
         passkey.rename(normalized);
         passkeys.save(passkey);
         auditLog.log(
@@ -81,7 +79,7 @@ public class PasskeyManagementService {
                 ResourceType.USER,
                 userId.toString(),
                 SecuritySeverity.INFO,
-                AuditDetails.extension(Map.of("oldName", previous, "newName", normalized)));
+                AuditDetails.empty());
         return PasskeyResponse.fromEntity(passkey);
     }
 
@@ -113,7 +111,7 @@ public class PasskeyManagementService {
                 ResourceType.USER,
                 userId.toString(),
                 SecuritySeverity.INFO,
-                AuditDetails.extension(Map.of("name", passkey.getName())));
+                AuditDetails.empty());
     }
 
     private UserPasskey requireOwned(UUID userId, UUID passkeyId) {

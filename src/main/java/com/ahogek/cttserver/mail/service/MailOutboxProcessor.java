@@ -3,7 +3,6 @@ package com.ahogek.cttserver.mail.service;
 import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
-import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 import com.ahogek.cttserver.mail.dispatch.ExponentialBackoffRetryStrategy;
@@ -24,8 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.UnsupportedEncodingException;
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -53,8 +50,6 @@ import java.util.UUID;
 public class MailOutboxProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(MailOutboxProcessor.class);
-
-    private static final int MAX_ERROR_LENGTH = 500;
 
     private final MailOutboxRepository outboxRepository;
     private final MailDispatcher mailDispatcher;
@@ -160,7 +155,7 @@ public class MailOutboxProcessor {
                     DesensitizeUtils.maskEmail(outbox.getRecipient()),
                     outbox.getRetryCount());
 
-            publishMailDeliveryExhaustedAudit(outbox, errorMessage);
+            publishMailDeliveryExhaustedAudit(outbox);
         } else {
             log.warn(
                     "Email delivery failed [id={}] to {}, retry {}/{} scheduled at {}",
@@ -170,33 +165,8 @@ public class MailOutboxProcessor {
                     outbox.getMaxRetries(),
                     nextRetryAt);
 
-            publishMailDeliveryFailedAudit(outbox, errorMessage);
+            publishMailDeliveryFailedAudit(outbox);
         }
-    }
-
-    /**
-     * Builds standardized audit details for mail events. Ensures GDPR compliance via email masking
-     * and prevents JSON overflow via error truncation.
-     */
-    private AuditDetails buildMailAuditDetails(MailOutbox outbox, String error) {
-        Map<String, Object> fields = new LinkedHashMap<>();
-        fields.put("mailOutboxId", outbox.getId().toString());
-        fields.put("templateName", outbox.getTemplateCode());
-        fields.put("recipientMasked", DesensitizeUtils.maskEmail(outbox.getRecipient()));
-        fields.put("retryCount", outbox.getRetryCount());
-
-        if (error != null && !error.isBlank()) {
-            fields.put("lastError", truncateError(error));
-        }
-
-        return AuditDetails.extension(fields);
-    }
-
-    private String truncateError(String error) {
-        if (error.length() <= MAX_ERROR_LENGTH) {
-            return error;
-        }
-        return error.substring(0, MAX_ERROR_LENGTH) + "...";
     }
 
     private void publishMailSentAudit(MailOutbox outbox) {
@@ -206,26 +176,26 @@ public class MailOutboxProcessor {
                 ResourceType.MAIL_OUTBOX,
                 outbox.getId().toString(),
                 SecuritySeverity.INFO,
-                buildMailAuditDetails(outbox, null));
+                MailOutboxAuditDetails.of(outbox));
     }
 
-    private void publishMailDeliveryFailedAudit(MailOutbox outbox, String errorMessage) {
+    private void publishMailDeliveryFailedAudit(MailOutbox outbox) {
         auditLogService.log(
                 outbox.getBizId(),
                 AuditAction.MAIL_DELIVERY_FAILED,
                 ResourceType.MAIL_OUTBOX,
                 outbox.getId().toString(),
                 SecuritySeverity.WARNING,
-                buildMailAuditDetails(outbox, errorMessage));
+                MailOutboxAuditDetails.of(outbox));
     }
 
-    private void publishMailDeliveryExhaustedAudit(MailOutbox outbox, String errorMessage) {
+    private void publishMailDeliveryExhaustedAudit(MailOutbox outbox) {
         auditLogService.log(
                 outbox.getBizId(),
                 AuditAction.MAIL_DELIVERY_EXHAUSTED,
                 ResourceType.MAIL_OUTBOX,
                 outbox.getId().toString(),
                 SecuritySeverity.CRITICAL,
-                buildMailAuditDetails(outbox, errorMessage));
+                MailOutboxAuditDetails.of(outbox));
     }
 }

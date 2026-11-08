@@ -34,9 +34,12 @@ import java.util.UUID;
  *                     userId.toString(), "Invalid password");
  *
  * // Log state transition
- * auditLog.logTransition(userId, AuditAction.PASSWORD_CHANGED, ResourceType.USER,
- *                        userId.toString(), oldHash, newHash);
+ * auditLog.logTransition(userId, AuditAction.ACCOUNT_LOCKED, ResourceType.USER,
+ *                        userId.toString(), "ACTIVE", "LOCKED");
  * }</pre>
+ *
+ * <p>Details carry security facts only. Never put request or response bodies, display names, email
+ * addresses, credential values or free-text provider errors into an audit event.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @see com.ahogek.cttserver.audit.SecurityAuditEvent
@@ -168,8 +171,8 @@ public class AuditLogService {
      * @param action the audit action
      * @param resourceType the resource type
      * @param resourceId the resource identifier
-     * @param stateBefore the state before change (JSON string or simple value)
-     * @param stateAfter the state after change (JSON string or simple value)
+     * @param stateBefore the status or enum before the change; never credentials or personal data
+     * @param stateAfter the status or enum after the change; never credentials or personal data
      */
     public void logTransition(
             UUID userId,

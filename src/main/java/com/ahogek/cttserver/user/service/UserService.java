@@ -203,13 +203,6 @@ public class UserService {
                 ResourceType.USER,
                 user.getId().toString(),
                 SecuritySeverity.INFO,
-                AuditDetails.extension(
-                        Map.of(
-                                "field",
-                                "displayName",
-                                "oldValue",
-                                String.valueOf(previous),
-                                "newValue",
-                                displayName)));
+                AuditDetails.extension(Map.of("field", "displayName")));
     }
 }
