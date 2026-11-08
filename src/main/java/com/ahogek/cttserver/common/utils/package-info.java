@@ -15,7 +15,7 @@
  *
  * <ol>
  *   <li>Filter Layer: Use {@code DesensitizeUtils} to mask HTTP headers before logging
- *   <li>DTO Layer: Use {@code @JsonSerialize(using = MaskSerializer.class)} for JSON output
+ *   <li>DTO Layer: {@code MaskSerializer} is available for a field that may be serialised
  *   <li>Global Layer: Logback {@code MaskingMessageConverter} provides regex-based fallback
  * </ol>
  *

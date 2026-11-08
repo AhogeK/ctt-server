@@ -27,12 +27,15 @@ import com.fasterxml.jackson.databind.SerializerProvider;
  * <p>When serialized to JSON for logging or API response, the token field will appear as: {@code
  * "token": "******"}
  *
- * <p>This is the second line of defense in the three-layer desensitization architecture:
+ * <p>This serializer is the second layer of the desensitization architecture,
+ * <strong>available</strong> for a field that would otherwise be serialised with a sensitive value:
  *
  * <ol>
  *   <li>Filter layer: {@code DesensitizeUtils.maskHeader()}
- *   <li>DTO layer: This serializer (via {@code @JsonSerialize})
- *   <li>Global layer: {@code MaskingMessageConverter} regex fallback
+ *   <li>DTO layer: This serializer (via {@code @JsonSerialize}); no production field needs it
+ *       today, because credentials are not serialised into responses and DTOs are not logged as a
+ *       whole
+ *   <li>Global layer: {@code MaskingMessageConverter} regex fallback, including the JSON encoder
  * </ol>
  *
  * @author AhogeK [ahogek@gmail.com]
