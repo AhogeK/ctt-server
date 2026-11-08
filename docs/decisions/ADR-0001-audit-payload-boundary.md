@@ -23,9 +23,9 @@ and it contradicted the audit boundary spec published two days earlier, which al
 opposite rule: "Never logs full Request/Response Body ... only metadata". The block was removed in
 v0.93.7 (P0.6).
 
-The only masking that exists is text-oriented: header masking by name, an optional Jackson
-serializer for a field that may be serialised, and a regex fallback applied to log text and to
-string key/value pairs. None of them is a JSON-aware payload masker. Running the production regex
+The only masking that exists is text-oriented: header masking by name and a regex fallback applied
+to log text and to string key/value pairs. None of them is a JSON-aware payload masker. Running the
+production regex
 against representative bodies shows it masks simple string values such as `password`,
 `authorization` and `newPassword`, but leaves `pwd`, `otp` and `apiKey` untouched, leaves nested
 user content unmasked, and corrupts empty or object values (`{"token":""}` becomes
