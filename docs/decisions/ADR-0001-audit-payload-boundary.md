@@ -41,24 +41,23 @@ A configuration switch for this capability is not kept. A flag with no consumer 
 operators that the capability exists; it is worse than no flag, because it invites reliance on a
 control that never ran.
 
-## Known gap (P0.6b)
+## Resolution (v0.93.9)
 
-The boundary above is not yet fully enforced by existing call sites. As of 2026-11-08 the audit
-trail still receives personal data that the account-deletion flow does not remove:
+The writers named here were changed in P0.6b, so the boundary is now enforced by the current code:
 
-- `UserService.updateDisplayName` writes the old and new display name into `details.ext`.
-- `PasskeyRegistrationService` and `PasskeyManagementService` write the passkey label.
-- `MailOutboxService` uses the raw recipient email as `resource_id` on the idempotent-skip event,
-  and both mail paths write a partially masked address.
-- `MailOutboxProcessor` stores a truncated SMTP error that may echo the recipient.
-- `TokenRefreshService` duplicates IP and User-Agent in `details.ext` although both are already
-  columns on the row.
+- `UserService.updateDisplayName` writes only `field=displayName`.
+- Passkey registration, rename and delete write empty details; the label is gone.
+- `MailOutboxService` uses the business id as `resource_id` on idempotent skip and writes no
+  recipient field; enqueued details carry ids, template and retry count only.
+- `MailOutboxProcessor` stores ids, template and retry count only; no recipient or provider error.
+- `TokenRefreshService` writes empty details; IP and User-Agent remain columns on the event.
+- `PasswordResetService` logs a null resource id for `PASSWORD_RESET_EMAIL_NOT_FOUND`; the submitted
+  email is not stored.
+- `RateLimitAspect` logs the actor id (or null), never the email-keyed Redis cache key.
 
-These are personal data in an append-only record that survives account deletion. The fix is to
-write the event and its identifiers only (booleans, enums, counts), never names, addresses or error
-text; `P0.6b` tracks the change and its tests. Retention of the remaining security metadata
-(IP, User-Agent, timestamps) still needs a defined period and a cleanup job; the table has none.
-This ADR records the target and the gap, not a claim that the target is already met.
+Retention of the remaining security metadata (IP, User-Agent, timestamps) and of historical rows
+still needs a defined period, a cleanup job and operations/compliance sign-off. That remains an
+explicit open item; it is not part of the code change.
 
 
 ## Alternatives considered

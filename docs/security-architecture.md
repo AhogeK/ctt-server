@@ -736,6 +736,12 @@ action, the resource type and identifier, the severity and outcome, environment 
 structured `details` (`reason`, `errorCode`, `attemptCount`, `stateBefore`, `stateAfter`, plus an
 optional extension map) — see `AuditDetails`.
 
+`details` also never carry display names, email addresses, passkey labels, credential values or
+free-text provider errors.
+
+The same rule applies to `resource_id`: it identifies the resource without exposing an email
+address or any key derived from one.
+
 A former `ctt.security.audit.log-payloads` switch had no production consumer (only a binding test)
 and was removed in v0.93.7 rather than left as a misleading knob. Body capture was evaluated and
 rejected: audit rows survive account deletion, the only masking is text-oriented rather than
