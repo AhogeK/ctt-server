@@ -209,6 +209,8 @@
 
 - **测试要覆盖「空关联」**：集合为空、外键全为 null 的输入也要有一条用例——`Map.of()`（不可变空表）的 `get(null)` 会抛 NPE，2026-10-28 因此线上 `GET /users/me/sessions` 直接 500，而既有用例的夹具里总有已注册设备，恰好绕过了这条路径。
 
+- **审计写入是异步的，测试读取审计行必须轮询（强制）**：`AuditEventListener` 用 `@Async` + `@TransactionalEventListener(AFTER_COMMIT)`；HTTP 请求返回不代表审计行已落库，直接 `query(...).single()` 会间歇失败。新增审计断言用 Awaitility 轮询（参考 `MailOutboxServiceIntegrationTest`），或在测试上下文改用同步执行器。2026-11-08 P0.6b 的 passkey 断言因此被审查拦下。
+
 - **编辑前验证（强制）**：先读完整文件（片段读取不足时直接整文件读取，不反复片段读同一文件）→ 编辑后LSP diagnostics → 编译验证 → 运行相关测试
 - **按行编辑要分清「替换」与「插入」**：`PUT N:` 是**替换**第 N 行，插入必须用 `PUT >N:`。本会话两次用替换语义做插入，把 `import` 与字段声明整行覆盖，编译才暴露。改完 import / 字段区立刻编译一次
 - **插入代码时锚点必须落在代码上，不能落在注释/ Javadoc 上（本会话踩了两次）**：格式化器（spotless）会把单行 Javadoc 折成多行，此时用单行注释文本作锚点会匹配到注释块**中间**，把新代码插进注释里 → 文件不再解析（`no longer parses after this edit`）。做法：① 锚点取紧随其后的**方法签名或语句**；② 拿到该告警时**立刻读该区段修回**，不要继续叠加编辑
