@@ -29,7 +29,8 @@
  * <ul>
  *   <li>Location: {@link com.ahogek.cttserver.common.config.jackson.MaskSerializer}
  *   <li>Purpose: Mask sensitive fields during JSON serialization
- *   <li>Usage: Annotate fields with {@code @JsonSerialize(using = MaskSerializer.class)}
+ *   <li>Usage: {@code @JsonSerialize(using = MaskSerializer.class)} on a field that may be
+ *       serialised
  * </ul>
  *
  * <h3>Layer 3: Global Layer (Framework)</h3>

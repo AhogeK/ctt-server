@@ -46,7 +46,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
  *
  * <ol>
  *   <li>Filter: {@code DesensitizeUtils.maskHeader()} for HTTP headers
- *   <li>DTO: {@code MaskSerializer} for object serialization
+ *   <li>DTO: {@code MaskSerializer} for a field that may be serialised
  *   <li>Global: This converter for regex-based fallback protection
  * </ol>
  *

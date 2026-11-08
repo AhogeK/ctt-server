@@ -7,8 +7,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 /**
  * Standardized audit log details carrier for JSONB storage.
  *
- * <p>Provides strongly-typed, schema-on-write structure to prevent key name chaos in
- * Elasticsearch/PostgreSQL indices.
+ * <p>Provides strongly-typed, schema-on-write structure to prevent key name chaos in PostgreSQL
+ * JSONB documents.
  *
  * <p>Fields are automatically excluded when null via {@code @JsonInclude}.
  *
