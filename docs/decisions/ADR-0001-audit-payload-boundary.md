@@ -58,7 +58,8 @@ The writers named here were changed in P0.6b, so the boundary is now enforced by
 Retention is enforced by `AuditRetentionJob` when `ctt.audit.retention.days` is positive. The
 default is 0 (keep indefinitely) because the period is an operations/compliance decision; the
 scheduled job deletes older rows in bounded batches. It removes the whole row, not just IP/UA;
-the sign-off must accept that trade-off. Historical rows therefore await that decision.
+the trade-off is accepted in [ADR-0002](ADR-0002-audit-retention-policy.md); production activation
+is a deployment step.
 
 
 ## Alternatives considered

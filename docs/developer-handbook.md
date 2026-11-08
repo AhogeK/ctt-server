@@ -76,11 +76,13 @@ explains the decision; the current writers follow this boundary.
 
 **Retention.** `ctt.audit.retention.days` defaults to 0, which keeps every row: a retention period is
 an operations/compliance decision, not an application default. When set, `AuditRetentionJob` deletes
-older **whole rows** in bounded batches (not just IP/UA); the decision must accept that trade-off.
-`AUDIT_RETENTION_DAYS` overrides it per environment; `AUDIT_RETENTION_BATCH_SIZE` (1000) bounds each
-delete, and the sweep uses `AUDIT_RETENTION_SWEEP_INTERVAL_MS` /
-`AUDIT_RETENTION_INITIAL_DELAY_MS` (both one hour). A non-positive sweep interval or negative
-initial delay stops startup.
+older **whole rows** in bounded batches (not just IP/UA). `AUDIT_RETENTION_DAYS` overrides it per
+environment; `AUDIT_RETENTION_BATCH_SIZE` (1000) bounds each delete, and the sweep uses
+`AUDIT_RETENTION_SWEEP_INTERVAL_MS` / `AUDIT_RETENTION_INITIAL_DELAY_MS` (both one hour). A
+non-positive sweep interval or negative initial delay stops startup. The approved production policy
+is **180 days** with whole-row deletion ([ADR-0002](decisions/ADR-0002-audit-retention-policy.md));
+the committed default remains 0; deployment sets `AUDIT_RETENTION_DAYS=180` without changing it.
+Changes to the period or deletion semantics require a new ADR.
 
 ### Audit Event Categories
 

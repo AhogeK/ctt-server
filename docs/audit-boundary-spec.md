@@ -7,7 +7,7 @@
 | Dimension            | Audit Log                                               | Business Log                                                        |
 |----------------------|---------------------------------------------------------|---------------------------------------------------------------------|
 | **Primary Audience** | Security experts, legal compliance, risk engines        | Developers, SRE, APM monitoring                                     |
-| **Lifecycle**        | Long-term archival (1-5 years, or an operator-configured retention window) | Short-term (7-30 days)                                              |
+| **Lifecycle**        | Retention window (approved production policy: 180 days; changes require a new ADR) | Short-term (7-30 days)                                              |
 | **Storage Medium**   | Relational database (PostgreSQL), append-only until retention deletes whole rows | Text streams, full-text search (ELK, Loki)                          |
 | **Core Concern**     | **Accountability**: Who, when, to what, did what        | **Observability**: State machine transitions, latency, stack traces |
 | **Fault Tolerance**  | Extremely high, loss may cause compliance disaster      | Acceptable to drop under extreme load via degradation               |
@@ -38,8 +38,10 @@ trigger are in [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md).
 
 `audit_logs` is append-only while a row is inside its retention window. `ctt.audit.retention.days`
 defaults to 0 (keep indefinitely); when positive, `AuditRetentionJob` deletes whole rows older than
-the cutoff in bounded batches. It does not redact IP/UA while keeping the event, so the retention
-decision must accept that trade-off. Operational details: [Developer Handbook](developer-handbook.md#adding-audit-events).
+the cutoff in bounded batches. The approved production policy is **180 days** with whole-row
+deletion ([ADR-0002](decisions/ADR-0002-audit-retention-policy.md)); changes require a new ADR. It
+does not retain an event after stripping IP/UA. Activation is a deployment step, not the application
+default. Operational details: [Developer Handbook](developer-handbook.md#adding-audit-events).
 
 ### Use `log.atInfo()` (ELK/Loki Observability)
 

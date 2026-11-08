@@ -34,8 +34,8 @@ springdoc-openapi · Thymeleaf · JUnit 6 + Testcontainers.
 - **A security model, not a demo.** Short-lived JWTs for the dashboard, TOTP two-factor
   authentication and phishing-resistant passkeys with single-use recovery codes, device-bound API
   keys with scopes for plugins, SHA-256 token storage, declarative rate limits, account lockout,
-  an audit trail that records security facts and never request bodies (append-only until an
-  operator-configured retention window deletes whole rows), and production
+  an audit trail that records security facts and never request bodies (append-only until the approved
+  retention policy deletes whole rows), and production
   JSON logs that mask credential-bearing text and structured fields. Existing 2FA accounts can
   complete the second step with a passkey instead of a code.
 
@@ -125,7 +125,7 @@ are overridable via `APP_EXTERNAL_PORT`, `POSTGRES_EXTERNAL_PORT`,
 | `PASSKEY_ALLOWED_ORIGINS` | Comma-separated exact browser origins allowed to use passkeys | `http://localhost:5173` for local |
 | `OAUTH_TOKEN_ENCRYPTION_KEY` | AES key sealing GitHub access tokens, base64 of exactly 32 bytes | required (including local compose) |
 | `TRUSTED_PROXY_ADDRESSES` | Exact reverse-proxy IPs allowed to supply `X-Forwarded-For`; empty trusts the socket peer only | empty |
-| `AUDIT_RETENTION_DAYS` | Days to keep audit rows; `0` keeps every row | `0` |
+| `AUDIT_RETENTION_DAYS` | Days to keep audit rows; `0` keeps every row. Approved production policy: 180 days; changes require a new ADR (ADR-0002) | `0` |
 | `RESEND_API_KEY` | Email delivery key | required in production |
 | `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Sender identity | required, `CTT` |
 
@@ -286,6 +286,7 @@ endpoints answered 200 and no container reported `OOMKilled` (Grafana is capped 
 | [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |
 | [Audit Boundary Spec](docs/audit-boundary-spec.md) | what is audited and what is deliberately not |
 | [Audit Payload Boundary](docs/decisions/ADR-0001-audit-payload-boundary.md) | why request bodies stay out of the audit trail |
+| [Audit Retention Policy](docs/decisions/ADR-0002-audit-retention-policy.md) | approved 180-day retention and whole-row deletion |
 | [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0400` files, rotation and the frp token |
 
 ## Related projects
