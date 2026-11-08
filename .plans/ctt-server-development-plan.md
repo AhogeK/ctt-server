@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.6 / P0.6b / P0.8 / P0.10 / P0.14 已完成；未完成项见阶段表状态列，含 P0.6c、P0.16b、P0.17） | v0.94.0 P0.6b 代码完成；生产量级与保留策略拆为后续待办 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.6 / P0.6b / P0.6c / P0.8 / P0.10 / P0.14 已完成；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.94.1 P0.6b 代码完成；P0.6c 已确认 180 天整行删除（ADR-0002） |
 
 ## 🗺️ 计划总览
 
@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测；本地已有一键全栈（P0.0，见下），生产侧仍是单实例 + tmux 起停之外的剩余项。既有状态的现状：**frps 已改 systemd 托管、frpc 仍是 tmux（crontab 兜底）**；frps 的代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝挡住；**开发与联调仍共用同一个数据库**。部署机上另有既有的公网 Jenkins，经 nginx 443 对外，本服务与其并存、不占用。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b）。已完成：P0.0 本地全栈、P0.1 prod 日志脱敏、P0.2 镜像可追溯、P0.3 构建上下文收口、P0.4 compose 加固、P0.5 密钥改 Compose secrets、P0.6 审计载荷收口、P0.6b 审计内容最小化、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底；后续独立待办：P0.6c 保留策略确认、P0.16b 生产审计量级实测。P1–P7 未开工，每步一个可独立验收的交付物。选型已定案，被否决的替代方案写在决策表里。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c）。已完成：P0.0 本地全栈、P0.1 prod 日志脱敏、P0.2 镜像可追溯、P0.3 构建上下文收口、P0.4 compose 加固、P0.5 密钥改 Compose secrets、P0.6 审计载荷收口、P0.6b 审计内容最小化、P0.6c 保留策略确认（180 天整行删除，ADR-0002）、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底；后续独立待办：P0.16b 生产审计量级实测。P1–P7 未开工，每步一个可独立验收的交付物。选型已定案，被否决的替代方案写在决策表里。
 
 **本轮交付（2026-11-07）**
 
@@ -2358,7 +2358,7 @@ end note
 | | P0.5 ✅ | 密钥改 Compose secrets：仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml` + `.sops.yaml` 的 age 公钥），`render.sh` 先解密到临时目录再替换成 0400 文件，`up.sh` / `Jenkinsfile` 起栈前调用；应用走 configtree、PostgreSQL 走 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 写 tmpfs 配置并 `setpriv` 降权、Grafana 走 `GF_SECURITY_ADMIN_PASSWORD__FILE`；frp token 由 `frp-token.sh` 在接入机渲染成 600 文件（`docs/deployment-secrets.md`）。**收尾（token 值、Linux 实测）归 P0.17** | 运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 0400 且容器用户可读；缺渲染文件时 Compose 拒绝创建容器（bind source 不存在）；缺 age 身份或密钥错误时 `render.sh` 退出 1 且旧文件保留；Redis 进程参数只有 `redis-server *:6379`；缺/空 JWT 键启动失败 | 中 |
 | | P0.6 ✅ | **评估后删除未接线的审计载荷开关**。`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方（仅绑定测试）；多维度评估（引入意图、实现代价、账号删除冲突、体积、脱敏可靠性、OWASP/GDPR/ASVS）结论是**不引入请求体审计**，理由与替代方案见 `docs/decisions/ADR-0001-audit-payload-boundary.md`；base/prod 两份受版本控制的 YAML（`application-local.yaml` 被 gitignore）与 `SecurityProperties` 删除该块，审计 `details` 仍只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext。脱敏可靠性实测：正则可掩码普通字符串，但不是 JSON 感知（`pwd` / `otp` / `apiKey` 漏，空值/对象值会破坏文本），不能当作载荷掩码器。**同主题清理（v0.93.8）**：无生产使用的 `MaskSerializer` 与测试已删除，文档统一为「头掩码 + 全局正则」两层 | `grep` 证明无生产消费者；定向测试通过；实跑 `POST /auth/login`（body 含 `password`）审计行只有 `reason`/`errorCode`，全库检索该密码串 = 0；全量测试通过 | 低 |
 | | P0.6b ✅ | **审计内容最小化（代码完成）**：`details` / `resource_id` 不再写姓名、邮箱、passkey 标签、原始 SMTP 错误；`TokenRefresh` 去掉重复的 IP / UA；`PasswordResetService` 与 `RateLimitAspect` 的 `resource_id` 也不再写邮箱；只保留 action、资源 id、布尔、枚举、计数。保留清理机制已交付（`AuditRetentionJob` + `ctt.audit.retention.days`，默认 0=保留；启用后删除整行而非只擦 IP/UA）；开发库 `ctt_server` 只读实测 29,801 行 / 11 MB（参考） | 定向测试通过；全量测试通过；grep 审计写入点无自由文本个人数据/邮箱；代码与机制验收完成 | 中 |
-| | P0.6c | **审计保留策略确认（不依赖后续技术项）**：与运维/合规确认 `ctt.audit.retention.days` 的取值，并确认启用后删除整行（不保留 IP/UA）的语义；把决定写入 ADR/部署清单 | 有书面确认记录；确认值与整行删除语义可追溯 | 中 |
+| | P0.6c ✅ | **审计保留策略确认**：生产保留 **180 天**（`AUDIT_RETENTION_DAYS=180`）；启用后按整行删除、不保留 IP/UA。决定、替代方案、部署验证与签核记录见 `docs/decisions/ADR-0002-audit-retention-policy.md`；应用默认仍为 0，生产启用按 ADR 部署清单执行（执行/验证归 P0.16b，不属于本条验收） | ADR-0002 Accepted；决策值与整行删除语义可追溯；部署清单已写入；执行/验证归 P0.16b | 中 |
 | | P0.7 | health 分组：liveness 不依赖数据库、readiness 含数据库与 Redis；compose 与健康检查改打 readiness | 停库演练：readiness `OUT_OF_SERVICE`、liveness `UP` | 中 |
 | | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）—— unit + 开机自启，顺带轮换 token、强制 TLS、加端口白名单、配置改 600 | 重启接入机后隧道自动恢复 | 中 |
 | | P0.9 🚧 | **frpc 改 systemd**（部署机）：**部分完成**——已用用户 crontab `@reboot` 兜底（进程已存在则跳过）；systemd unit 需 sudo 密码 | 重启部署机后隧道自动恢复（当前靠 cron，开机后约 20 s） | 中 |
@@ -2372,7 +2372,14 @@ end note
 | | P0.16b | **生产审计量级实测（依赖已完成的 P0.12/P0.16）**：对 `ctt_server_prod` 的 `audit_logs` 做只读统计（行数、表/索引体积、查询计划），记录日期与 snapshot | 生产只读统计记录；与开发库 29,801 行 / 11 MB 的参考值分开记录 | 中 |
 | | P0.17 ⬜ | **密钥收尾与真实宿主验证**：把 `FRP_TOKEN` 写入 SOPS 载荷，用 `frp-token.sh` 在接入机渲染 `600` 文件并重启 frp；在 Linux 部署机确认容器用户能读 `/run/secrets`（不可读时 `render.sh --mode 0440`），结论回填 P0.5 | 载荷含 `FRP_TOKEN`；接入机 token 文件 `600` 且隧道正常；Linux 上容器可读 secrets | 低 |
 
-> **计划修订（2026-11-09）**：P0.6b 已按自身交付物收口为 ✅；生产审计量级实测拆到 P0.16b（P0.12/P0.16 之后），保留策略确认拆到 P0.6c（无后续技术依赖）。P0.16 与 P7.3 同步移除对 P7.4/P7.5 的前向依赖；未开工待办只依赖已排在它之前的工作。
+> **计划修订（2026-11-09）**：P0.6b 已按自身交付物收口为 ✅；P0.6c 已确认 180 天整行删除（ADR-0002）；生产审计量级实测保留在 P0.16b（P0.12/P0.16 之后）。P0.16 与 P7.3 同步移除对 P7.4/P7.5 的前向依赖；未开工待办只依赖已排在它之前的工作。
+
+> **P0.6c 完成总结（2026-11-09）**
+> - 决策：生产保留 180 天；启用后整行删除，不保留 IP/UA；应用默认仍为 0。
+> - 权责：项目所有者是本次部署的 operator/compliance authority，授权工程侧决策；ADR-0002 是书面记录，无独立外部审计人。
+> - 证据：ADR-0002、`application.yaml` 注释、README/docs 引用；全量 1694 tests / 0 failures / 1 skipped，覆盖率与 spotless 通过。
+> - 边界：生产启用、量级实测与回滚演练归 P0.16/P0.16b，尚未执行；不把“策略已定”写成“生产已启用”。
+> - 重访：期限或删除语义变更需新 ADR；若调查需要窗口外事件，先评估脱敏保留方案。
 
 | P1 指标与追踪 | P1.1 | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ `management.server.port=8081` 且 **`management.server.address=127.0.0.1`**；应用端口不再暴露 metrics | `ActuatorSurfaceTest` 固定两端口暴露面 | 中 |
 | | P1.2 | 5 个业务指标（同步计数与耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量），标签基数 ≤3 | 指标存在性 + 标签集合断言 | 中 |
@@ -2441,7 +2448,7 @@ end note
 | 日志无用户维度 | MDC 只有 `traceId` / `clientIp` / `method` / `uri` / `deviceId` / `platform` | P1.5 |
 | 缺漏洞上报渠道 | 仓库无 `SECURITY.md` | P6.4 |
 | ~~生产审计写请求体~~（配置声明了未实现的能力） | `log-payloads` 无生产读取方；评估后决定不引入该能力（ADR-0001），P0.6 已删除开关与两份受版本控制的 YAML | P0.6 ✅ |
-| 审计 `details` / `resource_id` 含个人数据 | v0.93.9 已移除显示名、passkey 标签、收件邮箱、SMTP 错误，以及 `PasswordReset` / `RateLimit` 的邮箱；代码与机制已完成，量级与保留策略拆为后续验证 | P0.6b ✅；后续 P0.6c / P0.16b |
+| 审计 `details` / `resource_id` 含个人数据 | v0.93.9 已移除显示名、passkey 标签、收件邮箱、SMTP 错误，以及 `PasswordReset` / `RateLimit` 的邮箱；代码与策略已完成（180 天整行删除，ADR-0002），生产量级见 P0.16b | P0.6b ✅ / P0.6c ✅；后续 P0.16b |
 
 **已达标（记录，不再重复讨论）**
 
