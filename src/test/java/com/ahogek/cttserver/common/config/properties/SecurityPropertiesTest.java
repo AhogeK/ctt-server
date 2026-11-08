@@ -146,28 +146,6 @@ class SecurityPropertiesTest {
     }
 
     @Nested
-    @DisplayName("AuditProperties Binding Tests")
-    class AuditPropertiesTests {
-
-        @Test
-        @DisplayName("should bind audit log payloads flag with default value")
-        void shouldBindLogPayloads_whenDefaultProvided() {
-            assertThat(securityProperties.audit().logPayloads())
-                    .as("Audit log payloads should be enabled by default")
-                    .isTrue();
-        }
-
-        @Test
-        @DisplayName("should bind masked fields list from configuration")
-        void shouldBindMaskedFields_whenConfigurationProvided() {
-            assertThat(securityProperties.audit().maskedFields())
-                    .as("Masked fields list should be bound from configuration")
-                    .isNotNull()
-                    .contains("password", "token", "secret", "key");
-        }
-    }
-
-    @Nested
     @DisplayName("All Fields Coverage Tests")
     class AllFieldsCoverageTests {
 
@@ -209,17 +187,6 @@ class SecurityPropertiesTest {
             assertThat(rateLimit.enabled()).isNotNull();
             assertThat(rateLimit.globalMaxRequestsPerSecond()).isGreaterThanOrEqualTo(1);
         }
-
-        @Test
-        @DisplayName("should have all AuditProperties fields bound")
-        void shouldHaveAllAuditPropertiesFieldsBound_whenConfigurationLoaded() {
-            var audit = securityProperties.audit();
-
-            // This test ensures all fields are present - will fail if new fields are added
-            // without corresponding configuration or test updates
-            assertThat(audit.logPayloads()).isNotNull();
-            assertThat(audit.maskedFields()).isNotNull();
-        }
     }
 
     @Nested
@@ -247,14 +214,6 @@ class SecurityPropertiesTest {
         void shouldEnforceNotNullConstraint_whenRateLimitPropertiesMissing() {
             assertThat(securityProperties.rateLimit())
                     .as("Rate limit properties should not be null due to @NotNull constraint")
-                    .isNotNull();
-        }
-
-        @Test
-        @DisplayName("should enforce @NotNull constraint on audit properties")
-        void shouldEnforceNotNullConstraint_whenAuditPropertiesMissing() {
-            assertThat(securityProperties.audit())
-                    .as("Audit properties should not be null due to @NotNull constraint")
                     .isNotNull();
         }
 

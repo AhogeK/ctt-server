@@ -85,9 +85,6 @@ ctt:
       enabled: true
       # Global QPS limit across all endpoints
       global-max-requests-per-second: 200
-    audit:
-      # Enable audit logging in production
-      log-payloads: true
 
   # Mail configuration for production
   mail:

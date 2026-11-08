@@ -77,7 +77,6 @@ class ApiKeyServiceImplTest {
                         null,
                         null,
                         null,
-                        null,
                         new SecurityProperties.ApiKeyProperties(
                                 "Authorization", "Bearer", 20, 10, 60));
         apiKeyService =

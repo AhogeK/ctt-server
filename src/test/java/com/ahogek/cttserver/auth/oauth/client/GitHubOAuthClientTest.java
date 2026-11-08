@@ -65,7 +65,6 @@ class GitHubOAuthClientTest {
                         null,
                         null,
                         null,
-                        null,
                         cors,
                         oauthProps,
                         new SecurityProperties.CookieProperties("/api/v1/auth/refresh"),
