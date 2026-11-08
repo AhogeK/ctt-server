@@ -154,6 +154,7 @@
 - **现代 Java**：优先 `record`、`sealed class`、`pattern matching`，避免 Lombok
 - **验证优先**：不确定内容先验证再使用
 - **库函数的返回形态要核实**：方法名不能证明返回值语义，尤其是加密/编码库。`otp-java` 的 `SecretGenerator.generate(int)` 返回的是 **Base32 编码后的字节**，不是随机原始字节；再交给 Base32 会二次编码（2026-11-02 2FA 生成 52 字符载荷 + `====`，iOS Google Authenticator 拒扫）。涉及密钥/编码时先看 `javap`/源码并断言长度与解码结果。
+- **验证行为必须调用真实实现（强制）**：不要用等价正则、复制逻辑或 `replaceAll` 代替目标方法。2026-11-08 审阅 ADR 时用 `Matcher.replaceAll` 冒充 `MaskingMessageConverter.mask()`，得出「newPassword 会被改写成坏 JSON」的错误结论；真实 `mask()` 保留键、只掩码值，只有空值/对象值会破坏文本。做法：用 jshell/测试直接调用目标方法并断言输出，再写文档或决策。
 - **报数字必须复算**：向用户或报告陈述"还剩 N 处""影响 M 个文件"这类规模时，必须用**同一条命令**重跑得出；禁止拿不同过滤条件的前后结果拼凑（曾把「生产 4 处 + 测试 91 处」报成"9 处 / 8 个文件" ✗）
 - **判断功能首发版本要看后面的 bump**：feature 提交里的 `appVersion` 仍是上一个发布；首发版本 = 该 feature 之后第一个 `chore: bump version` 的版本（用 `git rev-list --ancestry-path <feat>..HEAD --reverse` 取第一个 bump，或在 bump 提交里 `git show <bump>:<file>` 验证端点存在）。2026-10-28 直接读 feature 提交的 catalog，把 R1–R3 报成 0.79/0.81/0.82，实际是 0.80/0.82/0.83。
 - **变更溯源**：发现与预期/记忆不一致时，优先猜想"是否被用户修改了"而非"AI 忘了改/改错了"
@@ -200,6 +201,8 @@
 - **OAuth 浏览器绑定与 token 位置**：state 必须与 HttpOnly SameSite Cookie 对齐；access/refresh token 只放 URL fragment 或一次性交换码，禁止放入 query（会进入历史/代理日志）。
 - **日志脱敏必须覆盖输出通道，而不是只覆盖 pattern（强制）**：Logback 的 `conversionRule`（如 `%maskedMsg`）只对 `PatternLayout` 生效；换成 JSON 等结构化编码器后事件字段被直接序列化，pattern 级脱敏会**静默失效**。2026-11-08 查实 prod JSON 把 `password=` 与 `query_string` 里的 `token=` 原样写出。新增或切换输出编码器时必须确认脱敏在新通道同样生效，并注意 `arguments`、`kvpList` 是独立字段（pattern 看不见它们）；用例要断言真实渲染出的那一行，而不是只测正则函数
 - **容器密钥只走 Compose secrets，不进环境变量（强制）**：`docker inspect .Config.Env` 是公开可见面，任何密码/密钥/令牌放进去等于泄露。仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml`，`.sops.yaml` 只放 age 公钥），`deploy/secrets/render.sh` **先解密到临时目录、成功后才替换**成 0400 文件；应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`、PostgreSQL 用 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 把口令写进 tmpfs 配置并 `setpriv` 降权（口令不进进程表）、Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`。`.env` 只服务 `bootRun`。缺身份、缺文件、空 JWT 键都必须**启动前失败**，且渲染失败不得清掉上一份可用文件；验收看 `docker inspect`、`/run/secrets` 权限与进程参数（2026-11-08 P0.5）
+- **无消费者的配置键是缺陷，但处置不是默认删除（强制）**：先 `git log -S '<key>'` 追溯引入提交与当时的规范，判断这是「未接线的既定业务意图」还是「遗留/误配」；再评估实现该能力的价值、代价与副作用（隐私、账号删除、留存、体积、脱敏可靠性）。有真实业务价值就接线并测试；确认不引入才删除，并把理由与重访触发写进文档/ADR。禁止只凭"没有读取方"就删，也禁止保留假开关。实例：`ctt.security.audit.log-payloads` 2026-03-18 引入、无生产读取方（仅绑定测试）；2026-11-08 评估后确认不引入请求体审计（ADR-0001），随 P0.6 删除
+
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试**：多断言链式调用 `.isX().isY().isZ()`，方法名 `shouldX_whenY`
 - **测试限流时禁用 HTTP 自动重试（强制）**：Apache HttpClient 的默认策略会对 `429` 按 `Retry-After` 睡眠重试；导出的限流用例因此睡满 1 小时窗口、整轮测试卡死 27 分钟。限流/429 用例必须使用不自动重试的客户端（如 `JdkClientHttpRequestFactory`），并直接断言状态码，不能依赖默认 `RestClient.create()`。
