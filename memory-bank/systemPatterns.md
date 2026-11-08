@@ -53,7 +53,7 @@ Logback 的 `conversionRule`（如 `%maskedMsg`）只对 `PatternLayout` 生效�
 
 ## 审计边界：请求体与个人数据不进审计
 
-`audit_logs.details` 只承载动作、资源、原因、状态与计数；请求/响应体与姓名、邮箱、passkey 标签、原始 SMTP 错误永不入库（ADR-0001，P0.6b 已收口）。历史行与 IP/UA 的保留期及清理任务需运维/合规确认后配置。无生产消费者的配置键先追溯引入意图，再决定接线或删除；不保留假开关。
+`audit_logs.details` 只承载动作、资源、原因、状态与计数；请求/响应体与姓名、邮箱、passkey 标签、原始 SMTP 错误永不入库（ADR-0001，P0.6b 已收口）。历史行的保留清理由 `AuditRetentionJob` 按 `ctt.audit.retention.days` 执行（默认 0=保留，每批独立事务）；保留策略确认见计划 P0.6c，生产量级实测见 P0.16b。无生产消费者的配置键先追溯引入意图，再决定接线或删除；不保留假开关。
 
 ## 测试风格: 轻量级 BDD
 
