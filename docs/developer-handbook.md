@@ -74,6 +74,14 @@ free-text provider errors. `resource_id` follows the same rule: use a stable non
 identifier, never an email or a key containing one. [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md)
 explains the decision; the current writers follow this boundary.
 
+**Retention.** `ctt.audit.retention.days` defaults to 0, which keeps every row: a retention period is
+an operations/compliance decision, not an application default. When set, `AuditRetentionJob` deletes
+older **whole rows** in bounded batches (not just IP/UA); the decision must accept that trade-off.
+`AUDIT_RETENTION_DAYS` overrides it per environment; `AUDIT_RETENTION_BATCH_SIZE` (1000) bounds each
+delete, and the sweep uses `AUDIT_RETENTION_SWEEP_INTERVAL_MS` /
+`AUDIT_RETENTION_INITIAL_DELAY_MS` (both one hour). A non-positive sweep interval or negative
+initial delay stops startup.
+
 ### Audit Event Categories
 
 | Category | Description                    | Examples                                                                                    |

@@ -7,8 +7,8 @@
 | Dimension            | Audit Log                                               | Business Log                                                        |
 |----------------------|---------------------------------------------------------|---------------------------------------------------------------------|
 | **Primary Audience** | Security experts, legal compliance, risk engines        | Developers, SRE, APM monitoring                                     |
-| **Lifecycle**        | Long-term archival (1-5 years, potentially permanent)   | Short-term (7-30 days)                                              |
-| **Storage Medium**   | Relational database (PostgreSQL), immutable append-only | Text streams, full-text search (ELK, Loki)                          |
+| **Lifecycle**        | Long-term archival (1-5 years, or an operator-configured retention window) | Short-term (7-30 days)                                              |
+| **Storage Medium**   | Relational database (PostgreSQL), append-only until retention deletes whole rows | Text streams, full-text search (ELK, Loki)                          |
 | **Core Concern**     | **Accountability**: Who, when, to what, did what        | **Observability**: State machine transitions, latency, stack traces |
 | **Fault Tolerance**  | Extremely high, loss may cause compliance disaster      | Acceptable to drop under extreme load via degradation               |
 
@@ -33,6 +33,13 @@ the resource, the outcome, the reason and the correlation identifiers.
 If a diagnosis needs more than that, record **shape only** — field names, types, sizes and
 validation error codes — never values. The full rationale, rejected alternatives and the revisit
 trigger are in [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md).
+
+### Retention and Deletion
+
+`audit_logs` is append-only while a row is inside its retention window. `ctt.audit.retention.days`
+defaults to 0 (keep indefinitely); when positive, `AuditRetentionJob` deletes whole rows older than
+the cutoff in bounded batches. It does not redact IP/UA while keeping the event, so the retention
+decision must accept that trade-off. Operational details: [Developer Handbook](developer-handbook.md#adding-audit-events).
 
 ### Use `log.atInfo()` (ELK/Loki Observability)
 
