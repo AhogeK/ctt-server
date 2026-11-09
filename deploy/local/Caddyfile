@@ -6,10 +6,11 @@
 }
 
 :18080 {
+	bind 127.0.0.1
 	encode zstd gzip
 
 	handle {
-		reverse_proxy {$UPSTREAM:app-blue:8080}
+		reverse_proxy {$UPSTREAM:127.0.0.1:18081}
 	}
 
 	# Local maintenance page shape, mirrors the production 503 intent.
