@@ -117,9 +117,9 @@ are overridable via `APP_EXTERNAL_PORT`, `POSTGRES_EXTERNAL_PORT`,
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `SPRING_PROFILES_ACTIVE` | Active profile (`local`, `dev`, `prod`) | `local` |
-| `DB_HOST`, `DB_PORT`, `DB_NAME` | PostgreSQL endpoint | `localhost`, `5432`, `ctt_server` |
-| `DB_USERNAME`, `DB_PASSWORD` | Database credentials | required |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Redis endpoint | `localhost`, `6379`, required |
+| `DB_HOST`, `DB_PORT`, `DB_NAME` | PostgreSQL endpoint; production uses `ctt_server_prod`, development keeps `ctt_server` | `localhost`, `5432`, `ctt_server` |
+| `DB_USERNAME`, `DB_PASSWORD` | Database credentials; production uses `ctt_app` | required |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DATABASE` | Redis endpoint and logical database; local is `0`, production is `2` because db1 is occupied by another service | `localhost`, `6379`, required, `0` |
 | `JWT_SECRET_KEY` | JWT signing key, 256+ bits | required (including local compose) |
 | `TOTP_ENCRYPTION_KEY` | AES key sealing TOTP secrets, base64 of exactly 32 bytes (`openssl rand -base64 32`) | required in production; dev-only fallback locally |
 | `PASSKEY_RP_ID` | WebAuthn relying-party ID (effective domain, e.g. `ctt.example.com`); changing it invalidates all registered passkeys | `localhost` for local |
@@ -295,6 +295,7 @@ endpoints answered 200 and no container reported `OOMKilled` (Grafana is capped 
 | [Audit Payload Boundary](docs/decisions/ADR-0001-audit-payload-boundary.md) | why request bodies stay out of the audit trail |
 | [Audit Retention Policy](docs/decisions/ADR-0002-audit-retention-policy.md) | approved 180-day retention and whole-row deletion |
 | [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0440` group-readable files, rotation and the frp token |
+| [Production Data Isolation](docs/production-data-isolation.md) | production database, role, Redis logical database and verification |
 
 ## Related projects
 
