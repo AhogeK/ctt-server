@@ -3,7 +3,8 @@
 # All sensitive credentials are injected via environment variables.
 
 spring:
-  # Database - Production PostgreSQL
+  # Database - Production PostgreSQL. Production must provide
+  # DB_NAME=ctt_server_prod and DB_USERNAME=ctt_app; development keeps ctt_server.
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
     username: ${DB_USERNAME}
@@ -37,6 +38,9 @@ spring:
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
       timeout: 2000ms
+      # db1 is occupied by another service in this Redis instance; ctt-server
+      # uses db2 so production data cannot share a keyspace with it.
+      database: ${REDIS_DATABASE:2}
 
   # Mail - Resend SMTP Relay (Production)
   # Username is literally "resend", not your account
