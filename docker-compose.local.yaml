@@ -12,9 +12,10 @@
 #   --profile bluegreen  start the second colour (app-green on 127.0.0.1:18082)
 #   --profile obs        Prometheus + Grafana + blackbox exporter
 #
-# The base file's single `app` service is parked behind the `standalone`
-# profile so the two colours replace it instead of fighting over the container
-# name and port 8080.
+# Edge, blue, green and the observability services use host networking and bind
+# only loopback. The application therefore sees the edge as 127.0.0.1, which is
+# what makes TRUSTED_PROXY_ADDRESSES=127.0.0.1 meaningful. Keep these services
+# on host networking unless the trust-chain test is reworked.
 
 x-logging: &default-logging
   driver: json-file
@@ -35,6 +36,15 @@ x-hardening: &hardening
   cap_drop:
     - ALL
 
+x-app-host-env: &app-host-env
+  SERVER_ADDRESS: 127.0.0.1
+  TRUSTED_PROXY_ADDRESSES: 127.0.0.1
+  SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:${POSTGRES_EXTERNAL_PORT:-15432}/${POSTGRES_DB:-ctt_server}
+  SPRING_DATA_REDIS_HOST: 127.0.0.1
+  SPRING_DATA_REDIS_PORT: ${REDIS_EXTERNAL_PORT:-16379}
+  SPRING_MAIL_HOST: 127.0.0.1
+  SPRING_MAIL_PORT: ${MAIL_SMTP_EXTERNAL_PORT:-1025}
+
 services:
   app:
     profiles: !override ["standalone"]
@@ -46,23 +56,39 @@ services:
     # The jar is built on the host first (build/libs, see deploy/local/up.sh):
     # the in-container Gradle build cannot reach Maven Central through this
     # host's proxy, so the local image only packages the jar.
+    network_mode: host
+    ports: !reset []
+    environment:
+      <<: *app-host-env
+      SERVER_PORT: "18081"
+      APP_PORT: "18081"
     build:
       dockerfile: deploy/local/Dockerfile
-    ports: !override ["127.0.0.1:18081:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:18081/ctt-server/actuator/health/readiness || exit 1"]
   app-green:
     extends:
       file: docker-compose.yaml
       service: app
     profiles: ["bluegreen"]
     container_name: ctt-app-green
+    network_mode: host
+    ports: !reset []
+    environment:
+      <<: *app-host-env
+      SERVER_PORT: "18082"
+      APP_PORT: "18082"
     build:
       dockerfile: deploy/local/Dockerfile
-    ports: !override ["127.0.0.1:18082:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:18082/ctt-server/actuator/health/readiness || exit 1"]
 
   edge:
     <<: *hardening
     image: caddy:latest
     container_name: ctt-edge
+    network_mode: host
+    ports: !reset []
     depends_on:
       app-blue:
         condition: service_healthy
@@ -70,10 +96,8 @@ services:
     cpus: 0.5
     tmpfs:
       - /tmp
-    ports:
-      - "127.0.0.1:18080:18080"
     environment:
-      UPSTREAM: ${EDGE_UPSTREAM:-app-blue:8080}
+      UPSTREAM: ${EDGE_UPSTREAM:-127.0.0.1:18081}
     volumes:
       - ./deploy/local/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -91,15 +115,16 @@ services:
     image: prom/prometheus:latest
     profiles: ["obs"]
     container_name: ctt-prometheus
+    network_mode: host
+    ports: !reset []
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=30d
+      - --web.listen-address=127.0.0.1:9090
     mem_limit: 384m
     cpus: 1.0
     tmpfs:
       - /tmp
-    ports:
-      - "127.0.0.1:9090:9090"
     volumes:
       - ./deploy/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -112,16 +137,21 @@ services:
     # faster because that state is in the volume.
     profiles: ["obs"]
     container_name: ctt-grafana
+    network_mode: host
+    ports: !reset []
     depends_on:
       - prometheus
     mem_limit: 768m
     cpus: 1.0
+    group_add:
+      - "${SECRET_GID:-1000}"
     tmpfs:
       - /tmp
     environment:
-      # Local-only convenience: the port is bound to 127.0.0.1 and the image
-      # never leaves this machine, so the anonymous session is an editor; the
-      # admin password is only a fallback and comes from the secret mount.
+      # Host networking is bound to loopback by these settings; the image
+      # never leaves this machine, so the anonymous session is an editor.
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "3000"
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
       GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
@@ -133,8 +163,6 @@ services:
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
     secrets:
       - grafana_admin_password
-    ports:
-      - "127.0.0.1:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./deploy/local/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
@@ -146,12 +174,15 @@ services:
     image: prom/blackbox-exporter:latest
     profiles: ["obs"]
     container_name: ctt-blackbox
+    network_mode: host
+    ports: !reset []
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+      - --web.listen-address=127.0.0.1:9115
     mem_limit: 96m
     cpus: 0.5
     tmpfs:
       - /tmp
-    ports:
-      - "127.0.0.1:9115:9115"
 
 volumes:
   caddy_data:
