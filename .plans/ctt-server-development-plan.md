@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.6 / P0.6b / P0.6c / P0.7 / P0.8 / P0.10 / P0.14 已完成；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.95.0 P0.7 health 分组完成；P0.6c 已确认 180 天整行删除（ADR-0002） |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.10 / P0.14 已完成；P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.95.0 P0.7 health 分组完成；P0.9 systemd 已实施（enabled/active，重启抽检暂缓） |
 
 ## 🗺️ 计划总览
 
@@ -2184,9 +2184,9 @@ end note
 
 ### 🔍 运维与可观测性升级（生产化全规划）
 
-> **前置状态：** 面向生产的非功能性需求。2026-11-07 实测两台机器：**接入机**（境外，nginx + certbot + frps，只开网络不部署内容，1 vCPU / 961 MB）与**部署机**（4 vCPU / 32 GB / 770 GB 可用，应用、数据库、Redis、观测栈都在这一台）。真实地址与主机名不入库，见私密运维记录。当前没有指标出口、业务指标、自定义健康项、告警、CI、备份演练、runbook、压测；本地已有一键全栈（P0.0，见下），生产侧仍是单实例 + tmux 起停之外的剩余项。既有状态的现状：**frps 已改 systemd 托管、frpc 仍是 tmux（crontab 兜底）**；frps 的代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝挡住；**开发与联调仍共用同一个数据库**。部署机上另有既有的公网 Jenkins，经 nginx 443 对外，本服务与其并存、不占用。
+> **前置状态：** 面向生产的非功能性需求。真实地址/主机名见私密运维记录。**frps 与 frpc 均已 systemd 托管**；frps 代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝；开发与联调仍共用同一个数据库。部署机另有既有公网 Jenkins，经 nginx 443 对外。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7）。已完成：P0.0 本地全栈、P0.1 prod 日志脱敏、P0.2 镜像可追溯、P0.3 构建上下文收口、P0.4 compose 加固、P0.5 密钥改 Compose secrets、P0.6 审计载荷收口、P0.6b 审计内容最小化、P0.6c 保留策略确认（180 天整行删除，ADR-0002）、P0.7 health 分组（liveness/readiness 分离与停库演练）、P0.8 frps 托管（含 token/TLS/端口白名单）、P0.10 端口收口、P0.14 SSH 与日志轮转；部分：P0.9 frpc 仍由 cron 兜底；后续独立待办：P0.16b 生产审计量级实测。P1–P7 未开工，每步一个可独立验收的交付物。选型已定案，被否决的替代方案写在决策表里。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9）。已完成：P0.0–P0.10、P0.14；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓；未完成：P0.16b、P0.17。P1–P7 未开工，每步一个可独立验收的交付物。
 
 **本轮交付（2026-11-07）**
 
@@ -2220,7 +2220,7 @@ end note
 | SSH 入口（仅接入机） | **只有接入机（VPS）的 22 对公网开放**；部署机在 NAT 后、无公网地址，其 sshd 未改动。接入机此前 `PermitRootLogin yes` + `PasswordAuthentication yes`，近 24 小时 **1870 次**口令爆破（集中在少数境外 IP）。2026-11-07 已加固：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`；密钥登录复验通过，口令登录返回 `Permission denied (publickey)`。**入侵痕迹核查**：`last` 三个月内的成功登录全部来自用户自有 ISP 网段，无异地成功登录 |
 | 隧道服务端 | frp **0.71.1**，**已改 systemd 托管**（`Restart=always` + 开机自启，tmux 会话已删）；配置 600 权限；**token 已轮换为 48 位随机值**、`transport.tls.force = true`、`allowPorts` 白名单（8000–8003/8080/18080）；未设 `proxyBindAddr` ⇒ 代理端口仍在 `0.0.0.0` 监听，靠 ufw 挡住 |
 | 隧道客户端 | 同版本；**token 已同步轮换、`transport.tls.enable = true`**，配置 600；既有映射保持现状，新增 `18080 → 18080`（`ctt-edge`，已注册成功）；Jenkins 实际经 `jenkins.*` 的 nginx 443 暴露 |
-| 隧道托管 | frps 已 systemd；**frpc 仍是 tmux**，暂由用户 crontab `@reboot` 兜底，改 systemd 需 sudo（P0.9） |
+| 隧道托管 | frps 与 frpc 均已 systemd；frpc 使用 stable `current`/配置，unit `enabled`/`active`；部署机重启抽检暂缓 |
 | 部署机 | 家庭网络内的自建主机（Ubuntu，**4 vCPU / 32 GB / 916 GB（84% 可用）**，Docker 29.9.3 + Compose v5.7.0）；LAN 地址见私密运维记录。**威胁模型（你确认）**：家庭 LAN 视为可信边界，路由器不转发任何入站端口，**唯一的外部入口是接入机上的隧道** |
 | 部署机现状 | 从 LAN 实测可直连 `5432` / `6379` / `8080` / `8181`（Redis 需口令；PG 与容器端口无认证前置）——**按上述威胁模型属接受项**；PostgreSQL 18.6 与 Redis 8.10.3 为宿主机原生进程，监听 `0.0.0.0` 与 `[::]`；`ufw` 已装未启用（`ENABLED=no`），`nftables` 也未启用 |
 | 数据现状 | 现库 `ctt_server` 同时被开发与联调使用；Redis 无实例或逻辑库划分 |
@@ -2304,7 +2304,7 @@ end note
 | CORS | 只含 `http://localhost:5173` 与占位 `https://ctt.example.com` | `application.yaml:139-143` |
 | hCaptcha | `site-key` / `secret-key` 默认空 | `application.yaml:199-201` |
 | 本地编排 | compose 只有 app / postgres / redis / mailpit，无 edge、无蓝绿、无观测栈、无 profile | `docker-compose.yaml` |
-| 隧道托管 | frps/frpc 均由 tmux 拉起，无 systemd、重启不自启 | 两机 `ps -eo args` |
+| 隧道托管 | frps/frpc 已改 systemd；frpc 已 `enabled`/`active`，`WantedBy=multi-user.target`，重启抽检暂缓（P0.9） | 阶段表 P0.8/P0.9 |
 | 隧道代理端口 | frps 未设 `proxyBindAddr`，所有代理端口默认在 `0.0.0.0` 监听 | 两机 `ss -lnt` + `frps.toml` |
 | 数据面监听 | PostgreSQL `0.0.0.0:5432`、Redis `0.0.0.0:6379` | `ss -lnt` on 部署机 |
 | 数据隔离 | 开发与联调同用 `ctt_server` | `.env` 与库清单 |
@@ -2360,8 +2360,8 @@ end note
 | | P0.6b ✅ | **审计内容最小化（代码完成）**：`details` / `resource_id` 不再写姓名、邮箱、passkey 标签、原始 SMTP 错误；`TokenRefresh` 去掉重复的 IP / UA；`PasswordResetService` 与 `RateLimitAspect` 的 `resource_id` 也不再写邮箱；只保留 action、资源 id、布尔、枚举、计数。保留清理机制已交付（`AuditRetentionJob` + `ctt.audit.retention.days`，默认 0=保留；启用后删除整行而非只擦 IP/UA）；开发库 `ctt_server` 只读实测 29,801 行 / 11 MB（参考） | 定向测试通过；全量测试通过；grep 审计写入点无自由文本个人数据/邮箱；代码与机制验收完成 | 中 |
 | | P0.6c ✅ | **审计保留策略确认**：生产保留 **180 天**（`AUDIT_RETENTION_DAYS=180`）；启用后按整行删除、不保留 IP/UA。决定、替代方案、部署验证与签核记录见 `docs/decisions/ADR-0002-audit-retention-policy.md`；应用默认仍为 0，生产启用按 ADR 部署清单执行（执行/验证归 P0.16b，不属于本条验收） | ADR-0002 Accepted；决策值与整行删除语义可追溯；部署清单已写入；执行/验证归 P0.16b | 中 |
 | | P0.7 ✅ | **health 分组**：liveness 只含 `livenessState`；readiness 含 `readinessState`、`db`、`redis`，依赖失败由 readiness 专用聚合器映射为 `OUT_OF_SERVICE`；`/actuator/health/liveness` 与 `/actuator/health/readiness` 公开；compose 与 blackbox 改打 readiness | 停库演练：liveness `UP` / HTTP 200，readiness `OUT_OF_SERVICE` / HTTP 503；定向与全量测试通过 | 中 |
-| | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）—— unit + 开机自启，顺带轮换 token、强制 TLS、加端口白名单、配置改 600 | 重启接入机后隧道自动恢复 | 中 |
-| | P0.9 🚧 | **frpc 改 systemd**（部署机）：**部分完成**——已用用户 crontab `@reboot` 兜底（进程已存在则跳过）；systemd unit 需 sudo 密码 | 重启部署机后隧道自动恢复（当前靠 cron，开机后约 20 s） | 中 |
+| | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）；2026-11-09 已切到 stable `current` + 稳定配置，unit 重启后 `enabled`/`active`，旧 unit/config 已备份 | 重启接入机后隧道自动恢复；服务端 stable 路径已验证 | 中 |
+| | P0.9 ✅（重启抽检暂缓） | **frpc 改 systemd**（部署机）：stable unit 已安装为 `enabled`/`active`，`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`，使用 stable `current`/配置；旧 tmux 与 crontab 已移除，只剩一个 stable frpc 进程；unit、升级与回滚说明存于各主机 frp 目录，不进入项目仓库；重启抽检按用户要求暂缓（不阻塞交付） | unit `enabled`/`active` 且开机目标已挂载；重启后隧道自动恢复属抽检，未执行（用户当前不重启） | 中 |
 | | P0.10 ✅ | 隧道端口收口：**已完成 ufw 侧**（18080 公网不可达、遗留 `2024` 放行已删，`ufw.log` 有 `[UFW BLOCK]` 实证）。控制端口保留对公网开放：家庭出口 IP 不唯一（主机内有代理，接入机看到的来源与主机自报的出口不一致），按 IP 白名单会自断隧道；改为 `TLS + 48 位随机 token + allowPorts` 三重约束。维护页与 `limit_req` 不在本条，归 P7.1 | 公网访问 18080 被拒；隧道断开时返回 503 而非超时 | 中 |
 | | P0.11 | 端口与编排：`edge 18080` / 蓝 `18081` / 绿 `18082`；frpc 增加 `remotePort=18080 → localPort=18080`；**edge 用 host 网络**，否则 app 看到的来源是容器桥接 IP，可信代理名单与 IP 限流一起失真 | 三个端口只在回环；`TRUSTED_PROXY_ADDRESSES=127.0.0.1` 真正生效 | 中 |
 | | P0.12 | 生产数据隔离：建 `ctt_server_prod` 与 `ctt_app`；Redis db 1；开发继续原库 | 生产与开发的库名、角色、Redis 库号可区分 | 中 |
@@ -2390,6 +2390,12 @@ end note
 > - 边界：Redis 未单独停机演练，但已成为 readiness 实际 contributor；生产停库复验仍按 P0.16b/部署清单执行。
 > - 证据：`HealthProbeIntegrationTest`、`PublicApiEndpointRegistryTest`、全量 1699 tests / 0 failures / 1 skipped、覆盖率与 spotless 通过。
 > - 重访：数据库/Redis 拓扑、健康检查路径或代理链路变化时，复跑停库与停 Redis 演练；生产启用按 P0.16b 部署验证。
+
+> **P0.9 完成总结（2026-11-09）**
+> - 交付：部署机 stable `current` + 稳定配置；`frpc.service` 安装为 `enabled`/`active`，`WantedBy=multi-user.target`，`After=network-online.target`，`Restart=always`；旧 tmux 与 frpc crontab 已移除，只剩一个 stable frpc 进程；unit、升级与回滚说明在两台主机本地 frp 目录，不进入项目仓库。
+> - 验证：`systemctl is-enabled` = `enabled`、`is-active` = `active`、`WantedBy=multi-user.target`；multi-user wants symlink 指向 unit；`pgrep -a frpc` 只有一个进程；`tmux ls` 无 server；crontab 仅保留无关的 blogapi 启动项；服务端 `frps` 同样 `enabled`/`active`。
+> - 边界：按用户要求暂不重启部署机；`enabled` + `WantedBy` + `After=network-online.target` 证明开机目标与网络依赖已挂载，但**不能替代**重启后的端到端抽检；该抽检未执行，不影响当前交付。
+> - 重访：重启部署机或修改 unit/配置后，复跑 `systemctl is-active`、`pgrep -a frpc` 与日志检查；若出现 `proxy already exists` 或进程数 >1，按 runbook 回滚。
 
 | P1 指标与追踪 | P1.1 | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ `management.server.port=8081` 且 **`management.server.address=127.0.0.1`**；应用端口不再暴露 metrics | `ActuatorSurfaceTest` 固定两端口暴露面 | 中 |
 | | P1.2 | 5 个业务指标（同步计数与耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量），标签基数 ≤3 | 指标存在性 + 标签集合断言 | 中 |
@@ -2434,13 +2440,13 @@ end note
 | --- | --- | --- |
 | P0.8 frps 托管 | ✅ 完成 | `systemctl is-enabled frps` = `enabled`、`is-active` = `active`、`NRestarts=0`；6 条映射全部 `start proxy success`；tmux 会话已删 |
 | P0.8 附带加固 | ✅ 完成 | token 轮换为 48 位随机、`transport.tls.force=true`、`allowPorts` 白名单（8000–8003/8080/18080）、配置权限 `600` |
-| P0.9 frpc 托管 | 🚧 部分 | tmux 运行 + 用户 crontab `@reboot`（进程已存在则跳过）；systemd unit 需 sudo |
+| P0.9 frpc 托管 | ✅ 实施完成（重启抽检暂缓） | systemd unit 已安装且 `enabled`/`active`，`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`；单进程使用 stable `current`；tmux 与 frpc crontab 已清理；重启抽检未执行（用户当前不重启） |
 | P0.10 端口收口 | ✅ 完成（ufw 侧） | 18080、8080、8000–8003 从公网超时；`ufw.log` 记 `[UFW BLOCK]`；遗留 `2024` 放行已删 |
 | P0.14 SSH 与日志轮转 | ✅ 完成 | `passwordauthentication no`、`permitrootlogin without-password`；密钥登录正常、口令登录被拒；`logrotate` 的 `Result=success` |
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.7、P0.11–P0.13、P0.15–P0.17、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P0.11–P0.13、P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 
@@ -2489,7 +2495,7 @@ flowchart TB
     U["互联网 · 插件与大屏"] -->|"443 TLS · certbot"| N["接入机 nginx<br/>HSTS · limit_req · 503 维护页"]
     N -->|"127.0.0.1:18080"| S["frps 0.71.1<br/>systemd · 自定义控制端口"]
     J["公网 Jenkins"] -->|"自身端口（既有设计）"| S
-    S -->|"tcpMux 隧道"| C["frpc 0.71.1<br/>tmux · cron 兜底"]
+    S -->|"tcpMux 隧道"| C["frpc 0.71.1<br/>systemd · stable current"]
     C -->|"127.0.0.1:18080"| E["edge 容器（Caddy）<br/>蓝绿上游切换"]
     E -->|"18081"| B["app-blue"]
     E -->|"18082"| G["app-green"]

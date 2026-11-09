@@ -1,5 +1,9 @@
 # Active Context
 
+- [2026-11-09] - P0.9 frpc systemd 完成（重启抽检暂缓）
+    - 服务端已切到 stable `current` + 稳定配置；部署机已建立 stable `current` + 稳定配置，unit 为 `enabled`/`active`、`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`
+    - 旧 tmux 与 frpc crontab 已移除，只剩一个 stable frpc 进程；unit 与 `UPGRADE.md` 在各主机本地 frp 目录，不进入项目仓库
+    - 重启抽检未执行（用户当前不重启）：`enabled` + `WantedBy` 证明开机目标已挂载，但不能替代重启后的端到端检查；重启后确认 `active` / 单进程 / 日志
 - [2026-11-09] - P0.7 health 分组(v0.95.0)
     - liveness 仅 `livenessState`；readiness 含 `readinessState`/`db`/`redis`；只对 readiness 将 DOWN/UNKNOWN 映射为 OUT_OF_SERVICE；两个检查端点公开
     - 实现补充：当前上下文未自动注册 Redis contributor，readiness 显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 继续委托
@@ -74,7 +78,7 @@
     - 升级：flyway 13.11.1→13.12.1（core 与 database-postgresql 同版本）、commons-codec 1.22.0→1.23.0、spotless 8.10.4→8.11.0、ben-manes 0.66.0→0.67.0、Gradle wrapper 9.8.2→9.9.0；Spring Boot 4.1.2 / springdoc 3.2.0 / greenmail 2.1.15 / pg 42.7.14 / junit-platform 6.1.3 / otp-java 2.2.0 / webauthn 2.10.1 已是各自最新（4.2.0-RC2 属 RC，按策略跳过）
     - 验证：分层 clean build —— 库依赖 3m23s、插件 17s、wrapper 全量 `--rerun-tasks` 3m49s；**1689 tests / 0 failures / 1 skipped**；`spotlessCheck` 通过；升级后 `dependencyUpdates` 报 0 项、Gradle 无更新
     - 事实：ben-manes 报告仍只列 4 项（Spring Boot 等漏报），版本一律以 Maven Central / Plugin Portal 元数据为准；spotless **8.11.0 + google-java-format 1.36.1 组合实测可用**（1.37.0 仍不用）
-    - 计划：`### 🔍 运维与可观测性升级` 完成态处理（P0.8/P0.10/P0.14 ✅、P0.9 🚧，新增 P0.15/P0.16、P1.5、P3.7、P6.4），补「工程与生产化缺口复查」「踩坑表」；修正总览图归类、Resend 额度断言、`.sisyphus` 死链、拓扑图 frpc 标签
+    - 计划：`### 🔍 运维与可观测性升级` 完成态处理（P0.8/P0.10/P0.14 ✅、P0.9 🚧（后已完成），新增 P0.15/P0.16、P1.5、P3.7、P6.4），补「工程与生产化缺口复查」「踩坑表」；修正总览图归类、Resend 额度断言、`.sisyphus` 死链、拓扑图 frpc 标签
     - 仍缺（计划条目，未实施）：覆盖率校验未挂 `check`、prod 未关 springdoc、CORS 占位域、OAuth 与验证码缺键无 fail-fast
     - 规则（R14 记录）：`AGENTS.md` R12 补两条实测事实——报告漏报需查元数据（2026-11-07 复核仍只列 4 项）；Spotless 8.11.0 + google-java-format 1.36.1 为当前可用组合；新增「wrapper 与依赖同批、用 `--rerun-tasks` 验证」
 - [2026-11-07] - P0.0 本地一键全栈（v0.92.3，待授权提交）
