@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-10] - P0.13c 外部负向验证（完成，纯验证/文档，不 bump 版本）
+    - 方法：以接入机（公网，独立于家庭 LAN）为外部视角；目标地址取 SSH 与 frpc 在接入机上的对端（两条独立流一致）；部署机自报 HTTP 出口与 SSH/frpc 不同，不可用
+    - 结果：`tcp/5432`、`tcp/6379` 两次均耗尽 5s 超时（丢弃非 `refused`）；`ping` 100% 丢包；`tracepath` 至中国电信骨干后无回应；同时段 frpc 隧道在线。LAN 内两端口可用，Redis 返回 `NOAUTH`
+    - 边界：若为 CGNAT/共享地址，「无端口转发」与「无可寻址入口」无法从外部区分，需路由器侧确认；第二外部视角 SSH banner 超时未作证据；未创建任何临时路径
+    - 记录：`.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`；ADR-0003 与 `production-data-isolation` 的「无入站转发」已改为已测量
 - [2026-11-10] - P0.13b Redis 来源限制决策（纯文档/决策，不 bump 版本）
     - 决策：不安装来源白名单；保留 `bind 127.0.0.1 + LAN`、口令、`protected-mode` 与「路由器不转发入站」边界。Redis ACL 只限命令/键/通道，没有客户端地址谓词；`bind` 只选监听地址 ⇒ 服务内无法表达「只允许本子网」
     - 证据（部署机 2026-11-10）：`ss -lnt` 仅 `127.0.0.1:6379` 与 LAN 地址 `:6379`；`CONFIG GET bind` = 回环 + LAN，`protected-mode yes`，`requirepass` 已设；`ACL LIST` 只有 `default` 用户 `~* &* +@all`；`ip -brief addr` 仅一个 IPv4 接口，`ip -6 addr show scope global` 为空；数据面现存连接只来自开发机；其余容器走 bridge 自有发布端口，不使用数据面

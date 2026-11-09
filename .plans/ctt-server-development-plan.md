@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.14 已完成，P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.13c、P0.16b、P0.17） | v0.97.0 P0.12 生产数据隔离完成；P0.13b 决策落 ADR-0003（不装来源白名单，触发时改用 nftables）；P0.9 systemd 已实施（enabled/active，重启抽检暂缓） |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.14 已完成，P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.97.0 P0.12 生产数据隔离完成；P0.13b 决策落 ADR-0003（不装来源白名单，触发时改用 nftables）；P0.13c 外部负向验证通过（LAN 外 5432/6379 不可达）；P0.9 systemd 已实施（enabled/active，重启抽检暂缓） |
 
 ## 🗺️ 计划总览
 
@@ -2367,8 +2367,8 @@ end note
 | | P0.12 ✅ | **生产数据隔离**：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色 `ctt_app`；开发继续用 `ctt_server`；`ctt_app` 连接开发库被拒绝，`PUBLIC` 连接权限已撤销。原计划 Redis db 1 已被其他服务的 `check-approver-sort:*` 占用，未清理；生产改用空闲的 db 2，profile 配置为 `${REDIS_DATABASE:2}`，本地/开发为 db 0。角色密码暂存本机 gitignored `.env` 的 `PROD_DB_PASSWORD`，P0.16 迁入 SOPS | 角色/库/owner 与空库已验证；`ctt_app` 生产连接成功、开发连接拒绝；Redis db2 为空且 PING 正常；生产库首次启动由 Flyway 建表 | 中 |
 | | P0.13 ✅ | **数据面收口（部署机）**：PostgreSQL/Redis 只绑定回环 + LAN 地址，PostgreSQL HBA 只保留回环 + 本子网；两个服务加 `network-online.target` 启动顺序；Redis 只保留一条 active `bind`；UFW 按威胁模型不启用（无公网入口、frp 为出站、LAN 可信；同网段放行无新增隔离，Docker 绕过 UFW） | 回环与 LAN 的 PostgreSQL/Redis TCP 验证通过；PostgreSQL/Redis 无 `0.0.0.0`/`[::]` 监听；`ufw status` 为 inactive 且 `ENABLED=no`；LAN 外无入站端口转发；LAN 地址需 DHCP 保留/静态地址（路由器侧确认，主机侧不能验证） | 中 |
 | | P0.13a ✅ | **固定部署机 LAN 地址**：在路由器/DHCP 为部署机配置地址保留；地址变化后同步 PostgreSQL 与 Redis 配置。依赖 P0.13。 | 路由器侧保留记录已保存；续租后 LAN 地址不变，租约重新计时 43,200 秒；PG/Redis 仍只监听回环与 LAN。 | 低 |
-| | P0.13b ✅ | **Redis 来源限制决策：不实施来源 ACL，记录残余风险**。Redis ACL 只能限定命令/键/通道，没有客户端地址谓词；`bind` 只选监听地址。实测：仅一个 IPv4 接口（`192.168.5.178/24`）、无全局 IPv6、无入站端口转发（威胁模型），可达来源本来就是回环 + 本子网 ⇒ 子网白名单当前不会拒绝任何流量，而在共享主机上新增常驻防火墙只会引入新的失效面。决策、证据与 6 条重访触发见 `docs/decisions/ADR-0003-redis-source-restriction.md`；触发命中时改用主机 nftables 白名单（非 UFW），先验证再放行新路径 | ADR-0003 Accepted；残余风险（同网段持口令者可读写全部逻辑库并执行管理命令）与重访条件已记录；LAN 外不可达仍由 P0.13c 验证 | 中 |
-| | P0.13c ⬜ | **外部负向验证**：在具备第二个网络路径或临时测试点时，验证 LAN 外到 5432/6379 不可达；不能用部署机自身或同网段结果代替。依赖 P0.13a、P0.13b（**均已 ✅，只差外部路径**）。 | 外部测试记录：两个端口不可达；LAN 内仍通过；测试结束后清理临时路径。 | 低 |
+| | P0.13b ✅ | **Redis 来源限制决策：不实施来源 ACL，记录残余风险**。Redis ACL 只能限定命令/键/通道，没有客户端地址谓词；`bind` 只选监听地址。实测：仅一个 IPv4 接口（`192.168.5.178/24`）、无全局 IPv6，可达来源本来就是回环 + 本子网 ⇒ 子网白名单当前不会拒绝任何流量，而在共享主机上新增常驻防火墙只会引入新的失效面。决策、证据与 6 条重访触发见 `docs/decisions/ADR-0003-redis-source-restriction.md`；触发命中时改用主机 nftables 白名单（非 UFW），先验证再放行新路径 | ADR-0003 Accepted；残余风险（同网段持口令者可读写全部逻辑库并执行管理命令）与重访条件已记录；LAN 外不可达已由 P0.13c 确认 | 中 |
+| | P0.13c ✅ | **外部负向验证**：以接入机（公网，独立于家庭 LAN）为外部视角，对家庭 WAN 地址探测 `tcp/5432` 与 `tcp/6379`：两次测量均耗尽 5s 超时（丢弃/过滤，非 `refused`）；`ping` 100% 丢包；`tracepath` 在中国电信骨干后无回应；同时间段 frpc 隧道在线（排除断网）。LAN 内两端口仍可用，Redis 返回 `NOAUTH`。目标地址取 SSH/frpc 在接入机上的对端（部署机自报 HTTP 出口不同，不可用）。验收记录 `.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`（不入库） | LAN 外两端口不可达（两次测量）；LAN 内可用且认证生效；未创建任何临时路径；第二个外部视角 SSH banner 超时未取得结果，不影响结论 | 低 |
 | | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
 | | P0.15 | 时钟与日志上限：两机 `chrony`；nginx 与 journald 的日志上限（含轮转策略） | 时钟偏差 < 1 s；日志目录占用有上限 | 中 |
 | | P0.16 | **生产配置收口**：`springdoc.api-docs` 与 `swagger-ui` 在基础配置里开着、prod 未覆盖 ⇒ 生产会暴露接口文档；CORS 仍有占位域 `https://ctt.example.com`；`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认为空且 prod 不校验 ⇒ OAuth 生产静默不可用；**生产密钥（DB / Redis / JWT / OAuth / Grafana / Resend）仍是开发值**，需换成生产值并写入 SOPS 载荷。生产必填配置启动校验覆盖本条列出的项：API 文档关闭、CORS 无占位域、OAuth 必填、密钥非开发值，缺项直接启动失败 | 生产 `/swagger-ui.html` 与 `/v3/api-docs` 返回 404；CORS 无占位域；缺任一本条列出的必填项时启动失败；载荷中不再有开发值 | 中 |
@@ -2431,8 +2431,15 @@ end note
 > - 决策：不安装来源地址白名单；保留 `bind 127.0.0.1 + LAN`、口令、`protected-mode` 与「无入站转发」边界。可达来源集合本身只有回环与本子网，白名单无流量可拒；共享主机上的常驻防火墙只增加失效面。
 > - 证据：`ss -lnt` 只有回环与 LAN 两个监听；`CONFIG GET bind` = `127.0.0.1 192.168.5.178`；`ACL LIST` 只有 `default` 用户 `+@all`（无地址成分）；`ip -brief addr` 只有一个 IPv4 接口、`ip -6 addr show scope global` 为空；现有数据面连接只来自 `192.168.5.101`；其余容器走 bridge 自有发布端口，不使用数据面。
 > - 触发：新增端口转发/路由/全局 IPv6、Redis 迁到容器发布端口或他机、口令扩散、出现异常来源访问时，先装主机 nftables 白名单（非 UFW）再放行新路径。
-> - 边界：未做外部负向验证（P0.13c）；未启用 UFW；未做 Redis ACL 用户加固（独立决策，ADR 已列为替代方案）。
+> - 边界：外部负向验证见 P0.13c（同日完成）；未启用 UFW；未做 Redis ACL 用户加固（独立决策，ADR 已列为替代方案）。
 > - 文档：新增 ADR-0003，`docs/production-data-isolation.md` 与 README 文档索引同步；无 Java/配置/测试变更，按 P0.6c 先例不 bump 版本。
+
+> **P0.13c 完成总结（2026-11-10）**
+> - 方法：以接入机（公网 `206.237.13.41`，独立于家庭 LAN）为外部视角；目标地址取 SSH 与 frpc 在接入机上的对端地址（两条独立流一致），不用部署机自报的 HTTP 出口（其出口与 SSH/frpc 不同）。
+> - 结果：`tcp/5432`、`tcp/6379` 两次探测均耗尽 5s 超时（丢弃/过滤，非 `refused`）；`ping` 100% 丢包；`tracepath` 在中国电信骨干后无回应；同时间段 frpc 隧道 established。LAN 内（开发机 → 部署机）两端口仍可用，Redis 返回 `NOAUTH`。
+> - 边界：测得的是「互联网看到的家庭出口」；若为 CGNAT/共享地址，则「无端口转发」与「无可寻址入口」无法从外部区分，需登录路由器确认。第二个外部视角 `remote-home-ubuntu` SSH banner 超时，未作为证据。
+> - 清理：未创建端口转发、临时规则、监听或测试主机；仅 SSH 只读命令与 4 次 TCP 探测。
+> - 记录与版本：`.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`；无代码变更，不 bump 版本。
 
 
 
@@ -2487,7 +2494,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.13c、P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 
