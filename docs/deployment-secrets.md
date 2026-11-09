@@ -1,7 +1,7 @@
 # Deployment Secrets
 
 Credentials never travel through the Compose environment. The repository keeps one
-SOPS-encrypted payload; a render step turns it into mode `0400` files on the host, and
+SOPS-encrypted payload; a render step turns it into mode `0440` group-readable files on the host, and
 Compose mounts those files as secrets. `docker inspect` therefore shows no password,
 secret key or token — only the mount paths.
 
@@ -11,7 +11,7 @@ secret key or token — only the mount paths.
 | --- | --- | --- |
 | `.sops.yaml` | yes | SOPS creation rule and the age recipient |
 | `deploy/secrets/secrets.enc.yaml` | yes (ciphertext only) | the single source of truth for values |
-| `deploy/secrets/render.sh` | yes | decrypts and writes one `0400` file per key |
+| `deploy/secrets/render.sh` | yes | decrypts and writes one `0440` file per key |
 | `deploy/secrets/frp-token.sh` | yes | renders `FRP_TOKEN` to a `600` file on the access machine |
 | `deploy/secrets/run/` | no (gitignored) | rendered files that Compose mounts |
 | `~/.config/sops/age/keys.txt` | **never** | age private key (mode `600`) |
@@ -53,7 +53,7 @@ there fails: it has no key that can unwrap the data key (the observed error is
 ## Daily flow
 
 ```bash
-./deploy/secrets/render.sh        # writes deploy/secrets/run/* with mode 0400
+./deploy/secrets/render.sh        # writes deploy/secrets/run/* with mode 0440
 ./deploy/local/up.sh              # renders again, then starts the stack
 ```
 
@@ -73,11 +73,13 @@ How each service consumes the files:
 Outside Compose (`./gradlew bootRun`) the application still reads the same names from
 `.env`, which stays gitignored and is not used by the container stack.
 
-On Linux the bind-mounted files keep the host owner (Docker Desktop maps them to the container
-user automatically). If the operator's UID differs from the container's, render with
-`--mode 0440` and a group the container user belongs to, or run the render as that UID; the
-default stays `0400`. Re-running the script removes files for keys that disappeared from the
-payload, so a retired secret cannot keep working.
+On Linux, bind-mounted files keep the host owner and group. `render.sh` defaults to
+mode `0440` and group `SECRET_GID` (default `1000`); Compose adds that GID to the
+application and Grafana containers through `group_add`, so non-root processes can read
+the secrets. `up.sh` and the Jenkins pipeline export the invoker's `id -g`; for a manual
+render, export `SECRET_GID` yourself when the host group is not `1000`. Re-running the
+script removes files for keys that disappeared from the payload, so a retired secret
+cannot keep working.
 
 ## Failing fast
 
@@ -121,7 +123,7 @@ value, then restart the unit. The token never enters shell history, Compose file
 ```bash
 # no secret value appears in any container environment
 docker inspect ctt-app-blue --format '{{json .Config.Env}}'
-# the mount exists and is readable only by its owner
+# the mount exists and is group-readable (0440)
 docker exec ctt-app-blue ls -l /run/secrets
 ```
 

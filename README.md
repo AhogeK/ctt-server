@@ -89,7 +89,8 @@ A pull delivers the winning snapshot of each change, including the IDE that prod
 Requires **JDK 25** and **Docker** (PostgreSQL, Redis and Mailpit run in containers).
 
 ```bash
-./deploy/secrets/render.sh    # decrypt the SOPS payload into 0400 files
+export SECRET_GID="$(id -g)"  # must match the rendered secret group
+./deploy/secrets/render.sh    # decrypt the SOPS payload into 0440 group-readable files
 docker compose up -d --build  # Compose mounts those files as secrets
 ```
 
@@ -125,6 +126,7 @@ are overridable via `APP_EXTERNAL_PORT`, `POSTGRES_EXTERNAL_PORT`,
 | `PASSKEY_ALLOWED_ORIGINS` | Comma-separated exact browser origins allowed to use passkeys | `http://localhost:5173` for local |
 | `OAUTH_TOKEN_ENCRYPTION_KEY` | AES key sealing GitHub access tokens, base64 of exactly 32 bytes | required (including local compose) |
 | `TRUSTED_PROXY_ADDRESSES` | Exact reverse-proxy IPs allowed to supply `X-Forwarded-For`; empty trusts the socket peer only | empty |
+| `SECRET_GID` | Host group added to the app and Grafana containers so they can read the rendered `0440` secrets; keep it in sync with `render.sh` | `1000` |
 | `AUDIT_RETENTION_DAYS` | Days to keep audit rows; `0` keeps every row. Approved production policy: 180 days; changes require a new ADR (ADR-0002) | `0` |
 | `RESEND_API_KEY` | Email delivery key | required in production |
 | `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Sender identity | required, `CTT` |
@@ -132,7 +134,7 @@ are overridable via `APP_EXTERNAL_PORT`, `POSTGRES_EXTERNAL_PORT`,
 `.env` and `application-local.yaml` are gitignored; never commit secrets.
 
 The container stack does not read these values from `.env`: `deploy/secrets/render.sh`
-decrypts the SOPS payload (`deploy/secrets/secrets.enc.yaml`, ciphertext only) into `0400`
+decrypts the SOPS payload (`deploy/secrets/secrets.enc.yaml`, ciphertext only) into `0440`
 files, and Compose mounts them as secrets. The application reads them through Spring's
 configtree, PostgreSQL through `POSTGRES_PASSWORD_FILE` and Redis from the mounted file, so
 no credential appears in `docker inspect`. `.env` remains for `./gradlew bootRun` outside
@@ -214,7 +216,7 @@ whole local stack is one command:
 
 ```bash
 ./deploy/local/up.sh                            # postgres, redis, mailpit, app-blue, edge
-./deploy/local/up.sh --profile obs              # plus Prometheus :9090, Grafana :3000 and blackbox :9115
+./deploy/local/up.sh --profile obs              # plus Prometheus 127.0.0.1:9090, Grafana 127.0.0.1:3000 and blackbox 127.0.0.1:9115
 ./deploy/local/up.sh --profile bluegreen --profile obs
 ```
 
@@ -238,13 +240,17 @@ filesystem, no capabilities (PostgreSQL and Redis get back only what their entry
 memory/CPU limits. Anything a service must write goes to a named volume or an explicit tmpfs mount
 (`/tmp`, PostgreSQL's socket directory, Redis's cache directory), never back into the image.
 
-The edge serves <http://localhost:18080> and proxies to `app-blue` (`app-blue:8080` inside the
-compose network; `:18081` is only the host-side publish); `app-green` takes
-`:18082` when the `bluegreen` profile is on. Prometheus scrapes itself and probes both the edge and
-app-blue readiness endpoints
-through `blackbox_exporter`, and Grafana's provisioned dashboard charts those probes. The
-application's own metrics endpoint arrives with the observability work (P1.1); business-metric
-panels come with it.
+The edge listens on `127.0.0.1:18080` and proxies to `app-blue` on
+`127.0.0.1:18081` (`app-green` uses `127.0.0.1:18082` when the `bluegreen` profile is on).
+The edge and both application colours use host networking; the application binds to loopback
+through `SERVER_ADDRESS=127.0.0.1`. This makes the direct upstream of the application
+`127.0.0.1`, so `TRUSTED_PROXY_ADDRESSES=127.0.0.1` is effective instead of trusting a Docker
+bridge address. All three ports stay on loopback and are not exposed on `0.0.0.0`.
+
+Prometheus, blackbox and Grafana also use host networking and listen on loopback
+(`:9090`, `:9115`, `:3000`). Prometheus probes the edge and blue readiness endpoints directly
+through `127.0.0.1`; the application's own metrics endpoint arrives with the observability work
+(P1.1), and business-metric panels come with it.
 
 ### Recording image digests
 
@@ -288,7 +294,7 @@ endpoints answered 200 and no container reported `OOMKilled` (Grafana is capped 
 | [Audit Boundary Spec](docs/audit-boundary-spec.md) | what is audited and what is deliberately not |
 | [Audit Payload Boundary](docs/decisions/ADR-0001-audit-payload-boundary.md) | why request bodies stay out of the audit trail |
 | [Audit Retention Policy](docs/decisions/ADR-0002-audit-retention-policy.md) | approved 180-day retention and whole-row deletion |
-| [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0400` files, rotation and the frp token |
+| [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0440` group-readable files, rotation and the frp token |
 
 ## Related projects
 
