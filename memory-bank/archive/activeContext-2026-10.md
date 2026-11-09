@@ -4,8 +4,100 @@
 
 > 2026-11-07：热文件达 200 行上限，把 2026-10-12 的两条完整移入本 shard（零改动迁移）。
 > 2026-11-08：热文件再次触顶，把 2026-10-18/10-19 的六条（R1 / R2 / R3 与阶段六计划，原 70 行）完整移入本 shard（零改动迁移）；热文件只保留结论与指向。
+> 2026-11-10：热文件触顶（206 行），把 2026-10-15 → 10-30 的十六条（v0.79.0–v0.89.0，含 hourly-days、个人设置 R1–R3、季度/半年榜、窗口化 STREAK、排行排除 0 分、IDE 归属、设备心跳、依赖升级、README 重设计、2FA、批量撤销、会话列表修复、`.omp` 归档、DB 连不上诊断、报告约定）完整移入本 shard（零改动迁移）；热文件只保留结论与指向。
 
 
+
+- [2026-10-30] - 两步验证（TOTP + 恢复码）（v0.89.0，已交付）
+    - 新增 `/api/v1/users/me/2fa/*`（状态/start/confirm/disable/regenerate）与 `POST /auth/login/2fa`；启用后密码登录返回 202 + 挑战，OAuth 回调以 `#challengeToken` fragment 返回且不写 token/Cookie；新增 `AUTH_026`–`AUTH_031`
+    - 安全: TOTP secret AES-256-GCM（`TOTP_ENCRYPTION_KEY`）、恢复码仅存 SHA-256、`totp_last_used_step` 防重放、Redis 一次性挑战（5 次失败 429）、启用/关闭撤销其他会话、API key 创建要求 WEB_SESSION + 2FA 复核
+    - **审查修复（10-31）**: ①启动阻断——`TOTP_ENCRYPTION_KEY` 默认空串 + `@NotBlank` 使三条启动路径全挂（曾靠 `@TestPropertySource` 掩盖）；改为本地占位键、prod 无回退、compose 不再传空值；`completeLogin` 现重校验账号状态 ②审计阻断——`LoginTwoFactorService.complete` 的 `@Transactional` 让 `TOTP_CHALLENGE_FAILED`（AFTER_COMMIT）随回滚丢弃并把已消费凭据一并回滚；移除该事务，`completeLogin` 补显式 `save` ③新增 `SecondFactorVerifier` 收敛三处重复判定（位数从配置推导），删除 `UserLoginService.login` 死方法，OAuth 两条 `process*` 合并 ④`markTotpStepUsed` 去掉仓库层 `@Transactional`、`UserController` 改用 `WebSessionGuard`、去掉失效的 `@RequiresApiKeyScope`、10 个实体通配导入展开 ⑤补 7 例测试（OAuth email-merge+2FA、`AUTH_031` 新旧会话、`AUTH_029`、双凭据歧义、端点级 429、`TOTP_CHALLENGE_FAILED` 落库，末者 RED 可复现；另加 2FA 完成后账号被 SUSPENDED 的 403 用例）
+    - 验证: `spotlessCheck` + `jacocoTestCoverageVerification` + 全量 `build` 1618/0/1 skipped；版本 0.89.0；`AGENTS.md` R8 补配置空值与二次认证完成阶段两条边界。**2026-11-02 修复（v0.89.1）**: iOS Google Authenticator 拒扫 52 字符密钥。根因不是版本漂移，而是 `SecretGenerator.generate(160)` 已返回 Base32 字节，`TotpService` 又编码一次（20 字节 → 32 字符 → 52 字符 + `====`）；改为 20 个随机字节只编码一次，返回 32 字符无填充。已启用旧账号需 `disable → start → confirm` 重设；新增密钥长度、start 端点与旧 56 字符 secret 兼容性测试；全量 1620/0/1 skipped
+- [2026-10-29] - 会话批量撤销（v0.88.0，已提交推送）
+    - 新增 `POST /api/v1/users/me/sessions/revoke`（body `{sessionIds}`，去重后 1..100）：按 UUID 升序取会话锁，逐条撤销并写 `SESSION_REVOKED`；不存在的/已撤销的/他人的进 `skipped`，整体 200 且重放幂等；限流 10 次/时；当前会话可撤销（refresh 立即 401，access token 15 分钟内仍有效）；审查后补 401/403/429 独立示例、拆分 `MAX_BATCH_REVOCATIONS`、抽取 `findLiveTokenUnderLock`、429 用例独立成类、补 null 元素用例；前端反馈后补「按端点分桶 + `Retry-After`/`retryAfter`」文档说明（行为不变、纯文档不 bump 版本）
+- [2026-10-28] - 会话列表 500 修复（v0.87.3，待授权提交）
+    - 根因: `LoginSessionService.listSessions` 以 `devices.get(row.getDeviceId())` 查设备；浏览器会话的 `device_id` 为 null，而无任何设备的账号会让 `devicesById` 返回 `Map.of()`，`ImmutableCollections.MapN.get(null)` 抛 NPE ⇒ 500 `SYSTEM_001`。修复: `deviceOf()` 先判空再查；回归用例用非 UUID 的 deviceId 登录（浏览器形态），断言列表 200 且 `deviceName`/`ideName` 为 null
+
+- [2026-10-27] - 依赖升级（v0.87.2）
+    - Boot 4.1.2 / springdoc 3.2.0 / greenmail 2.1.15 / Flyway 13.11.1 / pg 42.7.14 / ben-manes 0.66.0 / spotless 8.10.4 / JaCoCo 0.8.16 / Gradle 9.8.2；google-java-format 1.37.0 在 Spotless 下崩溃，保留 1.36.1；分层 clean build 各 1567 tests / 0 failures
+
+- [2026-10-27] - README 重设计（文档，已提交推送）
+    - 785 → 226 行：Hero SVG + 徽章、机制图（mermaid）、快速开始、API 总览、数据模型、测试、文档索引；API 细节零丢失迁至 `docs/api-reference.md`（仅标题由 `## API Endpoints` 改为 `## Endpoints`）；新增 `assets/readme/hero.svg`；底部 Support 用 `<div align="center">` + 单行 flat-square 徽章（源码换行会变竖排）
+
+- [2026-10-26] - 会话级 IDE 归属与复核补齐（v0.87.0 / v0.87.1，已提交推送）
+    - 前端复核两项属实: pull 的 `SyncChangeDto` 未带 IDE ⇒ 跨设备本地副本回退成拉取方 IDE；`applyIncomingFields` 无条件写 ⇒ 缺少字段的更新把已有 IDE 清成 null
+    - 修复: `SyncChangeDto` 加 `ideName`/`ideVersion`，`toChangeDto` 的正常分支与 `session == null` 分支都显式传值；IDE 只在传入非空时写入（旧客户端不清空、升级可补值）；单测/集成覆盖两端，全量 1567 tests / 0 failures
+    - 需求核实: 报告属实 —— deviceId 是安装级（同机所有 IDE 共享），`devices.ide_name` 只在注册时写，`coding_sessions` 不存 IDE，统计按设备归属 ⇒ 多 IDE 被合并、IDE 升级不更新；插件端 `SyncSessionMapper` 已按会话发送 IDE
+    - 契约: 迁移 `V20261026120000` 加 `coding_sessions.ide_name/ide_version`（可空、不回填）+ 部分索引 `(user_id, ide_name) WHERE is_deleted = FALSE`；`SyncSessionDto` 可选 `ideName`/`ideVersion`（≤100/≤50，空白归一 null）；批量 INSERT 16 → 18 列
+    - 统计与设备: 过滤 = 会话 `ide_name` ∪ 旧行回退 origin 设备注册值；`IDES` 桶会话优先、回退设备、再 `Unknown IDE`；`ide-filters` = 两者并集；404 仅当两者都无；设备响应改「最近使用」（`DISTINCT ON` 单查询、无 N+1、回退注册值）；每日汇总表不参与 IDE 筛选
+    - 导出与不做: 会话行写会话级 IDE（旧行回退设备）；不建 `device_ides`、不拆 device id、不回填旧会话、IDE 不进 `ConflictResolver.sameContent`；单测 + 集成覆盖同设备双 IDE、筛选、设备取最近 IDE、旧客户端无字段
+
+- [2026-10-26] - 设备最后活跃时间停摆修复（v0.86.1，已提交推送）
+    - 前端报告核实: **属实**。`setLastSeenAt` 在生产代码中只有 `DeviceService.registerDevice` 一处；`SyncPullService`/`SyncPushService` 只校验归属与吊销，不写回 ⇒ 每天同步的设备 `last_seen_at` 停在注册日，前端 7 天阈值判成 Inactive
+    - 修复: `DeviceRepository.touchLastSeen(userId, deviceId, seenAt)` —— 单条 JPQL update（`lastSeenAt` + `updatedAt`，谓词含 `revokedAt is null`，`@Modifying(clearAutomatically, flushAutomatically)`）；pull 与 push 在归属/吊销校验通过后各调一次。用整行 update 而非实体 save 的原因：`Device` 有 `@Version`，同一安装的多插件并发同步会撞乐观锁，而心跳没有业务含义；调用点在 `@Transactional` 内，失败随事务回滚；单测 4 例 + 集成「13 天前的 last_seen_at → pull → 一分钟内」；已推送（6a83f7f → master 77cc619）
+
+- [2026-10-25] - 排行榜排除 0 分成员（v0.86.0，已提交推送）
+    - 前端需求核实: `leaderboard:total`/`streak`/`active_days` 各 9 成员其中 7 个 0 分，`night_owl`/`early_bird` 各 8 个 0 分；7 个 AutoTest 账号 `coding_sessions` 为 0 条 ⇒ **不是精度问题，是写入规则**
+    - 根因: `writeScore` 无条件 `ZADD`，`recomputeAndWriteAll` 对每个维度×周期都写 ⇒ 无活动账号以 0 分入榜，并计入 `totalParticipants` 与并列名次
+    - 修复: `LeaderboardDimension.ranksOnlyPositiveScores()`（除 `GROWTH` 外全部为真）；`writeScore` 在 `score <= 0` 时 `ZREM` 并返回（只查层过滤不行：`totalParticipants`、分页、名次仍会带上 0 分成员）；`LANGUAGE` 的榜索引与 `user:languages` 记录只在正分时维护，零时长语言不建榜；回填代次 3 → 4 以清理存量 0 分成员；`GROWTH` 保留 0/负分（度量而非缺失）
+    - 测试: 零会话用户只移除不写入（仅 `growth` 键可写 0）、负增长与零增长仍写入、零时长语言不建榜、TTL 只在写分时设置；集成用例「无活动用户不在榜上且 `totalParticipants` = 1」；状态: 实施完成，待授权提交
+
+- [2026-10-25] - 窗口化 STREAK 回填缺失修复（v0.85.1，已提交推送）
+    - 前端报告核实: **五项断言全部属实**。Redis 实测（部署机，地址不入库）：`leaderboard:streak`=2，`month/quarter/half-year/year` 四个窗口各 1；`leaderboard:recompute:g2:vocab2` 存在；代码 `SCORE_RULE_GENERATION` 仍为 2
+    - 根因: 标记键只有「代次 + 词表版本」，0.85.0 放开 `STREAK` 全部周期既没提升代次、标记也不含矩阵信息 ⇒ 旧标记命中，`backfillScores()` 首次判断即 return，未推送过的用户没有窗口键；查不存在的 ZSet 返回 200 + 空列表，前端显示空态而非错误
+    - 修复: 代次 2 → 3；标记改为 `g{n}:cov{8位}:vocab{v}`，其中 `cov` 由 `LeaderboardDimension.values() × supports()` 排序后 SHA-256 现算 ⇒ **新增维度或放开周期自动失效**；改公式仍需人工提升代次。新标记 `leaderboard:recompute:g3:covbdc93f7f:vocab2`（41 个合法组合）
+    - 测试: 断言不再复用 `g2:vocab2`、矩阵增删即改变指纹、枚举顺序无关，排行榜相关 49 例全绿；**刻意未做**：不在真实 Redis 手工回填（共享数据），部署后由 `ctt.leaderboard.backfill-initial-delay-ms`（60s）触发
+
+- [2026-10-23] - `.omp` 全量分类归档（用户要求：时间只做文件夹，不进文件名；一个需求一个文件）
+    - 结构: `.omp/<category>/<YYYY-MM-DD>/<kebab-topic>.md`；类别 = reports / acceptance / requirements / research / plans / notes；顶层不再有散文件
+    - 迁移 35 个 .md（顶层 30 + plans/ 5 + reports/ 2，去重 2 份；旧 `reports/2026-10-2X-*.md` 命名已并入日期文件夹），`skill-graph-zh.json` 移入 `data/`；同步修正 `AGENTS.md` R26 两处过时行并合并「每轮新建」与「分类归档」表述（✅ 已完成，随该批 AI 提交）
+
+- [2026-10-23] - 数据库连不上诊断（**第二次复发，非代码问题**）
+    - 现象: IDEA 内启动应用 ⇒ `flywayInitializer` 取连接失败，根因 `java.net.NoRouteToHostException`（EHOSTUNREACH，SQLState 08001）
+    - 证据: 本批未改任何数据源配置；**系统 shell** 到部署机 PostgreSQL（地址不入库）的 `ping` 0% 丢包、`nc -z` 成功；系统日志反复出现 `LocalNetwork: found bundle id com.jetbrains.intellij`
+    - 结论: macOS「本地网络」权限挡住 **IDEA 进程**（同一地址外部 Terminal 可连）；处置 = 关开该权限 + `Cmd+Q` 完全重启 IDEA，或在系统 Terminal `./gradlew bootRun`
+    - 沉淀: `AGENTS.md` R8 新增「环境类故障先对照再怀疑代码」（异常类型对照表 + 用系统 shell 对照）；详细报告 `.omp/reports/2026-10-23/db-unreachable-diagnosis.md`
+
+- [2026-10-23] - 窗口化 STREAK 启用（v0.85.0）
+    - 需求: ctt-web「启用窗口化的连续天数排行」——上一轮已定义口径（窗口内最长 run），本轮接线
+    - 交付: `LeaderboardService.longestRunInside`（从 `secondsByDay` 取窗口内日期，按 `prev+1` 计连续段、取最大）；`STREAK` 分支按 `period == ALL` 分流（终身走 `StatsCalculator.streaks`，窗口走新 reducer）；`supports()` 放行 `STREAK` 全部周期 ⇒ 现在**唯一**非法组合是 `GROWTH + ALL`
+    - 测试: 新增用例「连续 5 天跨月/周边界」——`ALL`=5、`WEEK`=3、`MONTH`=3、`QUARTER`=5（证明两端切断）；两处"非法组合"样例由 `STREAK+WEEK` 改为 `GROWTH+ALL`（枚举矩阵仍由枚举驱动）
+    - **事故记录**: 我用 `open(p,'w').write(open(p).read().replace(...))` 把 `gradle/libs.versions.toml` 写空（先截断再读）——已从 HEAD 恢复并用 `sed` 重做；教训：读写同一文件必须先读完再写，禁止一行式截断写入
+    - 前端: 新报告 `.omp/leaderboard-streak-window-frontend-report.md`（选择器补五项、删"待接入"说明）
+    - 状态: ✅ 已交付 v0.85.0（2026-10-23；全量 1543 tests / 0 failures）
+
+- [2026-10-20] - 排行榜新增季度/半年周期（v0.84.0）
+    - 需求来源: ctt-web「longer leaderboard periods」——周/月榜在用户增长后失去区分度，季度与半年是恢复区分度的最小增量
+    - 交付: `LeaderboardPeriod` 增 `QUARTER`（1/4/7/10 月首日）与 `HALF_YEAR`（1/7 月首日），`start`/`endExclusive`/`keySuffix`（`:quarter:` / `:half-year:`）与 `shift`/TTL（93 / 185 天）同步；`supports()` 对 TOTAL/NIGHT_OWL/EARLY_BIRD/ACTIVE_DAYS/LANGUAGE 全周期，GROWTH 自动获得；不支持组合仍 `400 COMMON_003`
+    - **窗口化 STREAK：已定义、未启用** —— 分数 = **完全落在窗口内的最长连续编码天数**（两端切断 run）；否决"窗口结束时的连续天数"（当前周期未结束时无定义、且会随窗口回溯变化）。Redis 每成员单值 ⇒ 启用须先把该 reducer 接到写分路径，本轮不做；`STREAK` + 周期继续 400，避免把终身分数塞进窗口 key
+    - 顺带修两处**脆断言**: `LeaderboardServiceTest` 的「20 个 key / 15 个 TTL」硬编码改为按枚举推导——这类枚举清单式断言每次扩展都会误报，已改成一条公式
+    - 验证: `LeaderboardPeriodTest` 4 例；排行榜测试 49 例全绿（集成矩阵由枚举驱动，自动覆盖 6×7 组合与 400 分支）
+    - 状态: ✅ 已交付 v0.84.0（2026-10-20）——其中"窗口化 STREAK 未启用"已被 v0.85.0 取代
+
+- [2026-10-19] - 对接报告约定固化：每轮新建、旧文件不改
+    - 用户指示: "每次新报告都要新起文件避免旧内容的混淆"。此前我**原地更新**了 `settings-phase6-frontend-report.md`（10-18 的"滚动契约"）✗ —— `.omp/` 无版本控制，原文无法还原；现已保留该文件并加顶部横幅标注为**历史文件**，最新口径以 `-3.md` 为准
+    - 落地: `AGENTS.md` R26 增「对接/变更报告：每轮新建文件、旧文件不改，新文件自述取代范围」；`-3.md` 增「口径唯一性」说明（与旧文件冲突处一律以最新轮次为准）
+    - 状态: ✅ 约定已固化（AGENTS + 记忆），随下批 AI 提交
+
+
+- [2026-10-18 → 10-19] - 个人设置 R1–R3 与阶段六计划（v0.80.0 → v0.83.1，全部已交付）
+    - R1 改名 `PATCH /users/me`（v0.80.0/0.80.1）：写方法落 `UserService`（保留 `UserProfileService` 的只读声明）、同名提交幂等、零新增错误码；顺带补 `DELETE /me` 限流与已删账号门控用例
+    - R2 会话身份与列表/吊销（v0.81.0/0.82.0）：迁移加 `session_id` + `user_agent`、access token 加 `sid`；受众判别改为「deviceId 已在 `devices` 注册 ⇒ PLUGIN」（`LoginRequest.deviceId` 恒非空，带 deviceId 不能区分）；刷新与吊销都先取会话锁、`refresh` 重读再判定，否则踢掉的会话会复活；被整体吊销的会话刷新返回 `AUTH_003`，只有「会话仍有活跃行」才判重用
+    - R3 导出（v0.83.0/0.83.1）：格式由插件导入器决定——单 JSON 对象、`ISO_LOCAL_DATE_TIME`（带 `Z` 会整份导入失败）、扩展收进 `serverExport`、软删不导出、空值写 `""`；`timezoneOffset` 必填；`JsonGenerator` 每页 1000 流式写出
+    - 完整过程、验收与提交记录见 `archive/activeContext-2026-10.md`；计划里的 R1–R3 节同步保留了约定与校正
+
+- [2026-10-15] - hourly-days 端点（按日的每小时分布，v0.79.0，已交付）
+    - 需求: 前端要在「Average hourly coding duration」面板里把**每天的曲线**叠画在平均曲线背后，并在含今天的窗口标出"当下时刻"
+    - **回源核出的实质问题（前端报告未覆盖）**: `hourlyDistribution` 的 `activeDays` 是「**会话起始日**去重」而非领域文档定义的「**有编码的天数**」→ 跨本地午夜的会话只贡献 **1** 天分母，把平均值**抬高**；前端整套叠画假设（分母 = 有编码的天数、逐日数组之和 = 平均曲线的分子）因此不成立。裁决: **修缺陷**（对齐 `meta.md` 定义 + 前端语义 + 新端点需要同源），不做静默修改
+    - 结构决策（防止两套口径漂移）: 抽出 `hourlyByDay(..., maxDays)` 单一累加器（`TreeMap<LocalDate, long[24]>`），`hourlyDistribution` 改为**由同一份日桶派生**（小时和 = 逐日相加，分母 = 日桶数）；31 天上限只施加在 `hourlySecondsByDay` 边缘 → 「逐日之和 ÷ 分母 = 平均曲线」由**构造**保证而非约定。集成测试断言该不变量（`average×N ≤ sum < (average+1)×N`，因平均值按整数向下取整）
+    - 其他裁决: 原始累加（重叠计两次，与 `hourly` 一致，不合并）；只出活跃日、升序；`activeDays` 取窗口真实值、**不受 31 天截断影响**（与 `hourly` 恒等）；上限 31 防未设窗口的全历史请求放大响应
+    - 实现: `StatsCalculator`（`DayHourly` record + `hourlySecondsByDay` + 私有 `hourlyByDay`，重写 `hourlyDistribution`）、DTO `HourlyDayPoint`/`HourlyDaysResponse`、`StatsService.hourlyDays`（`end<start` → COMMON_003，与 hourly 同）、`GET /api/v1/stats/hourly-days`（READ + 60/60，参数与 hourly 完全一致）
+    - 测试: 计算器 +7（跨午夜切成两天 / 重叠计两次 / **与 hourly 逐小时一致 + 分母修正** / 31 天取最新 / 丢弃零日并升序 / 空）、集成 +2（逐日数组重算平均曲线 + `activeDays` 与 hourly 相等 / 400 区间非法）。**我自己写错一处期望**（第 11 小时只含第二段 1800，我错记成 5400）—— 跑出来才发现
+    - 领域沉淀: `stats-aggregation/principles.md` §11（分母定义 + 单一累加器 + 不变量）、`references.md`（端点表 + 31 天上限）、`practices.md`（"第二份切片会漂移"陷阱）
+    - **前端复核回执（2026-10-15）**: 分母修正与结构（唯一累加源、上限只在边界、`activeDays` 与截断无关）两项复核通过；raw 口径 / 31 上限 / 无服务端缓存 / 无"今天未结束"字段全部接受。三项顺手项**全部采纳**（均零行为变化）: ① `StatsCalculator` 类注释的时长语义清单校正（time-of-day 实为**合并**、两清单都缺的 week-hour 补入）+ README 合并清单补 week-hour ② `weekHourDistribution` 重复两遍的合并注释删一段 ③ 去掉 `hourlyDays` 的第二遍全量累加 —— 新增 `DayHourlyWindow` record（`days` 截断 / `activeDays` 全量），一次 `hourlyByDay` 同时产出两者
+    - 顺带核实: `devices`/`IDEs` 分布经 `aggregateByLabel(sessions, …)` 逐会话聚合 = **raw**；已把「哪个面合并、哪个面原始」列为 `references.md` 新表（前端正是被同类清单误导过）
+    - 验证: 计算器 **7/7**、集成 **22/22** 绿；全量 **1503 tests / 0 failures / 0 errors**（上批 1494，+9 = 计算器 7 + 集成 2）；jacoco INSTRUCTION **95%** / BRANCH **84%**（阈值 80/70）；`spotlessCheck` PASS
+    - 状态: ✅ **已交付 v0.79.0**（develop `a98f662` / master `6a33c6a`，2026-10-15 提交并推送）
 
 - [2026-10-12] - 账号状态门控接线 + 生产侧 FQCN 清理（v0.78.1）
     - **先纠正我自己报错的数字**: 上批收尾我说"仓库还剩 9 处全限定类名 / 8 个文件"，实测是**生产 4 处 + 测试 91 处**（前后两次 grep 过滤条件不一致 ✗）。教训：规模必须用同一条命令复算，不能凭中间结果拼凑

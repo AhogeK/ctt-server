@@ -149,3 +149,5 @@ OAuth state 必须与 HttpOnly、SameSite Lax 的状态 Cookie 对齐；缺失/�
 ## 数据面监听与网络信任边界
 
 部署机的数据面监听、LAN 访问、UFW 决策与 DHCP/network-online 前提见 [Production Data Isolation](../docs/production-data-isolation.md#data-plane-network-isolation)；此处不重复。
+
+PostgreSQL 用 `pg_hba.conf` 在服务内拒绝子网外客户端；Redis 没有等价能力（ACL 只限定命令/键/通道，`bind` 只选监听地址）⇒ 按 [ADR-0003](../docs/decisions/ADR-0003-redis-source-restriction.md) 不装来源白名单，靠绑定 + 口令 + 「路由器不转发入站」边界。任何新增到 `6379` 的路径（端口转发、路由、全局 IPv6、容器发布端口、迁机）都必须先装主机 nftables 白名单（非 UFW）并验证再放行——这是触发器，不是偏好。

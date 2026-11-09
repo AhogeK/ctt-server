@@ -176,6 +176,8 @@
 
 - **compose 加固要先验证 entrypoint 的需求，再逐项 `docker inspect` 核对**：`read_only: true` 要求所有写入点都在命名卷或 tmpfs 里；`cap_drop: [ALL]` 会让 `gosu`/`setpriv` 失败——postgres 需加回 `CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID`（前三项用于 chown PGDATA，后两项给 gosu），redis 需加回 `CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID`（没有 FOWNER；SETPCAP 是 setpriv 收窄 bounding set 需要）。2026-11-08 P0.4 实测：`redis:latest` 未声明卷且工作目录在根文件系统，只读根下 chown 报错 ⇒ 给 `/data` 挂 tmpfs。验收以 `docker inspect` 的字段为准，不以 compose 文本为准。
 
+- **平台能力要按机制核实，不要按名字推断（强制）**：Redis **没有来源地址 ACL**——6+ 的 ACL 只限定命令/键/通道，`bind` 只选监听接口；「只允许本子网」只能在主机防火墙（nftables）或网络分段实现，决策与触发见 `docs/decisions/ADR-0003-redis-source-restriction.md`。同理：在共享主机上新增常驻防火墙前，先证明它能拒绝**当前拓扑中真实可达**的来源，否则只是新增失效面；结论要写成残余风险 + 重访触发（ADR），不要落成没有消费者的配置项。
+
 ### R8.5: 项目一致性优先（强制）
 
 **核心原则：按项目来而不是任务需求，需求要变通符合项目的一致性。**
