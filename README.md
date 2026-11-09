@@ -150,6 +150,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Audit Boundary Spec](docs/audit-boundary-spec.md) | what is audited and what is deliberately not |
 | [Audit Payload Boundary](docs/decisions/ADR-0001-audit-payload-boundary.md) | why request bodies stay out of the audit trail |
 | [Audit Retention Policy](docs/decisions/ADR-0002-audit-retention-policy.md) | approved 180-day retention and whole-row deletion |
+| [Redis Source Restriction](docs/decisions/ADR-0003-redis-source-restriction.md) | why Redis has no source allowlist, and when one becomes mandatory |
 | [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0440` group-readable files, rotation and the frp token |
 | [Production Data Isolation](docs/production-data-isolation.md) | production database, role, Redis logical database, data-plane network and verification |
 
