@@ -101,8 +101,16 @@ clients, while Docker-published ports bypass UFW. Revisit this decision if an
 untrusted network or VLAN is added.
 
 PostgreSQL enforces the client subnet in `pg_hba.conf`. Redis has no
-source-address access control; a client on another routed subnet that can
-reach the LAN address is limited only by the Redis password.
+source-address access control: its ACLs scope commands, keys and channels per
+user, never client addresses, and `bind` selects listening interfaces rather
+than accepted clients. The host has one IPv4 interface in the LAN subnet and
+no global IPv6 address, so no remote source outside that subnet can reach the
+port; the host's container bridges are local and add no remote path. A subnet
+allowlist would therefore reject nothing and is not installed
+([ADR-0003](decisions/ADR-0003-redis-source-restriction.md) records the
+evidence, the accepted residual risk and the six revisit triggers). It becomes
+mandatory — as a host nftables rule set, not UFW — before any new path to port
+`6379` is enabled.
 
 The UFW service unit may still report `active`; that only means the unit is
 present. The rules are not enabled. Check `/etc/ufw/ufw.conf` or `ufw status`,
