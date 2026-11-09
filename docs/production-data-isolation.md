@@ -67,3 +67,48 @@ The last command must fail with `permission denied for database "ctt_server"`.
 
 The production application writes only to Redis database `2`. Do not run
 `FLUSHDB` or delete keys in database `1`; it belongs to another service.
+
+## Data-plane network isolation
+
+The deployment host exposes PostgreSQL and Redis only on loopback plus its LAN
+address. The exact LAN address and subnet are kept in the private operations
+notes, not in this repository.
+
+| Service | Listener | Allowed clients |
+| --- | --- | --- |
+| PostgreSQL | `<LOOPBACK>:5432`, `<LAN_ADDRESS>:5432` | loopback and `<LAN_SUBNET>` |
+| Redis | `<LOOPBACK>:6379`, `<LAN_ADDRESS>:6379` | loopback and clients that can route to `<LAN_ADDRESS>`; Redis password required |
+
+PostgreSQL uses `listen_addresses` with the loopback and LAN addresses; its
+`pg_hba.conf` keeps only loopback and the LAN subnet. Redis uses an explicit
+`bind` with the same two addresses. Production containers connect through
+loopback; LAN development uses the host LAN address.
+
+Both services use a systemd `network-online.target` dependency because the LAN
+address is assigned by DHCP. Without it, PostgreSQL can fail before the address
+exists and does not retry (`Restart=no`).
+
+The LAN address must be a DHCP reservation or static lease. If it changes,
+both service configuration files must be updated before the next restart.
+
+The host is behind a router that forwards no inbound ports. Adding a port
+forward or a routed path from outside the LAN requires revisiting this design.
+
+UFW is intentionally not enabled for this deployment. The host has no public
+address, frp is an outbound tunnel, and the LAN is the declared trust boundary;
+a host firewall that allows the same subnet adds no isolation from same-subnet
+clients, while Docker-published ports bypass UFW. Revisit this decision if an
+untrusted network or VLAN is added.
+
+PostgreSQL enforces the client subnet in `pg_hba.conf`. Redis has no
+source-address access control; a client on another routed subnet that can
+reach the LAN address is limited only by the Redis password.
+
+The UFW service unit may still report `active`; that only means the unit is
+present. The rules are not enabled. Check `/etc/ufw/ufw.conf` or `ufw status`,
+not only `systemctl is-active ufw`.
+
+Verification uses `ss` to confirm that neither service listens on a wildcard
+address, `pg_isready` for both PostgreSQL addresses, and TCP checks for both
+Redis addresses. Redis authentication is separate from the bind check; an
+unauthenticated `PING` returning `NOAUTH` is not a bind failure.
