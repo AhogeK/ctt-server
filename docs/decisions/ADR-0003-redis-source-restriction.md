@@ -32,9 +32,9 @@ Two platform constraints shape the options:
   reject anything the current topology can produce.
 
 The declared threat model (P0.13, confirmed by the project owner) treats the home LAN as the trust
-boundary: the router forwards no inbound ports, and the only external ingress is the tunnel. Absence
-of port forwarding is being verified separately in P0.13c; it is a threat-model statement, not a
-measurement in this ADR.
+boundary: the router forwards no inbound ports, and the only external ingress is the tunnel.
+Absence of forwarding was measured in P0.13c (2026-11-10) from a public host outside the LAN, so it
+is no longer only a threat-model statement.
 
 ## Decision
 
@@ -96,15 +96,17 @@ The decision must be revisited, and the nftables allowlist installed, before any
 5. The Redis password is shared beyond this deployment, or a second application user is added.
 6. Any Redis access from an unexpected source appears in logs or an incident review.
 
-P0.13c (external negative verification) remains the measurement that confirms trigger 1 has not
-already occurred.
+P0.13c measured this from outside the LAN on 2026-11-10: `tcp/5432` and `tcp/6379` to the network's
+internet-facing address time out from a public host, while both ports stay reachable inside the LAN.
 
 ## Verification and limits
 
 Read-only evidence collected on 2026-11-10 with the commands quoted in the Context table. What this
 ADR does **not** establish:
 
-- That the router forwards no ports — P0.13c owns that check, from a path outside the LAN.
+- Whether the network has a dedicated public address or an ISP-level shared address. P0.13c saw no
+  inbound path either way, so the conclusion holds; confirming the router's WAN address and its
+  forwarding table needs router access.
 - That no host-level client can spoof a LAN source address. Spoofing is out of scope for a subnet
   allowlist as well; the effective control remains the password plus the trusted LAN.
 
@@ -133,3 +135,6 @@ re-run.
 - `docs/production-data-isolation.md` (data-plane network isolation, Redis section).
 - Plan sections P0.11 (host networking for edge and applications), P0.13, P0.13a, P0.13c in
   `.plans/ctt-server-development-plan.md`.
+- P0.13c external probes (2026-11-10): from a public host outside the LAN, both data-plane ports
+  time out (filtered, not refused), ICMP is dropped and the path stops at the ISP backbone, while
+  the frp tunnel from the same network stays connected and both ports answer inside the LAN.
