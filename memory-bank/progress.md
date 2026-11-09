@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.96.1`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.97.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流（含 180 天保留策略，ADR-0002）、liveness/readiness health 探针 |
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.97.0` | 2026-11-09 | feat(data): isolate production data and Redis |
 | `0.96.1` | 2026-11-09 | feat(deploy): bind edge/apps to loopback host networking; fix(secret): make rendered secrets group-readable |
 | `0.95.0` | 2026-11-09 | feat(actuator): split liveness and readiness health probes |
 | `0.94.1` | 2026-11-09 | chore(config): align the audit retention default comment |
@@ -123,7 +124,7 @@
 | 错误监控（Sentry 等） | 依赖与代码中无集成 | 未做 |
 | CI 流水线 | 无 `.github/workflows/` | 未做 |
 | 部署脚本配套 | 本地 `docker-compose.yaml` 已有；生产编排/自动化部署脚本未落地 | 部分完成 |
-| 生产审计量级实测 | 计划阶段表 P0.16b（依赖 P0.12/P0.16） | 未做 |
+| 生产审计量级实测 | 计划阶段表 P0.16b（P0.12 已完成；依赖 P0.16 的生产密钥迁移） | 未做 |
 
 旧 `progress.md` 中列出的「CodingSession 数据模型 / SyncCursor / SyncPullService / SyncPushService /
 ConflictResolver(LWW) / Redis ZSet 排行榜」**均已交付**（v0.45–v0.73），当时清单已过期；其原文在归档中保留。

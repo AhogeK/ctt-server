@@ -1,7 +1,7 @@
 # Active Context
 
-- [2026-11-09] - P0.11 端口与编排 + secret 组读修复（v0.96.1）
-    - edge/蓝/绿/obs 全部 host 网络并绑定 `127.0.0.1`；应用 `SERVER_ADDRESS=127.0.0.1`、`TRUSTED_PROXY_ADDRESSES=127.0.0.1`；Caddy `:18080` + `bind 127.0.0.1` 代理 blue；frpc `18080 -> 18080` 已存在；完整 Linux app/edge/obs 验证通过、应用来源 `127.0.0.1`；secret 改 0440 + `SECRET_GID`/`group_add`，修复 appuser 读取宿主只读文件失败
+- [2026-11-09] - P0.12 生产数据隔离（v0.97.0）：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色；开发继续 `ctt_server`；两个库的 `PUBLIC` 连接权限已撤销，`ctt_app` 不能连接开发库；原 db1 被 `check-approver-sort:*` 占用，生产改用 db2，本地/开发 db0；角色密码仅在本机 `.env` 的 `PROD_DB_PASSWORD`，待 P0.16 入 SOPS
+- [2026-11-09] - P0.11 端口与编排 + secret 组读修复（v0.96.1）：edge/蓝/绿/obs host 网络并绑定 `127.0.0.1`；Caddy `:18080` + `bind` 代理 blue；应用 `SERVER_ADDRESS=127.0.0.1`、`TRUSTED_PROXY_ADDRESSES=127.0.0.1`；frpc `18080 -> 18080` 已存在；完整 Linux app/edge/obs 验证通过；secret 0440 + `SECRET_GID`/`group_add`
 - [2026-11-09] - P0.9 frpc systemd 完成（重启抽检暂缓）
     - 服务端 stable `current`/配置；部署机 stable `current`/配置、unit `enabled`/`active`、`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`；单进程，无 tmux/crontab；重启抽检未执行（用户当前不重启），不能替代端到端检查；unit/`UPGRADE.md` 在主机本地 frp 目录
 - [2026-11-09] - P0.7 health 分组(v0.95.0)

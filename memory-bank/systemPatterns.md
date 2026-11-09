@@ -9,6 +9,10 @@
 多设备双向同步采用 LWW (Last-Write-Wins) + 软删除。**优先级链、幂等规则、游标语义、分页契约见
 [`domains/sync-protocol/principles.md`](domains/sync-protocol/principles.md)**（领域文件是权威，此处不重复）。
 
+## 环境数据隔离
+
+开发使用 `ctt_server`；生产使用 `ctt_server_prod`，owner 与登录角色均为 `ctt_app`。生产角色没有 SUPERUSER/CREATEDB/CREATEROLE，且不能连接开发库。Redis 按环境划分逻辑库：本地/开发 db0，生产 db2，库号由 `REDIS_DATABASE` 覆盖；db1 已被其他服务的 `check-approver-sort:*` 占用，禁止清理或混用。生产库首次启动由 Flyway 建表，不复制开发数据。
+
 ## 认证方式: JWT + API Key 双轨制
 
 Web 用户用 JWT，插件设备用 API Key，设备管理支持单独撤销。

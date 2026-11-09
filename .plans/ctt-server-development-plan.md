@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.11 / P0.14 已完成；P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.96.1 P0.11 端口/host 网络与 secret 组读修复完成；P0.9 systemd 已实施（enabled/active，重启抽检暂缓） |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.12 / P0.14 已完成；P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.97.0 P0.12 生产数据隔离完成；P0.9 systemd 已实施（enabled/active，重启抽检暂缓） |
 
 ## 🗺️ 计划总览
 
@@ -2364,7 +2364,7 @@ end note
 | | P0.9 ✅（重启抽检暂缓） | **frpc 改 systemd**（部署机）：stable unit 已安装为 `enabled`/`active`，`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`，使用 stable `current`/配置；旧 tmux 与 crontab 已移除，只剩一个 stable frpc 进程；unit、升级与回滚说明存于各主机 frp 目录，不进入项目仓库；重启抽检按用户要求暂缓（不阻塞交付） | unit `enabled`/`active` 且开机目标已挂载；重启后隧道自动恢复属抽检，未执行（用户当前不重启） | 中 |
 | | P0.10 ✅ | 隧道端口收口：**已完成 ufw 侧**（18080 公网不可达、遗留 `2024` 放行已删，`ufw.log` 有 `[UFW BLOCK]` 实证）。控制端口保留对公网开放：家庭出口 IP 不唯一（主机内有代理，接入机看到的来源与主机自报的出口不一致），按 IP 白名单会自断隧道；改为 `TLS + 48 位随机 token + allowPorts` 三重约束。维护页与 `limit_req` 不在本条，归 P7.1 | 公网访问 18080 被拒；隧道断开时返回 503 而非超时 | 中 |
 | | P0.11 ✅ | **端口与编排**：edge `127.0.0.1:18080`、蓝 `127.0.0.1:18081`、绿 `127.0.0.1:18082`；edge、蓝/绿应用、Prometheus/blackbox/Grafana 均使用 host 网络，应用设置 `SERVER_ADDRESS=127.0.0.1`；edge 直接代理到 `127.0.0.1:18081`；frpc 的 `remotePort=18080 → localPort=18080` 已存在；蓝/绿启用 `TRUSTED_PROXY_ADDRESSES=127.0.0.1`。只改 edge 不够：host 网络访问 Docker 发布端口时容器来源仍是 `172.17.0.1`，所以应用也必须使用 host 网络 | `docker compose config` 通过；Caddy `validate` 与 `promtool check config` 通过；Linux 完整 app/edge/obs 启动成功：edge/blue/green readiness 200，Prometheus 两个 target up，Grafana `database: ok`，应用日志来源 `127.0.0.1`，18080–18082/9090/9115/3000 只绑定回环 | 中 |
-| | P0.12 | 生产数据隔离：建 `ctt_server_prod` 与 `ctt_app`；Redis db 1；开发继续原库 | 生产与开发的库名、角色、Redis 库号可区分 | 中 |
+| | P0.12 ✅ | **生产数据隔离**：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色 `ctt_app`；开发继续用 `ctt_server`；`ctt_app` 连接开发库被拒绝，`PUBLIC` 连接权限已撤销。原计划 Redis db 1 已被其他服务的 `check-approver-sort:*` 占用，未清理；生产改用空闲的 db 2，profile 配置为 `${REDIS_DATABASE:2}`，本地/开发为 db 0。角色密码暂存本机 gitignored `.env` 的 `PROD_DB_PASSWORD`，P0.16 迁入 SOPS | 角色/库/owner 与空库已验证；`ctt_app` 生产连接成功、开发连接拒绝；Redis db2 为空且 PING 正常；生产库首次启动由 Flyway 建表 | 中 |
 | | P0.13 | 数据面收口：部署机 **ufw 已安装未启用**（`ENABLED=no`），PG/Redis 现对整段 LAN 开放 ⇒ 启用 ufw（或 nftables）只放行本子网，PG/Redis 绑部署机 LAN 地址，生产容器走 `127.0.0.1`；sudo 需要密码，实施时需你在场 | LAN 外不可达；LAN 内开发仍可用 | 中 |
 | | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
 | | P0.15 | 时钟与日志上限：两机 `chrony`；nginx 与 journald 的日志上限（含轮转策略） | 时钟偏差 < 1 s；日志目录占用有上限 | 中 |
@@ -2402,6 +2402,13 @@ end note
 > - 验证：Compose 配置解析、Caddy 配置校验、Prometheus 配置校验通过；`IpUtilsTest` 与 `RequestContextInitializerFilterTest` 通过；Linux 完整 app/edge 启动后 edge/blue/green readiness 200，blue/green 应用日志来源 `127.0.0.1`；Prometheus 9090/9115 与 Grafana 3000 均只绑定回环且 target 为 up。
 > - 边界：Mac Docker Desktop 的 host 网络端口不暴露给宿主，因此完整栈只在 Linux 验证；Mac 本地启动不作为验收证据。
 > - 重访：在 Linux 启动完整本地栈后，复核 `ss -lnt`、edge readiness、蓝/绿切换与 frpc 连接；如改回 bridge 网络，必须同时重新评估可信代理地址。
+> **P0.12 完成总结（2026-11-09）**
+> - 交付：`ctt_server_prod` / `ctt_app` 实际创建；生产 profile Redis db2；新增生产数据隔离文档；本地与开发 Redis 保持 db0。
+> - 验证：`ctt_app` 无 SUPERUSER/CREATEDB/CREATEROLE；生产库 owner 正确且 public 表数为 0；`ctt_app` 可连接生产库、不能连接 `ctt_server`；Redis db2 为空且 `PING` 正常。
+> - 偏离：原计划 db1 被其他服务的 `check-approver-sort:*` 占用，未删除、未混用；改用 db2，并记录于运行手册与计划。
+> - 边界：生产库尚无业务表，首次 prod 启动由 Flyway 建表；`PROD_DB_PASSWORD` 仅在本机 gitignored `.env`，P0.16 迁入 SOPS。
+> - 重访：P0.16 迁移生产密钥、P0.16b 生产审计量级时复核；禁止在 db1 清理其他服务数据。
+> - 计划与验收明细：`.plans/p0-12-data-isolation-plan.md`。
 
 | 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- | --- |
@@ -2454,7 +2461,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.12–P0.13、P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P0.13、P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 
