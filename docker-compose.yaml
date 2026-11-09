@@ -21,8 +21,8 @@ x-hardening: &hardening
   cap_drop:
     - ALL
 
-# Values live on the host as 0400 files rendered from the SOPS payload
-# (`deploy/secrets/render.sh`); nothing secret is passed through the
+# Values live on the host as 0440 group-readable files rendered from the SOPS
+# payload (`deploy/secrets/render.sh`); nothing secret is passed through the
 # environment, so `docker inspect` shows no credential.
 secrets:
   postgres_password:
@@ -48,6 +48,8 @@ services:
     container_name: ${CONTAINER_NAME:-ctt-server}
     mem_limit: 900m
     cpus: 2.0
+    group_add:
+      - "${SECRET_GID:-1000}"
     tmpfs:
       - /tmp
     ports:

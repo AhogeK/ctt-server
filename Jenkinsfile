@@ -63,8 +63,11 @@ EOF
         stage('Infra Up') {
             steps {
                 dir("${REPO_DIR}") {
-                    sh './deploy/secrets/render.sh'
-                    sh 'docker compose up -d postgres redis mailpit'
+                    sh '''
+                        export SECRET_GID="${SECRET_GID:-$(id -g)}"
+                        ./deploy/secrets/render.sh
+                        docker compose up -d postgres redis mailpit
+                    '''
                     sh '''
                         docker network connect ctt-server_default jenkins-blueocean 2>/dev/null || true
 
@@ -88,7 +91,7 @@ EOF
         stage('Deploy') {
             steps {
                 dir("${REPO_DIR}") {
-                    sh 'CONTAINER_NAME=ctt-server-test docker compose up -d --build app'
+                    sh 'export SECRET_GID="${SECRET_GID:-$(id -g)}"; CONTAINER_NAME=ctt-server-test docker compose up -d --build app'
                 }
             }
         }
