@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.10 / P0.14 已完成；P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.95.0 P0.7 health 分组完成；P0.9 systemd 已实施（enabled/active，重启抽检暂缓） |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.11 / P0.14 已完成；P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.96.1 P0.11 端口/host 网络与 secret 组读修复完成；P0.9 systemd 已实施（enabled/active，重启抽检暂缓） |
 
 ## 🗺️ 计划总览
 
@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。真实地址/主机名见私密运维记录。**frps 与 frpc 均已 systemd 托管**；frps 代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝；开发与联调仍共用同一个数据库。部署机另有既有公网 Jenkins，经 nginx 443 对外。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9）。已完成：P0.0–P0.10、P0.14；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓；未完成：P0.16b、P0.17。P1–P7 未开工，每步一个可独立验收的交付物。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11）。已完成：P0.0–P0.11、P0.14；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓；未完成：P0.16b、P0.17。P1–P7 未开工，每步一个可独立验收的交付物。
 
 **本轮交付（2026-11-07）**
 
@@ -2197,7 +2197,7 @@ end note
 - P0.2（2026-11-08，v0.93.2）：镜像可追溯。新增 `deploy/local/digests.sh`（从两份 compose 解析 7 个镜像并记录 digest，`--out` 追加带时间戳的表），README 补用法与演练步骤。演练：记录 → `up.sh --profile obs`（edge / blue / Prometheus / Grafana 四处 200，两条探测结果均为 1）→ `clean build --rerun-tasks`（**1695 tests / 0 failures / 1 skipped**）→ 再记录：7 个镜像 digest 完全一致，只有本地构建的 `ctt-server-app` 镜像 id 随重建变化（预期）
 - P0.3（2026-11-08，v0.93.4）：构建上下文收口。新增 `.dockerignore`，排除 `.git` / `build` / `.env*` / `.plans` / `memory-bank` / `docs` / `dev-docs` 与 AI 工作区、编辑器状态，保留生产构建所需的 `gradle/`、`gradlew`、构建脚本与 `src/`，以及本地镜像的 `build/local-image/app.jar`。实测复制进镜像的上下文：**249.44 MB → 4.06 MB**（不含暂存 jar）、**92.16 MB**（含 88 MB jar）
 - P0.4（2026-11-08，v0.93.5）：compose 加固。两份 compose 用 `x-hardening` 锚点统一 `restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 日志轮转（10m × 3），逐服务补 `mem_limit` / `cpus` / tmpfs；能力按 entrypoint 精确加回：postgres `CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID`，redis `CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID`（后者无 FOWNER，SETPCAP 供 setpriv 收窄 bounding set）。生产镜像 ENTRYPOINT 同步补 `-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=20`，与 900m 上限对齐。9 个容器 `docker inspect` 逐项核对通过，edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条探测结果为 1
-- P0.5（2026-11-08，v0.93.6）：密钥改 Compose secrets。仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml`，`.sops.yaml` 只放 age 公钥），`render.sh` 先解密到临时目录再替换（失败不破坏旧文件）、写出 0400 文件，`up.sh` 与 `Jenkinsfile` 在起栈前调用；应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除。frp token 由 `frp-token.sh` 在接入机渲染为 600 文件（见 `docs/deployment-secrets.md`）。**尚未完成的收尾见阶段表 P0.17 与 P0.16**
+- P0.5（2026-11-08，v0.93.6；2026-11-09 修正）：密钥改 Compose secrets。仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml`，`.sops.yaml` 只放 age 公钥），`render.sh` 先解密到临时目录再替换（失败不破坏旧文件）、写出 `0440` 组可读文件（`SECRET_GID`），`up.sh` 与 `Jenkinsfile` 在起栈前调用；应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除。frp token 由 `frp-token.sh` 在接入机渲染为 600 文件（见 `docs/deployment-secrets.md`）。**尚未完成的收尾见阶段表 P0.17 与 P0.16**
 - P0.6（2026-11-08，v0.93.7）：审计载荷收口。`ctt.security.audit.log-payloads` / `masked-fields` 无生产读取方（仅绑定测试），已连同 base/prod 两份受版本控制的 YAML 的 `audit` 块与 `SecurityProperties.AuditProperties` 一起删除（`application-local.yaml` 被 gitignore，仅本地改动）；`docs/security-architecture.md` 增「Audit Storage Boundary」：审计永不存请求体，`details` 只应承载动作/资源/原因/状态，**这些写入点已由 P0.6b 收口**。同主题清理（v0.93.8）：无生产使用的 `MaskSerializer` 与测试已删除，脱敏文档统一为「头掩码 + 全局正则」两层。验证：定向测试全绿；实跑 `POST /auth/login`，审计行仅 `{"reason":"Invalid email or password","errorCode":"AUTH_001"}`，全库检索请求体中的密码串 = 0；全量测试通过
 - 未完成项**只以阶段表的状态列为准**（⬜ 未开工 / 🚧 部分完成）；已完成项回填版本与证据，本节不再另设清单
 
@@ -2252,7 +2252,7 @@ end note
 | 整机失联探测 | 一个**免费外部可用性拨测**（只测公网 health URL，不带业务数据），补部署机整机断电/断网时的盲区 | 本机观测随主机一起消失，只能靠外部视角 | 只靠本机自检（主机挂了没人知道） |
 | 备份 | pgBackRest 仓库在部署机（770 GB 可用）+ 每周加密 `pg_dump` 复制到接入机（14 GB，保留 4 份） | 本地 PITR 拿 RPO；接入机容量只够放少量全量 | 只留部署机（主机级故障即全丢）、只留接入机（容量不够 PITR） |
 | CI/CD | GitHub Actions + GHCR；部署机只 `docker compose pull`，不构建 | 部署机同时跑 Jenkins 与生产，本机构建会抢 CPU/内存并污染依赖缓存 | 在部署机上用 Jenkins 构建生产镜像 |
-| 密钥 | Compose `secrets`（宿主 0400 文件）+ 仓库内 SOPS/age 密文；frp token 同样入密文 | 不进 `docker inspect`；可版本化与轮换 | 明文 `.env`、Vault（单机过重） |
+| 密钥 | Compose `secrets`（宿主 `0440` 组可读文件）+ 仓库内 SOPS/age 密文；frp token 同样入密文 | 不进 `docker inspect`；可版本化与轮换 | 明文 `.env`、Vault（单机过重） |
 | 扫描与压测 | Trivy（镜像 + 文件系统）、gitleaks、Renovate；k6 | 漏洞门、密钥门、依赖更新、脚本化压测 | 仅 Dependabot（不扫镜像）、JMeter（资源开销） |
 | 环境 | local / staging / prod 三档，共用部署机主机但独立库与端口 | staging 用于发布预演与恢复演练，不拿生产练手 | 只留 prod（无法演练） |
 | 邮件通道 | 生产用 **Resend**（SMTP `smtp.resend.com`；**无 SMTP 服务端日志**，投递结果只在控制台 emails 表可见）；本地 Mailpit；staging 只发给自己 | 应用本来就走 `spring.mail.*`，换凭据即可 | 自建 Postfix（IP 信誉与退信成本高）、Gmail SMTP（条款不适合事务邮件） |
@@ -2355,7 +2355,7 @@ end note
 | | P0.2 ✅ | 镜像**一律 `latest`**（始终最新，含大版本）。可追溯性由 `deploy/local/digests.sh` 承担：解析两份 compose 的 7 个镜像、记录 digest，`--out` 追加到部署记录；升级演练前后各记录一次并比对 | 部署记录有 7 个镜像的 digest；演练前后本地全栈四处 200、全量 1695 tests / 0 failures / 1 skipped | 低 |
 | | P0.3 ✅ | `.dockerignore` 覆盖 `.git`、`build`、`.env`、`.plans`、`memory-bank`、`docs`，并排除 AI 工作区与编辑器状态；保留生产构建所需的 `gradle/`、`gradlew`、构建脚本、`src/`，以及本地镜像的 `build/local-image/app.jar` | 实测复制进镜像的上下文 249.44 MB → 4.06 MB（不含暂存 jar）/ 92.16 MB（含 88 MB jar）；生产构建前置文件校验通过 | 低 |
 | | P0.4 ✅ | compose 加固：两份文件共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、日志 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 加回 CHOWN/DAC_OVERRIDE/SETGID/SETPCAP/SETUID（无 FOWNER）；生产镜像 ENTRYPOINT 补堆上限标志 | 9 个容器 `docker inspect` 逐项核对：restart、45s、mem、nano cpus、日志选项、只读根、tmpfs、cap_drop/cap_add、安全选项全部命中；六处端点 200、两条探测为 1 | 中 |
-| | P0.5 ✅ | 密钥改 Compose secrets：仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml` + `.sops.yaml` 的 age 公钥），`render.sh` 先解密到临时目录再替换成 0400 文件，`up.sh` / `Jenkinsfile` 起栈前调用；应用走 configtree、PostgreSQL 走 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 写 tmpfs 配置并 `setpriv` 降权、Grafana 走 `GF_SECURITY_ADMIN_PASSWORD__FILE`；frp token 由 `frp-token.sh` 在接入机渲染成 600 文件（`docs/deployment-secrets.md`）。**收尾（token 值、Linux 实测）归 P0.17** | 运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 0400 且容器用户可读；缺渲染文件时 Compose 拒绝创建容器（bind source 不存在）；缺 age 身份或密钥错误时 `render.sh` 退出 1 且旧文件保留；Redis 进程参数只有 `redis-server *:6379`；缺/空 JWT 键启动失败 | 中 |
+| | P0.5 ✅ | 密钥改 Compose secrets：仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml` + `.sops.yaml` 的 age 公钥），`render.sh` 先解密到临时目录再替换成 `0440` 组可读文件（`SECRET_GID`），`up.sh` / `Jenkinsfile` 起栈前调用；应用走 configtree、PostgreSQL 走 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 写 tmpfs 配置并 `setpriv` 降权、Grafana 走 `GF_SECURITY_ADMIN_PASSWORD__FILE`；frp token 由 `frp-token.sh` 在接入机渲染成 600 文件（`docs/deployment-secrets.md`）。2026-11-09 修复：应用的 `appuser` 无法读取宿主 `0400` secret，默认改为 `0440` + `group_add`。**收尾（token 值、Linux 实测）归 P0.17** | 运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 `0440` 且容器组可读；缺渲染文件时 Compose 拒绝创建容器（bind source 不存在）；缺 age 身份或密钥错误时 `render.sh` 退出 1 且旧文件保留；Redis 进程参数只有 `redis-server *:6379`；缺/空 JWT 键启动失败 | 中 |
 | | P0.6 ✅ | **评估后删除未接线的审计载荷开关**。`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方（仅绑定测试）；多维度评估（引入意图、实现代价、账号删除冲突、体积、脱敏可靠性、OWASP/GDPR/ASVS）结论是**不引入请求体审计**，理由与替代方案见 `docs/decisions/ADR-0001-audit-payload-boundary.md`；base/prod 两份受版本控制的 YAML（`application-local.yaml` 被 gitignore）与 `SecurityProperties` 删除该块，审计 `details` 仍只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext。脱敏可靠性实测：正则可掩码普通字符串，但不是 JSON 感知（`pwd` / `otp` / `apiKey` 漏，空值/对象值会破坏文本），不能当作载荷掩码器。**同主题清理（v0.93.8）**：无生产使用的 `MaskSerializer` 与测试已删除，文档统一为「头掩码 + 全局正则」两层 | `grep` 证明无生产消费者；定向测试通过；实跑 `POST /auth/login`（body 含 `password`）审计行只有 `reason`/`errorCode`，全库检索该密码串 = 0；全量测试通过 | 低 |
 | | P0.6b ✅ | **审计内容最小化（代码完成）**：`details` / `resource_id` 不再写姓名、邮箱、passkey 标签、原始 SMTP 错误；`TokenRefresh` 去掉重复的 IP / UA；`PasswordResetService` 与 `RateLimitAspect` 的 `resource_id` 也不再写邮箱；只保留 action、资源 id、布尔、枚举、计数。保留清理机制已交付（`AuditRetentionJob` + `ctt.audit.retention.days`，默认 0=保留；启用后删除整行而非只擦 IP/UA）；开发库 `ctt_server` 只读实测 29,801 行 / 11 MB（参考） | 定向测试通过；全量测试通过；grep 审计写入点无自由文本个人数据/邮箱；代码与机制验收完成 | 中 |
 | | P0.6c ✅ | **审计保留策略确认**：生产保留 **180 天**（`AUDIT_RETENTION_DAYS=180`）；启用后按整行删除、不保留 IP/UA。决定、替代方案、部署验证与签核记录见 `docs/decisions/ADR-0002-audit-retention-policy.md`；应用默认仍为 0，生产启用按 ADR 部署清单执行（执行/验证归 P0.16b，不属于本条验收） | ADR-0002 Accepted；决策值与整行删除语义可追溯；部署清单已写入；执行/验证归 P0.16b | 中 |
@@ -2363,14 +2363,14 @@ end note
 | | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）；2026-11-09 已切到 stable `current` + 稳定配置，unit 重启后 `enabled`/`active`，旧 unit/config 已备份 | 重启接入机后隧道自动恢复；服务端 stable 路径已验证 | 中 |
 | | P0.9 ✅（重启抽检暂缓） | **frpc 改 systemd**（部署机）：stable unit 已安装为 `enabled`/`active`，`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`，使用 stable `current`/配置；旧 tmux 与 crontab 已移除，只剩一个 stable frpc 进程；unit、升级与回滚说明存于各主机 frp 目录，不进入项目仓库；重启抽检按用户要求暂缓（不阻塞交付） | unit `enabled`/`active` 且开机目标已挂载；重启后隧道自动恢复属抽检，未执行（用户当前不重启） | 中 |
 | | P0.10 ✅ | 隧道端口收口：**已完成 ufw 侧**（18080 公网不可达、遗留 `2024` 放行已删，`ufw.log` 有 `[UFW BLOCK]` 实证）。控制端口保留对公网开放：家庭出口 IP 不唯一（主机内有代理，接入机看到的来源与主机自报的出口不一致），按 IP 白名单会自断隧道；改为 `TLS + 48 位随机 token + allowPorts` 三重约束。维护页与 `limit_req` 不在本条，归 P7.1 | 公网访问 18080 被拒；隧道断开时返回 503 而非超时 | 中 |
-| | P0.11 | 端口与编排：`edge 18080` / 蓝 `18081` / 绿 `18082`；frpc 增加 `remotePort=18080 → localPort=18080`；**edge 用 host 网络**，否则 app 看到的来源是容器桥接 IP，可信代理名单与 IP 限流一起失真 | 三个端口只在回环；`TRUSTED_PROXY_ADDRESSES=127.0.0.1` 真正生效 | 中 |
+| | P0.11 ✅ | **端口与编排**：edge `127.0.0.1:18080`、蓝 `127.0.0.1:18081`、绿 `127.0.0.1:18082`；edge、蓝/绿应用、Prometheus/blackbox/Grafana 均使用 host 网络，应用设置 `SERVER_ADDRESS=127.0.0.1`；edge 直接代理到 `127.0.0.1:18081`；frpc 的 `remotePort=18080 → localPort=18080` 已存在；蓝/绿启用 `TRUSTED_PROXY_ADDRESSES=127.0.0.1`。只改 edge 不够：host 网络访问 Docker 发布端口时容器来源仍是 `172.17.0.1`，所以应用也必须使用 host 网络 | `docker compose config` 通过；Caddy `validate` 与 `promtool check config` 通过；Linux 完整 app/edge/obs 启动成功：edge/blue/green readiness 200，Prometheus 两个 target up，Grafana `database: ok`，应用日志来源 `127.0.0.1`，18080–18082/9090/9115/3000 只绑定回环 | 中 |
 | | P0.12 | 生产数据隔离：建 `ctt_server_prod` 与 `ctt_app`；Redis db 1；开发继续原库 | 生产与开发的库名、角色、Redis 库号可区分 | 中 |
 | | P0.13 | 数据面收口：部署机 **ufw 已安装未启用**（`ENABLED=no`），PG/Redis 现对整段 LAN 开放 ⇒ 启用 ufw（或 nftables）只放行本子网，PG/Redis 绑部署机 LAN 地址，生产容器走 `127.0.0.1`；sudo 需要密码，实施时需你在场 | LAN 外不可达；LAN 内开发仍可用 | 中 |
 | | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
 | | P0.15 | 时钟与日志上限：两机 `chrony`；nginx 与 journald 的日志上限（含轮转策略） | 时钟偏差 < 1 s；日志目录占用有上限 | 中 |
 | | P0.16 | **生产配置收口**：`springdoc.api-docs` 与 `swagger-ui` 在基础配置里开着、prod 未覆盖 ⇒ 生产会暴露接口文档；CORS 仍有占位域 `https://ctt.example.com`；`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认为空且 prod 不校验 ⇒ OAuth 生产静默不可用；**生产密钥（DB / Redis / JWT / OAuth / Grafana / Resend）仍是开发值**，需换成生产值并写入 SOPS 载荷。生产必填配置启动校验覆盖本条列出的项：API 文档关闭、CORS 无占位域、OAuth 必填、密钥非开发值，缺项直接启动失败 | 生产 `/swagger-ui.html` 与 `/v3/api-docs` 返回 404；CORS 无占位域；缺任一本条列出的必填项时启动失败；载荷中不再有开发值 | 中 |
 | | P0.16b | **生产审计量级实测（依赖已完成的 P0.12/P0.16）**：对 `ctt_server_prod` 的 `audit_logs` 做只读统计（行数、表/索引体积、查询计划），记录日期与 snapshot | 生产只读统计记录；与开发库 29,801 行 / 11 MB 的参考值分开记录 | 中 |
-| | P0.17 ⬜ | **密钥收尾与真实宿主验证**：把 `FRP_TOKEN` 写入 SOPS 载荷，用 `frp-token.sh` 在接入机渲染 `600` 文件并重启 frp；在 Linux 部署机确认容器用户能读 `/run/secrets`（不可读时 `render.sh --mode 0440`），结论回填 P0.5 | 载荷含 `FRP_TOKEN`；接入机 token 文件 `600` 且隧道正常；Linux 上容器可读 secrets | 低 |
+| | P0.17 ⬜ | **密钥收尾与真实宿主验证**：把 `FRP_TOKEN` 写入 SOPS 载荷，用 `frp-token.sh` 在接入机渲染 `600` 文件并重启 frp；Linux 上 `SECRET_GID`/`group_add` 的组读已于 2026-11-09 实际验证（appuser 可读 `0440` 文件），剩余只验证 `FRP_TOKEN` 与接入机文件 | 载荷含 `FRP_TOKEN`；接入机 token 文件 `600` 且隧道正常；secret 组读已完成 | 低 |
 
 > **计划修订（2026-11-09）**：P0.6b 已按自身交付物收口为 ✅；P0.6c 已确认 180 天整行删除（ADR-0002）；生产审计量级实测保留在 P0.16b（P0.12/P0.16 之后）。P0.16 与 P7.3 同步移除对 P7.4/P7.5 的前向依赖；未开工待办只依赖已排在它之前的工作。
 
@@ -2396,7 +2396,15 @@ end note
 > - 验证：`systemctl is-enabled` = `enabled`、`is-active` = `active`、`WantedBy=multi-user.target`；multi-user wants symlink 指向 unit；`pgrep -a frpc` 只有一个进程；`tmux ls` 无 server；crontab 仅保留无关的 blogapi 启动项；服务端 `frps` 同样 `enabled`/`active`。
 > - 边界：按用户要求暂不重启部署机；`enabled` + `WantedBy` + `After=network-online.target` 证明开机目标与网络依赖已挂载，但**不能替代**重启后的端到端抽检；该抽检未执行，不影响当前交付。
 > - 重访：重启部署机或修改 unit/配置后，复跑 `systemctl is-active`、`pgrep -a frpc` 与日志检查；若出现 `proxy already exists` 或进程数 >1，按 runbook 回滚。
+> **P0.11 完成总结（2026-11-09）**
+> - 交付：`docker-compose.local.yaml` 的 edge、蓝/绿与 obs 全部改 host 网络；应用绑定 `127.0.0.1:18081/18082`；edge 通过 `:18080` + `bind 127.0.0.1` 代理 blue；Caddy/Prometheus/Grafana 配置同步到回环；README 说明信任链。
+> - 信任链：只有 edge host 网络时，应用经 Docker 发布端口看到的来源是 `172.17.0.1`，`TRUSTED_PROXY_ADDRESSES=127.0.0.1` 无效；应用同样改 host 网络后，Linux 实测来源为 `127.0.0.1`。
+> - 验证：Compose 配置解析、Caddy 配置校验、Prometheus 配置校验通过；`IpUtilsTest` 与 `RequestContextInitializerFilterTest` 通过；Linux 完整 app/edge 启动后 edge/blue/green readiness 200，blue/green 应用日志来源 `127.0.0.1`；Prometheus 9090/9115 与 Grafana 3000 均只绑定回环且 target 为 up。
+> - 边界：Mac Docker Desktop 的 host 网络端口不暴露给宿主，因此完整栈只在 Linux 验证；Mac 本地启动不作为验收证据。
+> - 重访：在 Linux 启动完整本地栈后，复核 `ss -lnt`、edge readiness、蓝/绿切换与 frpc 连接；如改回 bridge 网络，必须同时重新评估可信代理地址。
 
+| 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
+| --- | --- | --- | --- | --- |
 | P1 指标与追踪 | P1.1 | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ `management.server.port=8081` 且 **`management.server.address=127.0.0.1`**；应用端口不再暴露 metrics | `ActuatorSurfaceTest` 固定两端口暴露面 | 中 |
 | | P1.2 | 5 个业务指标（同步计数与耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量），标签基数 ≤3 | 指标存在性 + 标签集合断言 | 中 |
 | | P1.3 | 追踪：Micrometer Tracing + OTLP，透传 W3C `traceparent`，保留 `traceId`；生产 10% 采样 | 一次请求在 Tempo 可见完整 span，日志可按 `traceId` 聚合 | 高 |
@@ -2446,7 +2454,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.11–P0.13、P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P0.12–P0.13、P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 
@@ -2594,11 +2602,11 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | 阿里云 DNS | 确认解析是否在阿里云（`dig NS ahogek.com +short` 含 `hichina`）；加 `ctt` A → 接入机公网地址（值见私密运维记录）；再加 Resend 要求的 DKIM / SPF / 回信 MX；`_dmarc` 先 `p=none` | 登录控制台按我给的值逐条添加，或明确授权我代操作 | 不索取账号密码；不动既有 blog/blogapi 记录 |
 | 证书 | A 记录生效后接入机执行 `certbot --nginx -d ctt.ahogek.com`，沿用现有续期；新增 `--deploy-hook "systemctl reload nginx"` | 无（用 HTTP-01，不需要 DNS 插件） | 不改动既有域名的证书配置 |
-| GitHub OAuth | 新建 prod App：Homepage `https://ctt.ahogek.com`，回调**逐字** `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback`；dev App 用 `http://127.0.0.1:8080/ctt-server/api/v1/auth/oauth/github/callback`（GitHub 建议 loopback 用 `127.0.0.1` 而非 `localhost`）。单 App 可存 10 个回调，但省略 `redirect_uri` 时只用第一个 | 创建 App 并把 client id / secret 写进宿主 0400 文件或密文 | 不把 secret 写进仓库；不靠"改顺序"切环境 |
-| Resend | 打开 <https://resend.com/home> → Add Domain（`ahogek.com` 或发送子域 `send.ahogek.com`）→ 按提示把 DKIM / SPF / 回信 MX 加进阿里云 DNS → 等 Verified → 建 `ctt-server-prod` key（Sending access、限该域）；SMTP：`smtp.resend.com`、465（SSL）或 587（STARTTLS）、用户名 `resend`、密码 = API key | 注册/登录 Resend，把 API key 存进宿主 0400 文件 | 不把 key 写进仓库；不替你接受付费条款 |
+| GitHub OAuth | 新建 prod App：Homepage `https://ctt.ahogek.com`，回调**逐字** `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback`；dev App 用 `http://127.0.0.1:8080/ctt-server/api/v1/auth/oauth/github/callback`（GitHub 建议 loopback 用 `127.0.0.1` 而非 `localhost`）。单 App 可存 10 个回调，但省略 `redirect_uri` 时只用第一个 | 创建 App 并把 client id / secret 写进宿主 `0440` 组可读文件或密文 | 不把 secret 写进仓库；不靠"改顺序"切环境 |
+| Resend | 打开 <https://resend.com/home> → Add Domain（`ahogek.com` 或发送子域 `send.ahogek.com`）→ 按提示把 DKIM / SPF / 回信 MX 加进阿里云 DNS → 等 Verified → 建 `ctt-server-prod` key（Sending access、限该域）；SMTP：`smtp.resend.com`、465（SSL）或 587（STARTTLS）、用户名 `resend`、密码 = API key | 注册/登录 Resend，把 API key 存进宿主 `0440` 组可读文件 | 不把 key 写进仓库；不替你接受付费条款 |
 | 应用邮件配置 | `MAIL_SMTP_*`、`MAIL_FROM_ADDRESS=noreply@<已验证域>`（验证顶点域则用 `noreply@ahogek.com`，改用发送子域则随之改）、`MAIL_FROM_NAME`，并设 `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true`（465 加 `SSL_ENABLE=true`，587 加 `STARTTLS_ENABLE=true`） | 确认发件地址与显示名 | 不用未验证域发信 |
 | hCaptcha | 生产域名新建 site key，把 `HCAPTCHA_SITE_KEY` / `HCAPTCHA_SECRET_KEY` 写进生产密钥文件；校验地址用官方 `https://api.hcaptcha.com/siteverify`。**缺 site-key 时代码会静默跳过校验**，所以配完要按验收里的“无 token 应被拒”验证一次 | 在 hCaptcha 后台加域名并取 key | 不复用本地/测试 key 上生产 |
-| Passkey 与 2FA 凭据 | `PASSKEY_RP_ID` / `PASSKEY_ALLOWED_ORIGINS` 用正式域名（prod 配置无默认值，缺则启动失败）；`TOTP_ENCRYPTION_KEY` 生成 32 字节随机并 Base64；**rp-id 上线后不要改** | 生成并保管这些密钥（与 JWT 密钥同等级），写进宿主 0400 文件或密文 | 不使用仓库里的开发后备密钥 |
+| Passkey 与 2FA 凭据 | `PASSKEY_RP_ID` / `PASSKEY_ALLOWED_ORIGINS` 用正式域名（prod 配置无默认值，缺则启动失败）；`TOTP_ENCRYPTION_KEY` 生成 32 字节随机并 Base64；**rp-id 上线后不要改** | 生成并保管这些密钥（与 JWT 密钥同等级），写进宿主 `0440` 组可读文件或密文 | 不使用仓库里的开发后备密钥 |
 
 > 说明：Resend 的额度、速率与投递日志字段以其控制台为准，不在此照抄数字；P4.5 用 20 封自测确认日限与突发行为。当前 outbox 没有 provider message id 字段，先按「收件人 + 时间 + 主题」对齐日志；是否新增列另按迁移成本评估（R12 / R22）。
 
@@ -2700,7 +2708,7 @@ sequenceDiagram
 | google-java-format 1.36.1 → 1.37.0 | 1.37.0 在 Spotless 8.10.4 下对所有文件抛 `InvocationTargetException`；单独用 all-deps jar（带 `--add-exports`）可以正常格式化，判定为 Spotless 与 1.37.0 的集成缺口，保留 1.36.1 |
 | JDK 25.0.4.1 → 25.0.5 | 属本机环境（sdkman / toolchain），不是仓库依赖；ADOPTIUM 已发布 25.0.5+8，可按需升级 |
 
-| 顺带发现（未改） | `build.gradle.kts` 同时声明 `flyway-database-postgresql` 的字面量与 catalog 别名，版本一致但属重复声明，留待后续清理 |
+> **顺带发现（未改）**：`build.gradle.kts` 同时声明 `flyway-database-postgresql` 的字面量与 catalog 别名，版本一致但属重复声明，留待后续清理。
 
 检测：`dependencyUpdates` 列出 27 项过期坐标（18 项为 Boot 家族）；`flyway-core`、字面量与插件由其漏报/误报，已按 Maven Central / Plugin Portal 逐项核对。
 

@@ -1,9 +1,9 @@
 # Active Context
 
+- [2026-11-09] - P0.11 端口与编排 + secret 组读修复（v0.96.1）
+    - edge/蓝/绿/obs 全部 host 网络并绑定 `127.0.0.1`；应用 `SERVER_ADDRESS=127.0.0.1`、`TRUSTED_PROXY_ADDRESSES=127.0.0.1`；Caddy `:18080` + `bind 127.0.0.1` 代理 blue；frpc `18080 -> 18080` 已存在；完整 Linux app/edge/obs 验证通过、应用来源 `127.0.0.1`；secret 改 0440 + `SECRET_GID`/`group_add`，修复 appuser 读取宿主只读文件失败
 - [2026-11-09] - P0.9 frpc systemd 完成（重启抽检暂缓）
-    - 服务端已切到 stable `current` + 稳定配置；部署机已建立 stable `current` + 稳定配置，unit 为 `enabled`/`active`、`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`
-    - 旧 tmux 与 frpc crontab 已移除，只剩一个 stable frpc 进程；unit 与 `UPGRADE.md` 在各主机本地 frp 目录，不进入项目仓库
-    - 重启抽检未执行（用户当前不重启）：`enabled` + `WantedBy` 证明开机目标已挂载，但不能替代重启后的端到端检查；重启后确认 `active` / 单进程 / 日志
+    - 服务端 stable `current`/配置；部署机 stable `current`/配置、unit `enabled`/`active`、`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`；单进程，无 tmux/crontab；重启抽检未执行（用户当前不重启），不能替代端到端检查；unit/`UPGRADE.md` 在主机本地 frp 目录
 - [2026-11-09] - P0.7 health 分组(v0.95.0)
     - liveness 仅 `livenessState`；readiness 含 `readinessState`/`db`/`redis`；只对 readiness 将 DOWN/UNKNOWN 映射为 OUT_OF_SERVICE；两个检查端点公开
     - 实现补充：当前上下文未自动注册 Redis contributor，readiness 显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 继续委托
@@ -33,13 +33,13 @@
  - 后续(P0.6b):边界尚未完全落地——`PROFILE_UPDATED` 写旧/新显示名,passkey 写标签,`MAIL_IDEMPOTENT_SKIP` 的 resource_id 是原始邮箱,邮件审计写 `recipientMasked` 与可能含地址的 `lastError`,`TokenRefresh` 重复写 IP/UA;这些会随审计行在注销后保留。计划改为只写 action/资源 id/布尔/枚举/计数,并另定 IP/UA 的保留期
  - 复审(双轴):ADR 证据曾用 `Matcher.replaceAll` 冒充 `MaskingMessageConverter.mask()`——已修正为真实行为(`newPassword` 正确掩码;空值/对象值才破坏文本);无生产使用的 `MaskSerializer` 已在 v0.93.8 删除,文档改为两层;计划 P0.6b 的状态、顺序与生产量级验收已补齐
 - [2026-11-08] - P0.5 密钥改 Compose secrets（v0.93.6）
-    - 交付：`.sops.yaml`（只放 age 公钥）+ `deploy/secrets/secrets.enc.yaml`（6 个键，仅密文）+ `render.sh`（解密成 0400 文件，`--mode` 可改，输出目录有护栏，重跑会先清旧文件）+ `frp-token.sh`（接入机渲染 600 文件）+ `run/` 加入 gitignore；`up.sh` 与 `Jenkinsfile` 起栈前调用渲染
+    - 交付：`.sops.yaml`（只放 age 公钥）+ `deploy/secrets/secrets.enc.yaml`（6 个键，仅密文）+ `render.sh`（当时写出 0400 文件，后改 0440 组可读，`--mode` 可改，输出目录有护栏，重跑会先清旧文件）+ `frp-token.sh`（接入机渲染 600 文件）+ `run/` 加入 gitignore；`up.sh` 与 `Jenkinsfile` 起栈前调用渲染
     - compose：应用走 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置里的 `${...}` 引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除
-    - 验证：运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 0400 且容器用户可读；缺渲染文件时 Compose 报 bind source 不存在并拒绝创建；缺 age 身份时 `render.sh` 退出 1；redis `/proc/1/cmdline` 只有 `redis-server *:6379`
+    - 验证：运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；当时 `/run/secrets` 文件 0400 且容器用户可读，后改 0440 + `group_add`；缺渲染文件时 Compose 报 bind source 不存在并拒绝创建；缺 age 身份时 `render.sh` 退出 1；redis `/proc/1/cmdline` 只有 `redis-server *:6379`
     - 文档与规则：新增 `docs/deployment-secrets.md`（初始化/日常/轮换/frp token/Linux 可读性/验证），README 快速开始与配置段、文档索引、`.env.example` 抬头同步；`AGENTS.md` R9 增「容器密钥只走 Compose secrets」
-    - 复审修复（双轴）：`.dockerignore` 补 `deploy/secrets`（此前解密文件会进构建上下文）；`render.sh` 重跑不再因 0400 写入失败、并清理已移除的键；README 快速开始补渲染步骤；Jenkinsfile 补渲染；Redis 口令改为配置文件 + `setpriv`；Grafana 口令 secret 化
+    - 复审修复（双轴）：`.dockerignore` 补 `deploy/secrets`（此前解密文件会进构建上下文）；`render.sh` 重跑不再因旧的只读文件写入失败、并清理已移除的键；README 快速开始补渲染步骤；Jenkinsfile 补渲染；Redis 口令改为配置文件 + `setpriv`；Grafana 口令 secret 化
     - 复审二期修复（Standards 轴）：`render.sh` 改为**先解密到临时目录、成功后才替换**（旧版先删后解密，密钥错误会清掉上一份可用文件），并把解密结果写到独立目录避免把合并明文带进 `run/`；新机器文档不再教 `age-keygen` 后直接 `updatekeys`（没有已授权身份无法解开数据密钥）；计划/AGENTS 的 Redis 描述改为 wrapper + `setpriv`、补 Grafana 消费者
-    - 未闭环项**不再单设清单**，按阶段归入阶段表：P0.17（`FRP_TOKEN` 值 + Linux 上 0400 可读性实测）、P0.16（生产密钥从开发值换生产值）、P3.1（CI 节点须持有 age 身份）；`docs/deployment-secrets.md` 同步指向这些条目。教训：待办只能有一处真相，散落的「滚动清单」会让状态无法快速聚焦
+    - 未闭环项**不再单设清单**，按阶段归入阶段表：P0.17（`FRP_TOKEN` 值 + Linux 上 0440/组可读性实测）、P0.16（生产密钥从开发值换生产值）、P3.1（CI 节点须持有 age 身份）；`docs/deployment-secrets.md` 同步指向这些条目。教训：待办只能有一处真相，散落的「滚动清单」会让状态无法快速聚焦
 - [2026-11-08] - P0.4 compose 加固（v0.93.5）
     - 交付：两份 compose 共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 再加 SETPCAP
     - 实测：9 个容器 `docker inspect` 逐项命中；edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条外部探测结果为 1；演练后停掉其余容器，只保留 Mailpit
