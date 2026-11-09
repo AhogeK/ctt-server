@@ -11,6 +11,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
+# Keep the rendered group and the Compose group_add value identical even when
+# the launcher is not the usual 1000-gid account.
+export SECRET_GID="${SECRET_GID:-$(id -g)}"
+
 echo "[1/4] rendering compose secrets"
 ./deploy/secrets/render.sh
 

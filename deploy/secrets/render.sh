@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Render the SOPS-encrypted secrets into the files Compose mounts (P0.5).
 #
-#   ./deploy/secrets/render.sh [--out DIR] [--mode 0400]
+#   ./deploy/secrets/render.sh [--out DIR] [--mode 0440]
 #
 # The encrypted payload is the only copy in the repository; this script writes
 # one file per key under deploy/secrets/run/ (gitignored). Compose reads those
@@ -15,7 +15,7 @@ cd "$(dirname "$0")/../.."
 
 enc="deploy/secrets/secrets.enc.yaml"
 out="deploy/secrets/run"
-mode="400"
+mode="440"
 while [ $# -gt 0 ]; do
   case "$1" in
     --out) out="${2:?--out needs a directory}"; shift 2 ;;
@@ -23,6 +23,7 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
 done
+group="${SECRET_GID:-1000}"
 case "$out" in
   deploy/secrets/*) ;;
   *) echo "refusing to render outside deploy/secrets/: $out" >&2; exit 1 ;;
@@ -65,9 +66,12 @@ for key, value in data.items():
 print(f"decrypted {written} secret files", file=sys.stderr)
 ' "$tmp/secrets.json" "$tmp/rendered" "$mode"
 
+# Assign the group before replacing the live set: a failed chgrp must leave
+# the previous set intact (the same rule as decryption failures).
+find "$tmp/rendered" -maxdepth 1 -type f -exec chgrp "$group" {} +
 mkdir -p "$out"
-# Only now that decryption succeeded: replace the previous set so a secret
-# removed from the payload cannot keep working from a stale file.
+# Only now that decryption and group assignment succeeded: replace the
+# previous set so a secret removed from the payload cannot keep working.
 find "$out" -maxdepth 1 -type f -delete
 cp -a "$tmp/rendered"/. "$out"/
-echo "secrets ready in $out"
+echo "secrets ready in $out with mode $mode and group $group"
