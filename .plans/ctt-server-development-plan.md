@@ -2222,8 +2222,8 @@ end note
 | 隧道客户端 | 同版本；**token 已同步轮换、`transport.tls.enable = true`**，配置 600；既有映射保持现状，新增 `18080 → 18080`（`ctt-edge`，已注册成功）；Jenkins 实际经 `jenkins.*` 的 nginx 443 暴露 |
 | 隧道托管 | frps 与 frpc 均已 systemd；frpc 使用 stable `current`/配置，unit `enabled`/`active`；部署机重启抽检暂缓 |
 | 部署机 | 家庭网络内的自建主机（Ubuntu，**4 vCPU / 32 GB / 916 GB（84% 可用）**，Docker 29.9.3 + Compose v5.7.0）；LAN 地址见私密运维记录。**威胁模型（你确认）**：家庭 LAN 视为可信边界，路由器不转发任何入站端口，**唯一的外部入口是接入机上的隧道** |
-| 部署机现状 | 从 LAN 实测可直连 `5432` / `6379` / `8080` / `8181`（Redis 需口令；PG 与容器端口无认证前置）——**按上述威胁模型属接受项**；PostgreSQL 18.6 与 Redis 8.10.3 为宿主机原生进程，监听 `0.0.0.0` 与 `[::]`；`ufw` 已装未启用（`ENABLED=no`），`nftables` 也未启用 |
-| 数据现状 | 现库 `ctt_server` 同时被开发与联调使用；Redis 无实例或逻辑库划分 |
+| 部署机现状（P0.13 后） | 从 LAN 可直连 `5432` / `6379` / `8080` / `8181`（Redis 需口令）；PostgreSQL 与 Redis 只监听回环 + LAN，8080/8181 仍由 Docker 发布；`ufw` 服务单元为 active，但规则未启用（`ENABLED=no`）；`nftables` 未启用 |
+| 数据现状 | 开发与联调仍共用开发库 `ctt_server`，生产库 `ctt_server_prod` 已独立；Redis 本地/开发 db0、生产 db2，db1 留给其他服务 |
 | 本服务入口（规划） | `ctt.ahogek.com` → 接入机 nginx 443 → `127.0.0.1:18080` → frps → frpc `18080` → 部署机 `127.0.0.1:18080`（edge 容器）→ blue `18081` / green `18082` |
 
 **本地先行（local-first）：每一阶段先在开发机跑通，再上部署机**
@@ -2246,8 +2246,8 @@ end note
 | 隧道代理端口 | 不改 frps 全局 `proxyBindAddr`（会打断既有公网隧道）；**按端口用 ufw 收口**：控制端口只允许部署机出口 IP，本服务端口拒绝公网（nginx 走回环） | 既有隧道（含公网 Jenkins）依赖默认监听，全局改动会连带打断它们 | 改全局 `proxyBindAddr=127.0.0.1`（会让既有隧道全部失联） |
 | 零停机 | 蓝绿：部署机侧 `edge`（Caddy 容器，只绑 `127.0.0.1:18080`）在 blue/green 间切；frpc 只指向 edge | 切换在部署机完成，隧道不用重连；回滚 = 切回上游 | 单实例重启（有停机）、在接入机侧切上游（要改 nginx 并 reload） |
 | 端口 | 既有服务沿用自身端口不动；本服务 `edge 18080`、蓝 `18081`、绿 `18082`，frpc `remotePort=18080 → localPort=18080` | 与既有服务端口全部错开；三个端口只在回环 | 复用既有端口（会打断在用服务） |
-| 数据分离 | 生产独立库 `ctt_server_prod` + 独立角色 `ctt_app`；Redis 生产用 db 1；开发继续用 `ctt_server` | 现在开发与联调共用一库，误操作会打到生产数据 | 同库不同 schema（迁移与备份边界仍混在一起） |
-| 数据面监听 | 生产实例连 `127.0.0.1`；开发需从局域网访问时，PG/Redis 绑部署机的 LAN 地址并用 ufw 只放行本机所在子网 | 现在两者都在 `0.0.0.0`，任何能进 LAN 的设备都能直连 | 继续 `0.0.0.0`（等于把数据库暴露给整个内网） |
+| 数据分离 | 生产独立库 `ctt_server_prod` + 独立角色 `ctt_app`；Redis 生产用 db 2；开发继续用 `ctt_server` | 开发库共用，误操作会打到开发数据 | 同库不同 schema（迁移与备份边界仍混在一起） |
+| 数据面监听 | 生产实例连 `127.0.0.1`；开发从局域网访问时 PG/Redis 绑部署机 LAN 地址；P0.13 最终决定不启用 UFW，依赖绑定地址、PostgreSQL HBA 与 LAN 信任边界 | P0.13 前两者都在 `0.0.0.0`；现已改为回环 + LAN | 继续 `0.0.0.0`（等于把数据库暴露给整个内网） |
 | 观测落点 | **全部在部署机**（Prometheus / Alertmanager / Grafana / Loki / Alloy / Tempo / exporters）；`blackbox_exporter` 探公网 URL，覆盖 TLS→nginx→隧道→应用四段 | 接入机定位为纯接入层且只有 961 MB，放常驻组件会挤占 nginx 与隧道 | 在接入机放 Alertmanager/blackbox（违背定位，且 1 核抢 CPU） |
 | 整机失联探测 | 一个**免费外部可用性拨测**（只测公网 health URL，不带业务数据），补部署机整机断电/断网时的盲区 | 本机观测随主机一起消失，只能靠外部视角 | 只靠本机自检（主机挂了没人知道） |
 | 备份 | pgBackRest 仓库在部署机（770 GB 可用）+ 每周加密 `pg_dump` 复制到接入机（14 GB，保留 4 份） | 本地 PITR 拿 RPO；接入机容量只够放少量全量 | 只留部署机（主机级故障即全丢）、只留接入机（容量不够 PITR） |
@@ -2306,7 +2306,7 @@ end note
 | 本地编排 | compose 只有 app / postgres / redis / mailpit，无 edge、无蓝绿、无观测栈、无 profile | `docker-compose.yaml` |
 | 隧道托管 | frps/frpc 已改 systemd；frpc 已 `enabled`/`active`，`WantedBy=multi-user.target`，重启抽检暂缓（P0.9） | 阶段表 P0.8/P0.9 |
 | 隧道代理端口 | frps 未设 `proxyBindAddr`，所有代理端口默认在 `0.0.0.0` 监听 | 两机 `ss -lnt` + `frps.toml` |
-| 数据面监听 | PostgreSQL `0.0.0.0:5432`、Redis `0.0.0.0:6379` | `ss -lnt` on 部署机 |
+| 数据面监听 | P0.13 后 PostgreSQL 与 Redis 只监听回环 + LAN；`0.0.0.0` / `[::]` 已移除 | `ss -lnt` on 部署机 |
 | 数据隔离 | 开发与联调同用 `ctt_server` | `.env` 与库清单 |
 | 主机规格 | 接入机 1C/961 MB/14 GB 可用；部署机 4C/32 GB/770 GB 可用 | `nproc` / `free -m` / `df -h` |
 | CI | 无 workflow，`.github/` 只有 PR 模板 | `ls .github/workflows` → 不存在 |
@@ -2325,8 +2325,8 @@ end note
 | frp 托管 | 两侧写 systemd unit：`Restart=always`、`WantedBy=multi-user.target`、日志进 journald；先删 tmux 会话 | 现在重启主机即断同步且无人知晓；这是可用性项 |
 | 隧道端口收口 | 不动 frps 全局配置；用 ufw 按端口处理：控制端口只 allow 部署机出口 IP，本服务端口 deny 公网（nginx 走回环），既有隧道端口保持现状 | 全局改 `proxyBindAddr` 会打断公网 Jenkins 与既有站点 |
 | 端口 | 既有服务不动；`edge 18080`、蓝 `18081`、绿 `18082` | 与既有端口全部错开；三者只在回环 |
-| 生产数据隔离 | 新建 `ctt_server_prod` 与角色 `ctt_app`；Redis db 1；开发继续 `ctt_server` | 开发与生产共用一库是迟早的事故 |
-| 数据面监听 | 生产连 `127.0.0.1`；开发从 LAN 访问时绑部署机 LAN 地址并用 ufw 放行本子网 | 现在 `0.0.0.0` 对整段内网开放 |
+| 生产数据隔离 | 新建 `ctt_server_prod` 与角色 `ctt_app`；Redis 生产用 db 2；开发继续 `ctt_server` | 开发与生产共用一库是迟早的事故 |
+| 数据面监听 | 生产连 `127.0.0.1`；开发从 LAN 访问时绑部署机 LAN 地址；P0.13 最终不启用 UFW，依赖服务绑定与 HBA | P0.13 前 `0.0.0.0` 对整段内网开放；现已收口 |
 | 蓝绿切换点 | 部署机侧 `edge`（Caddy 容器，`127.0.0.1:18080`）切 blue/green | 隧道不用重连；回滚是改一个上游 |
 | 客户端 IP | 建立信任链：接入机 nginx 写 `X-Forwarded-For` → frps 原样透传 → 应用侧把 frpc 来源地址加入信任列表 | 否则 IP 限流、登录审计、last-login IP 全部退化成隧道地址 |
 | 观测落点 | 全在部署机；`blackbox_exporter` 探公网 URL | 接入机定位不允许放组件 |
@@ -2365,7 +2365,7 @@ end note
 | | P0.10 ✅ | 隧道端口收口：**已完成 ufw 侧**（18080 公网不可达、遗留 `2024` 放行已删，`ufw.log` 有 `[UFW BLOCK]` 实证）。控制端口保留对公网开放：家庭出口 IP 不唯一（主机内有代理，接入机看到的来源与主机自报的出口不一致），按 IP 白名单会自断隧道；改为 `TLS + 48 位随机 token + allowPorts` 三重约束。维护页与 `limit_req` 不在本条，归 P7.1 | 公网访问 18080 被拒；隧道断开时返回 503 而非超时 | 中 |
 | | P0.11 ✅ | **端口与编排**：edge `127.0.0.1:18080`、蓝 `127.0.0.1:18081`、绿 `127.0.0.1:18082`；edge、蓝/绿应用、Prometheus/blackbox/Grafana 均使用 host 网络，应用设置 `SERVER_ADDRESS=127.0.0.1`；edge 直接代理到 `127.0.0.1:18081`；frpc 的 `remotePort=18080 → localPort=18080` 已存在；蓝/绿启用 `TRUSTED_PROXY_ADDRESSES=127.0.0.1`。只改 edge 不够：host 网络访问 Docker 发布端口时容器来源仍是 `172.17.0.1`，所以应用也必须使用 host 网络 | `docker compose config` 通过；Caddy `validate` 与 `promtool check config` 通过；Linux 完整 app/edge/obs 启动成功：edge/blue/green readiness 200，Prometheus 两个 target up，Grafana `database: ok`，应用日志来源 `127.0.0.1`，18080–18082/9090/9115/3000 只绑定回环 | 中 |
 | | P0.12 ✅ | **生产数据隔离**：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色 `ctt_app`；开发继续用 `ctt_server`；`ctt_app` 连接开发库被拒绝，`PUBLIC` 连接权限已撤销。原计划 Redis db 1 已被其他服务的 `check-approver-sort:*` 占用，未清理；生产改用空闲的 db 2，profile 配置为 `${REDIS_DATABASE:2}`，本地/开发为 db 0。角色密码暂存本机 gitignored `.env` 的 `PROD_DB_PASSWORD`，P0.16 迁入 SOPS | 角色/库/owner 与空库已验证；`ctt_app` 生产连接成功、开发连接拒绝；Redis db2 为空且 PING 正常；生产库首次启动由 Flyway 建表 | 中 |
-| | P0.13 | 数据面收口：部署机 **ufw 已安装未启用**（`ENABLED=no`），PG/Redis 现对整段 LAN 开放 ⇒ 启用 ufw（或 nftables）只放行本子网，PG/Redis 绑部署机 LAN 地址，生产容器走 `127.0.0.1`；sudo 需要密码，实施时需你在场 | LAN 外不可达；LAN 内开发仍可用 | 中 |
+| | P0.13 ✅ | **数据面收口（部署机）**：PostgreSQL/Redis 只绑定回环 + LAN 地址，PostgreSQL HBA 只保留回环 + 本子网；两个服务加 `network-online.target` 启动顺序；Redis 只保留一条 active `bind`；UFW 按威胁模型不启用（无公网入口、frp 为出站、LAN 可信；同网段放行无新增隔离，Docker 绕过 UFW） | 回环与 LAN 的 PostgreSQL/Redis TCP 验证通过；PostgreSQL/Redis 无 `0.0.0.0`/`[::]` 监听；`ufw status` 为 inactive 且 `ENABLED=no`；LAN 外无入站端口转发；LAN 地址需 DHCP 保留/静态地址（路由器侧确认，主机侧不能验证） | 中 |
 | | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
 | | P0.15 | 时钟与日志上限：两机 `chrony`；nginx 与 journald 的日志上限（含轮转策略） | 时钟偏差 < 1 s；日志目录占用有上限 | 中 |
 | | P0.16 | **生产配置收口**：`springdoc.api-docs` 与 `swagger-ui` 在基础配置里开着、prod 未覆盖 ⇒ 生产会暴露接口文档；CORS 仍有占位域 `https://ctt.example.com`；`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认为空且 prod 不校验 ⇒ OAuth 生产静默不可用；**生产密钥（DB / Redis / JWT / OAuth / Grafana / Resend）仍是开发值**，需换成生产值并写入 SOPS 载荷。生产必填配置启动校验覆盖本条列出的项：API 文档关闭、CORS 无占位域、OAuth 必填、密钥非开发值，缺项直接启动失败 | 生产 `/swagger-ui.html` 与 `/v3/api-docs` 返回 404；CORS 无占位域；缺任一本条列出的必填项时启动失败；载荷中不再有开发值 | 中 |
@@ -2409,6 +2409,13 @@ end note
 > - 边界：生产库尚无业务表，首次 prod 启动由 Flyway 建表；`PROD_DB_PASSWORD` 仅在本机 gitignored `.env`，P0.16 迁入 SOPS。
 > - 重访：P0.16 迁移生产密钥、P0.16b 生产审计量级时复核；禁止在 db1 清理其他服务数据。
 > - 计划与验收明细：`.plans/p0-12-data-isolation-plan.md`。
+
+> **P0.13 完成总结（2026-11-09）**
+> - 交付：PostgreSQL/Redis 从 `0.0.0.0`/`[::]` 收口到回环 + LAN；PostgreSQL `pg_hba.conf` 只保留回环与本子网；两个 systemd 单元依赖 `network-online.target`；Redis 只保留一条 active `bind`；UFW 按威胁模型不启用。
+> - 验证：`ss` 无通配监听；PostgreSQL 回环与 LAN `pg_isready` 通过；Redis 回环与 LAN TCP 连接通过；`ufw status` 为 inactive 且 `ENABLED=no`；LAN 内开发仍可访问。
+> - 边界：LAN 地址需要路由器侧 DHCP 保留/静态地址，主机侧无法验证；Redis 没有来源地址 ACL，只有口令保护；外部无入站端口转发，无法从公网直接做负向测试。
+> - 文档：`README.md`、`docs/production-data-isolation.md`、`memory-bank/systemPatterns.md` 与 `activeContext.md` 已同步；不涉及 Java 代码、测试、格式或覆盖率，因此不 bump `appVersion`。
+> - 重访：LAN 地址变化、增加端口转发、引入不可信 VLAN、修改 Redis 认证策略或 UFW 决策时，复核绑定、来源限制与验证步骤。
 
 | 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- | --- |
@@ -2461,7 +2468,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.13、P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 
@@ -2514,10 +2521,10 @@ flowchart TB
     C -->|"127.0.0.1:18080"| E["edge 容器（Caddy）<br/>蓝绿上游切换"]
     E -->|"18081"| B["app-blue"]
     E -->|"18082"| G["app-green"]
-    B --> PG[("PostgreSQL 18.6<br/>ctt_server_prod")]
-    G --> PG
-    B --> RD[("Redis 8.10.3<br/>db 1")]
-    G --> RD
+    B -->|"127.0.0.1:5432"| PG[("PostgreSQL 18.6<br/>ctt_server_prod")]
+    G -->|"127.0.0.1:5432"| PG
+    B -->|"127.0.0.1:6379"| RD[("Redis 8.10.3<br/>db 2")]
+    G -->|"127.0.0.1:6379"| RD
     B -.->|"8081 回环"| P["Prometheus（部署机）"]
     G -.->|"8081 回环"| P
     P --> AM["Alertmanager"]
@@ -2585,7 +2592,7 @@ sequenceDiagram
 | Jenkins 与生产争资源 | 一次大构建可把应用挤到 OOM | 容器 `mem_limit`/`cpus`、错峰、生产 compose 独立项目 |
 | 接入机只有 1 核 961 MB | 任何多余常驻进程都可能触发 OOM | 只跑 nginx + frps；日志上限；配置变更前先看 `free -m` |
 | 控制端口对公网开放 | 已开 TLS + 48 位 token + 端口白名单，但 7000 仍对 `Anywhere`；家庭出口 IP 若为动态，按 IP 白名单会中断隧道 | 先确认出口 IP 是否固定；不固定则维持现状并监控失败登录日志 |
-| LAN 内明文与直连数据库 | 已确认接受：路由器不外转、唯一入口是隧道；LAN 内的 `8080`/`5432`/`6379` 明文属已知且接受的状态 | 想加一层纵深时可随时启用 ufw（只放行本子网，对现有使用零影响），命令见私密记录 |
+| LAN 内明文与直连数据库 | 已确认接受：路由器不外转、唯一入口是隧道；LAN 内的 `8080`/`5432`/`6379` 明文属已知且接受的状态 | 不启用 UFW；威胁模型变化或新增不可信 VLAN 时重访 |
 | SSH 曾开放口令登录 | 24 小时 1870 次爆破；`50-cloud-init.conf` 会覆盖后置 drop-in（sshd 取首个值，故加固文件必须排在 `00-`） | 已关口令、root 仅密钥；后续改 sshd 配置需注意文件排序 |
 | 观测栈自身吃内存 | Prometheus + Grafana + Loki + Tempo 约 2 GB 起 | 全在 32 GB 的部署机，设 `mem_limit`；保留 30 天可下调 |
 | 备份撑爆磁盘 | 每日差异 + WAL 累积 | 保留 14 天，脚本先删过期再写 |

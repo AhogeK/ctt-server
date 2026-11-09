@@ -145,3 +145,7 @@ OAuth state 必须与 HttpOnly、SameSite Lax 的状态 Cookie 对齐；缺失/�
 ## 密钥通道：SOPS → 0440 组可读文件 → Compose secrets
 
 仓库只放 SOPS 密文（`deploy/secrets/secrets.enc.yaml`），`.sops.yaml` 只含 age 公钥；`deploy/secrets/render.sh` 用本机身份解成「一个键一个文件、权限 0440、组为 `SECRET_GID`」，写入 `deploy/secrets/run/`（gitignore）。Compose 以文件形式挂成 secrets，并以 `group_add` 把同一 GID 加入应用与 Grafana：应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` 读取（属性名等于文件名，现有 `${DB_PASSWORD}` / `${JWT_SECRET_KEY}` 占位符不用改），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 由 entrypoint 与健康检查 `cat` 文件，Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`。结果：`docker inspect` 的 `.Config.Env` 不含任何密钥；缺 age 身份、缺渲染文件、空值都在启动前失败。`.env` 仅保留给 `bootRun`，容器栈不再读它。
+
+## 数据面监听与网络信任边界
+
+部署机的数据面监听、LAN 访问、UFW 决策与 DHCP/network-online 前提见 [Production Data Isolation](../docs/production-data-isolation.md#data-plane-network-isolation)；此处不重复。

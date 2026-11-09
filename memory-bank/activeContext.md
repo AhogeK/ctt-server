@@ -1,9 +1,9 @@
 # Active Context
 
+- [2026-11-09] - P0.13 数据面收口（部署配置，待提交）：PostgreSQL/Redis 绑定回环+LAN，PostgreSQL HBA 仅回环+本子网；两服务加 `network-online.target`；Redis 仅一条 active `bind`；UFW 按威胁模型不启用（无公网入口、frp 出站、LAN 可信，Docker 绕过）；LAN/回环 TCP 与 `pg_isready` 验证通过；外部无直达路由；docs/计划已同步
 - [2026-11-09] - P0.12 生产数据隔离（v0.97.0）：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色；开发继续 `ctt_server`；两个库的 `PUBLIC` 连接权限已撤销，`ctt_app` 不能连接开发库；原 db1 被 `check-approver-sort:*` 占用，生产改用 db2，本地/开发 db0；角色密码仅在本机 `.env` 的 `PROD_DB_PASSWORD`，待 P0.16 入 SOPS
 - [2026-11-09] - P0.11 端口与编排 + secret 组读修复（v0.96.1）：edge/蓝/绿/obs host 网络并绑定 `127.0.0.1`；Caddy `:18080` + `bind` 代理 blue；应用 `SERVER_ADDRESS=127.0.0.1`、`TRUSTED_PROXY_ADDRESSES=127.0.0.1`；frpc `18080 -> 18080` 已存在；完整 Linux app/edge/obs 验证通过；secret 0440 + `SECRET_GID`/`group_add`
-- [2026-11-09] - P0.9 frpc systemd 完成（重启抽检暂缓）
-    - 服务端 stable `current`/配置；部署机 stable `current`/配置、unit `enabled`/`active`、`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`；单进程，无 tmux/crontab；重启抽检未执行（用户当前不重启），不能替代端到端检查；unit/`UPGRADE.md` 在主机本地 frp 目录
+- [2026-11-09] - P0.9 frpc systemd 完成（重启抽检暂缓）：服务端 stable `current`/配置；部署机 stable `current`/配置、unit `enabled`/`active`、`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`；单进程，无 tmux/crontab；重启抽检未执行（用户当前不重启），不能替代端到端检查；unit/`UPGRADE.md` 在主机本地 frp 目录
 - [2026-11-09] - P0.7 health 分组(v0.95.0)
     - liveness 仅 `livenessState`；readiness 含 `readinessState`/`db`/`redis`；只对 readiness 将 DOWN/UNKNOWN 映射为 OUT_OF_SERVICE；两个检查端点公开
     - 实现补充：当前上下文未自动注册 Redis contributor，readiness 显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 继续委托
