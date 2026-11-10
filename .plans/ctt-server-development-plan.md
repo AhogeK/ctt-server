@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.14 已完成，P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.97.0 P0.12 生产数据隔离完成；P0.13b 决策落 ADR-0003（不装来源白名单，触发时改用 nftables）；P0.13c 外部负向验证通过（LAN 外 5432/6379 不可达）；P0.9 systemd 已实施（enabled/active，重启抽检暂缓） |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.15 已完成，P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.97.0 P0.12 生产数据隔离完成；P0.13b 决策落 ADR-0003（不装来源白名单，触发时改用 nftables）；P0.13c 外部负向验证通过；P0.15 两机 chrony + 日志上限完成 |
 
 ## 🗺️ 计划总览
 
@@ -2370,7 +2370,7 @@ end note
 | | P0.13b ✅ | **Redis 来源限制决策：不实施来源 ACL，记录残余风险**。Redis ACL 只能限定命令/键/通道，没有客户端地址谓词；`bind` 只选监听地址。实测：仅一个 IPv4 接口（`192.168.5.178/24`）、无全局 IPv6，可达来源本来就是回环 + 本子网 ⇒ 子网白名单当前不会拒绝任何流量，而在共享主机上新增常驻防火墙只会引入新的失效面。决策、证据与 6 条重访触发见 `docs/decisions/ADR-0003-redis-source-restriction.md`；触发命中时改用主机 nftables 白名单（非 UFW），先验证再放行新路径 | ADR-0003 Accepted；残余风险（同网段持口令者可读写全部逻辑库并执行管理命令）与重访条件已记录；LAN 外不可达已由 P0.13c 确认 | 中 |
 | | P0.13c ✅ | **外部负向验证**：以接入机（公网，独立于家庭 LAN）为外部视角，对家庭 WAN 地址探测 `tcp/5432` 与 `tcp/6379`：两次测量均耗尽 5s 超时（丢弃/过滤，非 `refused`）；`ping` 100% 丢包；`tracepath` 在中国电信骨干后无回应；同时间段 frpc 隧道在线（排除断网）。LAN 内两端口仍可用，Redis 返回 `NOAUTH`。目标地址取 SSH/frpc 在接入机上的对端（部署机自报 HTTP 出口不同，不可用）。验收记录 `.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`（不入库） | LAN 外两端口不可达（两次测量）；LAN 内可用且认证生效；未创建任何临时路径；第二个外部视角 SSH banner 超时未取得结果，不影响结论 | 低 |
 | | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
-| | P0.15 | 时钟与日志上限：两机 `chrony`；nginx 与 journald 的日志上限（含轮转策略） | 时钟偏差 < 1 s；日志目录占用有上限 | 中 |
+| | P0.15 ✅ | **时钟与日志上限**：两机改 chrony（移除 systemd-timesyncd）。接入机 journald 上限 `200M/1G/64M`（当前 16M）、nginx `daily + maxsize 20M + rotate 14`（原 52）、btmp `maxsize 10M + rotate 3`（原 1）、rsyslog `maxsize 50M`；部署机 journald `500M/2G/64M`（2.8G → 490.1M，`--vacuum-size`）、nginx/btmp/rsyslog 同一套上限。轮转备份必须移出 `/etc/logrotate.d/`（该目录被整体 include，`.bak` 会触发 “duplicate log entry”）。部署机 nginx 单元 `inactive` 但存在手工 master（`/run/nginx.pid` 一致），USR1 重开有效 | 两机 `chronyc tracking`：接入机 0.00004 s、部署机 −0.0376 s（均 < 1 s）；`journalctl --disk-usage` 16.0M / 490.1M（上限 200M / 500M）；两机 `logrotate -d` 无 error 且 exit 0，`logrotate.service` Result=success；`/var/log` 169M / 981M，根盘 28% / 16%；未删除任何审计记录 | 中 |
 | | P0.16 | **生产配置收口**：`springdoc.api-docs` 与 `swagger-ui` 在基础配置里开着、prod 未覆盖 ⇒ 生产会暴露接口文档；CORS 仍有占位域 `https://ctt.example.com`；`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认为空且 prod 不校验 ⇒ OAuth 生产静默不可用；**生产密钥（DB / Redis / JWT / OAuth / Grafana / Resend）仍是开发值**，需换成生产值并写入 SOPS 载荷。生产必填配置启动校验覆盖本条列出的项：API 文档关闭、CORS 无占位域、OAuth 必填、密钥非开发值，缺项直接启动失败 | 生产 `/swagger-ui.html` 与 `/v3/api-docs` 返回 404；CORS 无占位域；缺任一本条列出的必填项时启动失败；载荷中不再有开发值 | 中 |
 | | P0.16b | **生产审计量级实测（依赖已完成的 P0.12/P0.16）**：对 `ctt_server_prod` 的 `audit_logs` 做只读统计（行数、表/索引体积、查询计划），记录日期与 snapshot | 生产只读统计记录；与开发库 29,801 行 / 11 MB 的参考值分开记录 | 中 |
 | | P0.17 ⬜ | **密钥收尾与真实宿主验证**：把 `FRP_TOKEN` 写入 SOPS 载荷，用 `frp-token.sh` 在接入机渲染 `600` 文件并重启 frp；Linux 上 `SECRET_GID`/`group_add` 的组读已于 2026-11-09 实际验证（appuser 可读 `0440` 文件），剩余只验证 `FRP_TOKEN` 与接入机文件 | 载荷含 `FRP_TOKEN`；接入机 token 文件 `600` 且隧道正常；secret 组读已完成 | 低 |
@@ -2441,6 +2441,14 @@ end note
 > - 清理：未创建端口转发、临时规则、监听或测试主机；仅 SSH 只读命令与 4 次 TCP 探测。
 > - 记录与版本：`.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`；无代码变更，不 bump 版本。
 
+> **P0.15 完成总结（2026-11-10）**
+> - 交付：两机由 systemd-timesyncd 切换为 chrony（接入机 4.5、部署机 4.8，`enable --now`）；journald 显式上限（接入机 200M/1G/64M，部署机 500M/2G/64M）；nginx 轮转 `daily + maxsize 20M + rotate 14`、btmp `maxsize 10M + rotate 3`、rsyslog `maxsize 50M`，两机一致。
+> - 验证：`chronyc tracking` 接入机 `System time 0.000043641 s`、部署机 `Last offset −0.0376 s`（均 < 1 s）；`journalctl --disk-usage` 16.0M / 490.1M（上限 200M / 500M）；两机 `logrotate -d /etc/logrotate.conf` 无 error 且 exit 0；`logrotate.service` 最近一次 `Result=success`；`/var/log` 169M / 981M，根盘 28% / 16%。
+> - 误判澄清：部署机首次 `chronyc tracking` 的 `Not synchronised` 是刚启动的瞬时状态，约 10 秒后 `Stratum 3` 同步；`du` 的 `Permission denied` 与 grep 命中的 `cups/error_log`、`mysql/error.log` 是文件名，不是故障——以 dry-run exit 0 为准。
+> - 坑：轮转备份留在 `/etc/logrotate.d/` 会被 include，造成 duplicate log entry 并让 logrotate 报错；备份统一移到 `/root/logrotate-backup-2026-11-10/`。
+> - 边界：部署机存在**手工启动的 nginx master**（单元 `inactive`、无 80/443 监听）未处理，归 P0.16/运维；todesk/redis/gvm/notus 日志由各自服务轮转，不在本条范围；未删除任何既有审计记录（btmp 历史随 `rotate` 淘汰）。
+> - 文档与版本：验收记录 `.omp/acceptance/2026-11-10/p0-15-time-and-log-caps.md`；无代码变更，不 bump 版本。
+
 
 
 | 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
@@ -2494,7 +2502,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.15–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P0.16–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 

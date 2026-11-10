@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-10] - P0.15 时钟与日志上限（完成，纯主机配置/验证，不 bump 版本）
+    - 两机：chrony 替换 systemd-timesyncd（接入机 4.5 / 部署机 4.8，enabled+active）；offset 0.00004 s / −0.0376 s（< 1 s）
+    - 接入机：journald 200M/1G/64M（16M）；nginx `maxsize 20M + rotate 14`、btmp `maxsize 10M + rotate 3`、rsyslog `maxsize 50M`
+    - 部署机：journald 500M/2G/64M（2.8G → 490.1M，`--vacuum-size`）；同一套轮转上限；`logrotate.service` Result=success
+    - 坑与误判：备份留在 `/etc/logrotate.d/` 会 duplicate log entry ⇒ 移到 `/root/`；首次 `chronyc tracking` 的 `Not synchronised` 是启动瞬时态（约 10s 后同步）；`du` 的 Permission denied 与 grep 命中的 `error_log` 文件名不是故障
+    - 边界：部署机手工 nginx master（单元 inactive、无 80/443）未处理，归 P0.16/运维；未删除任何审计记录
+    - 记录：`.omp/acceptance/2026-11-10/p0-15-time-and-log-caps.md`
 - [2026-11-10] - P0.13c 外部负向验证（完成，纯验证/文档，不 bump 版本）
     - 方法：以接入机（公网，独立于家庭 LAN）为外部视角；目标地址取 SSH 与 frpc 在接入机上的对端（两条独立流一致）；部署机自报 HTTP 出口与 SSH/frpc 不同，不可用
     - 结果：`tcp/5432`、`tcp/6379` 两次均耗尽 5s 超时（丢弃非 `refused`）；`ping` 100% 丢包；`tracepath` 至中国电信骨干后无回应；同时段 frpc 隧道在线。LAN 内两端口可用，Redis 返回 `NOAUTH`
