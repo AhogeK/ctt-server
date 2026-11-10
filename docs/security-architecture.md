@@ -207,7 +207,7 @@ public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest requ
 The registry also includes system endpoints by default:
 - `/error`
 - `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, `/actuator/info`
-- `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**`
+- `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**` (public, but served only while the profile enables springdoc; production answers 404)
 
 **Health check semantics.** `/actuator/health/liveness` reports only `livenessState`.
 `/actuator/health/readiness` includes `readinessState`, `db` and `redis`, and maps `DOWN` or

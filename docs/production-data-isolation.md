@@ -32,11 +32,10 @@ REDIS_PORT=6379
 REDIS_PASSWORD=<redis secret>
 REDIS_DATABASE=2
 ```
-
-The production role password is not stored in the repository. A temporary
-`PROD_DB_PASSWORD` exists only in the local gitignored `.env` for provisioning and
-verification; P0.16 moves the production value into SOPS and supplies it as the
-application's `DB_PASSWORD`.
+The production role password is stored only as `DB_PASSWORD` in
+`deploy/secrets/secrets.prod.enc.yaml`. Render it on the host with
+`./deploy/secrets/render.sh --env prod` and read `deploy/secrets/run/DB_PASSWORD`; the
+application receives it through configtree. No developer `.env` copy remains.
 
 ## Database privileges
 
@@ -47,6 +46,10 @@ databases or roles. Its only database connection is `ctt_server_prod`; the
 The following checks are read-only:
 
 ```bash
+# read the role password from the encrypted payload without storing it in the shell history
+PROD_DB_PASSWORD=$(SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" \
+  sops -d --extract '["DB_PASSWORD"]' deploy/secrets/secrets.prod.enc.yaml)
+
 # role and database ownership
 PGPASSWORD="$ADMIN_PASSWORD" psql -h "$DB_HOST" -U postgres -d postgres \
   -c "SELECT rolname, rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname='ctt_app';" \
