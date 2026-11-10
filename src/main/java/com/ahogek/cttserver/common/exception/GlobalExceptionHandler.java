@@ -26,6 +26,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -102,6 +103,25 @@ public final class GlobalExceptionHandler {
                                     ? id
                                     : UUID.randomUUID().toString().replace("-", "");
                         });
+    }
+
+    /**
+     * [LEVEL 2] Missing resources - an unmapped path is a client error, not a server failure.
+     *
+     * <p>Spring Boot reports an unknown path as a missing static resource. Without this handler the
+     * catch-all below turns every scanner probe and every disabled endpoint - including the
+     * production OpenAPI paths - into a 500 and a critical alert.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+        String traceId = currentTraceId();
+        log.atDebug()
+                .addKeyValue(ERROR_CODE_KEY, ErrorCode.COMMON_002.name())
+                .addKeyValue(TARGET_URI_KEY, ex.getResourcePath())
+                .addKeyValue(TRACE_ID_KEY, traceId)
+                .log("No resource for request path: {}", ex.getResourcePath());
+        ErrorResponse response = ErrorResponse.of(ErrorCode.COMMON_002).withTraceId(traceId);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     /**

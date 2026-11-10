@@ -13,6 +13,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -55,6 +56,22 @@ class GlobalExceptionHandlerTest {
         GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
 
         ResponseEntity<ErrorResponse> result = handler.handleBusinessException(ex);
+
+        assertThat(result.getStatusCode().value()).isEqualTo(404);
+        ErrorResponse body = result.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.code()).isEqualTo("COMMON_002");
+        assertThat(body.traceId()).isNotNull();
+    }
+
+    @Test
+    void shouldReturn404_whenNoResourceMatchesThePath() {
+        NoResourceFoundException ex = mock(NoResourceFoundException.class);
+        given(ex.getResourcePath()).willReturn("/v3/api-docs");
+        ApplicationEventPublisher mockPublisher = mock(ApplicationEventPublisher.class);
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(mockPublisher);
+
+        ResponseEntity<ErrorResponse> result = handler.handleNoResourceFound(ex);
 
         assertThat(result.getStatusCode().value()).isEqualTo(404);
         ErrorResponse body = result.getBody();
