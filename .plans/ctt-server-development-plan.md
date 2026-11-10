@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.15 已完成，P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.97.0 P0.12 生产数据隔离完成；P0.13b 决策落 ADR-0003（不装来源白名单，触发时改用 nftables）；P0.13c 外部负向验证通过；P0.15 两机 chrony + 日志上限完成 |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.16 已完成，P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.98.0 P0.16 生产配置收口完成（文档 404、CORS、OAuth 必填、密钥门禁与生产载荷）；P0.15 两机 chrony + 日志上限完成；P0.13c 外部负向验证通过 |
 
 ## 🗺️ 计划总览
 
@@ -2364,14 +2364,14 @@ end note
 | | P0.9 ✅（重启抽检暂缓） | **frpc 改 systemd**（部署机）：stable unit 已安装为 `enabled`/`active`，`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`，使用 stable `current`/配置；旧 tmux 与 crontab 已移除，只剩一个 stable frpc 进程；unit、升级与回滚说明存于各主机 frp 目录，不进入项目仓库；重启抽检按用户要求暂缓（不阻塞交付） | unit `enabled`/`active` 且开机目标已挂载；重启后隧道自动恢复属抽检，未执行（用户当前不重启） | 中 |
 | | P0.10 ✅ | 隧道端口收口：**已完成 ufw 侧**（18080 公网不可达、遗留 `2024` 放行已删，`ufw.log` 有 `[UFW BLOCK]` 实证）。控制端口保留对公网开放：家庭出口 IP 不唯一（主机内有代理，接入机看到的来源与主机自报的出口不一致），按 IP 白名单会自断隧道；改为 `TLS + 48 位随机 token + allowPorts` 三重约束。维护页与 `limit_req` 不在本条，归 P7.1 | 公网访问 18080 被拒；隧道断开时返回 503 而非超时 | 中 |
 | | P0.11 ✅ | **端口与编排**：edge `127.0.0.1:18080`、蓝 `127.0.0.1:18081`、绿 `127.0.0.1:18082`；edge、蓝/绿应用、Prometheus/blackbox/Grafana 均使用 host 网络，应用设置 `SERVER_ADDRESS=127.0.0.1`；edge 直接代理到 `127.0.0.1:18081`；frpc 的 `remotePort=18080 → localPort=18080` 已存在；蓝/绿启用 `TRUSTED_PROXY_ADDRESSES=127.0.0.1`。只改 edge 不够：host 网络访问 Docker 发布端口时容器来源仍是 `172.17.0.1`，所以应用也必须使用 host 网络 | `docker compose config` 通过；Caddy `validate` 与 `promtool check config` 通过；Linux 完整 app/edge/obs 启动成功：edge/blue/green readiness 200，Prometheus 两个 target up，Grafana `database: ok`，应用日志来源 `127.0.0.1`，18080–18082/9090/9115/3000 只绑定回环 | 中 |
-| | P0.12 ✅ | **生产数据隔离**：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色 `ctt_app`；开发继续用 `ctt_server`；`ctt_app` 连接开发库被拒绝，`PUBLIC` 连接权限已撤销。原计划 Redis db 1 已被其他服务的 `check-approver-sort:*` 占用，未清理；生产改用空闲的 db 2，profile 配置为 `${REDIS_DATABASE:2}`，本地/开发为 db 0。角色密码暂存本机 gitignored `.env` 的 `PROD_DB_PASSWORD`，P0.16 迁入 SOPS | 角色/库/owner 与空库已验证；`ctt_app` 生产连接成功、开发连接拒绝；Redis db2 为空且 PING 正常；生产库首次启动由 Flyway 建表 | 中 |
+| | P0.12 ✅ | **生产数据隔离**：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色 `ctt_app`；开发继续用 `ctt_server`；`ctt_app` 连接开发库被拒绝，`PUBLIC` 连接权限已撤销。原计划 Redis db 1 已被其他服务的 `check-approver-sort:*` 占用，未清理；生产改用空闲的 db 2，profile 配置为 `${REDIS_DATABASE:2}`，本地/开发为 db 0。角色密码暂存本机 gitignored `.env` 的 `PROD_DB_PASSWORD`，P0.16 已迁入 SOPS（`secrets.prod.enc.yaml` 的 `DB_PASSWORD`） | 角色/库/owner 与空库已验证；`ctt_app` 生产连接成功、开发连接拒绝；Redis db2 为空且 PING 正常；生产库首次启动由 Flyway 建表 | 中 |
 | | P0.13 ✅ | **数据面收口（部署机）**：PostgreSQL/Redis 只绑定回环 + LAN 地址，PostgreSQL HBA 只保留回环 + 本子网；两个服务加 `network-online.target` 启动顺序；Redis 只保留一条 active `bind`；UFW 按威胁模型不启用（无公网入口、frp 为出站、LAN 可信；同网段放行无新增隔离，Docker 绕过 UFW） | 回环与 LAN 的 PostgreSQL/Redis TCP 验证通过；PostgreSQL/Redis 无 `0.0.0.0`/`[::]` 监听；`ufw status` 为 inactive 且 `ENABLED=no`；LAN 外无入站端口转发；LAN 地址需 DHCP 保留/静态地址（路由器侧确认，主机侧不能验证） | 中 |
 | | P0.13a ✅ | **固定部署机 LAN 地址**：在路由器/DHCP 为部署机配置地址保留；地址变化后同步 PostgreSQL 与 Redis 配置。依赖 P0.13。 | 路由器侧保留记录已保存；续租后 LAN 地址不变，租约重新计时 43,200 秒；PG/Redis 仍只监听回环与 LAN。 | 低 |
 | | P0.13b ✅ | **Redis 来源限制决策：不实施来源 ACL，记录残余风险**。Redis ACL 只能限定命令/键/通道，没有客户端地址谓词；`bind` 只选监听地址。实测：仅一个 IPv4 接口（`192.168.5.178/24`）、无全局 IPv6，可达来源本来就是回环 + 本子网 ⇒ 子网白名单当前不会拒绝任何流量，而在共享主机上新增常驻防火墙只会引入新的失效面。决策、证据与 6 条重访触发见 `docs/decisions/ADR-0003-redis-source-restriction.md`；触发命中时改用主机 nftables 白名单（非 UFW），先验证再放行新路径 | ADR-0003 Accepted；残余风险（同网段持口令者可读写全部逻辑库并执行管理命令）与重访条件已记录；LAN 外不可达已由 P0.13c 确认 | 中 |
 | | P0.13c ✅ | **外部负向验证**：以接入机（公网，独立于家庭 LAN）为外部视角，对家庭 WAN 地址探测 `tcp/5432` 与 `tcp/6379`：两次测量均耗尽 5s 超时（丢弃/过滤，非 `refused`）；`ping` 100% 丢包；`tracepath` 在中国电信骨干后无回应；同时间段 frpc 隧道在线（排除断网）。LAN 内两端口仍可用，Redis 返回 `NOAUTH`。目标地址取 SSH/frpc 在接入机上的对端（部署机自报 HTTP 出口不同，不可用）。验收记录 `.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`（不入库） | LAN 外两端口不可达（两次测量）；LAN 内可用且认证生效；未创建任何临时路径；第二个外部视角 SSH banner 超时未取得结果，不影响结论 | 低 |
 | | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
 | | P0.15 ✅ | **时钟与日志上限**：两机改 chrony（移除 systemd-timesyncd）。接入机 journald 上限 `200M/1G/64M`（当前 16M）、nginx `daily + maxsize 20M + rotate 14`（原 52）、btmp `maxsize 10M + rotate 3`（原 1）、rsyslog `maxsize 50M`；部署机 journald `500M/2G/64M`（2.8G → 490.1M，`--vacuum-size`）、nginx/btmp/rsyslog 同一套上限。轮转备份必须移出 `/etc/logrotate.d/`（该目录被整体 include，`.bak` 会触发 “duplicate log entry”）。部署机 nginx 单元 `inactive` 但存在手工 master（`/run/nginx.pid` 一致），USR1 重开有效 | 两机 `chronyc tracking`：接入机 0.00004 s、部署机 −0.0376 s（均 < 1 s）；`journalctl --disk-usage` 16.0M / 490.1M（上限 200M / 500M）；两机 `logrotate -d` 无 error 且 exit 0，`logrotate.service` Result=success；`/var/log` 169M / 981M，根盘 28% / 16%；未删除任何审计记录 | 中 |
-| | P0.16 | **生产配置收口**：`springdoc.api-docs` 与 `swagger-ui` 在基础配置里开着、prod 未覆盖 ⇒ 生产会暴露接口文档；CORS 仍有占位域 `https://ctt.example.com`；`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` 默认为空且 prod 不校验 ⇒ OAuth 生产静默不可用；**生产密钥（DB / Redis / JWT / OAuth / Grafana / Resend）仍是开发值**，需换成生产值并写入 SOPS 载荷。生产必填配置启动校验覆盖本条列出的项：API 文档关闭、CORS 无占位域、OAuth 必填、密钥非开发值，缺项直接启动失败 | 生产 `/swagger-ui.html` 与 `/v3/api-docs` 返回 404；CORS 无占位域；缺任一本条列出的必填项时启动失败；载荷中不再有开发值 | 中 |
+| | P0.16 ✅ | **生产配置收口**：prod 关闭 `springdoc.api-docs`/`swagger-ui`（两路径 404）；CORS 取 `CORS_ALLOWED_ORIGINS`（回退 `FRONTEND_BASE_URL`），基础配置删除占位域；`oauth.frontend-url`/`mail.frontend.base-url` 生产无 localhost 兜底；新增 `ProductionConfigurationGuard`（文档开关/CORS/OAuth/密钥四类，一次列出全部违规，缺项 exit 1）；新增 `secrets.prod.enc.yaml` 与 `render.sh --env prod`，app 的 `DB_PASSWORD` 改源自 `db_password`，`PROD_DB_PASSWORD` 从 `.env` 移除；`GlobalExceptionHandler` 把 `NoResourceFoundException` 映射为 404（此前未知路径 500）。实测：三个 404（api-docs、swagger-ui、swagger-ui/index）、四个拒绝分支 exit 1、CORS 回退正常启动；补 `ApiDocsDisabledIntegrationTest`（真实 MVC 派发 404）；全量 build 通过 | 生产 `/v3/api-docs`、`/swagger-ui.html` 404；CORS 无占位域；缺项启动失败（4 例）；生产载荷无开发值；Redis 口令因共享实例未轮换（文档记录） | 中 |
 | | P0.16b | **生产审计量级实测（依赖已完成的 P0.12/P0.16）**：对 `ctt_server_prod` 的 `audit_logs` 做只读统计（行数、表/索引体积、查询计划），记录日期与 snapshot | 生产只读统计记录；与开发库 29,801 行 / 11 MB 的参考值分开记录 | 中 |
 | | P0.17 ⬜ | **密钥收尾与真实宿主验证**：把 `FRP_TOKEN` 写入 SOPS 载荷，用 `frp-token.sh` 在接入机渲染 `600` 文件并重启 frp；Linux 上 `SECRET_GID`/`group_add` 的组读已于 2026-11-09 实际验证（appuser 可读 `0440` 文件），剩余只验证 `FRP_TOKEN` 与接入机文件 | 载荷含 `FRP_TOKEN`；接入机 token 文件 `600` 且隧道正常；secret 组读已完成 | 低 |
 
@@ -2409,7 +2409,7 @@ end note
 > - 交付：`ctt_server_prod` / `ctt_app` 实际创建；生产 profile Redis db2；新增生产数据隔离文档；本地与开发 Redis 保持 db0。
 > - 验证：`ctt_app` 无 SUPERUSER/CREATEDB/CREATEROLE；生产库 owner 正确且 public 表数为 0；`ctt_app` 可连接生产库、不能连接 `ctt_server`；Redis db2 为空且 `PING` 正常。
 > - 偏离：原计划 db1 被其他服务的 `check-approver-sort:*` 占用，未删除、未混用；改用 db2，并记录于运行手册与计划。
-> - 边界：生产库尚无业务表，首次 prod 启动由 Flyway 建表；`PROD_DB_PASSWORD` 仅在本机 gitignored `.env`，P0.16 迁入 SOPS。
+> - 边界：生产库尚无业务表，首次 prod 启动由 Flyway 建表；`PROD_DB_PASSWORD` 仅在本机 gitignored `.env`，P0.16 已迁入 SOPS。
 > - 重访：P0.16 迁移生产密钥、P0.16b 生产审计量级时复核；禁止在 db1 清理其他服务数据。
 > - 计划与验收明细：`.plans/p0-12-data-isolation-plan.md`。
 
@@ -2448,6 +2448,14 @@ end note
 > - 坑：轮转备份留在 `/etc/logrotate.d/` 会被 include，造成 duplicate log entry 并让 logrotate 报错；备份统一移到 `/root/logrotate-backup-2026-11-10/`。
 > - 边界：部署机存在**手工启动的 nginx master**（单元 `inactive`、无 80/443 监听）未处理，归 P0.16/运维；todesk/redis/gvm/notus 日志由各自服务轮转，不在本条范围；未删除任何既有审计记录（btmp 历史随 `rotate` 淘汰）。
 > - 文档与版本：验收记录 `.omp/acceptance/2026-11-10/p0-15-time-and-log-caps.md`；无代码变更，不 bump 版本。
+
+> **P0.16 完成总结（2026-11-10）**
+> - 交付：生产关闭 API 文档；CORS 取真实 origin（基础配置删除 `ctt.example.com`）；OAuth 与前端 URL 生产必填；`ProductionConfigurationGuard` 覆盖文档开关/CORS/OAuth/密钥四类并把全部违规一次列出；新增 `secrets.prod.enc.yaml` 与 `render.sh --env prod`；应用数据库凭据拆成 `DB_PASSWORD`（dev 与 `POSTGRES_PASSWORD` 同值，prod 为 `ctt_app`）；`PROD_DB_PASSWORD` 从本机 `.env` 移除。
+> - 验证：prod profile 实测 `/v3/api-docs`、`/swagger-ui.html`、`/swagger-ui/index.html` 均 404；缺 GitHub secret、占位 CORS、开启 api-docs、过短 DB 口令四个分支均 exit 1 且消息可读；不设 `CORS_ALLOWED_ORIGINS` 时回退 `FRONTEND_BASE_URL` 正常启动；`docker compose config` 与 `render.sh --env dev|prod` 均通过；`./gradlew build` 成功（含 spotless 与覆盖率）。
+> - 缺陷：未知路径原先被 `Exception` 兜底成 500，关闭文档后会变成 500 而验收要求 404 ⇒ 新增 `NoResourceFoundException → 404 COMMON_002`，并补单测。
+> - 误判与修正：guard 消息里属性名后跟空格时会被日志掩码把下一个词当值（`client-secret must` → `******`）；消息改为反引号包属性名，实测恢复可读。
+> - 边界：生产编排（overlay/蓝绿/拉镜像）归 P3；GitHub OAuth 正式 App 归 P7.2；生产库尚未初始化（本轮验证未启用 Flyway）；Redis 口令因共享实例（db1 属另一服务、仅 default 用户）不轮换，约束与重访触发写入 `docs/production-configuration.md`。
+> - 文档与版本：新增 `docs/production-configuration.md`；`docs/deployment-secrets.md` 改为双载荷；README 索引与 `.env.example` 同步；版本 `0.98.0`。
 
 
 
@@ -2502,7 +2510,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P0.16–P0.17（含 P0.16b）、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P0.16b、P0.17、P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 

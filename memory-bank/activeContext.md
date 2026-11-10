@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-10] - P0.16 生产配置收口（v0.98.0，代码+配置+密钥+文档）
+    - 交付：prod 关闭 springdoc（两路径 404）；CORS 取 `CORS_ALLOWED_ORIGINS`（回退 `FRONTEND_BASE_URL`），基础配置删占位域；OAuth 与前端 URL 生产必填；`ProductionConfigurationGuard` 覆盖四类违规并一次列出；`secrets.prod.enc.yaml` + `render.sh --env prod`；app 的 `DB_PASSWORD` 改源自 `db_password`；`PROD_DB_PASSWORD` 从 `.env` 移除
+    - 缺陷：未知路径原被 `Exception` 兜底成 500（关闭文档后也不满足 404）⇒ `NoResourceFoundException → 404 COMMON_002` + 单测
+    - 验证：prod 实测 api-docs/swagger-ui/swagger-index 均 404；缺 GitHub secret、占位 CORS、开启 api-docs、短 DB 口令四个分支 exit 1；CORS 回退正常启动；补 `ApiDocsDisabledIntegrationTest`（真实 MVC 派发）；`docker compose config`、两种 `--env` 渲染、全量 `./gradlew build`（含该集成测试）均通过
+    - 误判：guard 消息里属性名后的空格会让日志掩码把下一个词当值（`client-secret must` → `******`）；消息改为反引号包属性名
+    - 边界：生产编排 P3；GitHub OAuth App P7.2；生产库未初始化；Redis 口令因共享实例（db1 属另一服务、仅 default 用户）未轮换，约束与重访触发见 `docs/production-configuration.md`
+    - 文档：新增 `docs/production-configuration.md`；`docs/deployment-secrets.md` 改双载荷；README 与 `.env.example` 同步；验收记录 `.omp/acceptance/2026-11-10/p0-16-prod-config.md`
 - [2026-11-10] - P0.15 时钟与日志上限（完成，纯主机配置/验证，不 bump 版本）
     - 两机：chrony 替换 systemd-timesyncd（接入机 4.5 / 部署机 4.8，enabled+active）；offset 0.00004 s / −0.0376 s（< 1 s）
     - 接入机：journald 200M/1G/64M（16M）；nginx `maxsize 20M + rotate 14`、btmp `maxsize 10M + rotate 3`、rsyslog `maxsize 50M`
@@ -19,7 +26,7 @@
     - 边界：外部负向验证仍归 P0.13c；未启用 UFW；Redis ACL 用户加固属独立决策（ADR 已列为替代方案）
     - 交付：`docs/decisions/ADR-0003-redis-source-restriction.md`；`docs/production-data-isolation.md`、README 文档索引、`systemPatterns` 与计划 P0.13b 状态同步；`AGENTS.md` R8 增「平台能力要按机制核实」（Redis 无来源地址 ACL；共享主机加防火墙前先证明能拒绝真实可达来源）
 - [2026-11-09] - P0.13a 固定 LAN 地址（完成）：路由器静态租约已保存，续租后地址不变、租约 43,200 秒，路由为 `192.168.5.1`；P0.13b 已按 ADR-0003 决策收口（不装来源白名单）；P0.13c 外部负向验证未开始
-- [2026-11-09] - P0.12 生产数据隔离（v0.97.0）：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色；开发继续 `ctt_server`；两个库的 `PUBLIC` 连接权限已撤销，`ctt_app` 不能连接开发库；原 db1 被 `check-approver-sort:*` 占用，生产改用 db2，本地/开发 db0；角色密码仅在本机 `.env` 的 `PROD_DB_PASSWORD`，待 P0.16 入 SOPS
+- [2026-11-09] - P0.12 生产数据隔离（v0.97.0）：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色；开发继续 `ctt_server`；两个库的 `PUBLIC` 连接权限已撤销，`ctt_app` 不能连接开发库；原 db1 被 `check-approver-sort:*` 占用，生产改用 db2，本地/开发 db0；角色密码仅在本机 `.env` 的 `PROD_DB_PASSWORD`，P0.16 已迁入 SOPS（`secrets.prod.enc.yaml` 的 `DB_PASSWORD`）
 - [2026-11-09] - P0.11 端口与编排 + secret 组读修复（v0.96.1）：edge/蓝/绿/obs host 网络并绑定 `127.0.0.1`；Caddy `:18080` + `bind` 代理 blue；应用 `SERVER_ADDRESS=127.0.0.1`、`TRUSTED_PROXY_ADDRESSES=127.0.0.1`；frpc `18080 -> 18080` 已存在；完整 Linux app/edge/obs 验证通过；secret 0440 + `SECRET_GID`/`group_add`
 - [2026-11-09] - P0.9 frpc systemd 完成（重启抽检暂缓）：服务端 stable `current`/配置；部署机 stable `current`/配置、unit `enabled`/`active`、`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`；单进程，无 tmux/crontab；重启抽检未执行（用户当前不重启），不能替代端到端检查；unit/`UPGRADE.md` 在主机本地 frp 目录
 - [2026-11-09] - P0.7 health 分组(v0.95.0)

@@ -151,3 +151,7 @@ OAuth state 必须与 HttpOnly、SameSite Lax 的状态 Cookie 对齐；缺失/�
 部署机的数据面监听、LAN 访问、UFW 决策与 DHCP/network-online 前提见 [Production Data Isolation](../docs/production-data-isolation.md#data-plane-network-isolation)；此处不重复。
 
 PostgreSQL 用 `pg_hba.conf` 在服务内拒绝子网外客户端；Redis 没有等价能力（ACL 只限定命令/键/通道，`bind` 只选监听地址）⇒ 按 [ADR-0003](../docs/decisions/ADR-0003-redis-source-restriction.md) 不装来源白名单，靠绑定 + 口令 + 「路由器不转发入站」边界。任何新增到 `6379` 的路径（端口转发、路由、全局 IPv6、容器发布端口、迁机）都必须先装主机 nftables 白名单（非 UFW）并验证再放行——这是触发器，不是偏好。
+
+## 生产配置门禁与双载荷密钥
+
+`prod` profile 关闭 `springdoc.api-docs`/`swagger-ui`（`/v3/api-docs`、`/swagger-ui.html` 返回 404），CORS 只接受显式 https origin（`CORS_ALLOWED_ORIGINS`，回退 `FRONTEND_BASE_URL`），GitHub OAuth 与前端 URL 必填。`ProductionConfigurationGuard`（`@Profile("prod")`）把文档开关、CORS 占位/通配、OAuth 缺失、开发密钥四类缺项一次性列出并 exit 1；消息里的属性名用反引号，避免被日志掩码吞掉下一个词。密钥分两份载荷：`secrets.enc.yaml`（dev）与 `secrets.prod.enc.yaml`（prod），`render.sh --env` 选择；应用数据库凭据是 `DB_PASSWORD`（dev 与 `POSTGRES_PASSWORD` 同值，prod 为 `ctt_app`）。Redis 口令是实例级、与 db1 的另一服务共享，不能按环境拆分——轮换前必须协调该服务，或用 ACL 用户/独立实例（见 `docs/production-configuration.md`）。未知路径由 `NoResourceFoundException → 404 COMMON_002`，不得回落 500。
