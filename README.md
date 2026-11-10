@@ -107,7 +107,8 @@ For source runs, database/Redis setup, configuration and production deployment, 
 | Configuration | `/api/v1/config/public` | terms version and other public settings |
 
 Full request/response shapes, error codes and rate limits live in the [API Reference](docs/api-reference.md).
-The running service serves OpenAPI at `/ctt-server/v3/api-docs` and Swagger UI at `/ctt-server/swagger-ui.html`.
+Local and development profiles serve OpenAPI at `/ctt-server/v3/api-docs` and Swagger UI at `/ctt-server/swagger-ui.html`;
+the production profile disables both paths (HTTP 404).
 
 ## Data model
 
@@ -153,6 +154,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Redis Source Restriction](docs/decisions/ADR-0003-redis-source-restriction.md) | why Redis has no source allowlist, and when one becomes mandatory |
 | [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0440` group-readable files, rotation and the frp token |
 | [Production Data Isolation](docs/production-data-isolation.md) | production database, role, Redis logical database, data-plane network and verification |
+| [Production Configuration](docs/production-configuration.md) | required production environment, startup guard rules and the API-documentation posture |
 | [Host Logging and Time](docs/host-logging-and-time.md) | chrony, journald caps and log rotation on both hosts |
 
 ## Related projects

@@ -1,30 +1,35 @@
 # Deployment Secrets
 
-Credentials never travel through the Compose environment. The repository keeps one
-SOPS-encrypted payload; a render step turns it into mode `0440` group-readable files on the host, and
-Compose mounts those files as secrets. `docker inspect` therefore shows no password,
-secret key or token — only the mount paths.
+Credentials never travel through the Compose environment. The repository keeps two
+SOPS-encrypted payloads — `secrets.enc.yaml` for development and `secrets.prod.enc.yaml` for
+production — and a render step turns the selected one into mode `0440` group-readable files on the
+host. Compose mounts those files as secrets, so `docker inspect` shows no password, secret key or
+token — only the mount paths.
 
 ## What lives where
 
 | Path | Committed | Purpose |
 | --- | --- | --- |
 | `.sops.yaml` | yes | SOPS creation rule and the age recipient |
-| `deploy/secrets/secrets.enc.yaml` | yes (ciphertext only) | the single source of truth for values |
-| `deploy/secrets/render.sh` | yes | decrypts and writes one `0440` file per key |
+| `deploy/secrets/secrets.enc.yaml` | yes (ciphertext only) | development values |
+| `deploy/secrets/secrets.prod.enc.yaml` | yes (ciphertext only) | production values |
+| `deploy/secrets/render.sh` | yes | decrypts one payload (`--env dev` by default, or `--env prod`) into `0440` files |
 | `deploy/secrets/frp-token.sh` | yes | renders `FRP_TOKEN` to a `600` file on the access machine |
 | `deploy/secrets/run/` | no (gitignored) | rendered files that Compose mounts |
 | `~/.config/sops/age/keys.txt` | **never** | age private key (mode `600`) |
 
-The encrypted payload currently carries `POSTGRES_PASSWORD`, `REDIS_PASSWORD`,
-`JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`, `GRAFANA_ADMIN_PASSWORD` and `RESEND_API_KEY`.
-Add keys with `sops deploy/secrets/secrets.enc.yaml`: it decrypts in memory, opens `$EDITOR`
-and re-encrypts on save.
+The development payload carries `POSTGRES_PASSWORD`, `DB_PASSWORD` (the same value, used by the
+application), `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`,
+`GRAFANA_ADMIN_PASSWORD` and `RESEND_API_KEY`. The production payload carries `DB_PASSWORD` (the
+`ctt_app` role), `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`,
+`GRAFANA_ADMIN_PASSWORD` and `RESEND_API_KEY`; it has no `POSTGRES_PASSWORD` because production
+uses the host database, not the Compose container. Edit either file with
+`sops deploy/secrets/secrets.enc.yaml` or `sops deploy/secrets/secrets.prod.enc.yaml`.
 
-Two limits are deliberate and live in the plan's phase table, not only here: the payload currently
-holds **local development values** (production values land with P0.16), and `FRP_TOKEN` is **not in
-it yet** — `frp-token.sh` fails with "not in payload" until the token is added (P0.17). Do not
-assume either is in place on a production host.
+Two constraints remain. `FRP_TOKEN` is **not in either payload yet** (P0.17; `frp-token.sh` exits
+with "not in payload" until it is added). The Redis password is **shared by every database on the
+instance**: Redis has one `requirepass` and only the `default` user, and database `1` belongs to
+another service, so rotating it is a coordinated change rather than a per-environment one.
 
 ## Setup on a new machine
 
@@ -36,6 +41,7 @@ recipient. Import the operator's key, or add a machine from a machine that can d
 age-keygen -y ~/.config/sops/age/new-machine.pub   # or paste the new machine's public key
 # add that age1… value to the `age:` list in .sops.yaml, then:
 sops updatekeys deploy/secrets/secrets.enc.yaml
+sops updatekeys deploy/secrets/secrets.prod.enc.yaml
 
 # on the new machine: import the existing private key, do not generate a fresh one
 mkdir -p ~/.config/sops/age
@@ -53,16 +59,19 @@ there fails: it has no key that can unwrap the data key (the observed error is
 ## Daily flow
 
 ```bash
-./deploy/secrets/render.sh        # writes deploy/secrets/run/* with mode 0440
-./deploy/local/up.sh              # renders again, then starts the stack
+./deploy/secrets/render.sh                 # development payload → deploy/secrets/run
+./deploy/secrets/render.sh --env prod      # production payload → deploy/secrets/run
+./deploy/local/up.sh                       # renders the development payload again, then starts the stack
 ```
+
+The rendered directory holds one environment at a time: the last `render.sh` invocation wins.
 
 How each service consumes the files:
 
 - **Application**: `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` turns every
   mounted file into a property named after the file, so the existing `${DB_PASSWORD}`,
-  `${REDIS_PASSWORD}`, `${JWT_SECRET_KEY}` and `${OAUTH_TOKEN_ENCRYPTION_KEY}`
-  placeholders resolve without any code change.
+  `${REDIS_PASSWORD}`, `${JWT_SECRET_KEY}`, `${OAUTH_TOKEN_ENCRYPTION_KEY}` and
+  `${RESEND_API_KEY}` placeholders resolve without any code change.
 - **PostgreSQL**: `POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password`.
 - **Redis**: a small wrapper writes a config file on tmpfs, hands it to the `redis` user and
   execs the server, so the password stays out of the process list; the health check reads the
@@ -89,19 +98,23 @@ Missing values stop the deployment instead of starting a half-configured service
 - a rendered file is absent → Compose refuses to create the container
   (`invalid mount config … bind source path does not exist`);
 - the JWT key is empty → `SecurityProperties.JwtProperties` rejects the blank value at
-  startup (`@NotBlank`).
+  startup (`@NotBlank`);
+- the production profile still carries a development value or a placeholder → `ProductionConfigurationGuard`
+  rejects the startup and lists every offending property (see
+  [Production Configuration](production-configuration.md)).
 
 ## Rotation
 
-1. `sops deploy/secrets/secrets.enc.yaml`, change the value, save.
-2. `./deploy/secrets/render.sh`.
+1. Edit the payload for that environment (`secrets.enc.yaml` or `secrets.prod.enc.yaml`), save.
+2. Render with the matching environment: `./deploy/secrets/render.sh [--env prod]`.
 3. Recreate the affected services: `docker compose … up -d --force-recreate <service>`.
 
 Rotating `JWT_SECRET_KEY` invalidates every access and refresh token;
 `OAUTH_TOKEN_ENCRYPTION_KEY` requires the rotation procedure in
 [Security Architecture](security-architecture.md) so stored GitHub tokens stay readable.
-Rotating the database password also needs the matching `ALTER ROLE` on PostgreSQL, and
-the Redis password restart alone is enough.
+Rotating the database password also needs the matching `ALTER ROLE` on PostgreSQL. Rotating the
+Redis password changes the instance password for **every** database and client, including the
+service that owns database `1` — coordinate it before touching that value.
 
 ## frp token (access machine)
 

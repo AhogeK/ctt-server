@@ -649,6 +649,6 @@ plugin's own client and asserts both branches.
 
 ## Interactive documentation
 
-Once the service runs, Swagger UI is available at `http://localhost:8080/ctt-server/swagger-ui.html`; the machine-readable document is served at `/v3/api-docs`.
+In local and development profiles, Swagger UI is available at `http://localhost:8080/ctt-server/swagger-ui.html`; the machine-readable document is served at `/v3/api-docs`. The production profile disables both paths and answers HTTP 404.
 
 **Credential boundary:** password set/change, email-change request/resend/cancel/status and account deletion require a `WEB_SESSION`. API-key callers receive `403 AUTH_025`; `getActiveUserRequired()` alone is not sufficient for these operations. A password change/reset revokes other refresh sessions and all API keys, while the caller's current browser session remains valid.
