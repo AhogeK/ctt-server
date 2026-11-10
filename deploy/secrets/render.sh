@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Render the SOPS-encrypted secrets into the files Compose mounts (P0.5).
 #
-#   ./deploy/secrets/render.sh [--out DIR] [--mode 0440]
+#   ./deploy/secrets/render.sh [--env dev|prod] [--out DIR] [--mode 0440]
 #
-# The encrypted payload is the only copy in the repository; this script writes
+# The encrypted payloads are the only copies in the repository; this script writes
 # one file per key under deploy/secrets/run/ (gitignored). Compose reads those
 # files as secrets, so no secret value appears in `docker inspect`.
 #
@@ -13,16 +13,23 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-enc="deploy/secrets/secrets.enc.yaml"
+env="dev"
 out="deploy/secrets/run"
 mode="440"
 while [ $# -gt 0 ]; do
   case "$1" in
     --out) out="${2:?--out needs a directory}"; shift 2 ;;
     --mode) mode="${2:?--mode needs an octal mode}"; shift 2 ;;
+    --env) env="${2:?--env needs dev or prod}"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
 done
+
+case "$env" in
+  dev) enc="deploy/secrets/secrets.enc.yaml" ;;
+  prod) enc="deploy/secrets/secrets.prod.enc.yaml" ;;
+  *) echo "unknown environment: $env (expected dev or prod)" >&2; exit 1 ;;
+esac
 group="${SECRET_GID:-1000}"
 case "$out" in
   deploy/secrets/*) ;;

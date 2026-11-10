@@ -29,12 +29,18 @@ secrets:
     file: deploy/secrets/run/POSTGRES_PASSWORD
   redis_password:
     file: deploy/secrets/run/REDIS_PASSWORD
+  # The application's database credential. Development renders the same value as
+  # POSTGRES_PASSWORD; production renders the ctt_app password from its own payload.
+  db_password:
+    file: deploy/secrets/run/DB_PASSWORD
   jwt_secret_key:
     file: deploy/secrets/run/JWT_SECRET_KEY
   oauth_token_encryption_key:
     file: deploy/secrets/run/OAUTH_TOKEN_ENCRYPTION_KEY
   grafana_admin_password:
     file: deploy/secrets/run/GRAFANA_ADMIN_PASSWORD
+  resend_api_key:
+    file: deploy/secrets/run/RESEND_API_KEY
 
 services:
   app:
@@ -62,20 +68,22 @@ services:
       mailpit:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: local
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       # configtree turns /run/secrets/<NAME> into a property of the same name,
       # so the existing ${DB_PASSWORD} / ${JWT_SECRET_KEY} placeholders resolve.
       SPRING_CONFIG_IMPORT: optional:configtree:/run/secrets/
       SERVER_PORT: ${APP_PORT:-8080}
       APP_PORT: ${APP_PORT:-8080}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://ctt-postgres:5432/${POSTGRES_DB:-ctt_server}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-ctt}
-      SPRING_DATA_REDIS_HOST: ctt-redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_MAIL_HOST: ctt-mailpit
-      SPRING_MAIL_PORT: 1025
+      # Defaults point at the companion services; a production deployment overrides
+      # them to the host data plane (127.0.0.1) without editing this file.
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://ctt-postgres:5432/${POSTGRES_DB:-ctt_server}}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-${POSTGRES_USER:-ctt}}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST:-ctt-redis}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-ctt-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
     secrets:
-      - source: postgres_password
+      - source: db_password
         target: DB_PASSWORD
       - source: redis_password
         target: REDIS_PASSWORD
@@ -83,6 +91,8 @@ services:
         target: JWT_SECRET_KEY
       - source: oauth_token_encryption_key
         target: OAUTH_TOKEN_ENCRYPTION_KEY
+      - source: resend_api_key
+        target: RESEND_API_KEY
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:${APP_PORT}/ctt-server/actuator/health/readiness || exit 1"]
       interval: 10s
