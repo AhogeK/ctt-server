@@ -13,23 +13,23 @@ token — only the mount paths.
 | `.sops.yaml` | yes | SOPS creation rule and the age recipient |
 | `deploy/secrets/secrets.enc.yaml` | yes (ciphertext only) | development values |
 | `deploy/secrets/secrets.prod.enc.yaml` | yes (ciphertext only) | production values |
-| `deploy/secrets/render.sh` | yes | decrypts one payload (`--env dev` by default, or `--env prod`) into `0440` files |
-| `deploy/secrets/frp-token.sh` | yes | renders `FRP_TOKEN` to a `600` file on the access machine |
+| `deploy/secrets/render.sh` | yes | decrypts one payload (`--env dev` by default, or `--env prod`) into `0440` files for the container secrets |
+| `deploy/secrets/frp-token.sh` | yes | renders `FRP_TOKEN` to a `600` file, locally or over SSH |
 | `deploy/secrets/run/` | no (gitignored) | rendered files that Compose mounts |
 | `~/.config/sops/age/keys.txt` | **never** | age private key (mode `600`) |
 
 The development payload carries `POSTGRES_PASSWORD`, `DB_PASSWORD` (the same value, used by the
 application), `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`,
-`GRAFANA_ADMIN_PASSWORD` and `RESEND_API_KEY`. The production payload carries `DB_PASSWORD` (the
-`ctt_app` role), `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`,
+`GRAFANA_ADMIN_PASSWORD`, `RESEND_API_KEY` and `FRP_TOKEN`. The production payload carries
+`DB_PASSWORD` (the `ctt_app` role), `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`,
 `GRAFANA_ADMIN_PASSWORD` and `RESEND_API_KEY`; it has no `POSTGRES_PASSWORD` because production
-uses the host database, not the Compose container. Edit either file with
+uses the host database, not the Compose container, and no `FRP_TOKEN` because the tunnel is host
+infrastructure shared by every stack on that host and is stored once. Edit either file with
 `sops deploy/secrets/secrets.enc.yaml` or `sops deploy/secrets/secrets.prod.enc.yaml`.
 
-Two constraints remain. `FRP_TOKEN` is **not in either payload yet**; `frp-token.sh` exits
-with "not in payload" until it is added. The Redis password is **shared by every database on the
-instance**: Redis has one `requirepass` and only the `default` user, and database `1` belongs to
-another service, so rotating it is a coordinated change rather than a per-environment one.
+One constraint remains: the Redis password is **shared by every database on the instance**. Redis
+has one `requirepass` and only the `default` user, and database `1` belongs to another service, so
+rotating it is a coordinated change rather than a per-environment one.
 
 ## Setup on a new machine
 
@@ -114,22 +114,45 @@ Rotating `JWT_SECRET_KEY` invalidates every access and refresh token;
 [Security Architecture](security-architecture.md) so stored GitHub tokens stay readable.
 Rotating the database password also needs the matching `ALTER ROLE` on PostgreSQL. Rotating the
 Redis password changes the instance password for **every** database and client, including the
-service that owns database `1` — coordinate it before touching that value.
+service that owns database `1` — coordinate it before touching that value. Rotating `FRP_TOKEN` is a
+tunnel-wide change: render it on both hosts with `frp-token.sh` and restart `frps` and `frpc`.
+`render.sh` never writes that file, so editing the payload alone rotates nothing.
 
-## frp token (access machine)
+## frp token (both tunnel ends)
 
-The tunnel token is not part of this repository's Compose stack. Keep it in the same
-SOPS payload under a `FRP_TOKEN` key, then on the access machine:
+The tunnel is host infrastructure, not part of this repository's Compose stack, so its token is
+stored once in `secrets.enc.yaml` under `FRP_TOKEN` instead of being duplicated per environment.
+Both ends read it from a file:
 
-```bash
-./deploy/secrets/frp-token.sh                   # writes /etc/frp/frp-token, mode 600
-./deploy/secrets/frp-token.sh /etc/frp/token    # or an explicit target
+```toml
+auth.method = "token"
+auth.tokenSource.type = "file"
+auth.tokenSource.file.path = "/etc/frp/frp-token"
 ```
 
-The script fails until `FRP_TOKEN` exists in the payload (`sops deploy/secrets/secrets.enc.yaml`).
-Point the `frps.toml` / `frpc.toml` authentication entry at that file instead of inlining the
-value, then restart the unit. The token never enters shell history, Compose files or
-`docker inspect`.
+The path differs per host because the processes do: `frps` runs as root and can read
+`/etc/frp/frp-token`, while `frpc` runs as an unprivileged user that reads a file it owns —
+`/home/<user>/frp/frp-token` on the deployment host. Render each one from the machine that holds the
+age identity; `render.sh` skips `FRP_TOKEN` because these files are not container secrets:
+
+```bash
+./deploy/secrets/frp-token.sh --remote <access-host>                      # /etc/frp/frp-token, mode 600
+./deploy/secrets/frp-token.sh --remote <deploy-host> /home/<user>/frp/frp-token
+sudo ./deploy/secrets/frp-token.sh /etc/frp/frp-token                     # on the operator machine itself
+```
+
+The script decrypts, writes a fresh `mktemp` file beside the target (mode `600` from creation, so a
+leftover cannot donate looser permissions) and renames it into place — a broken transfer cannot
+truncate the value a running frp instance reads at its next start. It then reads the mode and size
+back and fails unless the mode is `600` and the size is the token plus a newline. The remote form
+uses `ssh -o BatchMode=yes`, so it needs a key that works without a prompt: an interactive prompt
+would read the token from stdin. Decryption happens on the operator machine only — the frp hosts
+must not hold the age identity. Restart the unit afterwards — `systemctl restart frps` as root on the
+access host, `sudo systemctl restart frpc` on the deployment host.
+
+To verify: `grep -c '^auth.token =' frps.toml frpc.toml` returns zero on both hosts, and the frps
+log shows `client login info` followed by one `new proxy … success` line per proxy after the
+restart. The token never enters shell history, a tracked frp config or `docker inspect`.
 
 ## Verifying a deployment
 
