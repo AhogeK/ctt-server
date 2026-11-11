@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-11] - ADR 内容边界：三份 ADR 去内部坐标
+    - 背景：用户指出 `docs/decisions/` 含大量 `P0.x` 与私有路径，外部读者无法解引用；实测 ADR-0001 2 处、ADR-0002 6 处、ADR-0003 5 处里程碑编号 + 2 处 `.plans/` 路径
+    - 判定：ADR 是公开格式，位置留在 `docs/decisions/`；越界的是内容。追溯方向固定为「计划 → ADR」（`.plans/` 与 `memory-bank/` 引用 ADR），不在 `.omp` 另建追溯副本（重复真相必然漂移）
+    - 变更：三份 ADR 重写为日期锚定的描述性表述，去掉里程碑编号、内部版本号（`v0.93.x`）、私有路径与共享主机上其他服务名；ADR-0002 激活清单改写为与计划无关的运维步骤，修订段去掉计划坐标；ADR-0003 外部探针表述去掉计划编号；同类清理 `deployment-secrets`（P0.17）与 `production-configuration`（P7.2/P7.5/P3）中的计划坐标；AGENTS R26 增「ADR 只写读者能独立理解的内容」规则
+    - 验证：`grep -nE 'P[0-9]+\.[0-9]|\.plans/|\.omp/|memory-bank|v0\.9[0-9]' docs/decisions/*.md` 为空；README 与 5 份文档的 ADR 链接路径未变
+    - 记录：`.omp/plans/2026-11-11/docs-adr-boundary-plan.md`
+
 - [2026-11-11] - P0.16c 完成：生产审计保留期落到 profile（v0.98.1）
     - 背景：文档称生产必须 `AUDIT_RETENTION_DAYS=180`，但 `application-prod.yaml` 未设置，基础默认 0 ⇒ 以 prod 启动会静默永不删除，且无日志可发现
     - 变更：`application-prod.yaml` 设 `ctt.audit.retention.days: ${AUDIT_RETENTION_DAYS:180}`（基础 profile 仍 0，`0` 为回滚开关）；`AuditRetentionJob` 增加 `@PostConstruct` 启动日志（启用 INFO；禁用时开发 INFO、生产 WARN），每轮清理输出 cutoff/删除行数/耗时（零删除也记录，批次细节 DEBUG；失败轮次记录 cutoff 与已删行数后重抛，保证每轮都可核对）
