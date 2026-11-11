@@ -124,6 +124,12 @@ ctt:
     frontend:
       # Email links must point at the deployed site, never at the development server.
       base-url: ${FRONTEND_BASE_URL}
+  # Audit retention - the approved production policy (ADR-0002)
+  audit:
+    retention:
+      # 180 days is the approved period. AUDIT_RETENTION_DAYS overrides it per environment and 0
+      # stops deletion (the documented rollback). The base profile keeps every row.
+      days: ${AUDIT_RETENTION_DAYS:180}
 
 # Logging - Production level
 logging:
