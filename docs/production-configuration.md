@@ -23,6 +23,8 @@ collects every violation into one message, so one restart lists everything to fi
 | `RESEND_API_KEY` | secret file | SMTP password for `smtp.resend.com` |
 | `MAIL_FROM_ADDRESS` | environment | sender address on a verified Resend domain |
 | `AUDIT_RETENTION_DAYS` | environment, optional | the production profile defaults to `180` ([ADR-0002](decisions/ADR-0002-audit-retention-policy.md)); `0` stops deletion |
+| `MANAGEMENT_PORT` | environment, optional | loopback management server for probes and metrics; defaults to `8081` and must differ from `SERVER_PORT` |
+| `MANAGEMENT_ADDRESS` | environment, optional | defaults to `127.0.0.1` and must stay loopback in production — the guard rejects any other value, so the scraper shares the host network namespace |
 
 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` maps every mounted file to a property of
 the same name, so secret files are read without exporting anything. Compose already mounts
@@ -54,11 +56,13 @@ Render the payload on the production host with `./deploy/secrets/render.sh --env
 ## Compose wiring
 
 The base `app` service forwards only `SPRING_PROFILES_ACTIVE`, `SPRING_DATASOURCE_URL`,
-`SPRING_DATASOURCE_USERNAME`, `SPRING_DATA_REDIS_HOST`, `SPRING_DATA_REDIS_PORT`, `SPRING_MAIL_HOST`
-and `SPRING_MAIL_PORT` from `.env`; the remaining environment values in the table above, and any
-deployment-only secret file, are supplied by the production Compose overlay, which this
-repository does not ship. Its `depends_on` entries name the development companions, so a
-production start uses `docker compose up -d --no-deps app`.
+`SPRING_DATASOURCE_USERNAME`, `SPRING_DATA_REDIS_HOST`, `SPRING_DATA_REDIS_PORT`, `SPRING_MAIL_HOST`,
+`SPRING_MAIL_PORT`, `MANAGEMENT_PORT` and `MANAGEMENT_ADDRESS` from `.env`; the remaining environment
+values in the table above, and any deployment-only secret file, are supplied by the production
+Compose overlay, which this repository does not ship. That file is the local bridge stack, so it
+defaults `MANAGEMENT_ADDRESS` to `0.0.0.0` and publishes the port on host loopback; a production
+deployment runs host-networked with the loopback default. Its `depends_on` entries name the
+development companions, so a production start uses `docker compose up -d --no-deps app`.
 
 ## Guard rules
 
@@ -72,6 +76,7 @@ production start uses `docker compose up -d --no-deps app`.
 | OAuth encryption key | same as the JWT key |
 | Database password | blank, shorter than 16 characters, or carrying a development word |
 | Redis password / Resend key / TOTP key | blank, a known development literal, or carrying a development word; Redis has no length rule because the instance credential is shared |
+| Management surface | `management.server.port` missing, zero, or equal to `server.port`; `management.server.address` not a loopback address |
 
 "Development word" means `dev`, `test`, `local`, `dummy`, `sample` or `change` delimited by
 non-alphanumeric characters, plus the literals published in this repository (`ctt_local_pass`,
@@ -91,6 +96,10 @@ journalctl -u <service> | grep 'Audit retention'                                
 The retention lines must show `enabled: deleting rows older than 180 days` at startup, then one
 `sweep finished: cutoff=…, deleted=…` line per hour — an empty run prints `deleted=0`.
 
+`curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8081/actuator/prometheus` must answer
+`200`, and the same path under the application port must answer `404`. See
+[Observability](observability.md).
+
 Removing `GITHUB_CLIENT_SECRET`, pointing `CORS_ALLOWED_ORIGINS` at `https://ctt.example.com`, or
 setting the JWT key to a development literal must stop the application with
 `Production configuration rejected:` and the offending property.
@@ -109,3 +118,4 @@ password as development.
 - [Deployment Secrets](deployment-secrets.md) — payloads, rendering and rotation
 - [Production Data Isolation](production-data-isolation.md) — database, role and network boundaries
 - [Security Architecture](security-architecture.md) — authentication and token rotation
+- [Observability](observability.md) — management server, exposed endpoints and the scrape shape

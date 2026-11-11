@@ -164,4 +164,5 @@ docker exec ctt-app-blue ls -l /run/secrets
 ```
 
 The acceptance for this work is exactly those two checks plus a healthy
-`/actuator/health/readiness`, with the missing-file case reproduced at least once.
+`/actuator/health/readiness` on the management port (`127.0.0.1:8081` by default, see
+[Observability](observability.md)), with the missing-file case reproduced at least once.
