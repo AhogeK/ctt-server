@@ -1,5 +1,19 @@
 # Active Context
 
+- [2026-11-11] - P0.16c 完成：生产审计保留期落到 profile（v0.98.1）
+    - 背景：文档称生产必须 `AUDIT_RETENTION_DAYS=180`，但 `application-prod.yaml` 未设置，基础默认 0 ⇒ 以 prod 启动会静默永不删除，且无日志可发现
+    - 变更：`application-prod.yaml` 设 `ctt.audit.retention.days: ${AUDIT_RETENTION_DAYS:180}`（基础 profile 仍 0，`0` 为回滚开关）；`AuditRetentionJob` 增加 `@PostConstruct` 启动日志（启用 INFO；禁用时开发 INFO、生产 WARN），每轮清理输出 cutoff/删除行数/耗时（零删除也记录，批次细节 DEBUG；失败轮次记录 cutoff 与已删行数后重抛，保证每轮都可核对）
+    - 验证：`ProductionRetentionPolicyTest` 4/0/0（真实 `SpringApplication` 验证 profile 覆盖顺序，含非生产为 0）、`AuditRetentionJobTest` 7/0/0（零删除汇总、失败路径、生产禁用 WARN）、`AuditRetentionIntegrationTest` 2/0/0（真实 PostgreSQL：5 行过期跨 3 批次全删、周期内行保留）；prod profile 实跑（生产库只读、Flyway/DDL 关闭）输出 INFO「180 天 / 1000 批」，`AUDIT_RETENTION_DAYS=0` 输出 WARN 禁用，配置守卫接受；全量 build 与覆盖率校验通过
+    - 文档：`production-configuration`、`developer-handbook`、`audit-boundary-spec`、`security-architecture` 同步（含失败路径日志与部署验证配方中的保留日志核对）；ADR-0002 追加 2026-11-11 修订（含回滚通道与空值陷阱）；`progress` 记 0.98.1 里程碑
+    - 边界（docs）：按用户 2026-11-11 指示把运维记录移出 `docs/`——`host-logging-and-time` → `.omp/notes/2026-11-10/`，README 文档表删除该行；ADR-0003 去掉内网地址与主机名（改为描述性表述），`production-data-isolation` 的"实测"改为部署验证步骤；AGENTS R26 补"`docs/` 不是本部署记录簿"的判据
+    - 边界（任务）：生产库仍 0 表；真实量级、首批清理日志与删除计划复核按 R10 拆为 P3.8（首次生产部署后），不在本条保留未完成验收
+
+- [2026-11-11] - P0.16b 生产审计量级只读实测
+    - 生产：`ctt_server_prod` 0 张表（`audit_logs` 不存在，首次 prod 启动才由 Flyway 建表），库 7,870,143 B；行数/表与索引体积/计划均 N/A
+    - 开发参考：29,884 行 / 11,214,848 B（heap 6,799,360、索引 4,374,528），跨度 2026-08-30 → 2026-11-10；比 2026-11-09 的 29,801 行 +83
+    - 计划：保留扫描走 `idx_audit_logs_created_at`（30 天截止 1,000 行 / 0.496 ms；180 天截止 0 行 / 0.014 ms）；删除批次 Hash Semi Join + 顺序扫描（仅普通 `EXPLAIN`）
+    - 记录：`.omp/acceptance/2026-11-11/p0-16b-production-audit-volume.md`（不入库）
+    - 边界：生产真实量级未验证 ⇒ 保留策略已由 P0.16c 落到 profile，量级复测拆为 P3.8（依赖生产首次部署/P3 覆盖层）；不把记录已建写成量级已知
 - [2026-11-10] - P0.16 生产配置收口（v0.98.0，代码+配置+密钥+文档）
     - 交付：prod 关闭 springdoc（两路径 404）；CORS 取 `CORS_ALLOWED_ORIGINS`（回退 `FRONTEND_BASE_URL`），基础配置删占位域；OAuth 与前端 URL 生产必填；`ProductionConfigurationGuard` 覆盖四类违规并一次列出；`secrets.prod.enc.yaml` + `render.sh --env prod`；app 的 `DB_PASSWORD` 改源自 `db_password`；`PROD_DB_PASSWORD` 从 `.env` 移除
     - 缺陷：未知路径原被 `Exception` 兜底成 500（关闭文档后也不满足 404）⇒ `NoResourceFoundException → 404 COMMON_002` + 单测
@@ -40,7 +54,7 @@
 - [2026-11-09] - P0.6c 审计保留策略确认（纯文档/决策，不 bump 版本）
     - 决策:生产 180 天(`AUDIT_RETENTION_DAYS=180`),启用后整行删除;ADR-0002 Accepted;应用默认仍 0,生产启用按部署清单
     - 记录:替代方案(90/365/永久/脱敏保留)、部署验证与回滚、签核;生产量级仍待 P0.16b
-    - 权责/边界: 项目所有者即 operator/compliance authority; ADR-0002 为书面记录, 无独立外部审计人; 生产启用与量级验证归 P0.16b, 未执行
+    - 权责/边界: 项目所有者即 operator/compliance authority; ADR-0002 为书面记录, 无独立外部审计人; 2026-11-11 P0.16c 已把 180 天落到生产 profile（量级复测拆为 P3.8）
     - 规则: `AGENTS.md` R10 增「完成项必须有总结」, 禁止只改状态标记
 - [2026-11-09] - 计划自洽性修正（纯计划，不 bump 版本）
     - P0.6b 改为 ✅：代码/测试/机制验收收口；生产量级实测拆到 P0.16b（P0.12/P0.16 后），保留策略确认拆到 P0.6c（无后续技术依赖）
@@ -64,7 +78,7 @@
     - 文档与规则：新增 `docs/deployment-secrets.md`（初始化/日常/轮换/frp token/Linux 可读性/验证），README 快速开始与配置段、文档索引、`.env.example` 抬头同步；`AGENTS.md` R9 增「容器密钥只走 Compose secrets」
     - 复审修复（双轴）：`.dockerignore` 补 `deploy/secrets`（此前解密文件会进构建上下文）；`render.sh` 重跑不再因旧的只读文件写入失败、并清理已移除的键；README 快速开始补渲染步骤；Jenkinsfile 补渲染；Redis 口令改为配置文件 + `setpriv`；Grafana 口令 secret 化
     - 复审二期修复（Standards 轴）：`render.sh` 改为**先解密到临时目录、成功后才替换**（旧版先删后解密，密钥错误会清掉上一份可用文件），并把解密结果写到独立目录避免把合并明文带进 `run/`；新机器文档不再教 `age-keygen` 后直接 `updatekeys`（没有已授权身份无法解开数据密钥）；计划/AGENTS 的 Redis 描述改为 wrapper + `setpriv`、补 Grafana 消费者
-    - 未闭环项**不再单设清单**，按阶段归入阶段表：P0.17（`FRP_TOKEN` 值 + Linux 上 0440/组可读性实测）、P0.16（生产密钥从开发值换生产值）、P3.1（CI 节点须持有 age 身份）；`docs/deployment-secrets.md` 同步指向这些条目。教训：待办只能有一处真相，散落的「滚动清单」会让状态无法快速聚焦
+    - 未闭环项**不再单设清单**，按阶段归入阶段表：P0.17（`FRP_TOKEN` 值写入 SOPS 并在接入机渲染；Linux 上 0440/组可读性已于 2026-11-09 实测）、P3.1（CI 节点须持有 age 身份）；`docs/deployment-secrets.md` 同步指向这些条目。教训：待办只能有一处真相，散落的「滚动清单」会让状态无法快速聚焦
 - [2026-11-08] - P0.4 compose 加固（v0.93.5）
     - 交付：两份 compose 共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 再加 SETPCAP
     - 实测：9 个容器 `docker inspect` 逐项命中；edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条外部探测结果为 1；演练后停掉其余容器，只保留 Mailpit

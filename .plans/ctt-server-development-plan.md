@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.16 已完成，P0.9 重启抽检按用户要求暂缓；未完成项见阶段表状态列，含 P0.16b、P0.17） | v0.98.0 P0.16 生产配置收口完成（文档 404、CORS、OAuth 必填、密钥门禁与生产载荷）；P0.15 两机 chrony + 日志上限完成；P0.13c 外部负向验证通过 |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.16、P0.16b、P0.16c 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8；未完成项含 P0.17） | v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB）；P0.15 两机 chrony + 日志上限完成；P0.13c 外部负向验证通过 |
 
 ## 🗺️ 计划总览
 
@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。真实地址/主机名见私密运维记录。**frps 与 frpc 均已 systemd 托管**；frps 代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝；开发与联调仍共用同一个数据库。部署机另有既有公网 Jenkins，经 nginx 443 对外。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11）。已完成：P0.0–P0.11、P0.14；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓；未完成：P0.16b、P0.17。P1–P7 未开工，每步一个可独立验收的交付物。
+**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓；未完成：P0.17。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1–P7 未开工，每步一个可独立验收的交付物。
 
 **本轮交付（2026-11-07）**
 
@@ -2358,7 +2358,7 @@ end note
 | | P0.5 ✅ | 密钥改 Compose secrets：仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml` + `.sops.yaml` 的 age 公钥），`render.sh` 先解密到临时目录再替换成 `0440` 组可读文件（`SECRET_GID`），`up.sh` / `Jenkinsfile` 起栈前调用；应用走 configtree、PostgreSQL 走 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 写 tmpfs 配置并 `setpriv` 降权、Grafana 走 `GF_SECURITY_ADMIN_PASSWORD__FILE`；frp token 由 `frp-token.sh` 在接入机渲染成 600 文件（`docs/deployment-secrets.md`）。2026-11-09 修复：应用的 `appuser` 无法读取宿主 `0400` secret，默认改为 `0440` + `group_add`。**收尾（token 值、Linux 实测）归 P0.17** | 运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；`/run/secrets` 文件 `0440` 且容器组可读；缺渲染文件时 Compose 拒绝创建容器（bind source 不存在）；缺 age 身份或密钥错误时 `render.sh` 退出 1 且旧文件保留；Redis 进程参数只有 `redis-server *:6379`；缺/空 JWT 键启动失败 | 中 |
 | | P0.6 ✅ | **评估后删除未接线的审计载荷开关**。`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方（仅绑定测试）；多维度评估（引入意图、实现代价、账号删除冲突、体积、脱敏可靠性、OWASP/GDPR/ASVS）结论是**不引入请求体审计**，理由与替代方案见 `docs/decisions/ADR-0001-audit-payload-boundary.md`；base/prod 两份受版本控制的 YAML（`application-local.yaml` 被 gitignore）与 `SecurityProperties` 删除该块，审计 `details` 仍只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext。脱敏可靠性实测：正则可掩码普通字符串，但不是 JSON 感知（`pwd` / `otp` / `apiKey` 漏，空值/对象值会破坏文本），不能当作载荷掩码器。**同主题清理（v0.93.8）**：无生产使用的 `MaskSerializer` 与测试已删除，文档统一为「头掩码 + 全局正则」两层 | `grep` 证明无生产消费者；定向测试通过；实跑 `POST /auth/login`（body 含 `password`）审计行只有 `reason`/`errorCode`，全库检索该密码串 = 0；全量测试通过 | 低 |
 | | P0.6b ✅ | **审计内容最小化（代码完成）**：`details` / `resource_id` 不再写姓名、邮箱、passkey 标签、原始 SMTP 错误；`TokenRefresh` 去掉重复的 IP / UA；`PasswordResetService` 与 `RateLimitAspect` 的 `resource_id` 也不再写邮箱；只保留 action、资源 id、布尔、枚举、计数。保留清理机制已交付（`AuditRetentionJob` + `ctt.audit.retention.days`，默认 0=保留；启用后删除整行而非只擦 IP/UA）；开发库 `ctt_server` 只读实测 29,801 行 / 11 MB（参考） | 定向测试通过；全量测试通过；grep 审计写入点无自由文本个人数据/邮箱；代码与机制验收完成 | 中 |
-| | P0.6c ✅ | **审计保留策略确认**：生产保留 **180 天**（`AUDIT_RETENTION_DAYS=180`）；启用后按整行删除、不保留 IP/UA。决定、替代方案、部署验证与签核记录见 `docs/decisions/ADR-0002-audit-retention-policy.md`；应用默认仍为 0，生产启用按 ADR 部署清单执行（执行/验证归 P0.16b，不属于本条验收） | ADR-0002 Accepted；决策值与整行删除语义可追溯；部署清单已写入；执行/验证归 P0.16b | 中 |
+| | P0.6c ✅ | **审计保留策略确认**：生产保留 **180 天**（`AUDIT_RETENTION_DAYS=180`）；启用后按整行删除、不保留 IP/UA。决定、替代方案、部署验证与签核记录见 `docs/decisions/ADR-0002-audit-retention-policy.md`；应用基础默认仍为 0，生产 profile 已默认启用 180 天（P0.16c 落地）；首次部署后的量级实测归 P3.8，不属于本条验收 | ADR-0002 Accepted；决策值与整行删除语义可追溯；配置默认已落地（P0.16c）；生产实测归 P3.8 | 中 |
 | | P0.7 ✅ | **health 分组**：liveness 只含 `livenessState`；readiness 含 `readinessState`、`db`、`redis`，依赖失败由 readiness 专用聚合器映射为 `OUT_OF_SERVICE`；`/actuator/health/liveness` 与 `/actuator/health/readiness` 公开；compose 与 blackbox 改打 readiness | 停库演练：liveness `UP` / HTTP 200，readiness `OUT_OF_SERVICE` / HTTP 503；定向与全量测试通过 | 中 |
 | | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）；2026-11-09 已切到 stable `current` + 稳定配置，unit 重启后 `enabled`/`active`，旧 unit/config 已备份 | 重启接入机后隧道自动恢复；服务端 stable 路径已验证 | 中 |
 | | P0.9 ✅（重启抽检暂缓） | **frpc 改 systemd**（部署机）：stable unit 已安装为 `enabled`/`active`，`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`，使用 stable `current`/配置；旧 tmux 与 crontab 已移除，只剩一个 stable frpc 进程；unit、升级与回滚说明存于各主机 frp 目录，不进入项目仓库；重启抽检按用户要求暂缓（不阻塞交付） | unit `enabled`/`active` 且开机目标已挂载；重启后隧道自动恢复属抽检，未执行（用户当前不重启） | 中 |
@@ -2372,17 +2372,35 @@ end note
 | | P0.14 ✅ | 主机加固（接入机 SSH）与日志轮转：`00-hardening.conf` 关口令、root 仅密钥、`MaxAuthTries 4`（口令登录返回 `Permission denied (publickey)`）；部署机 `cloud-init-base` 重复登记已改名，`logrotate` 的 `Result=success`。`fail2ban` **不做**：仅密钥模式下只产生日志噪音，误封还会自断通道 | 口令登录不可用；`systemctl is-failed logrotate` 不是 `failed` | 中 |
 | | P0.15 ✅ | **时钟与日志上限**：两机改 chrony（移除 systemd-timesyncd）。接入机 journald 上限 `200M/1G/64M`（当前 16M）、nginx `daily + maxsize 20M + rotate 14`（原 52）、btmp `maxsize 10M + rotate 3`（原 1）、rsyslog `maxsize 50M`；部署机 journald `500M/2G/64M`（2.8G → 490.1M，`--vacuum-size`）、nginx/btmp/rsyslog 同一套上限。轮转备份必须移出 `/etc/logrotate.d/`（该目录被整体 include，`.bak` 会触发 “duplicate log entry”）。部署机 nginx 单元 `inactive` 但存在手工 master（`/run/nginx.pid` 一致），USR1 重开有效 | 两机 `chronyc tracking`：接入机 0.00004 s、部署机 −0.0376 s（均 < 1 s）；`journalctl --disk-usage` 16.0M / 490.1M（上限 200M / 500M）；两机 `logrotate -d` 无 error 且 exit 0，`logrotate.service` Result=success；`/var/log` 169M / 981M，根盘 28% / 16%；未删除任何审计记录 | 中 |
 | | P0.16 ✅ | **生产配置收口**：prod 关闭 `springdoc.api-docs`/`swagger-ui`（两路径 404）；CORS 取 `CORS_ALLOWED_ORIGINS`（回退 `FRONTEND_BASE_URL`），基础配置删除占位域；`oauth.frontend-url`/`mail.frontend.base-url` 生产无 localhost 兜底；新增 `ProductionConfigurationGuard`（文档开关/CORS/OAuth/密钥四类，一次列出全部违规，缺项 exit 1）；新增 `secrets.prod.enc.yaml` 与 `render.sh --env prod`，app 的 `DB_PASSWORD` 改源自 `db_password`，`PROD_DB_PASSWORD` 从 `.env` 移除；`GlobalExceptionHandler` 把 `NoResourceFoundException` 映射为 404（此前未知路径 500）。实测：三个 404（api-docs、swagger-ui、swagger-ui/index）、四个拒绝分支 exit 1、CORS 回退正常启动；补 `ApiDocsDisabledIntegrationTest`（真实 MVC 派发 404）；全量 build 通过 | 生产 `/v3/api-docs`、`/swagger-ui.html` 404；CORS 无占位域；缺项启动失败（4 例）；生产载荷无开发值；Redis 口令因共享实例未轮换（文档记录） | 中 |
-| | P0.16b | **生产审计量级实测（依赖已完成的 P0.12/P0.16）**：对 `ctt_server_prod` 的 `audit_logs` 做只读统计（行数、表/索引体积、查询计划），记录日期与 snapshot | 生产只读统计记录；与开发库 29,801 行 / 11 MB 的参考值分开记录 | 中 |
+| | P0.16b ✅ | **生产审计量级实测（只读）**：`ctt_server_prod` 当前 **0 张表**、`audit_logs` 不存在（首次 prod 启动才由 Flyway 建表），库大小 7,870,143 B；开发参考 29,884 行 / 11,214,848 B（heap 6,799,360 B、索引 4,374,528 B），数据跨度 2026-08-30 → 2026-11-10；保留扫描走 `idx_audit_logs_created_at`（30 天截止命中 1,000 行 / 0.496 ms；180 天截止 0 行 / 0.014 ms），删除批次为 Hash Semi Join + 顺序扫描。记录 `.omp/acceptance/2026-11-11/p0-16b-production-audit-volume.md` | 生产只读统计记录已建（0 表 / 0 行 / 计划 N/A）；开发参考与生产分开记录；生产真实量级未验证 ⇒ 转 P3.8（保留策略已由 P0.16c 落地） | 中 |
+| | P0.16c ✅ | **生产审计保留策略落地**：`application-prod.yaml` 把 `ctt.audit.retention.days` 默认设为 `${AUDIT_RETENTION_DAYS:180}`（基础 profile 仍为 0；`0` 为回滚开关），`AuditRetentionJob` 启动时记录生效策略（生产禁用为 WARN、其余 INFO）、每轮清理输出 `cutoff`/删除行数/耗时（零删除也记录；失败轮次记录 cutoff 与已删行数后重抛），`ProductionRetentionPolicyTest` 以真实 `SpringApplication` 加载配置，钉住 180 / 环境禁用 / 环境覆盖 / 非生产为 0 四条契约，`AuditRetentionIntegrationTest` 用真实 PostgreSQL 验证「过期数据跨批次全删、周期内行保留、无过期行时不删」，ADR-0002 追加 2026-11-11 修订（含回滚通道与空值陷阱），四份文档同步。生产首次部署后的行数/体积/计划复测与清理日志核对按 R10 拆为 P3.8 | 生产 profile 默认 180 天；启动日志与每轮清理汇总日志可核对（含零删除与失败）；配置契约有测试；全量 build 通过。生产量级见 P3.8 | 中 |
 | | P0.17 ⬜ | **密钥收尾与真实宿主验证**：把 `FRP_TOKEN` 写入 SOPS 载荷，用 `frp-token.sh` 在接入机渲染 `600` 文件并重启 frp；Linux 上 `SECRET_GID`/`group_add` 的组读已于 2026-11-09 实际验证（appuser 可读 `0440` 文件），剩余只验证 `FRP_TOKEN` 与接入机文件 | 载荷含 `FRP_TOKEN`；接入机 token 文件 `600` 且隧道正常；secret 组读已完成 | 低 |
 
 > **计划修订（2026-11-09）**：P0.6b 已按自身交付物收口为 ✅；P0.6c 已确认 180 天整行删除（ADR-0002）；生产审计量级实测保留在 P0.16b（P0.12/P0.16 之后）。P0.16 与 P7.3 同步移除对 P7.4/P7.5 的前向依赖；未开工待办只依赖已排在它之前的工作。
+
+> **计划修订（2026-11-11）**：P0.16b 已按“生产只读统计记录”收口为 ✅——生产库尚未初始化（0 表 / 0 行），因此量级为 N/A；生产保留启用由 P0.16c 落到生产 profile，真实量级复测拆到 P3.8（依赖生产首次部署 / P3 覆盖层）。不把“记录已建”写成“量级已知”。
+
+> **计划修订（2026-11-11，R10 收口）**：P0.16c 只保留可在当前环境完成并验收的策略落地（生产 profile 默认 180 天、启动日志、契约测试、ADR 修订），已收口为 ✅；生产行数/体积/计划复测与清理批次日志核对依赖首次生产部署，拆为 P3.8 并排在 P3.1–P3.7 之后。不把“配置已启用”写成“生产已验证”，也不让后续任务挂在前一任务的未完成项里。
 
 > **P0.6c 完成总结（2026-11-09）**
 > - 决策：生产保留 180 天；启用后整行删除，不保留 IP/UA；应用默认仍为 0。
 > - 权责：项目所有者是本次部署的 operator/compliance authority，授权工程侧决策；ADR-0002 是书面记录，无独立外部审计人。
 > - 证据：ADR-0002、`application.yaml` 注释、README/docs 引用；全量 1694 tests / 0 failures / 1 skipped，覆盖率与 spotless 通过。
-> - 边界：生产启用、量级实测与回滚演练归 P0.16/P0.16b，尚未执行；不把“策略已定”写成“生产已启用”。
+> - 边界：生产启用由 P0.16c 落到生产 profile（需部署以 `prod` profile 启动；生产覆盖层归 P3），量级实测已由 P0.16b 记录为空库快照；删除批次日志与稳态规模归 P3.8；回滚演练尚未执行。不把“策略已定”写成“生产已执行”。
 > - 重访：期限或删除语义变更需新 ADR；若调查需要窗口外事件，先评估脱敏保留方案。
+
+> **P0.16b 完成总结（2026-11-11）**
+> - 交付：对 `ctt_server_prod` 与开发 `ctt_server` 用同一只读查询集实测，快照记录 `.omp/acceptance/2026-11-11/p0-16b-production-audit-volume.md`（不入库）。
+> - 结果：生产 0 张表 / `audit_logs` 不存在 / 库 7,870,143 B；开发 29,884 行 / 11,214,848 B（heap 6,799,360 B、索引 4,374,528 B），数据跨度 2026-08-30 → 2026-11-10。
+> - 计划：保留扫描走 `idx_audit_logs_created_at`（30 天截止 1,000 行 / 0.496 ms、36 hit + 33 read；180 天截止 0 行 / 0.014 ms）；删除批次为 Hash Semi Join + 顺序扫描（普通 `EXPLAIN`，未执行）。
+> - 边界：生产库未初始化，量级不可测；未建表、未写入、未启用保留；按开发均值估算的 180 天稳态约 75,000 行 / 28 MB 只是 [INFERENCE]。
+> - 重访：生产首次部署并产生真实流量后，按 P3.8 复跑同一查询集并复核生效策略（默认 180 天）。
+
+> **P0.16c 完成总结（2026-11-11）**
+> - 缺陷：文档声明生产必须 `AUDIT_RETENTION_DAYS=180`，但 `application-prod.yaml` 未设置且应用默认 0 ⇒ prod 启动后永久保留且无信号；这是文档与配置的漂移，不是待部署项。
+> - 交付：生产 profile 默认 `${AUDIT_RETENTION_DAYS:180}`（基础 profile 保持 0，`0` 回滚）；`AuditRetentionJob` `@PostConstruct` 输出生效策略（生产禁用为 WARN，其余为 INFO），每轮 sweep 输出 cutoff/删除行数/耗时（零删除也记录，批次细节 DEBUG）；`ProductionRetentionPolicyTest` 四例；ADR-0002 追加修订（正文保留原决策，检查清单位置加指针），四份文档同步。
+> - 证据：`ProductionRetentionPolicyTest` 4/0/0（真实 `SpringApplication` 验证 profile 覆盖顺序）、`AuditRetentionJobTest` 7/0/0（含零删除轮次仍输出汇总日志、失败轮次记录 cutoff/已删行数后重抛、生产禁用为 WARN）、`AuditRetentionIntegrationTest` 2/0/0（真实 PostgreSQL 下 5 行过期数据跨 3 个批次全部删除且周期内行保留；无过期行时一行不删）；prod profile 实跑输出 INFO「180 天 / 1000 批」与 `AUDIT_RETENTION_DAYS=0` 的 WARN 禁用（生产库只读、Flyway/DDL 关闭，记录 `.omp/acceptance/2026-11-11/p0-16c-retention-policy-verification.md`）；全量 `./gradlew spotlessApply build test jacocoTestCoverageVerification` BUILD SUCCESSFUL。
+> - 边界与拆分：生产库 0 表，本次未建表、未写入、未产生清理日志；行数/体积/计划复测与首批清理日志核对按 R10 拆为 P3.8（首次生产部署后），不留在本条验收。
 
 > **P0.7 完成总结（2026-11-09）**
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
@@ -2390,9 +2408,9 @@ end note
 > - 暴露与接线：两个检查端点白名单公开；`docker-compose.yaml`、本地 edge、Prometheus blackbox 全部改打 readiness。
 > - 文档与版本：README、API governance、security architecture、deployment secrets 同步；版本 `0.95.0`。
 > - 验证：`HealthProbeIntegrationTest` 覆盖分组、真实 Redis contributor、503 映射、UNKNOWN 与匿名访问；本地 4 GB 栈停 PostgreSQL 后实测 liveness `UP`/200、readiness `OUT_OF_SERVICE`/503。
-> - 边界：Redis 未单独停机演练，但已成为 readiness 实际 contributor；生产停库复验仍按 P0.16b/部署清单执行。
+> - 边界：Redis 未单独停机演练，但已成为 readiness 实际 contributor；生产停库复验按 P3 部署清单执行。
 > - 证据：`HealthProbeIntegrationTest`、`PublicApiEndpointRegistryTest`、全量 1699 tests / 0 failures / 1 skipped、覆盖率与 spotless 通过。
-> - 重访：数据库/Redis 拓扑、健康检查路径或代理链路变化时，复跑停库与停 Redis 演练；生产启用按 P0.16b 部署验证。
+> - 重访：数据库/Redis 拓扑、健康检查路径或代理链路变化时，复跑停库与停 Redis 演练；生产停库复验按 P3 部署清单执行。
 
 > **P0.9 完成总结（2026-11-09）**
 > - 交付：部署机 stable `current` + 稳定配置；`frpc.service` 安装为 `enabled`/`active`，`WantedBy=multi-user.target`，`After=network-online.target`，`Restart=always`；旧 tmux 与 frpc crontab 已移除，只剩一个 stable frpc 进程；unit、升级与回滚说明在两台主机本地 frp 目录，不进入项目仓库。
@@ -2476,6 +2494,7 @@ end note
 | | P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
 | | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
 | | P3.7 | **质量门接线与供应链**：`jacocoTestCoverageVerification` 已定义（指令 80% / 分支 70%）却**没有挂到 `check`**，等于从未执行；`test` 只有 `useJUnitPlatform()`（无超时、无并行）；仓库无依赖校验元数据、无依赖锁定。把校验挂进 `check`、给测试加超时、生成 `gradle/verification-metadata.xml` | 人为把覆盖率降到阈值以下时 `./gradlew check` 失败；离线加校验元数据后构建仍通过 | 中 |
+| | P3.8 | **首次生产部署后的审计保留实测**：生产表由首次 prod 启动（Flyway）建立并产生真实审计后，确认 `AUDIT_RETENTION_DAYS` 生效（默认 180 天），用 P0.16b 同一查询集复测行数/表与索引体积/保留扫描与删除计划，核对启动日志与每轮清理汇总日志（cutoff、删除行数、耗时，零删除轮次也有记录）；若删除的顺序扫描成为瓶颈再评估索引或分批策略（结构变更须新迁移） | prod `audit_logs` 存在且 180 天策略生效；复测快照与开发参考分开记录；180 天稳态规模有生产实测值；清理汇总日志可核对（含零删除轮次） | 中 |
 | P4 备份与恢复 | P4.1 | pgBackRest：每周全量 + 每日差异 + WAL 归档，保留 14 天，加密 | `pgbackrest check` 通过；任取时间点可恢复 | 高 |
 | | P4.2 | 每周加密 `pg_dump` 复制到接入机（保留 4 份）；目标不可达时任务失败并告警 | 备份列表可见两份产物 | 中 |
 | | P4.3 | 恢复演练脚本：临时库恢复 + `audit_logs`/`coding_sessions` 行数比对（差值必须 0）+ 记录模板 | 一次演练产出可归档记录 | 高 |
@@ -2528,7 +2547,7 @@ end note
 | 日志无用户维度 | MDC 只有 `traceId` / `clientIp` / `method` / `uri` / `deviceId` / `platform` | P1.5 |
 | 缺漏洞上报渠道 | 仓库无 `SECURITY.md` | P6.4 |
 | ~~生产审计写请求体~~（配置声明了未实现的能力） | `log-payloads` 无生产读取方；评估后决定不引入该能力（ADR-0001），P0.6 已删除开关与两份受版本控制的 YAML | P0.6 ✅ |
-| 审计 `details` / `resource_id` 含个人数据 | v0.93.9 已移除显示名、passkey 标签、收件邮箱、SMTP 错误，以及 `PasswordReset` / `RateLimit` 的邮箱；代码与策略已完成（180 天整行删除，ADR-0002），生产量级见 P0.16b | P0.6b ✅ / P0.6c ✅；后续 P0.16b |
+| 审计 `details` / `resource_id` 含个人数据 | v0.93.9 已移除显示名、passkey 标签、收件邮箱、SMTP 错误，以及 `PasswordReset` / `RateLimit` 的邮箱；代码与策略已完成（180 天整行删除，ADR-0002），生产量级见 P3.8（P0.16b 为 0 表只读快照） | P0.6b ✅ / P0.6c ✅；后续 P3.8 |
 
 **已达标（记录，不再重复讨论）**
 

@@ -57,7 +57,7 @@ Logback 的 `conversionRule`（如 `%maskedMsg`）只对 `PatternLayout` 生效�
 
 ## 审计边界：请求体与个人数据不进审计
 
-`audit_logs.details` 只承载动作、资源、原因、状态与计数；请求/响应体与姓名、邮箱、passkey 标签、原始 SMTP 错误永不入库（ADR-0001，P0.6b 已收口）。历史行的保留清理由 `AuditRetentionJob` 按 `ctt.audit.retention.days` 执行（默认 0=保留，每批独立事务）；保留策略已定 180 天整行删除（ADR-0002），生产启用按部署清单，量级见 P0.16b。无生产消费者的配置键先追溯引入意图，再决定接线或删除；不保留假开关。
+`audit_logs.details` 只承载动作、资源、原因、状态与计数；请求/响应体与姓名、邮箱、passkey 标签、原始 SMTP 错误永不入库（ADR-0001，P0.6b 已收口）。历史行的保留清理由 `AuditRetentionJob` 按 `ctt.audit.retention.days` 执行（基础 profile 默认 0=保留，每批独立事务）；保留策略为 180 天整行删除（ADR-0002），生产 profile 携带 `${AUDIT_RETENTION_DAYS:180}`、`0` 为回滚，生产量级实测见 P3.8。无生产消费者的配置键先追溯引入意图，再决定接线或删除；不保留假开关。
 
 ## 健康探针：liveness 与 readiness 分离
 
@@ -144,7 +144,7 @@ OAuth state 必须与 HttpOnly、SameSite Lax 的状态 Cookie 对齐；缺失/�
 
 ## 密钥通道：SOPS → 0440 组可读文件 → Compose secrets
 
-仓库只放 SOPS 密文（`deploy/secrets/secrets.enc.yaml`），`.sops.yaml` 只含 age 公钥；`deploy/secrets/render.sh` 用本机身份解成「一个键一个文件、权限 0440、组为 `SECRET_GID`」，写入 `deploy/secrets/run/`（gitignore）。Compose 以文件形式挂成 secrets，并以 `group_add` 把同一 GID 加入应用与 Grafana：应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` 读取（属性名等于文件名，现有 `${DB_PASSWORD}` / `${JWT_SECRET_KEY}` 占位符不用改），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 由 entrypoint 与健康检查 `cat` 文件，Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`。结果：`docker inspect` 的 `.Config.Env` 不含任何密钥；缺 age 身份、缺渲染文件、空值都在启动前失败。`.env` 仅保留给 `bootRun`，容器栈不再读它。
+仓库只放 SOPS 密文（dev `deploy/secrets/secrets.enc.yaml`、prod `deploy/secrets/secrets.prod.enc.yaml`），`.sops.yaml` 只含 age 公钥；`deploy/secrets/render.sh --env dev|prod` 用本机身份解成「一个键一个文件、权限 0440、组为 `SECRET_GID`」，写入 `deploy/secrets/run/`（gitignore）。Compose 以文件形式挂成 secrets，并以 `group_add` 把同一 GID 加入应用与 Grafana：应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` 读取（属性名等于文件名，现有 `${DB_PASSWORD}` / `${JWT_SECRET_KEY}` 占位符不用改），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 由 entrypoint 与健康检查 `cat` 文件，Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`。结果：`docker inspect` 的 `.Config.Env` 不含任何密钥；缺 age 身份、缺渲染文件、空值都在启动前失败。`.env` 仅保留给 `bootRun`，容器栈不再读它。
 
 ## 数据面监听与网络信任边界
 
@@ -155,3 +155,5 @@ PostgreSQL 用 `pg_hba.conf` 在服务内拒绝子网外客户端；Redis 没有
 ## 生产配置门禁与双载荷密钥
 
 `prod` profile 关闭 `springdoc.api-docs`/`swagger-ui`（`/v3/api-docs`、`/swagger-ui.html` 返回 404），CORS 只接受显式 https origin（`CORS_ALLOWED_ORIGINS`，回退 `FRONTEND_BASE_URL`），GitHub OAuth 与前端 URL 必填。`ProductionConfigurationGuard`（`@Profile("prod")`）把文档开关、CORS 占位/通配、OAuth 缺失、开发密钥四类缺项一次性列出并 exit 1；消息里的属性名用反引号，避免被日志掩码吞掉下一个词。密钥分两份载荷：`secrets.enc.yaml`（dev）与 `secrets.prod.enc.yaml`（prod），`render.sh --env` 选择；应用数据库凭据是 `DB_PASSWORD`（dev 与 `POSTGRES_PASSWORD` 同值，prod 为 `ctt_app`）。Redis 口令是实例级、与 db1 的另一服务共享，不能按环境拆分——轮换前必须协调该服务，或用 ACL 用户/独立实例（见 `docs/production-configuration.md`）。未知路径由 `NoResourceFoundException → 404 COMMON_002`，不得回落 500。
+
+**配置默认值必须落在它声明的那一层，并有可核对的信号**：基础 profile 保持安全默认（审计保留 0 = 全留），生产 profile 显式携带已批准的周期（`${AUDIT_RETENTION_DAYS:180}`），`0` 是回滚开关；启动时 INFO/WARN 打印生效策略，每轮清理打印 cutoff/删除行数/耗时（零删除也打印），否则「已启用」只能靠猜。文档声明某项生产必须配置时，要么配置已随 profile/部署落地，要么明确写出由哪个部署产物提供——不能只写「部署时设置」而没有任何消费者。
