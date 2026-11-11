@@ -4,8 +4,9 @@
 #   ./deploy/secrets/render.sh [--env dev|prod] [--out DIR] [--mode 0440]
 #
 # The encrypted payloads are the only copies in the repository; this script writes
-# one file per key under deploy/secrets/run/ (gitignored). Compose reads those
-# files as secrets, so no secret value appears in `docker inspect`.
+# one file per container secret under deploy/secrets/run/ (gitignored). Compose
+# reads those files as secrets, so no secret value appears in `docker inspect`.
+# Keys rendered by their own script (`FRP_TOKEN`) are skipped.
 #
 # Decryption happens in a temporary directory first: a wrong age identity or a
 # corrupt payload must never destroy the last good rendered set.
@@ -55,14 +56,20 @@ trap 'rm -rf "$tmp"' EXIT
 # instead of a parser traceback, and exits before touching the live set.
 sops --decrypt --output-type json "$enc" > "$tmp/secrets.json"
 mkdir -p "$tmp/rendered"
+# FRP_TOKEN is not a container secret: frp-token.sh renders it to a 600 file on
+# the tunnel hosts, so rendering it here would only widen who can read it.
 python3 -c '
 import json, os, pathlib, sys
 
 plaintext = pathlib.Path(sys.argv[1])
 out = pathlib.Path(sys.argv[2])
 data = json.loads(plaintext.read_text())
+skip = set(sys.argv[4].split(","))
 written = 0
 for key, value in data.items():
+    if key in skip:
+        print(f"skipped {key}: rendered by its own script", file=sys.stderr)
+        continue
     if value is None or str(value) == "":
         print(f"skipped empty secret: {key}", file=sys.stderr)
         continue
@@ -71,7 +78,7 @@ for key, value in data.items():
     os.chmod(path, int(sys.argv[3], 8))
     written += 1
 print(f"decrypted {written} secret files", file=sys.stderr)
-' "$tmp/secrets.json" "$tmp/rendered" "$mode"
+' "$tmp/secrets.json" "$tmp/rendered" "$mode" "FRP_TOKEN"
 
 # Assign the group before replacing the live set: a failed chgrp must leave
 # the previous set intact (the same rule as decryption failures).
