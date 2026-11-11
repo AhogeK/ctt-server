@@ -40,8 +40,10 @@ trigger are in [ADR-0001](decisions/ADR-0001-audit-payload-boundary.md).
 defaults to 0 (keep indefinitely); when positive, `AuditRetentionJob` deletes whole rows older than
 the cutoff in bounded batches. The approved production policy is **180 days** with whole-row
 deletion ([ADR-0002](decisions/ADR-0002-audit-retention-policy.md)); changes require a new ADR. It
-does not retain an event after stripping IP/UA. Activation is a deployment step, not the application
-default. Operational details: [Developer Handbook](developer-handbook.md#adding-audit-events).
+does not retain an event after stripping IP/UA. The base profile keeps every row; the production
+profile enables the approved period, and any populated deployment records a baseline and verifies a
+backup before activation. Operational details:
+[Developer Handbook](developer-handbook.md#adding-audit-events).
 
 ### Use `log.atInfo()` (ELK/Loki Observability)
 
