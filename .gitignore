@@ -61,3 +61,7 @@ src/main/resources/application-local.properties
 
 # Rendered compose secrets (P0.5); only the SOPS payload is committed
 deploy/secrets/run/
+
+### macOS ###
+.DS_Store
+._*
