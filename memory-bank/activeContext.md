@@ -1,5 +1,11 @@
 # Active Context
 
+- [2026-11-11] - P0.17 完成：frp token 进 SOPS 并改为两端文件读取（v0.98.2）
+    - 背景：`FRP_TOKEN` 未入载荷，两端 `frps.toml`/`frpc.toml` 各自内联 token；仓库外的 frp 主机既无仓库检出也无 age 身份，token 只能从操作机推过去
+    - 变更：`FRP_TOKEN` 写入 `deploy/secrets/secrets.enc.yaml`（隧道由同一主机上多个栈共用，只存一份，不进生产载荷），`render.sh` 显式跳过该键以免另生 `0440` 副本；`frp-token.sh` 重写为 `[--remote HOST] [TARGET]`，默认 `/etc/frp/frp-token`，在目标旁 `mktemp` 建 `600` 临时文件后改名覆盖，回读模式与字节数、不符即退出，SSH 用 `BatchMode=yes`；两端改为 `auth.tokenSource.type = "file"` + `auth.tokenSource.file.path`（root 的 `frps` 用 `/etc/frp`，非特权 `frpc` 用其家目录）；`docs/deployment-secrets.md` 的 frp 段重写（两端配置、三种调用、写入语义、模式与字节回读、身份不上 frp 主机、轮换与核对配方）
+    - 验证：接入机 `/etc/frp/frp-token` 与部署机 `/home/ahogek/frp/frp-token` 均 `600`、49 字节且摘要与载荷一致；两端 `verify -c` 通过；重启后 `frps` 日志 `client login info` + 六个 `new proxy … success`；从接入机复测六个 HTTP 码（200/200/200/404/403/000）与改动前一致；两端 `grep -c '^auth.token ='` 为 0
+    - 边界：只改认证来源，未改暴露面；18080 的 `ctt-edge` 无后端（CTT 栈未部署），改动前后同为 `000`，P3 部署后复验；重启部署机 frpc 走的是 unit 的 `Restart=always`（该机 `sudo` 需密码），不是 `systemctl restart`
+    - 记录：`.plans/ctt-server-development-plan.md` P0.17 行与完成总结；`.omp/acceptance/2026-11-11/p0-17-frp-token-file-auth.md`（命令与证据）
 - [2026-11-11] - ADR 内容边界：三份 ADR 去内部坐标
     - 背景：用户指出 `docs/decisions/` 含大量 `P0.x` 与私有路径，外部读者无法解引用；实测 ADR-0001 2 处、ADR-0002 6 处、ADR-0003 5 处里程碑编号 + 2 处 `.plans/` 路径
     - 判定：ADR 是公开格式，位置留在 `docs/decisions/`；越界的是内容。追溯方向固定为「计划 → ADR」（`.plans/` 与 `memory-bank/` 引用 ADR），不在 `.omp` 另建追溯副本（重复真相必然漂移）

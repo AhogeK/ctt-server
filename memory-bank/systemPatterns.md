@@ -146,6 +146,8 @@ OAuth state 必须与 HttpOnly、SameSite Lax 的状态 Cookie 对齐；缺失/�
 
 仓库只放 SOPS 密文（dev `deploy/secrets/secrets.enc.yaml`、prod `deploy/secrets/secrets.prod.enc.yaml`），`.sops.yaml` 只含 age 公钥；`deploy/secrets/render.sh --env dev|prod` 用本机身份解成「一个键一个文件、权限 0440、组为 `SECRET_GID`」，写入 `deploy/secrets/run/`（gitignore）。Compose 以文件形式挂成 secrets，并以 `group_add` 把同一 GID 加入应用与 Grafana：应用用 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` 读取（属性名等于文件名，现有 `${DB_PASSWORD}` / `${JWT_SECRET_KEY}` 占位符不用改），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 由 entrypoint 与健康检查 `cat` 文件，Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`。结果：`docker inspect` 的 `.Config.Env` 不含任何密钥；缺 age 身份、缺渲染文件、空值都在启动前失败。`.env` 仅保留给 `bootRun`，容器栈不再读它。
 
+**宿主级密钥按文件注入，身份只在操作机（frp token）**：隧道这类由同一主机上多个栈共享的凭据不属于某一个 Compose 栈，也不该按环境各存一份——`FRP_TOKEN` 只存在开发载荷里，`deploy/secrets/frp-token.sh [--remote HOST] [TARGET]` 把它渲染成 `600` 文件（本机或经 SSH；在目标旁 `mktemp` 建 `600` 临时文件再改名覆盖，写完回读模式与字节数，不符就失败；SSH 加 `BatchMode=yes`，否则交互提示会吞掉管道里的 token）。它不是容器密钥，`render.sh` 显式跳过该键，避免在 `deploy/secrets/run/` 另生一份 `0440` 副本。两端 frp 用 `auth.tokenSource.file.path` 读同一文件（路径按进程权限区分），读取时由 frp 自行 `TrimSpace`，所以尾随换行安全；解密只在持有 age 身份的操作机上进行，frp 主机既无仓库检出也无身份文件。代价是轮换需要两端同时重渲染并重启，这一条写进 `docs/deployment-secrets.md`。
+
 ## 数据面监听与网络信任边界
 
 部署机的数据面监听、LAN 访问、UFW 决策与 DHCP/network-online 前提见 [Production Data Isolation](../docs/production-data-isolation.md#data-plane-network-isolation)；此处不重复。
