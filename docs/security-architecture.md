@@ -747,11 +747,12 @@ free-text provider errors.
 The same rule applies to `resource_id`: it identifies the resource without exposing an email
 address or any key derived from one.
 
-Retention is controlled by `ctt.audit.retention.days` (default 0, keep every row). The approved
-production policy is **180 days** with whole-row deletion
-([ADR-0002](decisions/ADR-0002-audit-retention-policy.md)); changes require a new ADR. The scheduled
+Retention is controlled by `ctt.audit.retention.days`. The base profile keeps every row (default
+0); the approved production policy is **180 days** with whole-row deletion
+([ADR-0002](decisions/ADR-0002-audit-retention-policy.md)); changes require a new ADR. The
+production profile enables the period, `AUDIT_RETENTION_DAYS=0` disables it, and the scheduled
 `AuditRetentionJob` deletes older whole rows in bounded batches and does not retain an event after
-stripping IP/UA. No application default deletes audit evidence.
+stripping IP/UA.
 
 A former `ctt.security.audit.log-payloads` switch had no production consumer (only a binding test)
 and was removed in v0.93.7 rather than left as a misleading knob. Body capture was evaluated and

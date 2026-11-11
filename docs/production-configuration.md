@@ -22,7 +22,7 @@ collects every violation into one message, so one restart lists everything to fi
 | `CORS_ALLOWED_ORIGINS` | environment | optional, comma-separated; defaults to `FRONTEND_BASE_URL` |
 | `RESEND_API_KEY` | secret file | SMTP password for `smtp.resend.com` |
 | `MAIL_FROM_ADDRESS` | environment | sender address on a verified Resend domain |
-| `AUDIT_RETENTION_DAYS` | environment | `180` per [ADR-0002](decisions/ADR-0002-audit-retention-policy.md) |
+| `AUDIT_RETENTION_DAYS` | environment, optional | the production profile defaults to `180` ([ADR-0002](decisions/ADR-0002-audit-retention-policy.md)); `0` stops deletion |
 
 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` maps every mounted file to a property of
 the same name, so secret files are read without exporting anything. Compose already mounts
@@ -42,6 +42,14 @@ Render the payload on the production host with `./deploy/secrets/render.sh --env
   `FRONTEND_BASE_URL`. The base configuration no longer ships the `ctt.example.com` placeholder.
 - `ctt.security.oauth.frontend-url` and `ctt.mail.frontend.base-url` require `FRONTEND_BASE_URL`: a
   production instance cannot silently keep pointing at `localhost:5173`.
+- `ctt.audit.retention.days` defaults to `180`; `AUDIT_RETENTION_DAYS` overrides it and `0` stops
+  deletion (in a Compose deployment the variable reaches the container through the production
+  overlay described under Compose wiring). The base profile keeps every row.
+  `AuditRetentionJob` logs the effective policy at startup and logs every sweep (cutoff, deleted
+  rows, duration), including sweeps that delete nothing, so activation and each run can be verified
+  from the log. A sweep that fails logs its cutoff and the rows already deleted before the exception,
+  so a failing run is as visible as a successful one.
+  A disabled period is logged at info level, and as a warning in the production profile.
 
 ## Compose wiring
 
@@ -76,7 +84,11 @@ the value resolves it.
 curl -s -o /dev/null -w '%{http_code}\n' https://<host>/ctt-server/v3/api-docs      # 404
 curl -s -o /dev/null -w '%{http_code}\n' https://<host>/ctt-server/swagger-ui.html  # 404
 journalctl -u <service> | grep 'Production configuration accepted'
+journalctl -u <service> | grep 'Audit retention'                                   # policy and every sweep
 ```
+
+The retention lines must show `enabled: deleting rows older than 180 days` at startup, then one
+`sweep finished: cutoff=…, deleted=…` line per hour — an empty run prints `deleted=0`.
 
 Removing `GITHUB_CLIENT_SECRET`, pointing `CORS_ALLOWED_ORIGINS` at `https://ctt.example.com`, or
 setting the JWT key to a development literal must stop the application with
