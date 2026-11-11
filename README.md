@@ -25,6 +25,9 @@
   measured activity, except on the growth board where zero is a measurement.
 - **Security by default.** Short-lived JWTs, TOTP and passkeys, scoped API keys, rate limits, account lockout,
   and an audit trail that never records request bodies.
+- **Operable from the first run.** Health probes and Prometheus metrics are served by a loopback-only
+  management server, and the business counters — sync, rate limits, mail backlog, leaderboard backlog and
+  audit — carry a bounded label set, so a dashboard or an alert cannot be broken by user data.
 
 ## How it works
 
