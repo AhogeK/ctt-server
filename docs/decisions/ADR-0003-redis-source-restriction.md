@@ -4,11 +4,11 @@
 
 ## Context
 
-P0.13 moved PostgreSQL and Redis off wildcard listeners: both now listen on loopback plus the
+PostgreSQL and Redis no longer listen on wildcard addresses: both listen on loopback plus the
 deployment host's LAN address, and `pg_hba.conf` accepts PostgreSQL clients only from loopback and
-the LAN subnet. Redis has no equivalent: it is protected by a password alone. P0.13b asks for an
-explicit decision — segment the network, install a minimal firewall rule set (not UFW by default),
-or record the residual risk.
+the LAN subnet. Redis has no equivalent: it is protected by a password alone. This ADR records the
+decision on whether to add a source restriction — segment the network, install a minimal firewall
+rule set (not UFW by default), or record the residual risk.
 
 Facts measured on the deployment host (2026-11-10):
 
@@ -20,21 +20,21 @@ Facts measured on the deployment host (2026-11-10):
 | One active IPv4 interface, one subnet | `ip -brief addr` → one physical interface on a single `/24`, plus `lo`; Docker bridges are internal |
 | No global IPv6 | `ip -6 addr show scope global` → empty; `net.ipv6.conf.all.forwarding=0` |
 | Current data-plane peers | `ss -tn state established` → the development workstation only |
-| Other containers do not use the data plane | `docker inspect` → `blogapi`, Jenkins, searxng and the LeetCode worker are bridge-networked with their own published ports |
+| Other containers do not use the data plane | `docker inspect` → the other services on the host are bridge-networked with their own published ports |
 
 Two platform constraints shape the options:
 
 - Redis ACLs (Redis 6+) scope commands, key patterns and pub/sub channels per user. The grammar has
   no client-address predicate, and `bind` chooses listening interfaces, not accepted clients. Redis
   therefore cannot express "this subnet only"; the enforcement point must be outside the process.
-- Docker-published ports bypass host INPUT policy, which is part of why P0.13 kept UFW disabled. For
-  a host-level Redis the INPUT path does apply, so a firewall rule would work — it just would not
-  reject anything the current topology can produce.
+- Docker-published ports bypass host INPUT policy, which is one reason UFW stays disabled for this
+  deployment. For a host-level Redis the INPUT path does apply, so a firewall rule would work — it
+  just would not reject anything the current topology can produce.
 
-The declared threat model (P0.13, confirmed by the project owner) treats the home LAN as the trust
+The declared threat model (confirmed by the project owner) treats the home LAN as the trust
 boundary: the router forwards no inbound ports, and the only external ingress is the tunnel.
-Absence of forwarding was measured in P0.13c (2026-11-10) from a public host outside the LAN, so it
-is no longer only a threat-model statement.
+Absence of forwarding was measured on 2026-11-10 from a public host outside the LAN, so it is no
+longer only a threat-model statement.
 
 ## Decision
 
@@ -54,8 +54,8 @@ trigger fires; committing an unexercised ruleset now would be dead configuration
 
 | Option | Why it was not chosen |
 | --- | --- |
-| Host nftables allowlist now (non-UFW) | It is the correct enforcement point, but today's reachable set is loopback plus the LAN subnet — the same set the rule would allow. It rejects nothing, while adding a persistent firewall unit to a host that also runs Jenkins, searxng, blogapi and frp, with no firewall management framework installed. Install it when a trigger makes it effective. |
-| Re-enable UFW | Already rejected in P0.13: Docker-published ports bypass its INPUT policy, the unit reports `active` while `ENABLED=no` invites false confidence, and a subnet-wide allow duplicates the trust boundary. Re-enabling it would not restrict Redis beyond what the subnet rule does. |
+| Host nftables allowlist now (non-UFW) | It is the correct enforcement point, but today's reachable set is loopback plus the LAN subnet — the same set the rule would allow. It rejects nothing, while adding a persistent firewall unit to a host that also runs other services and a tunnel, with no firewall management framework installed. Install it when a trigger makes it effective. |
+| Re-enable UFW | Already rejected: Docker-published ports bypass its INPUT policy, the unit reports `active` while `ENABLED=no` invites false confidence, and a subnet-wide allow duplicates the trust boundary. Re-enabling it would not restrict Redis beyond what the subnet rule does. |
 | Network segmentation (dedicated VLAN or interface for the data plane) | Depends on router capabilities that are not in use, and would change every development client's path. No isolation gain while the LAN is the declared boundary. |
 | Redis ACL user with restricted commands (keep the default user disabled) | Does not express source addresses, which is the requirement. Command restriction limits blast radius but leaves the accepted same-LAN risk unchanged; it is a separate hardening decision if the password is ever shared beyond this deployment. |
 | Bind Redis to loopback only and reach it over an SSH tunnel | Removes LAN exposure entirely, but changes the development workflow, and PostgreSQL would stay LAN-exposed under `pg_hba`; not required by the threat model. Revisit if the LAN stops being trusted. |
@@ -96,34 +96,35 @@ The decision must be revisited, and the nftables allowlist installed, before any
 5. The Redis password is shared beyond this deployment, or a second application user is added.
 6. Any Redis access from an unexpected source appears in logs or an incident review.
 
-P0.13c measured this from outside the LAN on 2026-11-10: `tcp/5432` and `tcp/6379` to the network's
-internet-facing address time out from a public host, while both ports stay reachable inside the LAN.
+External probes on 2026-11-10 measured this from outside the LAN: `tcp/5432` and `tcp/6379` to the
+network's internet-facing address time out from a public host, while both ports stay reachable
+inside the LAN.
 
 ## Verification and limits
 
 Read-only evidence collected on 2026-11-10 with the commands quoted in the Context table. What this
 ADR does **not** establish:
 
-- Whether the network has a dedicated public address or an ISP-level shared address. P0.13c saw no
-  inbound path either way, so the conclusion holds; confirming the router's WAN address and its
-  forwarding table needs router access.
+- Whether the network has a dedicated public address or an ISP-level shared address. The external
+  probes saw no inbound path either way, so the conclusion holds; confirming the router's WAN
+  address and its forwarding table needs router access.
 - That no host-level client can spoof a LAN source address. Spoofing is out of scope for a subnet
   allowlist as well; the effective control remains the password plus the trusted LAN.
 
 When a trigger fires, acceptance requires: the allowlist applied and persisted, `tcp/6379` from the
 LAN subnet still working (application and development clients), a non-subnet SYN dropped (sent from
-a network namespace bound to an address outside the subnet, or from an external path), and P0.13c
-re-run.
+a network namespace bound to an address outside the subnet, or from an external path), and the
+external probes re-run.
 
 ## Approval record
 
 | Field | Value |
 | --- | --- |
 | Decision | No source-address restriction now; host nftables allowlist required on any new path to `6379` |
-| Decision authority | Project owner, also the deployment operator; delegated the decision to engineering in the 2026-11-10 session, and this ADR is the written record |
+| Decision authority | Project owner, also the deployment operator; delegated the decision to engineering on 2026-11-10, and this ADR is the written record |
 | Recorded | 2026-11-10 |
 | Status | Accepted |
-| Traceability | Plan P0.13b / P0.13c, `docs/production-data-isolation.md`, P0.13 and P0.13a completion records |
+| Traceability | `docs/production-data-isolation.md`; the Redis configuration and `pg_hba.conf` on the deployment host |
 
 ## Evidence
 
@@ -133,8 +134,6 @@ re-run.
   against `127.0.0.1:6379` on the deployment host, 2026-11-10.
 - `docker inspect` network mode and port bindings for the running containers, 2026-11-10.
 - `docs/production-data-isolation.md` (data-plane network isolation, Redis section).
-- Plan sections P0.11 (host networking for edge and applications), P0.13, P0.13a, P0.13c in
-  `.plans/ctt-server-development-plan.md`.
-- P0.13c external probes (2026-11-10): from a public host outside the LAN, both data-plane ports
+- External probes (2026-11-10): from a public host outside the LAN, both data-plane ports
   time out (filtered, not refused), ICMP is dropped and the path stops at the ISP backbone, while
-  the frp tunnel from the same network stays connected and both ports answer inside the LAN.
+  the tunnel from the same network stays connected and both ports answer inside the LAN.

@@ -10,18 +10,19 @@ payload (`reason`, `errorCode`, `attemptCount`, `stateBefore`, `stateAfter`, opt
 schema stores it as JSONB. Rows are append-only in practice, have no retention or cleanup job, and
 reference the user with `ON DELETE SET NULL` — they are meant to survive account deletion.
 
-That survival is only defensible because the details are meant to contain no user content — the
-writers that still do are tracked as P0.6b. Account deletion removes the user, sessions, devices,
-statistics and keys by cascade, and the audit row keeps the security event with the account
-reference cleared. The deletion service states this explicitly: "What survives is the audit trail
-... it is why this service does not need to anonymize anything."
+That survival is only defensible because the details are meant to contain no user content. A
+handful of writers still did when this decision was taken, which is what prompted it. Account
+deletion removes the user, sessions, devices, statistics and keys by cascade, and the audit row
+keeps the security event with the account reference cleared. The deletion service states this
+explicitly: "What survives is the audit trail ... it is why this service does not need to anonymize
+anything."
 
 On 2026-03-18 a configuration block `ctt.security.audit` was added with `log-payloads: true` and a
 `masked-fields` list. It had no production consumer — only a binding test asserted its properties —
 and it contradicted the audit boundary spec published two days earlier, which already modelled
 `AuditDetails` as a strongly typed carrier. The request-logging filter has always documented the
-opposite rule: "Never logs full Request/Response Body ... only metadata". The block was removed in
-v0.93.7 (P0.6).
+opposite rule: "Never logs full Request/Response Body ... only metadata". The block was removed when
+this decision was recorded.
 
 The only masking that exists is text-oriented: header masking by name and a regex fallback applied
 to log text and to string key/value pairs. None of them is a JSON-aware payload masker. Running the
@@ -41,9 +42,9 @@ A configuration switch for this capability is not kept. A flag with no consumer 
 operators that the capability exists; it is worse than no flag, because it invites reliance on a
 control that never ran.
 
-## Resolution (v0.93.9, retention v0.94.0)
+## Resolution
 
-The writers named here were changed in P0.6b, so the boundary is now enforced by the current code:
+The writers named here have since been changed, so the boundary is now enforced by the current code:
 
 - `UserService.updateDisplayName` writes only `field=displayName`.
 - Passkey registration, rename and delete write empty details; the label is gone.
@@ -61,12 +62,11 @@ scheduled job deletes older rows in bounded batches. It removes the whole row, n
 the trade-off is accepted in [ADR-0002](ADR-0002-audit-retention-policy.md); production activation
 is a deployment step.
 
-
 ## Alternatives considered
 
 | Option | What it would require | Why it was not chosen |
 |---|---|---|
-| Masked body capture into `audit_logs.details` | A bounded `ContentCachingRequestWrapper`, JSON-aware recursive masking (case-insensitive keys, arrays, nested objects), size caps, exclusion of multipart/binary, retention policy, redaction on account deletion, access control and tests for every masking rule | Conflicts with erasure: bodies contain emails, project names and coding-session content, which would outlive the account with no user reference. Turns audit into a PII/secret store with a much larger breach impact. `SyncPushRequest` accepts up to 1000 sessions per call, so one row could hold hundreds of kilobytes of user content; audit details average 66 bytes today. Text masking is not safe for JSON (see above). |
+| Masked body capture into `audit_logs.details` | A bounded `ContentCachingRequestWrapper`, JSON-aware recursive masking (case-insensitive keys, arrays, nested objects), size caps, exclusion of multipart/binary, retention policy, redaction on account deletion, access control and tests for every masking rule | Conflicts with erasure: bodies contain emails, project names and coding-session content, which would outlive the account with no user reference. Turns audit into a PII/secret store with a much larger breach impact. `SyncPushRequest` accepts up to 1000 sessions per call, so one row could hold hundreds of kilobytes of user content; audit details average 66 bytes at review time. Text masking is not safe for JSON (see above). |
 | Body capture in application logs with short retention | An opt-in request logger, sampling, truncation, escaping, and a guarantee that the log pipeline is not shipped or indexed | Logs leave the trust boundary (Loki, backups) and the existing regex is heuristic; the same PII/secret exposure applies. The filter deliberately does not do this. |
 | Shape-only audit metadata (field names, types, sizes, validation codes; **no values**) | A bounded request wrapper plus a small analyser and tests | Viable, but no current incident or support case requires it. It is the preferred design if a real need appears. |
 | A separate forensic store with encryption, short retention, access approval and deletion hooks | New infrastructure, DPIA-style review, retention job, redaction path | Out of scope for a single-node service, and it does not remove the erasure conflict; it only relocates it. |
@@ -112,5 +112,5 @@ Art. 17(1)(a) (minimisation, storage limitation, erasure), Spring `AbstractReque
 (payload logging is opt-in, defaults to off, truncated to 50 characters).
 
 Observation: the production regex was run against representative bodies on 2026-11-08; see the
-"masked" cases above. Local database measurement: `audit_logs` 4 rows / 136 kB total, average
-`details` 66 bytes.
+"masked" cases above. A development database snapshot on the same day held 4 audit rows / 136 kB,
+with `details` averaging 66 bytes.

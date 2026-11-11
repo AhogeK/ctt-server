@@ -15,8 +15,8 @@ collects every violation into one message, so one restart lists everything to fi
 | `REDIS_PASSWORD` | secret file | the instance credential (shared; see below) |
 | `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY` | secret file | at least 32 characters; rotation rules below |
 | `TOTP_ENCRYPTION_KEY` | secret file | no fallback in production; the public development value is rejected |
-| `GITHUB_CLIENT_ID` | environment | the production OAuth App (P7.2) |
-| `GITHUB_CLIENT_SECRET` | secret file | must join the production payload in P7.2 |
+| `GITHUB_CLIENT_ID` | environment | the production OAuth App |
+| `GITHUB_CLIENT_SECRET` | secret file | must join the production payload before activation |
 | `PASSKEY_RP_ID`, `PASSKEY_ALLOWED_ORIGINS` | environment | the RP ID is a long-lived commitment |
 | `FRONTEND_BASE_URL` | environment | the deployed site; email links, OAuth return and the CORS fallback use it |
 | `CORS_ALLOWED_ORIGINS` | environment | optional, comma-separated; defaults to `FRONTEND_BASE_URL` |
@@ -27,8 +27,8 @@ collects every violation into one message, so one restart lists everything to fi
 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` maps every mounted file to a property of
 the same name, so secret files are read without exporting anything. Compose already mounts
 `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY` and
-`RESEND_API_KEY` into the application; `TOTP_ENCRYPTION_KEY` (P7.5) and `GITHUB_CLIENT_SECRET`
-(P7.2) join the payloads before a production instance can pass the guard.
+`RESEND_API_KEY` into the application; `TOTP_ENCRYPTION_KEY` and `GITHUB_CLIENT_SECRET` join
+the payloads before a production instance can pass the guard.
 
 Render the payload on the production host with `./deploy/secrets/render.sh --env prod`; see
 [Deployment Secrets](deployment-secrets.md).
@@ -56,8 +56,9 @@ Render the payload on the production host with `./deploy/secrets/render.sh --env
 The base `app` service forwards only `SPRING_PROFILES_ACTIVE`, `SPRING_DATASOURCE_URL`,
 `SPRING_DATASOURCE_USERNAME`, `SPRING_DATA_REDIS_HOST`, `SPRING_DATA_REDIS_PORT`, `SPRING_MAIL_HOST`
 and `SPRING_MAIL_PORT` from `.env`; the remaining environment values in the table above, and any
-deployment-only secret file, are supplied by the production overlay (P3). Its `depends_on` entries
-name the development companions, so a production start uses `docker compose up -d --no-deps app`.
+deployment-only secret file, are supplied by the production Compose overlay, which this
+repository does not ship. Its `depends_on` entries name the development companions, so a
+production start uses `docker compose up -d --no-deps app`.
 
 ## Guard rules
 

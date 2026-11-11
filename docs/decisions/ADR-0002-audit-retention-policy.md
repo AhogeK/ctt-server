@@ -16,9 +16,10 @@ not something an application default does silently. Enabling it deletes the **wh
 IP/UA; the current code has no redaction path that would keep the event while removing those fields.
 
 The development database held 29,801 audit rows / 11 MB on 2026-11-09. Production volume is not yet
-measurable because `ctt_server_prod` has no schema until the first production start (P0.12/P0.16);
-the post-deployment measurement is P3.8. The policy therefore has to be explicit now. The committed
-base default stays 0; the approved period is part of the production profile (2026-11-11 amendment).
+measurable because `ctt_server_prod` has no schema until the first production start (verified
+2026-11-11: no tables); the post-deployment measurement is an activation step of its own. The policy
+therefore has to be explicit now. The committed base default stays 0; the approved period is part of
+the production profile (2026-11-11 amendment).
 
 ## Decision
 
@@ -70,22 +71,22 @@ days, or a production volume that makes the storage cost unacceptable. Either ca
 
 ## Deployment and Verification Checklist
 
-This checklist is a plan for production activation, not part of the P0.6c decision.
+This checklist is a plan for production activation, not part of the retention decision.
 
 Steps 3, 4 and 6 describe the original activation path. The 2026-11-11 amendment moved the value
 into the production profile and made every sweep loggable, so read those steps together with it.
 
-1. Complete P0.16 and P0.16b, and record the pre-activation `audit_logs` row count, table size and
-   oldest/newest timestamps. Do not enable deletion before a baseline exists.
+1. Before activation, record the `audit_logs` row count, table size and oldest/newest timestamps.
+   Do not enable deletion before a baseline exists.
 2. Confirm a recent database backup exists. A verified restore is an activation prerequisite; if
    it has not been verified, run the restore drill before enabling.
-3. Set `AUDIT_RETENTION_DAYS=180` in the production runtime configuration owned by P0.16, and
-   record the exact compose file/service or systemd unit in the deployment record. Do not change
-   the committed default and do not put the value in a secret file unless the deployment already
-   uses that channel for non-secret settings. (Amended 2026-11-11: `application-prod.yaml` already
-   carries `${AUDIT_RETENTION_DAYS:180}`, so the variable is only an override and rollback channel.
-   The base Compose file does not forward it; a deployment that changes it must do so through the
-   production overlay or an explicit `-e`.)
+3. Set `AUDIT_RETENTION_DAYS=180` in the production runtime configuration, and record the exact
+   compose file/service or systemd unit in the deployment record. Do not change the committed
+   default and do not put the value in a secret file unless the deployment already uses that
+   channel for non-secret settings. (Amended 2026-11-11: `application-prod.yaml` already carries
+   `${AUDIT_RETENTION_DAYS:180}`, so the variable is only an
+   override and rollback channel. The base Compose file does not forward it; a deployment that
+   changes it must do so through the production overlay or an explicit `-e`.)
 4. Deploy and verify the application starts with the retention setting; observe the first scheduled
    sweep. The startup line reports the effective policy, and every sweep logs its cutoff, deleted
    row count and duration, including sweeps that delete nothing (amended 2026-11-11), so an empty run
@@ -98,7 +99,7 @@ into the production profile and made every sweep loggable, so read those steps t
    Omit the variable to accept the profile default instead of setting it to an empty string: an
    empty value binds to an integer property and fails startup.)
 
-## Amendment (2026-11-11, P0.16c)
+## Amendment (2026-11-11)
 
 The production profile now carries the approved period:
 `application-prod.yaml` sets `ctt.audit.retention.days: ${AUDIT_RETENTION_DAYS:180}`. This
@@ -109,13 +110,13 @@ defaults to 0, so development and tests never delete audit rows.
 
 Reason: the setting was documented as required, but neither the profile nor the existing deployment
 provided it, so a production instance started with deletion disabled and no signal said so. The
-empty-database baseline from P0.16b (0 tables, 2026-11-11) satisfies step 1 for this deployment;
-steps 1–2 still apply to any populated database. `AuditRetentionJob` logs the effective policy at
-startup (info, or a warning when the production profile keeps every row) and logs each sweep's
-cutoff, deleted row count and duration, including sweeps that delete nothing and sweeps that fail
-(a failure reports the cutoff and the rows deleted before the exception), so step 4 can be verified
-from the log as well as from row counts. Step 5's production measurement remains open until the
-first production start and real traffic (P3.8).
+empty-database baseline (no tables, 2026-11-11) satisfies step 1 for this deployment; steps 1–2 still
+apply to any populated database. `AuditRetentionJob` logs the effective policy at startup (info, or a
+warning when the production profile keeps every row) and logs each sweep's cutoff, deleted row count
+and duration, including sweeps that delete nothing and sweeps that fail (a failure reports the
+cutoff and the rows deleted before the exception), so step 4 can be verified from the log as well as
+from row counts. Step 5's production measurement remains open until the first production start and
+real traffic.
 
 ## Approval Record
 
@@ -123,7 +124,7 @@ first production start and real traffic (P3.8).
 | --- | --- |
 | Decision | 180-day retention; whole-row deletion |
 | Decision authority | Project owner, also the deployment operator/compliance authority; delegated the decision to engineering on 2026-11-09 |
-| Approval basis | Project-owner instruction in the 2026-11-09 session; the project owner is the operator/compliance authority for this deployment, and this ADR is the written record. |
+| Approval basis | Project-owner instruction on 2026-11-09; the project owner is the operator/compliance authority for this deployment, and this ADR is the written record. |
 | Recorded | 2026-11-09 |
 | Status | Accepted |
 | Traceability | `AuditRetentionJob`, its unit and repository tests, `ProductionRetentionPolicyTest`, `application.yaml`, `application-prod.yaml`, ADR-0001, this ADR |
@@ -135,9 +136,10 @@ first production start and real traffic (P3.8).
 - `src/main/java/com/ahogek/cttserver/audit/repository/AuditLogRepository.java`
 - `src/test/java/com/ahogek/cttserver/audit/service/AuditRetentionJobTest.java`
 - `src/test/java/com/ahogek/cttserver/audit/repository/AuditLogRepositoryTest.java`
+- `src/test/java/com/ahogek/cttserver/audit/service/AuditRetentionIntegrationTest.java`
 - `src/main/resources/application.yaml` (`ctt.audit.retention`)
 - `src/main/resources/application-prod.yaml` (`ctt.audit.retention`)
 - `src/test/java/com/ahogek/cttserver/common/config/ProductionRetentionPolicyTest.java`
 - `docs/decisions/ADR-0001-audit-payload-boundary.md`
-- Local measurement (2026-11-09): development `audit_logs` 29,801 rows / 11 MB; production
-  measurement after the first production start is P3.8.
+- Development measurement (2026-11-09): `audit_logs` 29,801 rows / 11 MB. Production volume is
+  unmeasured until the first production start creates the schema.
