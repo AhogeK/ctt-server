@@ -18,11 +18,17 @@ Endpoints accessible without any authentication. High risk of abuse.
     *   `GET  /api/v1/config/public`
     *   `GET  /actuator/health/liveness` (Spring Boot Actuator)
     *   `GET  /actuator/health/readiness` (Spring Boot Actuator)
-*   **Actuator checks**: health endpoints are unauthenticated and are not covered by the
-    application rate limiter.
+    *   `GET  /actuator/prometheus` (Spring Boot Actuator, Prometheus scrape payload)
+*   **Actuator checks**: the actuator endpoints are unauthenticated and are not covered by the
+    application rate limiter, so they are served by a dedicated management server bound to
+    `127.0.0.1` (`management.server.port`, default `8081`) and are **not** reachable on the
+    application port. A scraper or probe runs on the same host. See
+    [Observability](observability.md).
 *   **Authentication**: None.
-*   **Rate Limiting**: Strictly enforced by **IP Address**.
+*   **Rate Limiting**: Strictly enforced by **IP Address** for the API endpoints in this tier.
     *   Low capacity (e.g., 5 requests / minute for login).
+    *   The actuator endpoints are outside the limiter; the loopback binding and the dedicated port
+        are what protect them.
 *   **Idempotency**: Recommended for mutating endpoints (e.g., register) using
     client-provided correlation IDs or strict database constraints.
 

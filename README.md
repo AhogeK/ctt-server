@@ -88,6 +88,7 @@ docker compose up -d --build
 | API | <http://localhost:8080/ctt-server> |
 | Swagger UI | <http://localhost:8080/ctt-server/swagger-ui.html> |
 | Mailpit | <http://localhost:8025> |
+| Metrics (loopback) | <http://127.0.0.1:8081/actuator/prometheus> |
 
 For source runs, database/Redis setup, configuration and production deployment, see
 [Deployment Secrets](docs/deployment-secrets.md) and
@@ -145,6 +146,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Developer Handbook](docs/developer-handbook.md) | standard operations: error codes, audit events, exceptions, protected interfaces |
 | [API Governance](docs/api-governance.md) | security tiers, rate limiting and idempotency rules |
 | [Security Architecture](docs/security-architecture.md) | authentication, authorization and threat boundaries |
+| [Observability](docs/observability.md) | the loopback management server, exposed endpoints and the Prometheus scrape |
 | [Time Strategy](docs/time-strategy.md) | UTC-first time handling across the system |
 | [Case Normalization](docs/case-normalization.md) | email identity normalization |
 | [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |

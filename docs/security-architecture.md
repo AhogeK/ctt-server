@@ -206,13 +206,15 @@ public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest requ
 
 The registry also includes system endpoints by default:
 - `/error`
-- `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, `/actuator/info`
+- `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness`, `/actuator/info`, `/actuator/prometheus`
+  (served by the dedicated loopback management server; the application port answers 404)
 - `/swagger-ui.html`, `/swagger-ui/**`, `/v3/api-docs/**` (public, but served only while the profile enables springdoc; production answers 404)
 
 **Health check semantics.** `/actuator/health/liveness` reports only `livenessState`.
 `/actuator/health/readiness` includes `readinessState`, `db` and `redis`, and maps `DOWN` or
 `UNKNOWN` to `OUT_OF_SERVICE` with HTTP 503. Compose and the blackbox checks use readiness rather
-than the aggregate root.
+than the aggregate root. Both read it on the management port (`management.server.port`, loopback
+only), never on the application port — see [Observability](observability.md).
 
 ---
 
@@ -324,8 +326,11 @@ that sets `X-Forwarded-Proto: https`; the callback rejects a state that does not
 login puts access/refresh tokens in the URL fragment, never in the query string, so they do not
 enter proxy or access logs.
 
-**Management surface.** Actuator exposes only `health` and `info`; `metrics`, `loggers` and other
-management endpoints are not reachable through the public API.
+**Management surface.** Actuator exposes only `health`, `info` and `prometheus`, and it does so on a
+dedicated management server bound to `127.0.0.1` (`management.server.port`, default `8081`). The
+application port serves none of them: the allowlisted probe paths answer 404 there, and any other
+`/actuator/**` path is rejected by the security chain before dispatch.
+See [Observability](observability.md).
 
 **Mail retention and account deletion.** `mail_outbox` rows are tied to `users` with an FK cascade;
 terminal rows older than seven days are purged by a scheduled job. Rendered verification/reset links
