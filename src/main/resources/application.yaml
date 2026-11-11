@@ -72,10 +72,27 @@ server:
     min-response-size: 2KB
 
 management:
+  server:
+    # Probes and metrics leave the public application port. A management address that differs from
+    # the (unset) server address makes Spring Boot start a second, dedicated server, and that server
+    # listens on the loopback interface only: the reverse proxy forwards application traffic, so
+    # this port is reachable by the local Prometheus and by nothing beyond it. Host-networked
+    # deployments get the host's loopback; a bridge-networked one needs the port published to be
+    # scraped from outside the container, which is deliberately not the default.
+    port: ${MANAGEMENT_PORT:8081}
+    address: ${MANAGEMENT_ADDRESS:127.0.0.1}
+  prometheus:
+    metrics:
+      export:
+        # Boot 4 creates neither the Prometheus registry nor the scrape endpoint unless the export
+        # is enabled explicitly; without this the endpoint never exists and the path answers 404.
+        enabled: true
   endpoints:
     web:
       exposure:
-        include: health,info
+        # prometheus is the only metrics surface: the generic metrics endpoint lets a caller query
+        # arbitrary tag combinations and stays closed.
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: when-authorized

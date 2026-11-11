@@ -2,6 +2,7 @@ package com.ahogek.cttserver.common.config;
 
 import com.ahogek.cttserver.common.BaseIntegrationTest;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,8 +28,10 @@ class SecurityConfigHeadersTest {
 
     @Test
     @DisplayName("Should include X-Content-Type-Options: nosniff header")
-    void shouldIncludeXContentTypeOptionsHeader() {
-        assertThat(mvc.get().uri("/actuator/health"))
+    void shouldIncludeXContentTypeOptions_whenAnyRequestIsServed() {
+        // Management endpoints moved to the dedicated management server, so the header policy is
+        // asserted on a public application response instead.
+        assertThat(mvc.get().uri("/api/v1/config/public"))
                 .satisfies(
                         result -> {
                             String value = result.getResponse().getHeader("X-Content-Type-Options");
@@ -38,8 +41,8 @@ class SecurityConfigHeadersTest {
 
     @Test
     @DisplayName("Should include X-XSS-Protection header")
-    void shouldIncludeXXssProtectionHeader() {
-        assertThat(mvc.get().uri("/actuator/health"))
+    void shouldIncludeXXssProtection_whenAnyRequestIsServed() {
+        assertThat(mvc.get().uri("/api/v1/config/public"))
                 .satisfies(
                         result -> {
                             String value = result.getResponse().getHeader("X-XSS-Protection");
@@ -49,8 +52,8 @@ class SecurityConfigHeadersTest {
 
     @Test
     @DisplayName("Should include X-Frame-Options: DENY header")
-    void shouldIncludeXFrameOptionsHeader() {
-        assertThat(mvc.get().uri("/actuator/health"))
+    void shouldIncludeXFrameOptions_whenAnyRequestIsServed() {
+        assertThat(mvc.get().uri("/api/v1/config/public"))
                 .satisfies(
                         result -> {
                             String value = result.getResponse().getHeader("X-Frame-Options");
@@ -60,14 +63,14 @@ class SecurityConfigHeadersTest {
 
     @Test
     @DisplayName("Should include Strict-Transport-Security header when enabled")
-    void shouldIncludeHstsHeaderWhenEnabled() {
+    void shouldIncludeHsts_whenTheRequestIsHttps() {
         // HSTS is only sent over HTTPS; in HTTP test environment it may be absent
-        assertThat(mvc.get().uri("/actuator/health"))
+        assertThat(mvc.get().uri("/api/v1/config/public"))
                 .satisfies(
                         result -> {
                             String hsts =
                                     result.getResponse().getHeader("Strict-Transport-Security");
-                            org.junit.jupiter.api.Assumptions.assumeTrue(
+                            Assumptions.assumeTrue(
                                     hsts != null, "HSTS header only present for HTTPS requests");
                             assertThat(hsts.toLowerCase()).contains("max-age=31536000");
                         });
@@ -75,8 +78,8 @@ class SecurityConfigHeadersTest {
 
     @Test
     @DisplayName("Should include Content-Security-Policy header")
-    void shouldIncludeCspHeader() {
-        assertThat(mvc.get().uri("/actuator/health"))
+    void shouldIncludeContentSecurityPolicy_whenAnyRequestIsServed() {
+        assertThat(mvc.get().uri("/api/v1/config/public"))
                 .satisfies(
                         result -> {
                             String value =
@@ -99,8 +102,8 @@ class SecurityConfigHeadersTest {
 
     @Test
     @DisplayName("Should include Referrer-Policy: no-referrer header")
-    void shouldIncludeReferrerPolicyHeader() {
-        assertThat(mvc.get().uri("/actuator/health"))
+    void shouldIncludeReferrerPolicy_whenAnyRequestIsServed() {
+        assertThat(mvc.get().uri("/api/v1/config/public"))
                 .satisfies(
                         result -> {
                             String value = result.getResponse().getHeader("Referrer-Policy");

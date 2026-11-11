@@ -23,3 +23,11 @@ ctt:
       token-encryption-key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
   leaderboard:
     backfill-initial-delay-ms: 86400000
+#
+# Every cached Spring context would otherwise try to bind the same fixed management port. A random
+# loopback port keeps the dedicated management server shape of production while letting contexts
+# coexist; ActuatorSurfaceTest asserts that surface. The address stays at the profile default
+# 127.0.0.1, which differs from the unset server.address and therefore starts a separate server.
+management:
+  server:
+    port: 0

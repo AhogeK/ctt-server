@@ -9,9 +9,10 @@ import org.springframework.boot.health.actuate.endpoint.HealthEndpointGroup;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpointGroups;
 import org.springframework.boot.health.contributor.Status;
 import org.springframework.boot.health.registry.HealthContributorRegistry;
+import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.io.IOException;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +34,7 @@ class HealthProbeIntegrationTest {
 
     @Autowired private HealthContributorRegistry healthContributors;
 
-    @Autowired private MockMvcTester mvc;
+    @LocalManagementPort private int managementPort;
 
     @Test
     @DisplayName("Should exclude database and Redis from liveness")
@@ -108,16 +109,16 @@ class HealthProbeIntegrationTest {
 
     @Test
     @DisplayName("Should expose probe endpoints without authentication")
-    void shouldExposeProbeEndpoints_whenUnauthenticated() {
-        assertThat(mvc.get().uri("/actuator/health/liveness"))
-                .hasStatus(HttpStatus.OK)
-                .bodyJson()
-                .extractingPath("$.status")
-                .isEqualTo("UP");
-        assertThat(mvc.get().uri("/actuator/health/readiness"))
-                .hasStatus(HttpStatus.OK)
-                .bodyJson()
-                .extractingPath("$.status")
-                .isEqualTo("UP");
+    void shouldExposeProbeEndpoints_whenUnauthenticated() throws IOException {
+        // Probes live on the dedicated loopback management server, so the contract is asserted over
+        // HTTP on that port rather than through MockMvc on the application context.
+        assertThat(LoopbackHttpProbe.status(managementPort, "/actuator/health/liveness"))
+                .isEqualTo(200);
+        assertThat(LoopbackHttpProbe.status(managementPort, "/actuator/health/readiness"))
+                .isEqualTo(200);
+        assertThat(LoopbackHttpProbe.body(managementPort, "/actuator/health/liveness"))
+                .contains("\"status\":\"UP\"");
+        assertThat(LoopbackHttpProbe.body(managementPort, "/actuator/health/readiness"))
+                .contains("\"status\":\"UP\"");
     }
 }
