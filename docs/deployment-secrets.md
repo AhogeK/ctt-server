@@ -26,8 +26,8 @@ application), `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`,
 uses the host database, not the Compose container. Edit either file with
 `sops deploy/secrets/secrets.enc.yaml` or `sops deploy/secrets/secrets.prod.enc.yaml`.
 
-Two constraints remain. `FRP_TOKEN` is **not in either payload yet** (P0.17; `frp-token.sh` exits
-with "not in payload" until it is added). The Redis password is **shared by every database on the
+Two constraints remain. `FRP_TOKEN` is **not in either payload yet**; `frp-token.sh` exits
+with "not in payload" until it is added. The Redis password is **shared by every database on the
 instance**: Redis has one `requirepass` and only the `default` user, and database `1` belongs to
 another service, so rotating it is a coordinated change rather than a per-environment one.
 
