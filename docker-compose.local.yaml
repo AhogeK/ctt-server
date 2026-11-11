@@ -2,7 +2,8 @@
 #
 # One command (blue colour + edge, the default acceptance path):
 #   ./deploy/local/up.sh
-#   curl -s http://127.0.0.1:18080/ctt-server/actuator/health/readiness
+#   curl -s http://127.0.0.1:8081/actuator/health/readiness   # blue slot readiness
+#   curl -s http://127.0.0.1:18080/ctt-server/api/v1/config/public
 #
 # Read this file only through that script: the local image packages a jar that
 # the script builds and stages in build/local-image/, so a bare
@@ -38,6 +39,7 @@ x-hardening: &hardening
 
 x-app-host-env: &app-host-env
   SERVER_ADDRESS: 127.0.0.1
+  MANAGEMENT_ADDRESS: 127.0.0.1
   TRUSTED_PROXY_ADDRESSES: 127.0.0.1
   SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:${POSTGRES_EXTERNAL_PORT:-15432}/${POSTGRES_DB:-ctt_server}
   SPRING_DATA_REDIS_HOST: 127.0.0.1
@@ -62,10 +64,13 @@ services:
       <<: *app-host-env
       SERVER_PORT: "18081"
       APP_PORT: "18081"
+      # Both slots are host-networked and can run at the same time, so each needs its own
+      # management port; Prometheus scrapes both and labels the series by slot.
+      MANAGEMENT_PORT: "8081"
     build:
       dockerfile: deploy/local/Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:18081/ctt-server/actuator/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8081/actuator/health/readiness || exit 1"]
   app-green:
     extends:
       file: docker-compose.yaml
@@ -78,10 +83,11 @@ services:
       <<: *app-host-env
       SERVER_PORT: "18082"
       APP_PORT: "18082"
+      MANAGEMENT_PORT: "8082"
     build:
       dockerfile: deploy/local/Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:18082/ctt-server/actuator/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8082/actuator/health/readiness || exit 1"]
 
   edge:
     <<: *hardening

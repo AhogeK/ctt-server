@@ -1,6 +1,6 @@
-# Local Prometheus. The app does not expose a metrics endpoint yet (P1.1);
-# until then this scrapes itself and probes the two HTTP endpoints through
-# blackbox_exporter, which is enough to prove the stack is wired.
+# Local Prometheus. The application exposes its metrics on the management port of each slot
+# (8081 blue, 8082 green), which listens on the loopback interface only. Blackbox probes cover
+# the public path through the edge and the readiness endpoint of each slot.
 
 global:
   scrape_interval: 15s
@@ -11,14 +11,27 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
+  - job_name: ctt-server
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["127.0.0.1:8081"]
+        labels:
+          slot: blue
+      - targets: ["127.0.0.1:8082"]
+        labels:
+          slot: green
+
   - job_name: blackbox-http
     metrics_path: /probe
     params:
       module: [http_2xx]
     static_configs:
       - targets:
-          - http://127.0.0.1:18080/ctt-server/actuator/health/readiness
-          - http://127.0.0.1:18081/ctt-server/actuator/health/readiness
+          # Public path through the edge: proves the proxy forwards to the application.
+          - http://127.0.0.1:18080/ctt-server/api/v1/config/public
+          # Readiness of each slot, read where the probes actually listen.
+          - http://127.0.0.1:8081/actuator/health/readiness
+          - http://127.0.0.1:8082/actuator/health/readiness
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

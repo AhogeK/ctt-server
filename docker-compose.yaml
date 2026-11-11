@@ -60,6 +60,9 @@ services:
       - /tmp
     ports:
       - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_EXTERNAL_PORT:-8080}:${APP_PORT:-8080}"
+      # Metrics travel on their own port, never on the application port. The host side stays on
+      # loopback; override MANAGEMENT_BIND_ADDRESS only for a deliberate remote scrape.
+      - "${MANAGEMENT_BIND_ADDRESS:-127.0.0.1}:${MANAGEMENT_PORT:-8081}:${MANAGEMENT_PORT:-8081}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,6 +77,12 @@ services:
       SPRING_CONFIG_IMPORT: optional:configtree:/run/secrets/
       SERVER_PORT: ${APP_PORT:-8080}
       APP_PORT: ${APP_PORT:-8080}
+      # Probes and metrics listen on their own server. A bridge container must bind its own
+      # interface for the published port to reach it — the container's 127.0.0.1 is not reachable
+      # from the host — while the port mapping above keeps the host side on loopback. A
+      # host-networked deployment (the local overlay) binds 127.0.0.1 directly instead.
+      MANAGEMENT_PORT: ${MANAGEMENT_PORT:-8081}
+      MANAGEMENT_ADDRESS: ${MANAGEMENT_ADDRESS:-0.0.0.0}
       # Defaults point at the companion services; a production deployment overrides
       # them to the host data plane (127.0.0.1) without editing this file.
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://ctt-postgres:5432/${POSTGRES_DB:-ctt_server}}
@@ -94,7 +103,7 @@ services:
       - source: resend_api_key
         target: RESEND_API_KEY
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:${APP_PORT}/ctt-server/actuator/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:${MANAGEMENT_PORT:-8081}/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
