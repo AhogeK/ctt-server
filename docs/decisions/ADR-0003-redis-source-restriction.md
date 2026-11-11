@@ -14,12 +14,12 @@ Facts measured on the deployment host (2026-11-10):
 
 | Fact | Evidence |
 | --- | --- |
-| Redis 8.10.3, no wildcard listener | `ss -lnt` → `127.0.0.1:6379`, `192.168.5.178:6379` only |
-| Listening interfaces are fixed | `CONFIG GET bind` → `127.0.0.1 192.168.5.178`; `protected-mode yes`; `requirepass` set |
+| Redis 8.10.3, no wildcard listener | `ss -lnt` → `127.0.0.1:6379` and the LAN address only |
+| Listening interfaces are fixed | `CONFIG GET bind` → loopback plus the LAN address; `protected-mode yes`; `requirepass` set |
 | One full-privilege user | `ACL LIST` → `user default on … ~* &* +@all` (no address component) |
-| One active IPv4 interface, one subnet | `ip -brief addr` → `enp3s0 192.168.5.178/24`, `lo`; Docker bridges are internal |
+| One active IPv4 interface, one subnet | `ip -brief addr` → one physical interface on a single `/24`, plus `lo`; Docker bridges are internal |
 | No global IPv6 | `ip -6 addr show scope global` → empty; `net.ipv6.conf.all.forwarding=0` |
-| Current data-plane peers | `ss -tn state established` → `192.168.5.101` (development workstation) only |
+| Current data-plane peers | `ss -tn state established` → the development workstation only |
 | Other containers do not use the data plane | `docker inspect` → `blogapi`, Jenkins, searxng and the LeetCode worker are bridge-networked with their own published ports |
 
 Two platform constraints shape the options:
@@ -40,8 +40,8 @@ is no longer only a threat-model statement.
 
 **Do not install a source-address allowlist for Redis now.** The controls in force are the bind
 restriction to loopback plus the LAN address, the Redis password, `protected-mode`, and the threat
-model's no-inbound-forwarding boundary. Redis is not reachable from any source outside
-`192.168.5.0/24` or loopback in the current topology, so an allowlist would reject no traffic while
+model's no-inbound-forwarding boundary. Redis is not reachable from any source outside the LAN
+subnet or loopback in the current topology, so an allowlist would reject no traffic while
 adding host-wide firewall state to a shared host.
 
 **A firewall allowlist becomes mandatory before any new path to port 6379 is enabled** (see the
@@ -89,7 +89,7 @@ Neutral:
 
 The decision must be revisited, and the nftables allowlist installed, before any of these holds:
 
-1. A port forward, DNAT rule, reverse proxy or tunnel exposes `tcp/6379` beyond `192.168.5.0/24`.
+1. A port forward, DNAT rule, reverse proxy or tunnel exposes `tcp/6379` beyond the LAN subnet.
 2. A guest VLAN, second LAN subnet or any routed network gains a route to the deployment host.
 3. The host obtains a global IPv6 address, or Redis gains an IPv6 listener.
 4. Redis moves to a container-published port, another host, or a managed service.
@@ -128,7 +128,7 @@ re-run.
 ## Evidence
 
 - `ss -lnt`, `ss -tn state established "( sport = :6379 or sport = :5432 )"`, `ip -brief addr`,
-  `ip -6 addr show scope global` on `local-home-ubuntu`, 2026-11-10.
+  `ip -6 addr show scope global` on the deployment host, 2026-11-10.
 - `redis-cli ACL LIST`, `CONFIG GET bind`, `CONFIG GET protected-mode`, `CONFIG GET requirepass`
   against `127.0.0.1:6379` on the deployment host, 2026-11-10.
 - `docker inspect` network mode and port bindings for the running containers, 2026-11-10.
