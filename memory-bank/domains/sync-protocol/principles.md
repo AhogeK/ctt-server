@@ -10,9 +10,12 @@ Evaluated in order, first match wins:
 4. **Client modified at** — client versions equal → later `clientModifiedAt` wins.
 
 Before the version rules, two **live** states with identical business content (`projectName`,
-`language`, `startTime`, `endTime`) resolve to `KEEP_EXISTING` — a re-push of unchanged content is an
-idempotent no-op even when version or clock metadata drifted. Deleted states are exempt so
-delete-version competition keeps its meaning.
+`language`, `startTime`, `endTime`) resolve to `SKIP_UNCHANGED` — a re-push of unchanged content is an
+idempotent no-op even when version or clock metadata drifted, and the caller treats it as a success
+with nothing to apply, not as a rejection. `KEEP_EXISTING` therefore means exactly one thing: the
+client's state differed and lost a version or timestamp race. Deleted states are exempt from the
+content short-circuit so delete-version competition keeps its meaning, which is why two identical
+tombstones still resolve through the version chain to `KEEP_EXISTING`.
 
 ## 2. The client's own cursor decides what it reads next
 

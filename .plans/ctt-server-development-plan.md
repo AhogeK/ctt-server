@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1.1 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB）；P0.15 两机 chrony + 日志上限完成；P0.13c 外部负向验证通过 |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1.2 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1、P1.2 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
 
 ## 🗺️ 计划总览
 
@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。真实地址/主机名见私密运维记录。**frps 与 frpc 均已 systemd 托管**；frps 代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝；开发与联调仍共用同一个数据库。部署机另有既有公网 Jenkins，经 nginx 443 对外。
 
-**实现状态：** 🚧 **P0 部分交付 + P1.1 已完成**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17 与 P1.1）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1.2–P7 未开工，每步一个可独立验收的交付物。
+**实现状态：** 🚧 **P0 部分交付 + P1.2 已完成**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1.3–P7 未开工，每步一个可独立验收的交付物。
 
 **本轮交付（2026-11-07）**
 
@@ -2385,6 +2385,9 @@ end note
 > **文档边界（2026-11-11）**：按 R26 新规，`docs/decisions/` 三份 ADR 已剥离内部计划坐标（`P0.x`/`P3.8`）、内部版本号与 `.plans/` 路径，改为日期锚定的描述性表述；追溯方向固定为「计划 → ADR」，ADR 不再反向引用计划。
 
 > **计划修订（2026-11-11，P1.1 收口）**：P1.1 按「指标出口」自身交付物收口为 ✅——注册表进运行时类路径、管理服务器在 `127.0.0.1:8081`（可覆盖）独立监听、应用端口不再提供任何管理载荷（白名单路径 404，其余 `/actuator/**` 由安全链在分发前 401）、暴露端点恰为 health/info/prometheus，并由 `ActuatorSurfaceTest` + `ManagementSurfaceContractTest` 钉住。业务指标、追踪与观测栈仍属 P1.2–P1.4，未并入本条。
+> **计划修订（2026-11-11，P1.2 收口）**：P1.2 记录为**六个**业务指标而非原计划的 5 个——同步计数与耗时本是一对（同一组标签、同一处埋点），拆成两条独立计数只会让验收与告警各写一遍；限流拒绝里的 `GLOBAL` 总闸没有维度，用单独的 `type` 取值表达，不新增指标名。标签预算按业务维度计（Prometheus 直方图的 `le` 属结构性标签），耗时只发布直方图分桶，不发布客户端分位数（blue/green 两个实例分别被抓取，分位数无法合并）。
+
+> **计划修订（2026-11-11，P1.2 评审修正）**：双轴评审后三处语义按“信号自身的定义”修正——①内容与删除状态都一致的重复提交是空操作，`ConflictResolver` 新增 `SKIP_UNCHANGED`，只把版本/时间戳竞争失败记为 `CONFLICT`（否则插件的常规重放会淹没冲突率）；②`FAILED` 只是“安排重试”，重试耗尽由 `MailOutbox.markFailed` 转入 `CANCELLED`，因此 gauge 导出 `PENDING`/`FAILED`/`CANCELLED` 三个状态，`SENDING` 因抖动不入序列；③审计指标统计的是“事件是否落库”，改名 `cttserver.business.audit.events`，行由 `AuditLogWriter` 的 `REQUIRES_NEW` 事务提交后才记 `WRITTEN`，失败路径的 `payload` 记为 `UNKNOWN` 而不是 `EMPTY`。另修正文档：`NaN` 是存在但无值的样本，告警用 `isnan()` 而非 `absent()`。
 
 > **P0.6c 完成总结（2026-11-09）**
 > - 决策：生产保留 180 天；启用后整行删除，不保留 IP/UA；应用默认仍为 0。
@@ -2418,6 +2421,13 @@ end note
 > - 边界：业务指标、追踪与长期保留不在本条（P1.2–P1.4）；管理端口按设计不鉴权，部署侧只能发布到回环地址（规则写入 `docs/observability.md` 与生产配置表）；本轮以双端口集成测试与配置校验为准，未在真实容器栈里跑一次端到端抓取——P1.4 落地观测栈时补。
 > - 重访：P1.4 观测栈落地时核对实际抓取序列与 `slot` 标签；Boot 对 `MANAGEMENT_PORT == SERVER_PORT` 在启动期直接拒绝（已实测错误文本），守卫另行拒绝端口缺失/为 0 与非回环地址——若将来确需远程抓取，应先改这条暴露规则（决策 + 守卫 + 文档同步），不得就地放宽。
 > - 文档与版本：新增 `docs/observability.md`；README 服务表与文档索引、`docs/api-governance.md`、`docs/security-architecture.md`、`docs/production-configuration.md`、`docs/deployment-secrets.md` 同步；版本 `0.99.0`。
+
+> **P1.2 完成总结（2026-11-11）**
+> - 交付：`BusinessMetrics`（`common/metrics`）集中注册六个业务指标——`cttserver_business_sync_count_total`（`operation`/`outcome`/`payload`，`payload` 含 `UNKNOWN`）、`cttserver_business_sync_duration_seconds`（同标签，仅直方图分桶）、`cttserver_business_ratelimit_rejections_total`（`type` = `IP`/`USER`/`EMAIL`/`GLOBAL`）、`cttserver_business_mail_pending`（`status` = `PENDING`/`FAILED`/`CANCELLED`）、`cttserver_business_leaderboard_pending_recomputes`（无标签，Redis 脏集深度）、`cttserver_business_audit_events_total`（`severity` × `outcome`）；埋点落在 `SyncPushService`/`SyncPullService`（成功、冲突、失败与是否有载荷）、`RateLimitAspect`（分桶拒绝与无维度总闸）、`AuditEventListener`（提交成功与丢弃，行由 `AuditLogWriter` 的 `REQUIRES_NEW` 事务提交后才计数）；`ConflictResolver` 新增 `SKIP_UNCHANGED`，内容与删除状态都一致的重复提交记 `SUCCESS`+`EMPTY` 而不是 `CONFLICT`，只有版本/时间戳竞争失败才记冲突；`MailOutboxRepository.countByStatus` 走 `idx_mail_outbox_dispatch`，`LeaderboardRecomputeQueue.pendingCount()` 读脏集大小，两者在抓取时现算、读取失败返回 `NaN`。
+> - 证据：`BusinessMetricsTest` 8/0/0（名称、标签集合、计数、三标签上限、无 severity → `UNKNOWN`、gauge 抛错 → `NaN`）、`BusinessMetricsScrapeIntegrationTest` 2/0/0（在管理端口抓取六个指标族并复核标签预算）、`MailOutboxMetricsTest` 2/0/0、`LeaderboardMetricsTest` 2/0/0（均含 `NaN` 路径）、`AuditEventListenerTest` 6/0/0、`RateLimitAspectTest` 5/0/0、`ConflictResolverTest` 19/0/0、`SyncPushServiceTest$Push` 16/0/0、`SyncPullServiceTest$Pull` 12/0/0；管理面既有用例（`ActuatorSurfaceTest` 5、`HealthProbeIntegrationTest` 5、`ManagementSurfaceContractTest` 4、`ProductionConfigurationGuardTest` 18）随 `LoopbackHttpProbe` 迁移复跑全绿；全量 `spotlessApply build test jacocoTestCoverageVerification` BUILD SUCCESSFUL 196 s，381 个测试类 / 1754 例 / 0 失败 / 0 错误 / 1 跳过，覆盖率门通过。
+> - 边界：只在标签上表达业务维度，不含用户/设备/会话/邮箱/平台字符串；`SENDING` 不入 gauge（会来回抖动并经 zombie reset 回到 `PENDING`），`CANCELLED` 才是重试耗尽后的死信；客户端分位数不发布（多实例无法合并），面板与告警必须用 `histogram_quantile()` 读分桶；`WRITTEN` 只统计已提交的行，`NaN` 是存在但无值的样本（告警用 `isnan()`，不是 `absent()`）；两个 gauge 各多一次轻量查询（每个 status 一次计数 + 一次 `SCARD`）仅在抓取时发生；Grafana 面板与告警规则本身归 P1.4，本轮只保证指标可抓、可断言。
+> - 重访：P1.4 落地观测栈时按真实序列复核标签基数与抓取成本；新增或改名指标须同批更新 `BusinessMetricsTest`、`BusinessMetricsScrapeIntegrationTest` 与 `docs/observability.md`（`AGENTS.md` R9 已固化）；若将来引入多实例分位数需求，改由 Prometheus 侧聚合而不是恢复客户端分位数。
+> - 文档与版本：`docs/observability.md` 业务指标一节重写（六个指标、标签取值、`le` 属结构性标签、gauge 的 `NaN` 语义）；`AGENTS.md` R9 增补业务指标规则；版本 `0.100.0`。
 
 > **P0.7 完成总结（2026-11-09）**
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
@@ -2497,7 +2507,7 @@ end note
 | 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- | --- |
 | P1 指标与追踪 | P1.1 ✅ | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ 独立管理服务器 `management.server.port=${MANAGEMENT_PORT:8081}` 且 **`management.server.address=${MANAGEMENT_ADDRESS:127.0.0.1}`**；应用端口不提供管理载荷（白名单路径 404，其余 `/actuator/**` 401）；仅暴露 health/info/prometheus，生产由 `ProductionConfigurationGuard` 拒绝非回环或与 `server.port` 相同的管理端口 | `ActuatorSurfaceTest` + `ManagementSurfaceContractTest` 固定两端口暴露面与默认值；compose 健康检查与本地 Prometheus 改抓 8081/8082 | 中 |
-| | P1.2 | 5 个业务指标（同步计数与耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量），标签基数 ≤3 | 指标存在性 + 标签集合断言 | 中 |
+| | P1.2 ✅ | 六个业务指标：同步计数与耗时（`operation`/`outcome`/`payload`）、限流拒绝（`type`，含无维度的 `GLOBAL` 总闸）、邮件待发（`status` = `PENDING`/`FAILED`/`CANCELLED`，`SENDING` 不入序列）、排行榜待重算（无标签，Redis 脏集深度）、审计事件量（`severity`/`outcome`，`WRITTEN` 只在独立事务提交后累加）；业务标签 ≤3、取值全部来自枚举；耗时只发布直方图分桶（多实例可按 `histogram_quantile()` 聚合），gauge 抓取时现算并在读取失败时返回 `NaN` | `BusinessMetricsTest`（名称/标签/计数/三标签上限）+ `BusinessMetricsScrapeIntegrationTest`（管理端口抓取六个指标族与标签预算）+ `MailOutboxMetricsTest`/`LeaderboardMetricsTest`（含 `NaN` 路径） | 中 |
 | | P1.3 | 追踪：Micrometer Tracing + OTLP，透传 W3C `traceparent`，保留 `traceId`；生产 10% 采样 | 一次请求在 Tempo 可见完整 span，日志可按 `traceId` 聚合 | 高 |
 | | P1.4 | 观测栈（**全部在部署机**）：Prometheus + Alertmanager + Grafana + Tempo + Loki + Alloy + node/postgres/redis/blackbox exporters，保留 30 天 | 各 UI 可访问；blackbox 对公网 URL 的探测有数据 | 中 |
 | | P1.5 | 日志补用户维度：MDC 现在只有 `traceId` / `clientIp`（已脱敏）/ `method` / `uri` / `deviceId` / `platform`，**没有 `userId`** ⇒ 按用户排障只能绕审计表。加 `userId`（UUID，不放邮箱），并确认请求结束会清理 | 一条请求日志能按 `userId` 过滤；响应结束后 MDC 无残留 | 低 |
@@ -2546,7 +2556,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P1.2–P1.5、P2–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P1.3–P1.5、P2–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 

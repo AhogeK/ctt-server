@@ -22,6 +22,9 @@ monotonic guard exists to stop re-delivery storms. The real fix would be client-
 1. Load existing rows **including soft-deleted ones** (`findAllByUserIdAndSessionUuidIn`) — a
    live-only lookup makes a re-push of a soft-deleted session collide with the unique constraint.
 2. Route each DTO through `ConflictResolver`; collect creates, updates, and the matching change drafts.
+   Three decisions do **not** produce writes: `SKIP_UNCHANGED` (identical content, idempotent re-push) and
+   `KEEP_EXISTING` (the client lost a race) leave the row untouched, and a matching delete removes nothing
+   that is already deleted — all three still advance the cursor.
 3. Persist: one multi-row `INSERT` for creates, `saveAll` for updates, one multi-row `INSERT` for
    `session_changes` — all inside the same transaction.
 

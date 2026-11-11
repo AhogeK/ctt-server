@@ -210,14 +210,14 @@
 - **载荷里的非容器密钥由专属脚本渲染，并回读校验（强制）**：`render.sh` 逐键产出 `0440` 组可读文件，因此任何不该被 `SECRET_GID` 组读到的值（如宿主级、两端共读的 `FRP_TOKEN`）必须在渲染列表里**显式跳过**，否则会凭空多出一份更宽权限的副本；这类文件用目标目录内 `mktemp` + 改名落位，写完回读**模式与字节数**而不是只判存在，远端 `ssh` 加 `BatchMode=yes`——交互提示会吞掉 stdin 上的密钥并留下截断文件。范本见 `deploy/secrets/frp-token.sh`（2026-11-11 P0.17）
 - **无消费者的配置键是缺陷，但处置不是默认删除（强制）**：先 `git log -S '<key>'` 追溯引入提交与当时的规范，判断这是「未接线的既定业务意图」还是「遗留/误配」；再评估实现该能力的价值、代价与副作用（隐私、账号删除、留存、体积、脱敏可靠性）。有真实业务价值就接线并测试；确认不引入才删除，并把理由与重访触发写进文档/ADR。禁止只凭"没有读取方"就删，也禁止保留假开关。实例：`ctt.security.audit.log-payloads` 2026-03-18 引入、无生产读取方（仅绑定测试）；2026-11-08 评估后确认不引入请求体审计（ADR-0001），随 P0.6 删除
 - **管理面不得回到业务端口（强制）**：actuator 与 metrics 只由 `management.server.port`（默认 `127.0.0.1:8081`，`MANAGEMENT_PORT`/`MANAGEMENT_ADDRESS` 可覆盖）提供；应用端口不提供任何管理载荷——白名单路径 404，其余 `/actuator/**` 由安全链在分发前 401。新增探针或抓取必须按管理端口寻址，部署侧只把该端口发布到回环地址，生产由 `ProductionConfigurationGuard` 拒绝非回环地址与和 `server.port` 相同的端口。暴露集合与双端口契约由 `ActuatorSurfaceTest` + `ManagementSurfaceContractTest` 守住，机制细节见 `docs/observability.md`；改暴露端点必须同步守卫用例（2026-11-11 P1.1）
-
+- **业务指标命名与标签（强制）**：业务指标统一挂在 `cttserver.business.*` 下（导出为 `cttserver_business_*` 前缀），单个指标的业务标签不超过 3 个（Prometheus 直方图自动附加的 `le` 属结构性标签，不计入），取值必须来自枚举或固定集合——禁止用户名、设备/会话 ID、邮箱、平台字符串、原始 URL 或错误文本。计数器重启归零，面板与告警用 `rate()`/`increase()` 读；耗时只输出直方图分桶并按 `histogram_quantile()` 聚合，不发布客户端分位数（多实例无法合并）。待处理量为 gauge 时以现算读取（数据库计数或 Redis `SCARD`），读取失败返回 `NaN`——它是一个**存在但无值**的样本，`absent()` 不会为它报警、`sum()` 会把 `NaN` 传播出去，所以告警要用 `isnan()` 判断；既不给旧值也不让整次抓取失败。新增或改名指标必须同步 `BusinessMetricsTest` + `BusinessMetricsScrapeIntegrationTest` 与 `docs/observability.md`（2026-11-11 P1.2）
 - **命名**：PascalCase(类)、camelCase(方法)、UPPER_SNAKE_CASE(常量)、全小写(包)
 - **测试**：多断言链式调用 `.isX().isY().isZ()`，方法名 `shouldX_whenY`
 - **测试限流时禁用 HTTP 自动重试（强制）**：Apache HttpClient 的默认策略会对 `429` 按 `Retry-After` 睡眠重试；导出的限流用例因此睡满 1 小时窗口、整轮测试卡死 27 分钟。限流/429 用例必须使用不自动重试的客户端（如 `JdkClientHttpRequestFactory`），并直接断言状态码，不能依赖默认 `RestClient.create()`。
 
 - **测试要覆盖「空关联」**：集合为空、外键全为 null 的输入也要有一条用例——`Map.of()`（不可变空表）的 `get(null)` 会抛 NPE，2026-10-28 因此线上 `GET /users/me/sessions` 直接 500，而既有用例的夹具里总有已注册设备，恰好绕过了这条路径。
 
-- **审计写入是异步的，测试读取审计行必须轮询（强制）**：`AuditEventListener` 用 `@Async` + `@TransactionalEventListener(AFTER_COMMIT)`；HTTP 请求返回不代表审计行已落库，直接 `query(...).single()` 会间歇失败。新增审计断言用 Awaitility 轮询（参考 `MailOutboxServiceIntegrationTest`），或在测试上下文改用同步执行器。2026-11-08 P0.6b 的 passkey 断言因此被审查拦下。
+- **审计写入是异步的，测试读取审计行必须轮询（强制）**：`AuditEventListener` 用 `@Async` + `@TransactionalEventListener(AFTER_COMMIT)`，行本身由 `AuditLogWriter.persist`（`REQUIRES_NEW`）提交；HTTP 请求返回不代表审计行已落库，直接 `query(...).single()` 会间歇失败。新增审计断言用 Awaitility 轮询（参考 `MailOutboxServiceIntegrationTest`），或在测试上下文改用同步执行器。2026-11-08 P0.6b 的 passkey 断言因此被审查拦下；P1.2 起 `WRITTEN` 只在 writer 返回后累加，该断言同样要等提交。
 
 - **编辑前验证（强制）**：先读完整文件（片段读取不足时直接整文件读取，不反复片段读同一文件）→ 编辑后LSP diagnostics → 编译验证 → 运行相关测试
 - **按行编辑要分清「替换」与「插入」**：`PUT N:` 是**替换**第 N 行，插入必须用 `PUT >N:`。本会话两次用替换语义做插入，把 `import` 与字段声明整行覆盖，编译才暴露。改完 import / 字段区立刻编译一次
