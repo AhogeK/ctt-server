@@ -6,7 +6,9 @@ import com.ahogek.cttserver.audit.enums.AuditAction;
 import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
-import com.ahogek.cttserver.audit.repository.AuditLogRepository;
+import com.ahogek.cttserver.audit.service.AuditLogWriter;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics.AuditWriteOutcome;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,25 +21,33 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class AuditEventListenerTest {
 
-    @Mock private AuditLogRepository auditLogRepository;
+    @Mock private AuditLogWriter auditLogWriter;
 
     @Captor private ArgumentCaptor<AuditLog> entityCaptor;
 
+    private SimpleMeterRegistry registry;
     private AuditEventListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new AuditEventListener(auditLogRepository);
+        registry = new SimpleMeterRegistry();
+        listener = new AuditEventListener(auditLogWriter, new BusinessMetrics(registry));
     }
 
     @Test
-    void onAuditEvent_maps_traceId_to_entity() {
+    void shouldMapTraceId_whenTheEventCarriesOne() {
         String traceId = "listener-test-trace-id-123456789012";
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
@@ -54,12 +64,12 @@ class AuditEventListenerTest {
 
         listener.handleSecurityAudit(event);
 
-        verify(auditLogRepository).save(entityCaptor.capture());
+        verify(auditLogWriter).persist(entityCaptor.capture());
         assertThat(entityCaptor.getValue().getTraceId()).isEqualTo(traceId);
     }
 
     @Test
-    void onAuditEvent_maps_all_fields_correctly() {
+    void shouldMapEveryField_whenTheEventIsComplete() {
         UUID userId = UUID.randomUUID();
         Instant timestamp = Instant.now();
         AuditDetails details = AuditDetails.reason("Test reason");
@@ -79,7 +89,7 @@ class AuditEventListenerTest {
 
         listener.handleSecurityAudit(event);
 
-        verify(auditLogRepository).save(entityCaptor.capture());
+        verify(auditLogWriter).persist(entityCaptor.capture());
         AuditLog captured = entityCaptor.getValue();
 
         assertThat(captured.getUserId()).isEqualTo(userId);
@@ -94,7 +104,7 @@ class AuditEventListenerTest {
     }
 
     @Test
-    void onAuditEvent_handles_null_traceId() {
+    void shouldLeaveTraceIdNull_whenTheEventHasNone() {
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
                         null,
@@ -110,12 +120,12 @@ class AuditEventListenerTest {
 
         listener.handleSecurityAudit(event);
 
-        verify(auditLogRepository).save(entityCaptor.capture());
+        verify(auditLogWriter).persist(entityCaptor.capture());
         assertThat(entityCaptor.getValue().getTraceId()).isNull();
     }
 
     @Test
-    void onAuditEvent_handles_null_ip_and_user_agent() {
+    void shouldFallBackToUnknown_whenIpAndUserAgentAreMissing() {
         SecurityAuditEvent event =
                 new SecurityAuditEvent(
                         null,
@@ -131,11 +141,54 @@ class AuditEventListenerTest {
 
         listener.handleSecurityAudit(event);
 
-        verify(auditLogRepository).save(entityCaptor.capture());
+        verify(auditLogWriter).persist(entityCaptor.capture());
         AuditLog captured = entityCaptor.getValue();
 
         assertThat(captured.getIpAddress()).isEqualTo("UNKNOWN");
         assertThat(captured.getUserAgent()).isEqualTo("UNKNOWN");
         assertThat(captured.getTraceId()).isEqualTo("trace-id-null-fields-test");
+    }
+
+    @Test
+    void shouldCountTheRow_whenItIsPersisted() {
+        listener.handleSecurityAudit(eventWith(SecuritySeverity.INFO));
+
+        assertThat(auditWrites(SecuritySeverity.INFO, AuditWriteOutcome.WRITTEN)).isEqualTo(1.0);
+    }
+
+    @Test
+    void shouldCountTheDroppedRow_whenPersistenceFails() {
+        doThrow(new IllegalStateException("database unavailable"))
+                .when(auditLogWriter)
+                .persist(any());
+
+        assertThatCode(() -> listener.handleSecurityAudit(eventWith(SecuritySeverity.WARNING)))
+                .doesNotThrowAnyException();
+
+        assertThat(auditWrites(SecuritySeverity.WARNING, AuditWriteOutcome.DROPPED)).isEqualTo(1.0);
+        assertThat(auditWrites(SecuritySeverity.WARNING, AuditWriteOutcome.WRITTEN)).isZero();
+    }
+
+    private double auditWrites(SecuritySeverity severity, AuditWriteOutcome outcome) {
+        Counter counter =
+                registry.find(BusinessMetrics.AUDIT_EVENTS)
+                        .tag(BusinessMetrics.TAG_SEVERITY, severity.name())
+                        .tag(BusinessMetrics.TAG_OUTCOME, outcome.name())
+                        .counter();
+        return counter == null ? 0.0 : counter.count();
+    }
+
+    private SecurityAuditEvent eventWith(SecuritySeverity severity) {
+        return new SecurityAuditEvent(
+                UUID.randomUUID(),
+                AuditAction.LOGOUT_SUCCESS,
+                ResourceType.USER,
+                "user-789",
+                severity,
+                "127.0.0.1",
+                "TestAgent",
+                "trace-id-metrics-test",
+                AuditDetails.empty(),
+                Instant.now());
     }
 }

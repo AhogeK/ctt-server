@@ -2,14 +2,14 @@ package com.ahogek.cttserver.audit.listener;
 
 import com.ahogek.cttserver.audit.SecurityAuditEvent;
 import com.ahogek.cttserver.audit.entity.AuditLog;
-import com.ahogek.cttserver.audit.repository.AuditLogRepository;
+import com.ahogek.cttserver.audit.service.AuditLogWriter;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics.AuditWriteOutcome;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -22,8 +22,8 @@ import java.util.Optional;
  *
  * <ul>
  *   <li>Async: Uses {@code @Async} to prevent I/O blocking on the main request thread
- *   <li>Isolation: {@code Propagation.REQUIRES_NEW} ensures audit persistence is independent of the
- *       main business transaction
+ *   <li>Isolation: the row is written in its own transaction, which commits before the counter
+ *       records it, so a stored row and a dropped row are never confused
  *   <li>Timing: {@code @TransactionalEventListener(AFTER_COMMIT)} ensures audit runs only after the
  *       main transaction commits, avoiding FK constraint violations
  *   <li>Fault Tolerance: All exceptions are caught and logged - audit failure never impacts
@@ -48,10 +48,12 @@ public class AuditEventListener {
     private static final Logger log = LoggerFactory.getLogger(AuditEventListener.class);
     private static final String UNKNOWN = "UNKNOWN";
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditLogWriter auditLogWriter;
+    private final BusinessMetrics metrics;
 
-    public AuditEventListener(AuditLogRepository auditLogRepository) {
-        this.auditLogRepository = auditLogRepository;
+    public AuditEventListener(AuditLogWriter auditLogWriter, BusinessMetrics metrics) {
+        this.auditLogWriter = auditLogWriter;
+        this.metrics = metrics;
     }
 
     /**
@@ -62,7 +64,7 @@ public class AuditEventListener {
      * <ul>
      *   <li>Triggered after main transaction commits (via @TransactionalEventListener)
      *   <li>Asynchronous (via @Async)
-     *   <li>In a new transaction (via REQUIRES_NEW)
+     *   <li>In its own transaction, started by the writer, so the commit is observed
      *   <li>Failure-tolerant (exceptions are caught, not propagated)
      * </ul>
      *
@@ -70,11 +72,11 @@ public class AuditEventListener {
      */
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleSecurityAudit(SecurityAuditEvent event) {
         try {
             AuditLog auditLog = mapToAuditLog(event);
-            auditLogRepository.save(auditLog);
+            auditLogWriter.persist(auditLog);
+            metrics.recordAuditWrite(event.severity(), AuditWriteOutcome.WRITTEN);
 
             log.atDebug()
                     .addKeyValue("action", event.action())
@@ -83,6 +85,7 @@ public class AuditEventListener {
                     .log("Audit log persisted asynchronously");
 
         } catch (Exception ex) {
+            metrics.recordAuditWrite(event.severity(), AuditWriteOutcome.DROPPED);
             log.atError()
                     .setCause(ex)
                     .addKeyValue("action", event.action())

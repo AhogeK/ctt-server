@@ -5,6 +5,7 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.sync.dto.SyncChangeDto;
@@ -34,6 +35,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,6 +57,9 @@ class SyncPullServiceTest {
     @Mock private DeviceRepository deviceRepository;
     @Mock private AuditLogService auditLogService;
 
+    private SimpleMeterRegistry registry;
+    private BusinessMetrics metrics;
+
     private SyncPullService service;
 
     private static final int DEFAULT_BATCH = 1000;
@@ -62,6 +69,8 @@ class SyncPullServiceTest {
 
     @BeforeEach
     void setUp() {
+        registry = new SimpleMeterRegistry();
+        metrics = new BusinessMetrics(registry);
         service =
                 new SyncPullService(
                         sessionChangeRepository,
@@ -69,7 +78,8 @@ class SyncPullServiceTest {
                         syncCursorRepository,
                         deviceRepository,
                         auditLogService,
-                        SyncPullServiceTest.DEFAULT_BATCH);
+                        SyncPullServiceTest.DEFAULT_BATCH,
+                        metrics);
         when(deviceRepository.findByIdAndUserId(deviceId, userId))
                 .thenReturn(Optional.of(new Device()));
     }
@@ -211,6 +221,12 @@ class SyncPullServiceTest {
             // The cursor did not move, so the row is not rewritten: idle polls are the majority and
             // re-storing the same watermark changes no state.
             verify(syncCursorRepository, never()).advancePullWatermark(any(), any(), anyLong());
+
+            assertThat(
+                            syncCount(
+                                    BusinessMetrics.SyncOutcome.SUCCESS,
+                                    BusinessMetrics.SyncPayload.EMPTY))
+                    .isEqualTo(1.0);
         }
 
         @Test
@@ -312,7 +328,8 @@ class SyncPullServiceTest {
                             syncCursorRepository,
                             deviceRepository,
                             auditLogService,
-                            2);
+                            2,
+                            metrics);
             UUID sessionId = UUID.randomUUID();
             when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
                     .thenReturn(Optional.of(cursor(10)));
@@ -346,7 +363,8 @@ class SyncPullServiceTest {
                             syncCursorRepository,
                             deviceRepository,
                             auditLogService,
-                            2);
+                            2,
+                            metrics);
             UUID sessionId = UUID.randomUUID();
             when(syncCursorRepository.findByUserIdAndDeviceId(userId, deviceId))
                     .thenReturn(Optional.of(cursor(12)));
@@ -390,5 +408,18 @@ class SyncPullServiceTest {
             // compares the delivered end, not the fact that a replay happened.
             verify(syncCursorRepository, never()).advancePullWatermark(any(), any(), anyLong());
         }
+    }
+
+    private double syncCount(
+            BusinessMetrics.SyncOutcome outcome, BusinessMetrics.SyncPayload payload) {
+        Counter counter =
+                registry.find(BusinessMetrics.SYNC_COUNT)
+                        .tag(
+                                BusinessMetrics.TAG_OPERATION,
+                                BusinessMetrics.SyncOperation.PULL.name())
+                        .tag(BusinessMetrics.TAG_OUTCOME, outcome.name())
+                        .tag(BusinessMetrics.TAG_PAYLOAD, payload.name())
+                        .counter();
+        return counter == null ? 0.0 : counter.count();
     }
 }

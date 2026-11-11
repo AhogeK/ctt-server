@@ -29,13 +29,15 @@ import com.ahogek.cttserver.sync.enums.ChangeOp;
  *
  * <p><b>Content identity</b> — before the version rules run, two live states whose business fields
  * ({@code projectName}, {@code language}, {@code startTime}, {@code endTime}) are identical resolve
- * to {@link Decision#KEEP_EXISTING}. This makes a re-push of unchanged content an idempotent no-op
+ * to {@link Decision#SKIP_UNCHANGED}. This makes a re-push of unchanged content an idempotent no-op
  * even when the version/modified-at metadata drifted (e.g. plugin full re-push with timezone or
  * clock precision), mirroring the plugin's INSERT OR IGNORE import. Deleted states are exempt so
  * delete-version competition keeps its semantics.
  *
- * <p>Two states that are identical on every compared field also resolve to {@link
- * Decision#KEEP_EXISTING} so that re-submitting unchanged state is an idempotent no-op.
+ * <p>Every other rule can return a state whose content differs from the server's, so those are
+ * conflicts even when the server wins: a stale client and a lost version race both land on {@link
+ * Decision#KEEP_EXISTING}, and the caller reports them as rejected attempts rather than as
+ * idempotent no-ops.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-08-25
@@ -60,10 +62,10 @@ public final class ConflictResolver {
 
         // Content-identical live states are idempotent re-submissions: no business change to
         // apply, so keep the server row and emit no change-log entry even if the metadata
-        // (clientVersion / clientModifiedAt) drifted. Deleted states skip this so delete-version
-        // competition is unaffected.
+        // (clientVersion / clientModifiedAt) drifted. Tombstones skip this so delete-version
+        // competition keeps its own rules.
         if (!existing.isDeleted() && sameContent(existing, incoming)) {
-            return Decision.KEEP_EXISTING;
+            return Decision.SKIP_UNCHANGED;
         }
 
         boolean existingHasServerVersion = existing.getServerVersion() > 0;
@@ -87,8 +89,8 @@ public final class ConflictResolver {
         if (modifiedAtComparison != 0) {
             return modifiedAtComparison > 0 ? Decision.KEEP_EXISTING : decisionFor(incoming);
         }
-
-        // Identical states: keep the server row so a re-submission is an idempotent no-op.
+        // Same metadata on both sides but different content: neither side is newer, so the server
+        // row stays and the client's diverging state is dropped as a conflict.
         return Decision.KEEP_EXISTING;
     }
 
@@ -108,15 +110,27 @@ public final class ConflictResolver {
      *
      * <p>Callers route on this value: {@link #APPLY_INCOMING} applies the submitted live state and
      * appends a {@link ChangeOp#UPSERT} change-log entry, {@link #APPLY_DELETE} soft-deletes the
-     * server row and appends a {@link ChangeOp#DELETE} entry, and {@link #KEEP_EXISTING} leaves the
-     * server row untouched.
+     * server row and appends a {@link ChangeOp#DELETE} entry, and both {@link #KEEP_EXISTING} and
+     * {@link #SKIP_UNCHANGED} leave the server row untouched — the first because the client lost,
+     * the second because there was nothing to apply.
      */
     public enum Decision {
         /** The submitted live state wins; apply its fields and log an upsert. */
         APPLY_INCOMING,
 
-        /** The server-side state wins; leave the persisted row untouched. */
+        /**
+         * The server-side state wins over a state that differs from it; leave the persisted row
+         * untouched. This is a rejected client attempt — a stale version or a lost race — and not
+         * an idempotent re-submission.
+         */
         KEEP_EXISTING,
+
+        /**
+         * The submitted state carries no business change, so the row is left untouched and nothing
+         * is logged. Re-submitting unchanged content is the normal case for a client that re-pushes
+         * its full session list.
+         */
+        SKIP_UNCHANGED,
 
         /** The submitted delete wins; soft-delete the server row and log a delete. */
         APPLY_DELETE

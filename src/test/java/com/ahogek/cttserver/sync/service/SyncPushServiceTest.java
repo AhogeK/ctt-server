@@ -5,9 +5,12 @@ import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardRecomputeQueue;
+import com.ahogek.cttserver.stats.achievement.service.AchievementService;
+import com.ahogek.cttserver.stats.materialization.service.DailyStatsMaterializer;
 import com.ahogek.cttserver.sync.dto.SyncPushResponse;
 import com.ahogek.cttserver.sync.dto.SyncSessionDto;
 import com.ahogek.cttserver.sync.entity.CodingSession;
@@ -32,6 +35,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,19 +59,19 @@ class SyncPushServiceTest {
     @Mock private AuditLogService auditLogService;
     @Mock private LeaderboardRecomputeQueue leaderboardQueue;
 
-    @Mock
-    private com.ahogek.cttserver.stats.materialization.service.DailyStatsMaterializer
-            dailyStatsMaterializer;
+    @Mock private DailyStatsMaterializer dailyStatsMaterializer;
 
-    @Mock
-    private com.ahogek.cttserver.stats.achievement.service.AchievementService achievementService;
+    @Mock private AchievementService achievementService;
 
     private SyncPushService service;
+    private SimpleMeterRegistry registry;
     private final UUID userId = UUID.randomUUID();
     private final UUID deviceId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
+        registry = new SimpleMeterRegistry();
+        BusinessMetrics metrics = new BusinessMetrics(registry);
         service =
                 new SyncPushService(
                         codingSessionRepository,
@@ -75,7 +81,8 @@ class SyncPushServiceTest {
                         jdbcTemplate,
                         leaderboardQueue,
                         dailyStatsMaterializer,
-                        achievementService);
+                        achievementService,
+                        metrics);
         when(deviceRepository.findByIdAndUserId(deviceId, userId))
                 .thenReturn(Optional.of(new Device()));
         when(codingSessionRepository.findAllByUserIdAndSessionUuidIn(eq(userId), any()))
@@ -353,11 +360,17 @@ class SyncPushServiceTest {
             assertThat(existing.getLanguage()).isEqualTo("Kotlin");
 
             verify(jdbcTemplate).update(anyString(), any(Object[].class));
+
+            assertThat(
+                            syncCount(
+                                    BusinessMetrics.SyncOutcome.SUCCESS,
+                                    BusinessMetrics.SyncPayload.CHANGED))
+                    .isEqualTo(1.0);
         }
 
         @Test
-        @DisplayName("should keep existing state when content is identical but timestamp drifted")
-        void shouldKeepExisting_whenContentSame_butClientModifiedAtDrifted() {
+        @DisplayName("should skip an unchanged re-push without recording a conflict")
+        void shouldSkipUnchanged_whenContentSame_butClientModifiedAtDrifted() {
             UUID sessionUuid = UUID.randomUUID();
             CodingSession existing =
                     existingSession(UUID.randomUUID(), 1, Instant.parse("2026-08-25T09:30:00Z"), 5);
@@ -384,6 +397,11 @@ class SyncPushServiceTest {
             assertThat(existing.getLanguage()).isEqualTo("Java");
             verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
             verify(codingSessionRepository, never()).saveAll(any());
+            assertThat(
+                            syncCount(
+                                    BusinessMetrics.SyncOutcome.SUCCESS,
+                                    BusinessMetrics.SyncPayload.EMPTY))
+                    .isEqualTo(1.0);
         }
 
         @Test
@@ -399,12 +417,25 @@ class SyncPushServiceTest {
             service.push(
                     userId,
                     deviceId,
-                    List.of(dto(sessionUuid, 3, Instant.parse("2026-08-25T09:00:00Z"), false)));
+                    List.of(
+                            dto(
+                                    sessionUuid,
+                                    "other",
+                                    "Kotlin",
+                                    3,
+                                    Instant.parse("2026-08-25T09:00:00Z"),
+                                    false)));
 
             assertThat(existing.getServerVersion()).isEqualTo(5);
             assertThat(existing.getClientVersion()).isEqualTo(5);
             verify(codingSessionRepository, never()).saveAll(any());
             verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+
+            assertThat(
+                            syncCount(
+                                    BusinessMetrics.SyncOutcome.CONFLICT,
+                                    BusinessMetrics.SyncPayload.EMPTY))
+                    .isEqualTo(1.0);
         }
 
         @Test
@@ -591,6 +622,25 @@ class SyncPushServiceTest {
                             ResourceType.CODING_SESSION,
                             deviceId.toString(),
                             IllegalStateException.class.getSimpleName());
+
+            assertThat(
+                            syncCount(
+                                    BusinessMetrics.SyncOutcome.FAILURE,
+                                    BusinessMetrics.SyncPayload.UNKNOWN))
+                    .isEqualTo(1.0);
         }
+    }
+
+    private double syncCount(
+            BusinessMetrics.SyncOutcome outcome, BusinessMetrics.SyncPayload payload) {
+        Counter counter =
+                registry.find(BusinessMetrics.SYNC_COUNT)
+                        .tag(
+                                BusinessMetrics.TAG_OPERATION,
+                                BusinessMetrics.SyncOperation.PUSH.name())
+                        .tag(BusinessMetrics.TAG_OUTCOME, outcome.name())
+                        .tag(BusinessMetrics.TAG_PAYLOAD, payload.name())
+                        .counter();
+        return counter == null ? 0.0 : counter.count();
     }
 }

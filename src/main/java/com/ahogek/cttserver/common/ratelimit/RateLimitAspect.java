@@ -8,6 +8,7 @@ import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics;
 import com.ahogek.cttserver.common.ratelimit.core.GlobalRequestGuard;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
@@ -50,6 +51,7 @@ public class RateLimitAspect {
     private final SpelExpressionResolver spelResolver;
     private final SecurityProperties securityProperties;
     private final GlobalRequestGuard globalRequestGuard;
+    private final BusinessMetrics metrics;
 
     public RateLimitAspect(
             RateLimitKeyFactory keyFactory,
@@ -58,7 +60,8 @@ public class RateLimitAspect {
             CurrentUserProvider currentUserProvider,
             SpelExpressionResolver spelResolver,
             SecurityProperties securityProperties,
-            GlobalRequestGuard globalRequestGuard) {
+            GlobalRequestGuard globalRequestGuard,
+            BusinessMetrics metrics) {
         this.keyFactory = keyFactory;
         this.redisRateLimiter = redisRateLimiter;
         this.auditLog = auditLog;
@@ -66,6 +69,7 @@ public class RateLimitAspect {
         this.spelResolver = spelResolver;
         this.securityProperties = securityProperties;
         this.globalRequestGuard = globalRequestGuard;
+        this.metrics = metrics;
     }
 
     /**
@@ -117,6 +121,7 @@ public class RateLimitAspect {
             return;
         }
         if (!globalRequestGuard.tryAcquire()) {
+            metrics.recordGlobalCeilingRejection();
             throw new TooManyRequestsException(
                     ErrorCode.RATE_LIMIT_001,
                     "Too many requests, please try again later.",
@@ -151,6 +156,7 @@ public class RateLimitAspect {
                 redisRateLimiter.checkLimit(cacheKey, rateLimit.limit(), rateLimit.windowSeconds());
 
         if (!result.allowed()) {
+            metrics.recordRateLimitRejection(rateLimit.type());
             UUID actorId = getCurrentUserId();
             auditLog.logFailure(
                     actorId,

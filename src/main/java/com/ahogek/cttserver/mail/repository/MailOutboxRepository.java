@@ -145,15 +145,16 @@ public interface MailOutboxRepository extends JpaRepository<MailOutbox, UUID> {
             @Param("windowStart") Instant windowStart);
 
     /**
-     * Aggregates delivery counts grouped by status for monitoring dashboards.
+     * Counts the entries currently in one status.
      *
-     * <p>Prefer exposing this via a dedicated metrics endpoint rather than polling in hot paths —
-     * the full-table aggregation is expensive at scale.
+     * <p>Derived count backed by {@code idx_mail_outbox_dispatch}, whose leading column is {@code
+     * status}. The outbox gauges call it once per scrape, one status each, so the cost stays
+     * proportional to the number of rows in that status instead of the whole table.
      *
-     * @return list of {@code [MailOutboxStatus, Long]} pairs
+     * @param status the outbox status to count
+     * @return the number of rows in that status
      */
-    @Query("SELECT m.status, COUNT(m) FROM MailOutbox m GROUP BY m.status")
-    List<Object[]> countByStatus();
+    long countByStatus(MailOutboxStatus status);
 
     /**
      * Checks if a mail entry exists for the given recipient, business type, business ID, and status

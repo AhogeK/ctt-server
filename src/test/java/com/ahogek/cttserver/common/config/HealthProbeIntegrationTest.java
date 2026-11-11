@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.common.config;
 
 import com.ahogek.cttserver.common.BaseIntegrationTest;
+import com.ahogek.cttserver.common.LoopbackHttpProbe;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

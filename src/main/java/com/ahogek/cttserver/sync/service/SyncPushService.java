@@ -6,6 +6,10 @@ import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.common.exception.BusinessException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics.SyncOperation;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics.SyncOutcome;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics.SyncPayload;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.leaderboard.service.LeaderboardRecomputeQueue;
@@ -25,6 +29,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -60,6 +65,7 @@ public class SyncPushService {
     private final LeaderboardRecomputeQueue leaderboardQueue;
     private final DailyStatsMaterializer dailyStatsMaterializer;
     private final AchievementService achievementService;
+    private final BusinessMetrics metrics;
 
     public SyncPushService(
             CodingSessionRepository codingSessionRepository,
@@ -69,7 +75,8 @@ public class SyncPushService {
             JdbcTemplate jdbcTemplate,
             LeaderboardRecomputeQueue leaderboardQueue,
             DailyStatsMaterializer dailyStatsMaterializer,
-            AchievementService achievementService) {
+            AchievementService achievementService,
+            BusinessMetrics metrics) {
         this.codingSessionRepository = codingSessionRepository;
         this.sessionChangeRepository = sessionChangeRepository;
         this.deviceRepository = deviceRepository;
@@ -78,6 +85,7 @@ public class SyncPushService {
         this.leaderboardQueue = leaderboardQueue;
         this.dailyStatsMaterializer = dailyStatsMaterializer;
         this.achievementService = achievementService;
+        this.metrics = metrics;
     }
 
     /**
@@ -88,6 +96,12 @@ public class SyncPushService {
      * applied and bumped, delete-wins states are soft-deleted and bumped, and keep-existing states
      * are left untouched (no change-log entry, no version bump).
      *
+     * <p>Measured as one operation: the counter reports {@code CONFLICT} when at least one session
+     * was rejected by conflict resolution, {@code CHANGED} when the batch produced change-log
+     * entries, and {@code FAILURE} when the transaction rolled back. The measurement covers the
+     * work inside the transaction; a failure while the transaction commits afterwards is not
+     * reflected in the counter, exactly as the success log line is not.
+     *
      * @param userId the owning user id
      * @param deviceId the client device id that originated the changes
      * @param sessions the session states to apply
@@ -96,13 +110,24 @@ public class SyncPushService {
      */
     @Transactional
     public SyncPushResponse push(UUID userId, UUID deviceId, List<SyncSessionDto> sessions) {
+        long startedAt = System.nanoTime();
         try {
-            SyncPushResponse response = doPush(userId, deviceId, sessions);
+            PushOutcome outcome = doPush(userId, deviceId, sessions);
             updateMaterializedStats(userId, sessions);
             achievementService.evictCache(userId);
             leaderboardQueue.markDirty(userId);
-            return response;
+            metrics.recordSync(
+                    SyncOperation.PUSH,
+                    outcome.conflict() ? SyncOutcome.CONFLICT : SyncOutcome.SUCCESS,
+                    outcome.changed() ? SyncPayload.CHANGED : SyncPayload.EMPTY,
+                    Duration.ofNanos(System.nanoTime() - startedAt));
+            return outcome.response();
         } catch (Exception e) {
+            metrics.recordSync(
+                    SyncOperation.PUSH,
+                    SyncOutcome.FAILURE,
+                    SyncPayload.UNKNOWN,
+                    Duration.ofNanos(System.nanoTime() - startedAt));
             auditLogService.logFailure(
                     userId,
                     AuditAction.SYNC_PUSH,
@@ -113,7 +138,7 @@ public class SyncPushService {
         }
     }
 
-    private SyncPushResponse doPush(UUID userId, UUID deviceId, List<SyncSessionDto> sessions) {
+    private PushOutcome doPush(UUID userId, UUID deviceId, List<SyncSessionDto> sessions) {
         Device device =
                 deviceRepository
                         .findByIdAndUserId(deviceId, userId)
@@ -144,6 +169,7 @@ public class SyncPushService {
         List<CodingSession> toCreate = new ArrayList<>();
         List<CodingSession> toUpdate = new ArrayList<>();
         List<ChangeDraft> pendingChanges = new ArrayList<>();
+        boolean conflict = false;
 
         for (SyncSessionDto dto : sessions) {
             CodingSession existing = known.get(dto.sessionUuid());
@@ -182,7 +208,11 @@ public class SyncPushService {
                     pendingChanges.add(new ChangeDraft(existing, ChangeOp.DELETE));
                 }
                 case KEEP_EXISTING -> {
-                    // Server state wins; leave the row untouched (idempotent no-op).
+                    // The client's state lost the version or timestamp race; nothing is applied.
+                    conflict = true;
+                }
+                case SKIP_UNCHANGED -> {
+                    // An unchanged re-submission has nothing to apply and is not a rejection.
                 }
             }
         }
@@ -214,7 +244,8 @@ public class SyncPushService {
                 toUpdate.size(),
                 pendingChanges.size());
 
-        return new SyncPushResponse(nextCursor);
+        return new PushOutcome(
+                new SyncPushResponse(nextCursor), conflict, !pendingChanges.isEmpty());
     }
 
     /**
@@ -376,4 +407,7 @@ public class SyncPushService {
                 ? be.errorCode().name()
                 : e.getClass().getSimpleName();
     }
+
+    /** What one push did, so the caller can report it without re-deriving it from the entities. */
+    private record PushOutcome(SyncPushResponse response, boolean conflict, boolean changed) {}
 }
