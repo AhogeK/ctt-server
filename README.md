@@ -155,7 +155,6 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0440` group-readable files, rotation and the frp token |
 | [Production Data Isolation](docs/production-data-isolation.md) | production database, role, Redis logical database, data-plane network and verification |
 | [Production Configuration](docs/production-configuration.md) | required production environment, startup guard rules and the API-documentation posture |
-| [Host Logging and Time](docs/host-logging-and-time.md) | chrony, journald caps and log rotation on both hosts |
 
 ## Related projects
 

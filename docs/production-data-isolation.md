@@ -94,10 +94,11 @@ exists and does not retry (`Restart=no`).
 The LAN address must be a DHCP reservation or static lease. If it changes,
 both service configuration files must be updated before the next restart.
 
-The host is behind a router that forwards no inbound ports. This was measured from a host outside
-the LAN on 2026-11-10: both data-plane ports time out from the internet-facing address while they
-stay reachable inside the LAN. Adding a port forward or a routed path from outside the LAN requires
-revisiting this design.
+The deployment assumes a router that forwards no inbound ports. Verify this boundary from a host
+outside the LAN before relying on it: both data-plane ports must time out from the internet-facing
+address while staying reachable inside the LAN. Adding a port forward or a routed path from outside
+the LAN requires revisiting this design; ADR-0003 records the decision and what it does not
+establish.
 
 UFW is intentionally not enabled for this deployment. The host has no public
 address, frp is an outbound tunnel, and the LAN is the declared trust boundary;
