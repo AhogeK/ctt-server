@@ -57,6 +57,39 @@ management:
 
 Without that property the endpoint answers 404 even though the registry is on the classpath.
 
+## Business metrics
+
+Six business signals are registered by the application itself. All of them live under the
+`cttserver.business` prefix, so an alert can select them with one matcher, and each business
+dimension comes from an enumeration in the domain — never a user, device, session or email value,
+and never free text such as a platform string.
+
+| Prometheus name | Type | Tags | Answers |
+| --- | --- | --- | --- |
+| `cttserver_business_sync_count_total` | counter | `operation` (`PUSH`/`PULL`), `outcome` (`SUCCESS`/`CONFLICT`/`FAILURE`), `payload` (`CHANGED`/`EMPTY`/`UNKNOWN`) | how much sync traffic arrives, how much of it fails or is answered by a conflict, and how often a poll carries nothing. `CONFLICT` means the client's state differed and lost; an unchanged re-push is `SUCCESS` + `EMPTY`, and `UNKNOWN` marks a failed operation whose payload never became known |
+| `cttserver_business_sync_duration_seconds` | timer | same three | how slow the two operations are; read p50/p95/p99 with `histogram_quantile()` over the `_bucket` series |
+| `cttserver_business_ratelimit_rejections_total` | counter | `type` (`IP`/`USER`/`EMAIL`/`GLOBAL`) | whether the limiter is the reason clients get refused; `GLOBAL` is the installation-wide ceiling, which has no dimension |
+| `cttserver_business_mail_pending` | gauge | `status` (`PENDING`/`FAILED`/`CANCELLED`) | the mail backlog: `PENDING` waits for a send, `FAILED` is scheduled for a retry, `CANCELLED` exhausted its retries and is a dead letter. `SENDING` is deliberately absent — a row flaps through it and returns to `PENDING` after the zombie reset, so it would add noise without answering a question |
+| `cttserver_business_leaderboard_pending_recomputes` | gauge | none | whether leaderboard work is falling behind (depth of the Redis dirty set) |
+| `cttserver_business_audit_events_total` | counter | `severity` (`INFO`/`WARNING`/`CRITICAL`), `outcome` (`WRITTEN`/`DROPPED`) | audit events offered to the writer and how many were lost. `WRITTEN` is counted only after the row's own transaction commits, so it counts durable rows, and a missing severity is tagged `UNKNOWN` |
+
+Counters only move forward, so a restart resets them to zero — read them with `rate()` or
+`increase()` over the scrape interval, never as a raw total. Client-side percentiles are not
+published, because two slots scraped separately cannot be merged; the histogram buckets are, so
+quantiles stay aggregatable. Both pending gauges are read when Prometheus scrapes — one SQL count
+per status and one Redis `SCARD`. A failed read reports `NaN`, which is a sample carrying no value,
+not a missing series: `absent()` stays empty and `sum()` propagates it, so an alert tests
+`isnan(cttserver_business_mail_pending)` instead of `absent()`.
+
+The three-tag budget covers the tags the application sets. Prometheus histograms add `le` to
+`_bucket` series, which is structural, not a business dimension.
+
+The names are pinned twice: `BusinessMetricsTest` asserts every meter and its tags, and
+`BusinessMetricsScrapeIntegrationTest` scrapes the management port and fails if a family is missing
+or a series carries more than three business labels. A renamed metric therefore breaks the build
+instead of an alert. The per-domain gauges are covered by `MailOutboxMetricsTest` and
+`LeaderboardMetricsTest`, including the `NaN` path.
+
 ## Scraping
 
 A scrape needs two settings: `metrics_path: /actuator/prometheus` and a loopback target.
@@ -122,6 +155,9 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/ctt-server/actuat
 # other management paths stop at the security chain instead
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/ctt-server/actuator/metrics      # 401
 
+# business metrics appear once the corresponding path has run
+curl -s http://127.0.0.1:8081/actuator/prometheus | grep -c '^cttserver_business_'
+
 # probes
 curl -s http://127.0.0.1:8081/actuator/health/readiness                                        # {"status":"UP",...}
 
@@ -135,9 +171,9 @@ answers — the same surface Prometheus scrapes.
 
 ## Not covered yet
 
-Business metrics (sessions, sync, leaderboard), distributed tracing and long-term metric retention
-are separate pieces of work. Until they exist, the scrape carries the JVM, process and HTTP server
-instruments that Micrometer registers by default.
+Distributed tracing and long-term metric retention are separate pieces of work. Deploy-time alert
+rules live with the production overlay; until then, the business metrics above are what a dashboard
+or a first alert would read.
 
 ## Related
 
