@@ -31,7 +31,7 @@ class PublicApiEndpointRegistryTest {
     @Autowired private PublicApiEndpointRegistry registry;
 
     @Test
-    void baseWhitelist_includesSystemEndpoints() {
+    void shouldIncludeSystemEndpoints_whenTheBaseWhitelistIsBuilt() {
         Set<String> publicUrls = registry.getPublicUrlSet();
 
         assertThat(publicUrls)
@@ -40,25 +40,26 @@ class PublicApiEndpointRegistryTest {
                         "/actuator/health",
                         "/actuator/health/liveness",
                         "/actuator/health/readiness",
-                        "/actuator/info");
+                        "/actuator/info",
+                        "/actuator/prometheus");
     }
 
     @Test
-    void baseWhitelist_includesSwaggerEndpoints() {
+    void shouldIncludeSwaggerEndpoints_whenTheBaseWhitelistIsBuilt() {
         Set<String> publicUrls = registry.getPublicUrlSet();
 
         assertThat(publicUrls).contains("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**");
     }
 
     @Test
-    void classLevelPublicApi_allMethodsArePublic() {
+    void shouldExposeEveryMethod_whenTheControllerIsAnnotatedAtClassLevel() {
         Set<String> publicUrls = registry.getPublicUrlSet();
 
         assertThat(publicUrls).contains("/api/test/public/all");
     }
 
     @Test
-    void methodLevelPublicApi_onlyAnnotatedMethodsArePublic() {
+    void shouldExposeOnlyAnnotatedMethods_whenTheControllerUsesMethodAnnotations() {
         Set<String> publicUrls = registry.getPublicUrlSet();
 
         assertThat(publicUrls)
@@ -67,14 +68,14 @@ class PublicApiEndpointRegistryTest {
     }
 
     @Test
-    void protectedController_noUrlsArePublic() {
+    void shouldExposeNothing_whenTheControllerCarriesNoAnnotation() {
         Set<String> publicUrls = registry.getPublicUrlSet();
 
         assertThat(publicUrls).isNotEmpty().doesNotContain("/api/test/protected/data");
     }
 
     @Test
-    void getPublicUrls_returnsArray() {
+    void shouldReturnAnArray_whenPublicUrlsAreRequested() {
         String[] urls = registry.getPublicUrls();
 
         assertThat(urls).isNotEmpty().contains("/error");

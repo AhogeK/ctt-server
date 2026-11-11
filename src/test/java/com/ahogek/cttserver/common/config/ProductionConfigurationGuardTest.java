@@ -34,6 +34,8 @@ class ProductionConfigurationGuardTest {
         environment.setProperty("spring.data.redis.password", "0123456789abcdef");
         environment.setProperty("spring.mail.password", "re_0123456789abcdef0123456789abcdef");
         environment.setProperty("ctt.security.two-factor.encryption-key", STRONG_KEY);
+        environment.setProperty("management.server.port", "8081");
+        environment.setProperty("management.server.address", "127.0.0.1");
         return environment;
     }
 
@@ -161,6 +163,34 @@ class ProductionConfigurationGuardTest {
         environment.setProperty("spring.datasource.password", "short");
 
         assertThat(violations(environment)).hasSizeGreaterThanOrEqualTo(4);
+    }
+
+    @Test
+    void shouldRejectManagementSurface_whenItSharesTheApplicationPort() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("server.port", "8081");
+
+        assertThat(violations(environment))
+                .anyMatch(
+                        it -> it.contains("management.server.port") && it.contains("server.port"));
+    }
+
+    @Test
+    void shouldRejectManagementSurface_whenTheAddressIsNotLoopback() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("management.server.address", "0.0.0.0");
+
+        assertThat(violations(environment))
+                .anyMatch(it -> it.contains("management.server.address") && it.contains("0.0.0.0"));
+    }
+
+    @Test
+    void shouldRejectManagementSurface_whenThePortIsRandom() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("management.server.port", "0");
+
+        assertThat(violations(environment))
+                .anyMatch(it -> it.contains("management.server.port") && it.contains("fixed port"));
     }
 
     @Test

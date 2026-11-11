@@ -42,12 +42,15 @@ public class PublicApiEndpointRegistry {
 
     @PostConstruct
     public void init() {
-        // System endpoints
+        // System endpoints. The security chain also guards the management server, so these paths
+        // must stay unauthenticated there; management.server.address keeps that server on the
+        // loopback interface, which is what limits who can reach them.
         publicUrls.add("/error");
         publicUrls.add("/actuator/health");
         publicUrls.add("/actuator/health/liveness");
         publicUrls.add("/actuator/health/readiness");
         publicUrls.add("/actuator/info");
+        publicUrls.add("/actuator/prometheus");
 
         // API documentation (Springdoc OpenAPI)
         publicUrls.add("/swagger-ui.html");

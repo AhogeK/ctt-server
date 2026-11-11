@@ -49,7 +49,6 @@ dependencies {
         // from drifting apart, which a second literal in this file would allow.
         version { strictly(libs.versions.flyway.get()) }
     }
-    implementation("org.flywaydb:flyway-database-postgresql")
     implementation(libs.flyway.database.postgresql)
     implementation(libs.springdoc.openapi.starter.webmvc.ui)
     implementation("org.springframework.boot:spring-boot-starter-mail")
@@ -59,6 +58,8 @@ dependencies {
     implementation(libs.commons.codec)
     implementation(libs.webauthn.server.core)
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+    // Metrics exit: the Prometheus registry is version-managed by the Boot BOM, so no literal here.
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     runtimeOnly(libs.org.postgresql)
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")

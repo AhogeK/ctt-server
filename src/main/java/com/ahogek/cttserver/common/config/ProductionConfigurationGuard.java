@@ -18,10 +18,11 @@ import java.util.regex.Pattern;
 /**
  * Rejects a production configuration that would start with development values.
  *
- * <p>Four mistakes are silent without it: the OpenAPI and Swagger endpoints stay exposed, CORS
- * keeps a placeholder origin, GitHub OAuth is advertised without credentials, and a secret copied
- * from the repository keeps protecting a real deployment. Every violation is collected and reported
- * in one message, so a single restart lists everything that must be fixed.
+ * <p>Five mistakes are silent without it: the OpenAPI and Swagger endpoints stay exposed, CORS
+ * keeps a placeholder origin, GitHub OAuth is advertised without credentials, a secret copied from
+ * the repository keeps protecting a real deployment, and the management endpoints either share the
+ * application port or listen beyond loopback. Every violation is collected and reported in one
+ * message, so a single restart lists everything that must be fixed.
  *
  * <p>The guard only runs under the {@code prod} profile; development and tests keep their defaults.
  *
@@ -60,6 +61,10 @@ public class ProductionConfigurationGuard implements InitializingBean {
                     "redis",
                     "secret");
 
+    /** Addresses that keep the management server off the network interfaces. */
+    private static final Set<String> LOOPBACK_ADDRESSES =
+            Set.of("127.0.0.1", "localhost", "::1", "[::1]");
+
     private final Environment environment;
 
     public ProductionConfigurationGuard(Environment environment) {
@@ -95,6 +100,7 @@ public class ProductionConfigurationGuard implements InitializingBean {
         checkSecret(environment, "spring.data.redis.password", 0, violations);
         checkSecret(environment, "spring.mail.password", 0, violations);
         checkSecret(environment, "ctt.security.two-factor.encryption-key", 32, violations);
+        checkManagementSurface(environment, violations);
         return violations;
     }
 
@@ -163,6 +169,35 @@ public class ProductionConfigurationGuard implements InitializingBean {
         if (DEVELOPMENT_SECRETS.contains(value.toLowerCase(Locale.ROOT))
                 || DEVELOPMENT_WORD.matcher(value).find()) {
             violations.add("`" + key + "` still carries a development value");
+        }
+    }
+
+    /**
+     * Keeps the management endpoints off the application port and off the network.
+     *
+     * <p>The metrics and probes are meant for the loopback scraper only: sharing the application
+     * port would publish them to every client of the API, and a non-loopback address would publish
+     * them to the network even on the separate port. A random port is rejected too, because a
+     * scraper cannot be pointed at it.
+     */
+    private static void checkManagementSurface(Environment environment, List<String> violations) {
+        Integer serverPort = environment.getProperty("server.port", Integer.class, 8080);
+        Integer managementPort = environment.getProperty("management.server.port", Integer.class);
+        if (managementPort == null || managementPort <= 0) {
+            violations.add(
+                    "`management.server.port` must be a fixed port so probes and scrapers can reach"
+                            + " the management endpoints");
+        } else if (managementPort.equals(serverPort)) {
+            violations.add(
+                    "`management.server.port` must differ from `server.port` so metrics never share"
+                            + " the application port");
+        }
+        String address = environment.getProperty("management.server.address");
+        if (address == null || !LOOPBACK_ADDRESSES.contains(address.trim())) {
+            violations.add(
+                    "`management.server.address` must be a loopback address so the management"
+                            + " endpoints stay local, was: "
+                            + address);
         }
     }
 
