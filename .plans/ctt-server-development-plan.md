@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付（P0.0–P0.16、P0.16b、P0.16c、P0.17 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB）；P0.15 两机 chrony + 日志上限完成；P0.13c 外部负向验证通过 |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1.1 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB）；P0.15 两机 chrony + 日志上限完成；P0.13c 外部负向验证通过 |
 
 ## 🗺️ 计划总览
 
@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。真实地址/主机名见私密运维记录。**frps 与 frpc 均已 systemd 托管**；frps 代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝；开发与联调仍共用同一个数据库。部署机另有既有公网 Jenkins，经 nginx 443 对外。
 
-**实现状态：** 🚧 **P0 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1–P7 未开工，每步一个可独立验收的交付物。
+**实现状态：** 🚧 **P0 部分交付 + P1.1 已完成**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17 与 P1.1）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1.2–P7 未开工，每步一个可独立验收的交付物。
 
 **本轮交付（2026-11-07）**
 
@@ -2384,6 +2384,8 @@ end note
 
 > **文档边界（2026-11-11）**：按 R26 新规，`docs/decisions/` 三份 ADR 已剥离内部计划坐标（`P0.x`/`P3.8`）、内部版本号与 `.plans/` 路径，改为日期锚定的描述性表述；追溯方向固定为「计划 → ADR」，ADR 不再反向引用计划。
 
+> **计划修订（2026-11-11，P1.1 收口）**：P1.1 按「指标出口」自身交付物收口为 ✅——注册表进运行时类路径、管理服务器在 `127.0.0.1:8081`（可覆盖）独立监听、应用端口不再提供任何管理载荷（白名单路径 404，其余 `/actuator/**` 由安全链在分发前 401）、暴露端点恰为 health/info/prometheus，并由 `ActuatorSurfaceTest` + `ManagementSurfaceContractTest` 钉住。业务指标、追踪与观测栈仍属 P1.2–P1.4，未并入本条。
+
 > **P0.6c 完成总结（2026-11-09）**
 > - 决策：生产保留 180 天；启用后整行删除，不保留 IP/UA；应用默认仍为 0。
 > - 权责：项目所有者是本次部署的 operator/compliance authority，授权工程侧决策；ADR-0002 是书面记录，无独立外部审计人。
@@ -2409,6 +2411,13 @@ end note
 > - 证据：接入机 `/etc/frp/frp-token` 与部署机 `/home/ahogek/frp/frp-token` 均 `600`、49 字节，内容摘要与载荷一致；两端 `verify -c` 通过；重启后 `frps` 日志出现 `client login info` 与六个 `new proxy … success`，接入机复测八个监听项/六个 HTTP 码与改动前完全一致（8000/8001/8002 200、8003 404、8080 403、18080 无后端）；两端 `grep -c '^auth.token ='` 均为 0。记录 `.omp/acceptance/2026-11-11/p0-17-frp-token-file-auth.md`（不入库）。
 > - 边界：本次只改认证来源，未改暴露面——隧道仍把该宿主机的六个服务映射到接入机；18080 的 `ctt-edge` 目前没有后端（CTT 栈未部署），改动前后同为 `000`，不是回归；两台 frp 主机仍无仓库检出，`frp-token.sh` 只能在持有身份的操作机上运行；两个 shell 脚本没有自动化测试（仓库无 bats/shellcheck 设施），证据是手工正/负向执行，若 P3.1 引入 CI 质量门，可把 `shellcheck` 作为新增工具链按 R12 评估并入。
 > - 重访：P3 部署 CTT 栈后验证 18080 端到端；轮换 `FRP_TOKEN` 需两端同时重渲染并重启，步骤见 `docs/deployment-secrets.md`。
+
+> **P1.1 完成总结（2026-11-11）**
+> - 交付：`micrometer-registry-prometheus`（`runtimeOnly`，版本由 Boot BOM 管）；独立管理服务器 `management.server.port=${MANAGEMENT_PORT:8081}`、`address=${MANAGEMENT_ADDRESS:127.0.0.1}`，应用端口不再提供任何管理载荷（白名单路径 404，其余 `/actuator/**` 由安全链在分发前 401）；暴露端点恰为 `health`/`info`/`prometheus`（通用 `metrics` 端点保持关闭）；`management.prometheus.metrics.export.enabled=true`——Boot 4.1.2 不显式开启时既不建注册表也不建抓取端点（实测 404，诊断报告 `meterRegistries=[simpleMeterRegistry]`）；测试 profile 改为 `management.server.port: 0`（随机回环端口，避免缓存上下文争用固定端口）；`ProductionConfigurationGuard` 新增管理面校验（端口缺失/为 0/等于 `server.port`、地址非回环均拒绝启动）；Compose 侧基础文件在容器内绑 `0.0.0.0` 并把宿主侧发布到 `127.0.0.1:8081`（桥接容器里的回环地址从宿主不可达），本地 blue/green overlay 因宿主网络把 `MANAGEMENT_ADDRESS` 固定为 `127.0.0.1` 并分配 8081/8082；`.env.example` 记录 `MANAGEMENT_PORT`/`MANAGEMENT_BIND_ADDRESS` 及 `MANAGEMENT_ADDRESS` 在桥接栈必须留空的理由。
+> - 证据：`ActuatorSurfaceTest` 5 例（两端口、暴露端点集合、应用端口无管理载荷）、`ManagementSurfaceContractTest` 4 例（钉住基础 profile 的 8081/127.0.0.1/暴露集合/导出开关，防止测试 profile 的随机端口把默认值漂移掩盖）、`HealthProbeIntegrationTest` 5 例（改打管理端口）、`SecurityConfigHeadersTest` 6 例（改打 `/api/v1/config/public`）、`PublicApiEndpointRegistryTest` 6 例、`ProductionConfigurationGuardTest` 18 例（含三个管理面拒绝用例），均 0 失败 0 错误；`docker compose config`（基础、本地 overlay、bluegreen）退出 0 且渲染出 8081/8082 与对应健康检查；`promtool check config` SUCCESS；8081/8082 在开发机与部署机均空闲。
+> - 边界：业务指标、追踪与长期保留不在本条（P1.2–P1.4）；管理端口按设计不鉴权，部署侧只能发布到回环地址（规则写入 `docs/observability.md` 与生产配置表）；本轮以双端口集成测试与配置校验为准，未在真实容器栈里跑一次端到端抓取——P1.4 落地观测栈时补。
+> - 重访：P1.4 观测栈落地时核对实际抓取序列与 `slot` 标签；Boot 对 `MANAGEMENT_PORT == SERVER_PORT` 在启动期直接拒绝（已实测错误文本），守卫另行拒绝端口缺失/为 0 与非回环地址——若将来确需远程抓取，应先改这条暴露规则（决策 + 守卫 + 文档同步），不得就地放宽。
+> - 文档与版本：新增 `docs/observability.md`；README 服务表与文档索引、`docs/api-governance.md`、`docs/security-architecture.md`、`docs/production-configuration.md`、`docs/deployment-secrets.md` 同步；版本 `0.99.0`。
 
 > **P0.7 完成总结（2026-11-09）**
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
@@ -2487,7 +2496,7 @@ end note
 
 | 阶段 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- | --- |
-| P1 指标与追踪 | P1.1 | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ `management.server.port=8081` 且 **`management.server.address=127.0.0.1`**；应用端口不再暴露 metrics | `ActuatorSurfaceTest` 固定两端口暴露面 | 中 |
+| P1 指标与追踪 | P1.1 ✅ | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ 独立管理服务器 `management.server.port=${MANAGEMENT_PORT:8081}` 且 **`management.server.address=${MANAGEMENT_ADDRESS:127.0.0.1}`**；应用端口不提供管理载荷（白名单路径 404，其余 `/actuator/**` 401）；仅暴露 health/info/prometheus，生产由 `ProductionConfigurationGuard` 拒绝非回环或与 `server.port` 相同的管理端口 | `ActuatorSurfaceTest` + `ManagementSurfaceContractTest` 固定两端口暴露面与默认值；compose 健康检查与本地 Prometheus 改抓 8081/8082 | 中 |
 | | P1.2 | 5 个业务指标（同步计数与耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量），标签基数 ≤3 | 指标存在性 + 标签集合断言 | 中 |
 | | P1.3 | 追踪：Micrometer Tracing + OTLP，透传 W3C `traceparent`，保留 `traceId`；生产 10% 采样 | 一次请求在 Tempo 可见完整 span，日志可按 `traceId` 聚合 | 高 |
 | | P1.4 | 观测栈（**全部在部署机**）：Prometheus + Alertmanager + Grafana + Tempo + Loki + Alloy + node/postgres/redis/blackbox exporters，保留 30 天 | 各 UI 可访问；blackbox 对公网 URL 的探测有数据 | 中 |
@@ -2537,7 +2546,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P1–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P1.2–P1.5、P2–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 

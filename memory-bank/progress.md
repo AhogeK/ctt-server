@@ -7,9 +7,9 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.98.2`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.99.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
-| 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流（含 180 天保留策略，ADR-0002）、liveness/readiness health 探针 |
+| 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流（含 180 天保留策略，ADR-0002）、liveness/readiness health 探针、Prometheus 指标出口（回环管理端口） |
 
 ## 版本里程碑
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.99.0` | 2026-11-11 | feat(metrics): expose Prometheus on a loopback management server |
 | `0.98.2` | 2026-11-11 | feat(deploy): render the frp token from the SOPS payload and read it from a file |
 | `0.98.1` | 2026-11-11 | feat(audit): enable the production retention period and log every sweep |
 | `0.98.0` | 2026-11-10 | feat(config): lock down production configuration and secrets |
