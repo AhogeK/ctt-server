@@ -222,11 +222,11 @@ class MailOutboxRepositoryTest {
 
     @Nested
     @DisplayName("countByStatus")
-    class CountByStatus {
+    class CountsByStatus {
 
         @Test
-        @DisplayName("aggregates counts grouped by status for monitoring")
-        void aggregatesCountsGroupedByStatus() {
+        @DisplayName("counts only the rows in the requested status")
+        void shouldCountOneStatus_whenRowsExistInSeveral() {
             for (int i = 0; i < 3; i++) {
                 persist(MailOutboxFixtures.pending().recipient("pending" + i + "@x.com"));
             }
@@ -235,45 +235,18 @@ class MailOutboxRepositoryTest {
             }
             persist(MailOutboxFixtures.retryableFailed().recipient("failed@x.com"));
 
-            List<Object[]> result = repository.countByStatus();
-
-            assertThat(result).hasSize(3);
-
-            assertThat(result)
-                    .extracting(row -> (MailOutboxStatus) row[0])
-                    .containsExactlyInAnyOrder(
-                            MailOutboxStatus.PENDING,
-                            MailOutboxStatus.SENT,
-                            MailOutboxStatus.FAILED);
-
-            assertThat(result)
-                    .filteredOn(row -> row[0] == MailOutboxStatus.PENDING)
-                    .hasSize(1)
-                    .first()
-                    .extracting(row -> ((Number) row[1]).longValue())
-                    .isEqualTo(3L);
-
-            assertThat(result)
-                    .filteredOn(row -> row[0] == MailOutboxStatus.SENT)
-                    .hasSize(1)
-                    .first()
-                    .extracting(row -> ((Number) row[1]).longValue())
-                    .isEqualTo(2L);
-
-            assertThat(result)
-                    .filteredOn(row -> row[0] == MailOutboxStatus.FAILED)
-                    .hasSize(1)
-                    .first()
-                    .extracting(row -> ((Number) row[1]).longValue())
-                    .isEqualTo(1L);
+            assertThat(repository.countByStatus(MailOutboxStatus.PENDING)).isEqualTo(3L);
+            assertThat(repository.countByStatus(MailOutboxStatus.SENT)).isEqualTo(2L);
+            assertThat(repository.countByStatus(MailOutboxStatus.FAILED)).isEqualTo(1L);
+            assertThat(repository.countByStatus(MailOutboxStatus.CANCELLED)).isZero();
         }
 
         @Test
-        @DisplayName("returns empty list when no records exist")
-        void returnsEmptyListWhenNoRecords() {
-            List<Object[]> result = repository.countByStatus();
+        @DisplayName("returns zero when the status has no rows")
+        void shouldReturnZero_whenTheStatusIsEmpty() {
+            persist(MailOutboxFixtures.pending().recipient("pending@x.com"));
 
-            assertThat(result).isEmpty();
+            assertThat(repository.countByStatus(MailOutboxStatus.SENT)).isZero();
         }
     }
 

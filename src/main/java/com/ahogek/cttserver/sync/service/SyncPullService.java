@@ -7,6 +7,10 @@ import com.ahogek.cttserver.common.config.properties.SyncProperties;
 import com.ahogek.cttserver.common.exception.BusinessException;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.NotFoundException;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics.SyncOperation;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics.SyncOutcome;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics.SyncPayload;
 import com.ahogek.cttserver.device.entity.Device;
 import com.ahogek.cttserver.device.repository.DeviceRepository;
 import com.ahogek.cttserver.sync.dto.SyncChangeDto;
@@ -25,6 +29,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +59,7 @@ public class SyncPullService {
     private final DeviceRepository deviceRepository;
     private final AuditLogService auditLogService;
     private final int pullBatchSize;
+    private final BusinessMetrics metrics;
 
     @Autowired
     public SyncPullService(
@@ -62,14 +68,16 @@ public class SyncPullService {
             SyncCursorRepository syncCursorRepository,
             DeviceRepository deviceRepository,
             AuditLogService auditLogService,
-            SyncProperties syncProperties) {
+            SyncProperties syncProperties,
+            BusinessMetrics metrics) {
         this(
                 sessionChangeRepository,
                 codingSessionRepository,
                 syncCursorRepository,
                 deviceRepository,
                 auditLogService,
-                syncProperties.pullBatchSize());
+                syncProperties.pullBatchSize(),
+                metrics);
     }
 
     SyncPullService(
@@ -78,13 +86,15 @@ public class SyncPullService {
             SyncCursorRepository syncCursorRepository,
             DeviceRepository deviceRepository,
             AuditLogService auditLogService,
-            int pullBatchSize) {
+            int pullBatchSize,
+            BusinessMetrics metrics) {
         this.sessionChangeRepository = sessionChangeRepository;
         this.codingSessionRepository = codingSessionRepository;
         this.syncCursorRepository = syncCursorRepository;
         this.deviceRepository = deviceRepository;
         this.auditLogService = auditLogService;
         this.pullBatchSize = pullBatchSize;
+        this.metrics = metrics;
     }
 
     /**
@@ -107,9 +117,22 @@ public class SyncPullService {
     @Transactional
     public SyncPullResponse pull(
             UUID userId, UUID deviceId, long lastPulledChangeId, Long replayFromChangeId) {
+        long startedAt = System.nanoTime();
         try {
-            return doPull(userId, deviceId, lastPulledChangeId, replayFromChangeId);
+            SyncPullResponse response =
+                    doPull(userId, deviceId, lastPulledChangeId, replayFromChangeId);
+            metrics.recordSync(
+                    SyncOperation.PULL,
+                    SyncOutcome.SUCCESS,
+                    response.changes().isEmpty() ? SyncPayload.EMPTY : SyncPayload.CHANGED,
+                    Duration.ofNanos(System.nanoTime() - startedAt));
+            return response;
         } catch (Exception e) {
+            metrics.recordSync(
+                    SyncOperation.PULL,
+                    SyncOutcome.FAILURE,
+                    SyncPayload.UNKNOWN,
+                    Duration.ofNanos(System.nanoTime() - startedAt));
             auditLogService.logFailure(
                     userId,
                     AuditAction.SYNC_PULL,

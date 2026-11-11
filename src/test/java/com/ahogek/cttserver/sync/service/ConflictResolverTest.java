@@ -62,7 +62,16 @@ class ConflictResolverTest {
         @DisplayName("shouldKeepExisting_whenExistingServerVersionHigher")
         void shouldKeepExisting_whenExistingServerVersionHigher() {
             CodingSession existing = session(false, 5, 3, NOW);
-            CodingSession incoming = session(false, 4, 9, NOW.plusSeconds(60));
+            CodingSession incoming =
+                    sessionWithContent(
+                            false,
+                            4,
+                            9,
+                            NOW.plusSeconds(60),
+                            "other",
+                            "Kotlin",
+                            NOW,
+                            NOW.plusSeconds(3600));
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
@@ -115,7 +124,16 @@ class ConflictResolverTest {
         @DisplayName("shouldKeepExisting_whenServerVersionsEqual_andClientVersionLower")
         void shouldKeepExisting_whenServerVersionsEqual_andClientVersionLower() {
             CodingSession existing = session(false, 5, 4, NOW);
-            CodingSession incoming = session(false, 5, 3, NOW.plusSeconds(60));
+            CodingSession incoming =
+                    sessionWithContent(
+                            false,
+                            5,
+                            3,
+                            NOW.plusSeconds(60),
+                            "other",
+                            "Kotlin",
+                            NOW,
+                            NOW.plusSeconds(3600));
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
@@ -126,7 +144,9 @@ class ConflictResolverTest {
         @DisplayName("shouldKeepExisting_whenVersionsEqual_andClientModifiedAtEarlier")
         void shouldKeepExisting_whenVersionsEqual_andClientModifiedAtEarlier() {
             CodingSession existing = session(false, 5, 3, NOW.plusSeconds(60));
-            CodingSession incoming = session(false, 5, 3, NOW);
+            CodingSession incoming =
+                    sessionWithContent(
+                            false, 5, 3, NOW, "other", "Kotlin", NOW, NOW.plusSeconds(3600));
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
@@ -157,7 +177,16 @@ class ConflictResolverTest {
         @DisplayName("shouldCompareClientVersion_whenExistingHasNoServerVersion")
         void shouldCompareClientVersion_whenExistingHasNoServerVersion() {
             CodingSession existing = session(false, 0, 4, NOW);
-            CodingSession incoming = session(false, 5, 3, NOW.plusSeconds(60));
+            CodingSession incoming =
+                    sessionWithContent(
+                            false,
+                            5,
+                            3,
+                            NOW.plusSeconds(60),
+                            "other",
+                            "Kotlin",
+                            NOW,
+                            NOW.plusSeconds(3600));
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
@@ -170,14 +199,14 @@ class ConflictResolverTest {
     class IdenticalStatesTests {
 
         @Test
-        @DisplayName("shouldKeepExisting_whenLiveStatesIdentical")
-        void shouldKeepExisting_whenLiveStatesIdentical() {
+        @DisplayName("shouldSkipUnchanged_whenLiveStatesIdentical")
+        void shouldSkipUnchanged_whenLiveStatesIdentical() {
             CodingSession existing = session(false, 5, 3, NOW);
             CodingSession incoming = session(false, 5, 3, NOW);
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
-            assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
+            assertThat(decision).isEqualTo(Decision.SKIP_UNCHANGED);
         }
 
         @Test
@@ -197,36 +226,36 @@ class ConflictResolverTest {
     class ContentIdentityTests {
 
         @Test
-        @DisplayName("shouldKeepExisting_whenContentSame_butClientModifiedAtLater")
-        void shouldKeepExisting_whenContentSame_butClientModifiedAtLater() {
+        @DisplayName("shouldSkipUnchanged_whenContentSame_butClientModifiedAtLater")
+        void shouldSkipUnchanged_whenContentSame_butClientModifiedAtLater() {
             CodingSession existing = session(false, 5, 3, NOW);
             CodingSession incoming = session(false, 5, 3, NOW.plusSeconds(60));
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
-            assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
+            assertThat(decision).isEqualTo(Decision.SKIP_UNCHANGED);
         }
 
         @Test
-        @DisplayName("shouldKeepExisting_whenContentSame_butClientVersionHigher")
-        void shouldKeepExisting_whenContentSame_butClientVersionHigher() {
+        @DisplayName("shouldSkipUnchanged_whenContentSame_butClientVersionHigher")
+        void shouldSkipUnchanged_whenContentSame_butClientVersionHigher() {
             CodingSession existing = session(false, 5, 3, NOW);
             CodingSession incoming = session(false, 5, 4, NOW.plusSeconds(60));
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
-            assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
+            assertThat(decision).isEqualTo(Decision.SKIP_UNCHANGED);
         }
 
         @Test
-        @DisplayName("shouldKeepExisting_whenContentSame_butServerVersionHigher")
-        void shouldKeepExisting_whenContentSame_butServerVersionHigher() {
+        @DisplayName("shouldSkipUnchanged_whenContentSame_butServerVersionHigher")
+        void shouldSkipUnchanged_whenContentSame_butServerVersionHigher() {
             CodingSession existing = session(false, 4, 9, NOW.plusSeconds(60));
             CodingSession incoming = session(false, 5, 3, NOW);
 
             Decision decision = ConflictResolver.resolve(existing, incoming);
 
-            assertThat(decision).isEqualTo(Decision.KEEP_EXISTING);
+            assertThat(decision).isEqualTo(Decision.SKIP_UNCHANGED);
         }
     }
 

@@ -1,4 +1,4 @@
-package com.ahogek.cttserver.common.config;
+package com.ahogek.cttserver.common;
 
 import java.io.IOException;
 import java.net.URI;
@@ -11,26 +11,27 @@ import java.net.http.HttpResponse;
  *
  * <p>Probes and metrics answer on the management port while the API stays on the application port,
  * so integration tests must speak HTTP to a chosen port instead of going through MockMvc on the
- * application context.
+ * application context. The helper is public because both the configuration tests and the metrics
+ * tests depend on that contract.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-11-11
  */
-final class LoopbackHttpProbe {
+public final class LoopbackHttpProbe {
 
     private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
     private LoopbackHttpProbe() {}
 
-    static int status(int port, String path) throws IOException {
+    public static int status(int port, String path) throws IOException {
         return get(port, path).statusCode();
     }
 
-    static String body(int port, String path) throws IOException {
+    public static String body(int port, String path) throws IOException {
         return get(port, path).body();
     }
 
-    static HttpResponse<String> get(int port, String path) throws IOException {
+    public static HttpResponse<String> get(int port, String path) throws IOException {
         HttpRequest request =
                 HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                         .header("Accept", "*/*")

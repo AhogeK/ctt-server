@@ -1,10 +1,13 @@
 package com.ahogek.cttserver.common.ratelimit;
 
+import com.ahogek.cttserver.audit.enums.AuditAction;
+import com.ahogek.cttserver.audit.enums.ResourceType;
 import com.ahogek.cttserver.audit.service.AuditLogService;
 import com.ahogek.cttserver.auth.CurrentUserProvider;
 import com.ahogek.cttserver.auth.model.CurrentUser;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.exception.TooManyRequestsException;
+import com.ahogek.cttserver.common.metrics.BusinessMetrics;
 import com.ahogek.cttserver.common.ratelimit.core.GlobalRequestGuard;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitKeyFactory;
 import com.ahogek.cttserver.common.ratelimit.core.RateLimitResult;
@@ -17,12 +20,16 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,6 +49,7 @@ class RateLimitAspectTest {
     private AuditLogService mockAuditLog;
     private CurrentUserProvider mockUserProvider;
     private GlobalRequestGuard mockGlobalGuard;
+    private SimpleMeterRegistry registry;
     private RateLimitAspect aspect;
     private ProceedingJoinPoint mockJoinPoint;
 
@@ -57,6 +65,7 @@ class RateLimitAspectTest {
         SecurityProperties mockSecurity = mock(SecurityProperties.class);
         when(mockSecurity.rateLimit())
                 .thenReturn(new SecurityProperties.RateLimitProperties(true, 200));
+        registry = new SimpleMeterRegistry();
         aspect =
                 new RateLimitAspect(
                         mockKeyFactory,
@@ -65,7 +74,8 @@ class RateLimitAspectTest {
                         mockUserProvider,
                         mockSpelResolver,
                         mockSecurity,
-                        mockGlobalGuard);
+                        mockGlobalGuard,
+                        new BusinessMetrics(registry));
         mockJoinPoint = mock(ProceedingJoinPoint.class);
         MethodSignature mockSignature = mock(MethodSignature.class);
 
@@ -75,7 +85,7 @@ class RateLimitAspectTest {
     }
 
     @Test
-    void intercept_whenAllowed_proceedsNormally() throws Throwable {
+    void shouldProceed_whenTheBucketAllowsTheRequest() throws Throwable {
         RateLimit rateLimit = createRateLimit(10, 60);
         when(mockKeyFactory.generateKey(any(), anyString(), any())).thenReturn("rate_limit:test");
         when(mockRateLimiter.checkLimit(anyString(), anyInt(), anyInt()))
@@ -87,10 +97,11 @@ class RateLimitAspectTest {
         assertThat(result).isEqualTo("success");
         verify(mockJoinPoint).proceed();
         verify(mockAuditLog, never()).logFailure(any(), any(), any(), any(), any());
+        assertThat(rejections(RateLimitType.IP)).isZero();
     }
 
     @Test
-    void intercept_whenRateLimitExceeded_throwsExceptionWithRetryAfterAndLogsAudit() {
+    void shouldThrowWithRetryAfterAndAudit_whenTheBucketIsExhausted() {
         RateLimit rateLimit = createRateLimit(5, 300);
         UUID userId = UUID.randomUUID();
         CurrentUser user =
@@ -120,14 +131,15 @@ class RateLimitAspectTest {
         verify(mockAuditLog)
                 .logFailure(
                         userId,
-                        com.ahogek.cttserver.audit.enums.AuditAction.RATE_LIMIT_EXCEEDED,
-                        com.ahogek.cttserver.audit.enums.ResourceType.UNKNOWN,
+                        AuditAction.RATE_LIMIT_EXCEEDED,
+                        ResourceType.UNKNOWN,
                         userId.toString(),
                         "Rate limit exceeded for IP");
+        assertThat(rejections(RateLimitType.IP)).isEqualTo(1.0);
     }
 
     @Test
-    void intercept_whenEmailBucketExceeded_doesNotStoreEmailAsResourceId() {
+    void shouldAuditWithoutTheEmail_whenTheEmailBucketIsExhausted() {
         RateLimit rateLimit = createRateLimit(RateLimitType.EMAIL, "#request.email", 5, 300);
         String email = "user@example.com";
         String cacheKey = "rate_limit:email:TestController.testMethod:" + email;
@@ -142,14 +154,16 @@ class RateLimitAspectTest {
         verify(mockAuditLog)
                 .logFailure(
                         null,
-                        com.ahogek.cttserver.audit.enums.AuditAction.RATE_LIMIT_EXCEEDED,
-                        com.ahogek.cttserver.audit.enums.ResourceType.UNKNOWN,
+                        AuditAction.RATE_LIMIT_EXCEEDED,
+                        ResourceType.UNKNOWN,
                         null,
                         "Rate limit exceeded for EMAIL");
+        assertThat(rejections(RateLimitType.EMAIL)).isEqualTo(1.0);
+        assertThat(rejections(RateLimitType.IP)).isZero();
     }
 
     @Test
-    void intercept_whenRateLimitExceededWithNoTtl_throwsExceptionWithoutRetryAfter() {
+    void shouldThrowWithoutRetryAfter_whenTheBucketReportsNoTtl() {
         RateLimit rateLimit = createRateLimit(5, 300);
         when(mockKeyFactory.generateKey(any(), anyString(), any())).thenReturn("rate_limit:test");
         when(mockRateLimiter.checkLimit(anyString(), anyInt(), anyInt()))
@@ -161,7 +175,7 @@ class RateLimitAspectTest {
     }
 
     @Test
-    void intercept_whenGlobalCeilingExceeded_throwsExceptionBeforeTheDimensionBucket() {
+    void shouldRejectBeforeTheBucket_whenTheGlobalCeilingIsExceeded() {
         RateLimit rateLimit = createRateLimit(10, 60);
         when(mockGlobalGuard.tryAcquire()).thenReturn(false);
 
@@ -178,6 +192,20 @@ class RateLimitAspectTest {
         // The installation-wide ceiling fires first: no per-dimension bucket is even consulted.
         verify(mockKeyFactory, never()).generateKey(any(), anyString(), any());
         verify(mockRateLimiter, never()).checkLimit(anyString(), anyInt(), anyInt());
+        assertThat(rejections("GLOBAL")).isEqualTo(1.0);
+        assertThat(rejections(RateLimitType.IP)).isZero();
+    }
+
+    private double rejections(RateLimitType type) {
+        return rejections(type.name());
+    }
+
+    private double rejections(String scope) {
+        Counter counter =
+                registry.find(BusinessMetrics.RATE_LIMIT_REJECTIONS)
+                        .tag(BusinessMetrics.TAG_TYPE, scope)
+                        .counter();
+        return counter == null ? 0.0 : counter.count();
     }
 
     private Method getTestMethod() throws NoSuchMethodException {
@@ -212,7 +240,7 @@ class RateLimitAspectTest {
             }
 
             @Override
-            public Class<? extends java.lang.annotation.Annotation> annotationType() {
+            public Class<? extends Annotation> annotationType() {
                 return RateLimit.class;
             }
         };

@@ -108,6 +108,19 @@ public class LeaderboardRecomputeQueue {
                 "Recomputed leaderboard scores for {} of {} dirty users", recomputed, stale.size());
     }
 
+    /**
+     * Reports how many users are waiting for a recompute.
+     *
+     * <p>Reads the size of the dirty set, which the drain pops in batches. It is a backlog depth,
+     * not a cumulative count: a mark disappears as soon as a drain turn picks it up.
+     *
+     * @return the number of users currently marked dirty
+     */
+    public long pendingCount() {
+        Long size = redisTemplate.opsForSet().size(DIRTY_KEY);
+        return size == null ? 0L : size;
+    }
+
     private void queue(UUID userId) {
         try {
             redisTemplate.opsForSet().add(DIRTY_KEY, userId.toString());
