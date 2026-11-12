@@ -647,6 +647,19 @@ That is what makes enabling it safe for the JetBrains plugin: its JDK `HttpClien
 must be able to decompress. `ResponseCompressionProbeTest` drives a real embedded Tomcat with the
 plugin's own client and asserts both branches.
 
+### Trace Correlation
+
+Every response carries `X-Trace-Id`, the 32-character W3C trace identifier of the server span. A
+caller that sends `traceparent` receives the identifier from its own trace; a caller that sends none
+receives a freshly generated one. The same value appears as `traceId` in the log lines of the
+request and in the corresponding audit record, so a support question can be answered from the header
+alone.
+
+The `X-Trace-Id` request header is a fallback for callers that cannot send W3C context, not a way to
+choose the identifier: it is honoured only when tracing is off or the request produced no span, so a
+client cannot detach its logs from a trace the server exports. See
+[Observability](observability.md) for the sampling and export settings.
+
 ## Interactive documentation
 
 In local and development profiles, Swagger UI is available at `http://localhost:8080/ctt-server/swagger-ui.html`; the machine-readable document is served at `/v3/api-docs`. The production profile disables both paths and answers HTTP 404.
