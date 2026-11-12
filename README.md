@@ -28,6 +28,9 @@
 - **Operable from the first run.** Health probes and Prometheus metrics are served by a loopback-only
   management server, and the business counters — sync, rate limits, mail backlog, leaderboard backlog and
   audit — carry a bounded label set, so a dashboard or an alert cannot be broken by user data.
+- **Traceable end to end.** Each request carries one trace id — the W3C `traceparent` value when the caller sends
+  one — and the same id appears in the log line, the `X-Trace-Id` response header and the span exported over OTLP,
+  so a log search and a trace view describe the same request.
 
 ## How it works
 
@@ -149,7 +152,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Developer Handbook](docs/developer-handbook.md) | standard operations: error codes, audit events, exceptions, protected interfaces |
 | [API Governance](docs/api-governance.md) | security tiers, rate limiting and idempotency rules |
 | [Security Architecture](docs/security-architecture.md) | authentication, authorization and threat boundaries |
-| [Observability](docs/observability.md) | the loopback management server, exposed endpoints and the Prometheus scrape |
+| [Observability](docs/observability.md) | the loopback management server, exposed endpoints, business metrics and trace correlation |
 | [Time Strategy](docs/time-strategy.md) | UTC-first time handling across the system |
 | [Case Normalization](docs/case-normalization.md) | email identity normalization |
 | [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |

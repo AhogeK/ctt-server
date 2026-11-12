@@ -21,6 +21,54 @@ A management port that resolves to `server.port` is refused at startup
 (`Management-specific server address cannot be configured as the management server is not listening on a separate port`).
 That is deliberate: while both servers were one, metrics were reachable wherever the API was.
 
+## Tracing
+
+Every request is traced with Micrometer Tracing over OpenTelemetry. One identifier ties the three
+places an operator looks at: the `traceId` in the log line, the `X-Trace-Id` response header and the
+span the collector stores. They agree because all three come from the server span. Sampling decides
+what the collector stores, not whether the identifier exists: an unsampled request still writes its
+trace id into the header and the log line, so correlation survives for traffic that is not recorded.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `management.tracing.sampling.probability` | `1.0` base, `0.1` production (`TRACING_SAMPLING_PROBABILITY`) | share of traces recorded; a sampled trace is complete, an unsampled one is dropped whole |
+| `management.tracing.export.enabled` | `false` base, `true` production (`TRACING_EXPORT_ENABLED`) | whether spans leave the process over OTLP |
+| `management.opentelemetry.tracing.export.otlp.endpoint` | `http://127.0.0.1:4318/v1/traces` (`OTLP_TRACING_ENDPOINT`) | collector address; part of the deployment contract, not a code constant |
+
+The incoming context is W3C `traceparent`. The gateway sets it, the server span continues that
+trace, and `traceparent` is also what the exporter reports, so a span tree started by the edge stays
+one tree.
+
+The sampler is parent-based: a trace whose incoming `traceparent` is already marked sampled is
+recorded whatever the ratio says, and one marked unsampled is dropped whole. The ratio therefore
+applies to spans that start here — scheduled jobs and any request that arrives without a remote
+parent — while the edge keeps the decision for proxied traffic. A gateway that always marks traffic
+sampled bypasses the production ratio; if that matters, the ratio belongs at the gateway.
+
+The `X-Trace-Id` request header is a fallback for callers that cannot send W3C context, not a way to
+choose the identifier: it is honoured only when tracing is off or a request produced no span, which
+keeps a client from detaching its logs from a trace the server exports. Outbound calls are traced
+too — `CaptchaService` and `GitHubOAuthClient` build their clients from the application
+`RestClient.Builder`, so each call becomes a client span and carries `traceparent` downstream.
+
+The access log line is written after the request completes but still inside the MDC scope
+(`RequestLoggingFilter` runs inside `RequestContextInitializerFilter`), so `ACCESS_LOG` lines carry
+the same `traceId` as the application log line and the audit record. The production JSON encoder
+writes the MDC map, so a log search and a trace view describe the same request.
+
+Propagation does not depend on the exporter. Spring Boot only builds an OpenTelemetry propagator
+while export is enabled and otherwise installs a no-op one, which would silently start a new trace
+for every request; `TracingPropagationConfiguration` supplies the W3C propagator whenever export is
+off, so local runs without a collector still correlate. Production refuses to start with the export
+disabled or a zero sampling ratio (`ProductionConfigurationGuard`), so a production instance always
+exports.
+
+`OtlpTraceExportIntegrationTest` performs a request against a stub collector and checks that the
+exported protobuf payload carries the caller's trace id; `TracingIntegrationTest` checks the header
+agreement over the real servlet container; `TracingSamplingIntegrationTest` drives the sampler to
+zero and proves that correlation survives when nothing downstream is recorded; and
+`RequestContextInitializerFilterTest` covers the fallback when no tracer is present.
+
 ## Endpoints
 
 `management.endpoints.web.exposure.include` lists `health`, `info` and `prometheus` only. The
@@ -161,6 +209,10 @@ curl -s http://127.0.0.1:8081/actuator/prometheus | grep -c '^cttserver_business
 # probes
 curl -s http://127.0.0.1:8081/actuator/health/readiness                                        # {"status":"UP",...}
 
+# correlation: the response header repeats the trace id the caller sent
+curl -s -D - -o /dev/null -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' \
+  http://127.0.0.1:8080/ctt-server/api/v1/config/public | grep -i '^x-trace-id'
+
 # scrape configuration
 docker run --rm -v "$PWD/deploy/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
   --entrypoint promtool prom/prometheus:latest check config /etc/prometheus/prometheus.yml
@@ -171,7 +223,7 @@ answers — the same surface Prometheus scrapes.
 
 ## Not covered yet
 
-Distributed tracing and long-term metric retention are separate pieces of work. Deploy-time alert
+Long-term metric retention and the collector itself are separate pieces of work. Deploy-time alert
 rules live with the production overlay; until then, the business metrics above are what a dashboard
 or a first alert would read.
 

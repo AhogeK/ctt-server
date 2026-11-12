@@ -25,6 +25,9 @@ collects every violation into one message, so one restart lists everything to fi
 | `AUDIT_RETENTION_DAYS` | environment, optional | the production profile defaults to `180` ([ADR-0002](decisions/ADR-0002-audit-retention-policy.md)); `0` stops deletion |
 | `MANAGEMENT_PORT` | environment, optional | loopback management server for probes and metrics; defaults to `8081` and must differ from `SERVER_PORT` |
 | `MANAGEMENT_ADDRESS` | environment, optional | defaults to `127.0.0.1` and must stay loopback in production — the guard rejects any other value, so the scraper shares the host network namespace |
+| `TRACING_SAMPLING_PROBABILITY` | environment, optional | production profile defaults to `0.1`; a sampled trace is exported whole, an unsampled one is dropped |
+| `TRACING_EXPORT_ENABLED` | environment, optional | production profile defaults to `true`; the guard refuses a production instance that disables it |
+| `OTLP_TRACING_ENDPOINT` | environment, optional | collector address, defaults to `http://127.0.0.1:4318/v1/traces`; belongs to the deployment contract |
 
 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` maps every mounted file to a property of
 the same name, so secret files are read without exporting anything. Compose already mounts
@@ -77,6 +80,7 @@ development companions, so a production start uses `docker compose up -d --no-de
 | Database password | blank, shorter than 16 characters, or carrying a development word |
 | Redis password / Resend key / TOTP key | blank, a known development literal, or carrying a development word; Redis has no length rule because the instance credential is shared |
 | Management surface | `management.server.port` missing, zero, or equal to `server.port`; `management.server.address` not a loopback address |
+| Tracing surface | `management.tracing.enabled=false`; export disabled; a sampling ratio of zero or less; `management.tracing.propagation.produce` without `W3C` |
 
 "Development word" means `dev`, `test`, `local`, `dummy`, `sample` or `change` delimited by
 non-alphanumeric characters, plus the literals published in this repository (`ctt_local_pass`,
