@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1.2 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1、P1.2 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1.3 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1、P1.2、P1.3 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.101.0 P1.3 分布式追踪（Micrometer Tracing + OTLP、W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样、导出关闭时的传播器补位）；v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
 
 ## 🗺️ 计划总览
 
@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。真实地址/主机名见私密运维记录。**frps 与 frpc 均已 systemd 托管**；frps 代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝；开发与联调仍共用同一个数据库。部署机另有既有公网 Jenkins，经 nginx 443 对外。
 
-**实现状态：** 🚧 **P0 部分交付 + P1.2 已完成**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1.3–P7 未开工，每步一个可独立验收的交付物。
+**实现状态：** 🚧 **P0 部分交付 + P1.3 已完成**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1.4–P7 未开工，每步一个可独立验收的交付物。
 
 **本轮交付（2026-11-07）**
 
@@ -2429,6 +2429,17 @@ end note
 > - 重访：P1.4 落地观测栈时按真实序列复核标签基数与抓取成本；新增或改名指标须同批更新 `BusinessMetricsTest`、`BusinessMetricsScrapeIntegrationTest` 与 `docs/observability.md`（`AGENTS.md` R9 已固化）；若将来引入多实例分位数需求，改由 Prometheus 侧聚合而不是恢复客户端分位数。
 > - 文档与版本：`docs/observability.md` 业务指标一节重写（六个指标、标签取值、`le` 属结构性标签、gauge 的 `NaN` 语义）；`AGENTS.md` R9 增补业务指标规则；版本 `0.100.0`。
 
+> **计划修订（2026-11-12，P1.3 收口）**：P1.3 的验收只到「追踪上下文可用、可靠、可断言」——入站 `traceparent` 续接、`traceId` 三处同源、span 经 OTLP 出进程；Tempo 里的完整 span 树与 10% 采样的真实抽样归 P1.4（观测栈落地后复核），不留在本条作为未完成验收。任务的实质要求是「日志 MDC 里的 `traceId` 要靠 HTTP 追踪来传播」：改造前它是过滤器自造的随机串，只在单进程日志里有意义，无法与网关、插件或下游对齐；改造后同一个 id 随 W3C `traceparent` 进出，日志、响应头与导出 span 才指向同一次请求。入站只认 W3C（网关已按 W3C 设置），不再保留 B3 面；客户端 `X-Trace-Id` 只在没有 span 时采信，否则日志会与被导出的 trace 脱钩。另记一条平台事实：Spring Boot 4 **只在 `management.tracing.export.enabled=true` 时装配 OTel 传播器**，关闭时用 no-op，结果是**每个请求都新开 trace**——`TracingPropagationConfiguration` 在导出关闭时补 W3C 传播器，删掉这个条件会让本地关联静默失效。
+
+> **P1.3 完成总结（2026-11-12）**
+> - 交付：`spring-boot-micrometer-tracing-opentelemetry` + `micrometer-tracing-bridge-otel` + `opentelemetry-exporter-otlp`（均无字面版本，Boot BOM 管）；`management.tracing.sampling.probability`（基座 `${TRACING_SAMPLING_PROBABILITY:1.0}`、生产 `:0.1`）、`management.tracing.export.enabled`（基座 `false`、生产默认 `true`）、`management.opentelemetry.tracing.export.otlp.endpoint`（`${OTLP_TRACING_ENDPOINT:http://127.0.0.1:4318/v1/traces}`）、`propagation.produce/consume` 仅 `W3C`；`RequestContextInitializerFilter` 改为取服务端 span 的 trace id（`@Order(HIGHEST_PRECEDENCE + 2)`，在观测过滤器之后、安全链之前），`X-Trace-Id` 仅在无 span 时作为兜底；`TracingPropagationConfiguration` 在导出关闭时提供 `W3CTraceContextPropagator`；`ProductionConfigurationGuard` 增加追踪面校验（拒绝关闭 tracing、关闭导出、采样比 ≤0、produce 缺 W3C，采样比不再内嵌 `0.1` 默认值）。
+> - 评审补齐（双轴评审发现并被修掉的真实缺陷）：新增 `TraceIds.current()` 作为唯一解析入口，`GlobalExceptionHandler`、`ApiKeyAuthenticationFilter`、`TermsCheckFilter`、`JwtAuthenticationEntryPoint` 不再各自 `UUID.randomUUID()` 造 36 位串写进错误体（曾与响应头/日志不一致）；`RequestLoggingFilter` 顺序由 `+1` 改为 `+3`（其 Javadoc 本就要求晚于上下文过滤器），ACCESS_LOG 行因此落在 MDC 作用域内、带同一个 `traceId`；CORS `exposed-headers` 增补 `X-Trace-Id`，浏览器端才读得到；`CaptchaService` 与 `GitHubOAuthClient` 改为注入 `ObservationRegistry` 构建 `RestClient`，出站调用成为 client span 并携带 `traceparent`（原先静态 builder 既无 span 也无传播）；文档去掉「`X-Trace-Id` 用于后台任务」的错误说法，并补 parent-based 采样口径（网关标记 sampled 的 trace 一律记录，比例只作用于本进程起始的 span）。
+> - 证据：`TracingIntegrationTest` 2/0/0（真实容器：带 `traceparent` 的请求返回调用方 trace id，无上下文时返回 32 位 hex）、`OtlpTraceExportIntegrationTest` 1/0/0（桩 OTLP 收集器收到的 protobuf 中含调用方 trace id，即 span 真的出进程）、`TracingSamplingIntegrationTest` 2/0/0（采样比 0 时仍返回调用方 id）、`ProductionTracingPolicyTest` 4/0/0（生产 0.1/导出开、基座 1.0/导出关、`TRACING_SAMPLING_PROBABILITY=0.25` 覆盖）、`RequestContextInitializerFilterTest` 11/0/0（span 优先、忽略客户端头、无 Tracer 时兜底）、`ProductionConfigurationGuardTest` 22/0/0（新增 4 例）、`ManagementSurfaceContractTest` 4/0/0；诊断过程记录在案：`traceparent` 未续接的根因是导出关闭时 Boot 装配 no-op 传播器（`OpenTelemetryPropagationConfigurations$PropagationWith*` 带 `@ConditionalOnEnabledTracingExport`），不是过滤器顺序问题；全量 `spotlessApply build test jacocoTestCoverageVerification` BUILD SUCCESSFUL 202.72 s，385 个测试类 / 1769 例 / 0 失败 / 0 错误 / 1 跳过，覆盖率门通过。
+> - 边界：Tempo 侧的可视化与 10% 采样的真实抽样率归 P1.4 复核；OTLP 端点默认值指向本机 collector，P1.4 落栈前不导出（基座默认关闭）；出站 span 目前只覆盖 `CaptchaService` 与 `GitHubOAuthClient`，Resend 等后续客户端接入时须同样注入 `ObservationRegistry`；`X-Trace-Id` 与 `traceparent` 的入站信任边界不变（仍由网关/直连客户端自报，trace id 不参与鉴权）。
+> - 重访：P1.4 落地后核对 Tempo 中的 span 树、采样率与日志 `traceId` 聚合；若要网关自行采样，须同步本服务的 parent-based 语义，否则 10% 比例永远不生效；若将来切到导出开关常开，可评估把 `TracingPropagationConfiguration` 并入统一配置（当前保留条件式补位）。
+> - 文档与版本：`docs/observability.md` 新增追踪一节（单一标识、配置表、传播器补位、parent-based 采样口径、出站 span、ACCESS_LOG 一致性、验证命令）、`docs/production-configuration.md` 增三行变量与守卫规则、`docs/api-reference.md` 新增 Trace Correlation、`AGENTS.md` R9 增补追踪规则（含 `TraceIds.current()` 与采样口径）；版本 `0.101.0`。
+
+
 > **P0.7 完成总结（2026-11-09）**
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
 > - 实现补充：当前 Spring Boot 上下文未自动注册 Redis contributor，readiness 显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 继续委托，避免丢失 additional paths。
@@ -2508,7 +2519,7 @@ end note
 | --- | --- | --- | --- | --- |
 | P1 指标与追踪 | P1.1 ✅ | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ 独立管理服务器 `management.server.port=${MANAGEMENT_PORT:8081}` 且 **`management.server.address=${MANAGEMENT_ADDRESS:127.0.0.1}`**；应用端口不提供管理载荷（白名单路径 404，其余 `/actuator/**` 401）；仅暴露 health/info/prometheus，生产由 `ProductionConfigurationGuard` 拒绝非回环或与 `server.port` 相同的管理端口 | `ActuatorSurfaceTest` + `ManagementSurfaceContractTest` 固定两端口暴露面与默认值；compose 健康检查与本地 Prometheus 改抓 8081/8082 | 中 |
 | | P1.2 ✅ | 六个业务指标：同步计数与耗时（`operation`/`outcome`/`payload`）、限流拒绝（`type`，含无维度的 `GLOBAL` 总闸）、邮件待发（`status` = `PENDING`/`FAILED`/`CANCELLED`，`SENDING` 不入序列）、排行榜待重算（无标签，Redis 脏集深度）、审计事件量（`severity`/`outcome`，`WRITTEN` 只在独立事务提交后累加）；业务标签 ≤3、取值全部来自枚举；耗时只发布直方图分桶（多实例可按 `histogram_quantile()` 聚合），gauge 抓取时现算并在读取失败时返回 `NaN` | `BusinessMetricsTest`（名称/标签/计数/三标签上限）+ `BusinessMetricsScrapeIntegrationTest`（管理端口抓取六个指标族与标签预算）+ `MailOutboxMetricsTest`/`LeaderboardMetricsTest`（含 `NaN` 路径） | 中 |
-| | P1.3 | 追踪：Micrometer Tracing + OTLP，透传 W3C `traceparent`，保留 `traceId`；生产 10% 采样 | 一次请求在 Tempo 可见完整 span，日志可按 `traceId` 聚合 | 高 |
+| | P1.3 ✅ | 追踪：`spring-boot-micrometer-tracing-opentelemetry` + `micrometer-tracing-bridge-otel` + `opentelemetry-exporter-otlp`（均由 Boot BOM 管）；入站 W3C `traceparent` 由服务端 span 续接，日志 `traceId`、响应头 `X-Trace-Id` 与导出 span 同源；基座采样 1.0 不导出、生产 `TRACING_SAMPLING_PROBABILITY=0.1` 且导出开启（`ProductionConfigurationGuard` 拒绝关闭导出或采样比 ≤0）；`TracingPropagationConfiguration` 在导出关闭时补 W3C 传播器（Boot 4 只在导出开启时装配传播器，否则 no-op） | `TracingIntegrationTest`（真实容器续接 `traceparent`、无上下文时自生成）、`OtlpTraceExportIntegrationTest`（桩收集器收到的 protobuf 带调用方 trace id）、`ProductionTracingPolicyTest`（1.0/0.1/覆盖）、`RequestContextInitializerFilterTest` 12 例（span 优先、`X-Trace-Id` 仅兜底）；Tempo 内的完整 span 树归 P1.4 落地后复核 | 高 |
 | | P1.4 | 观测栈（**全部在部署机**）：Prometheus + Alertmanager + Grafana + Tempo + Loki + Alloy + node/postgres/redis/blackbox exporters，保留 30 天 | 各 UI 可访问；blackbox 对公网 URL 的探测有数据 | 中 |
 | | P1.5 | 日志补用户维度：MDC 现在只有 `traceId` / `clientIp`（已脱敏）/ `method` / `uri` / `deviceId` / `platform`，**没有 `userId`** ⇒ 按用户排障只能绕审计表。加 `userId`（UUID，不放邮箱），并确认请求结束会清理 | 一条请求日志能按 `userId` 过滤；响应结束后 MDC 无残留 | 低 |
 | P2 告警与面板 | P2.1 | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计增长率；另加隧道中断与证书 14 天到期；先 `severity: info` | `promtool check rules` 通过 | 中 |
@@ -2556,7 +2567,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P1.3–P1.5、P2–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P1.4–P1.5、P2–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 
