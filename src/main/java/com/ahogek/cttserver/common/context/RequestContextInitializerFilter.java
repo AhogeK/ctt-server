@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.jspecify.annotations.NonNull;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -21,17 +22,26 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
 /**
  * Global request context and tracing filter.
  *
  * <p>Extracts HTTP request metadata and binds to MDC (for logging) and ScopedValue (for business
- * logic).
+ * logic). The trace identifier is the one the tracing bridge created for the server span, so a log
+ * line, the {@code X-Trace-Id} response header and the exported trace all carry the same value;
+ * sampling decides only whether the span's data is exported, never whether the identifier exists.
+ *
+ * <p>Runs immediately after the observation filter that opens the server span (registered at {@code
+ * HIGHEST_PRECEDENCE + 1}) and well before the security chain, so even a rejected request leaves
+ * with a trace id.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-15
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+@Order(Ordered.HIGHEST_PRECEDENCE + 2)
 public final class RequestContextInitializerFilter extends OncePerRequestFilter {
 
     public static final String TRACE_HEADER = "X-Trace-Id";
@@ -40,23 +50,20 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
     private static final String HSTS_HEADER = "Strict-Transport-Security";
     private static final String HSTS_VALUE = "max-age=31536000; includeSubDomains";
     private final Set<String> trustedProxies;
+    private final ObjectProvider<Tracer> tracerProvider;
 
     public RequestContextInitializerFilter(
-            @Value("${ctt.security.trusted-proxy-addresses:}") String trustedProxyAddresses) {
+            @Value("${ctt.security.trusted-proxy-addresses:}") String trustedProxyAddresses,
+            ObjectProvider<Tracer> tracerProvider) {
         this.trustedProxies = IpUtils.parseTrustedProxies(trustedProxyAddresses);
+        this.tracerProvider = tracerProvider;
     }
 
     @Override
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, @NonNull FilterChain chain) {
 
-        String traceId =
-                Optional.ofNullable(request.getHeader(TRACE_HEADER))
-                        .filter(s -> !s.isBlank())
-                        .filter(s -> s.length() == MAX_TRACE_LENGTH)
-                        .filter(s -> s.matches("^[0-9a-fA-F]{32}$"))
-                        .map(String::toLowerCase)
-                        .orElseGet(() -> UUID.randomUUID().toString().replace("-", ""));
+        String traceId = tracedTraceId().orElseGet(() -> clientTraceId(request));
 
         ClientIdentity clientIdentity = extractClientIdentity(request);
 
@@ -103,6 +110,46 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
             MDC.remove(MdcKey.DEVICE_ID);
             MDC.remove(MdcKey.PLATFORM);
         }
+    }
+
+    /**
+     * Returns the identifier of the current server span.
+     *
+     * <p>Empty when tracing is off or the span has no context, which keeps the filter usable in
+     * tests and in deployments that disable tracing on purpose.
+     *
+     * @return the span's trace identifier, or empty when no tracing context exists
+     */
+    private Optional<String> tracedTraceId() {
+        Tracer tracer = tracerProvider.getIfAvailable();
+        if (tracer == null) {
+            return Optional.empty();
+        }
+        Span span = tracer.currentSpan();
+        if (span == null) {
+            return Optional.empty();
+        }
+        String traceId = span.context().traceId();
+        return traceId == null || traceId.isBlank() ? Optional.empty() : Optional.of(traceId);
+    }
+
+    /**
+     * Resolves the identifier used when no span exists.
+     *
+     * <p>A client-supplied {@code X-Trace-Id} survives only while tracing is off: once a span
+     * exists its identifier wins, so a caller cannot overwrite the correlation of an exported
+     * trace. A malformed header falls back to a fresh identifier rather than failing the request.
+     *
+     * @param request HTTP servlet request
+     * @return a 32 character lower-case hex identifier
+     */
+    private String clientTraceId(HttpServletRequest request) {
+        return Optional.ofNullable(request.getHeader(TRACE_HEADER))
+                .filter(s -> !s.isBlank())
+                .filter(s -> s.length() == MAX_TRACE_LENGTH)
+                .filter(s -> s.matches("^[0-9a-fA-F]{32}$"))
+                .map(String::toLowerCase)
+                .orElseGet(() -> UUID.randomUUID().toString().replace("-", ""));
     }
 
     /**

@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Map;
 
 /**
  * Calls the loopback HTTP servers of a split-port deployment.
@@ -32,13 +33,19 @@ public final class LoopbackHttpProbe {
     }
 
     public static HttpResponse<String> get(int port, String path) throws IOException {
-        HttpRequest request =
+        return get(port, path, Map.of());
+    }
+
+    /** The headers overload lets a test send cross-cutting context, such as a traceparent. */
+    public static HttpResponse<String> get(int port, String path, Map<String, String> headers)
+            throws IOException {
+        HttpRequest.Builder builder =
                 HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                         .header("Accept", "*/*")
-                        .GET()
-                        .build();
+                        .GET();
+        headers.forEach(builder::header);
         try {
-            return CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            return CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while requesting " + path, ex);

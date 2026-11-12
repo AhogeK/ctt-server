@@ -1,6 +1,7 @@
 package com.ahogek.cttserver.common.context;
 
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -13,6 +14,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+
+import java.io.IOException;
+
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.test.simple.SimpleTracer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -29,10 +38,21 @@ class RequestContextInitializerFilterTest {
 
     private RequestContextInitializerFilter filter;
 
+    private SimpleTracer tracer;
+
     @BeforeEach
     void setUp() {
-        filter = new RequestContextInitializerFilter("");
+        tracer = new SimpleTracer();
+        filter = new RequestContextInitializerFilter("", tracerProvider(tracer));
         MDC.clear();
+    }
+
+    private static ObjectProvider<Tracer> tracerProvider(Tracer tracer) {
+        DefaultListableBeanFactory beans = new DefaultListableBeanFactory();
+        if (tracer != null) {
+            beans.registerSingleton("tracer", tracer);
+        }
+        return beans.getBeanProvider(Tracer.class);
     }
 
     @AfterEach
@@ -41,7 +61,61 @@ class RequestContextInitializerFilterTest {
     }
 
     @Test
-    void doFilter_withoutHeaders_generatesNewTraceId() throws Exception {
+    void shouldUseTheSpanTraceId_whenTracingIsActive() throws Exception {
+        stubRequest("/api/test");
+        String spanTraceId = runWithSpan(filter);
+
+        verify(response).setHeader(RequestContextInitializerFilter.TRACE_HEADER, spanTraceId);
+    }
+
+    @Test
+    void shouldIgnoreTheClientTraceId_whenASpanExists() throws Exception {
+        stubRequest("/api/test");
+        when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER))
+                .thenReturn("ffffffffffffffffffffffffffffffff");
+
+        String spanTraceId = runWithSpan(filter);
+
+        verify(response).setHeader(RequestContextInitializerFilter.TRACE_HEADER, spanTraceId);
+    }
+
+    @Test
+    void shouldFallBackToTheClientTraceId_whenNoTracerIsPresent() throws Exception {
+        RequestContextInitializerFilter withoutTracing =
+                new RequestContextInitializerFilter("", tracerProvider(null));
+        stubRequest("/api/test");
+        when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER))
+                .thenReturn("0123456789ABCDEF0123456789ABCDEF");
+
+        withoutTracing.doFilterInternal(request, response, filterChain);
+
+        verify(response)
+                .setHeader(
+                        RequestContextInitializerFilter.TRACE_HEADER,
+                        "0123456789abcdef0123456789abcdef");
+    }
+
+    private void stubRequest(String uri) {
+        when(request.getHeader("User-Agent")).thenReturn("TestAgent");
+        when(request.getRequestURI()).thenReturn(uri);
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+        when(request.getHeader("X-Forwarded-For")).thenReturn(null);
+        when(request.getHeader("X-Real-IP")).thenReturn(null);
+    }
+
+    private String runWithSpan(RequestContextInitializerFilter target) throws Exception {
+        Span span = tracer.nextSpan().name("test").start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            target.doFilterInternal(request, response, filterChain);
+        } finally {
+            span.end();
+        }
+        return span.context().traceId();
+    }
+
+    @Test
+    void shouldGenerateATraceId_whenNoHeaderArrives() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
@@ -57,7 +131,7 @@ class RequestContextInitializerFilterTest {
     }
 
     @Test
-    void doFilter_withTraceIdHeader_reusesTraceId() {
+    void shouldReuseTheClientTraceId_whenNoTracerIsPresent() {
         String existingTraceId = "0123456789abcdef0123456789abcdef";
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER))
                 .thenReturn(existingTraceId);
@@ -74,7 +148,7 @@ class RequestContextInitializerFilterTest {
     }
 
     @Test
-    void doFilter_withBlankHeader_generatesNewTraceId() {
+    void shouldGenerateATraceId_whenTheHeaderIsBlank() {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn("   ");
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
@@ -92,9 +166,9 @@ class RequestContextInitializerFilterTest {
     }
 
     @Test
-    void doFilter_setsHsts_whenTrustedProxyTerminatesTls() throws Exception {
+    void shouldSetHsts_whenATrustedProxyTerminatesTls() throws Exception {
         RequestContextInitializerFilter proxyAware =
-                new RequestContextInitializerFilter("10.0.0.10");
+                new RequestContextInitializerFilter("10.0.0.10", tracerProvider(tracer));
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
@@ -111,7 +185,7 @@ class RequestContextInitializerFilterTest {
     }
 
     @Test
-    void doFilter_clearsMdcAfterChain() {
+    void shouldPropagate_whenTheChainThrowsServletException() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
@@ -119,32 +193,15 @@ class RequestContextInitializerFilterTest {
         when(request.getRemoteAddr()).thenReturn("127.0.0.1");
         when(request.getHeader("X-Forwarded-For")).thenReturn(null);
         when(request.getHeader("X-Real-IP")).thenReturn(null);
-
-        filter.doFilterInternal(request, response, filterChain);
-
-        assertNull(MDC.get(MdcKey.TRACE_ID));
-    }
-
-    @Test
-    void doFilter_whenChainThrowsServletException_propagates() throws Exception {
-        when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
-        when(request.getHeader("User-Agent")).thenReturn("TestAgent");
-        when(request.getRequestURI()).thenReturn("/api/test");
-        when(request.getMethod()).thenReturn("GET");
-        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
-        when(request.getHeader("X-Forwarded-For")).thenReturn(null);
-        when(request.getHeader("X-Real-IP")).thenReturn(null);
-        doThrow(new jakarta.servlet.ServletException("test"))
-                .when(filterChain)
-                .doFilter(request, response);
+        doThrow(new ServletException("test")).when(filterChain).doFilter(request, response);
 
         assertThrows(
-                jakarta.servlet.ServletException.class,
+                ServletException.class,
                 () -> filter.doFilterInternal(request, response, filterChain));
     }
 
     @Test
-    void doFilter_whenChainThrowsIOException_propagates() throws Exception {
+    void shouldPropagate_whenTheChainThrowsIOException() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");
@@ -152,15 +209,14 @@ class RequestContextInitializerFilterTest {
         when(request.getRemoteAddr()).thenReturn("127.0.0.1");
         when(request.getHeader("X-Forwarded-For")).thenReturn(null);
         when(request.getHeader("X-Real-IP")).thenReturn(null);
-        doThrow(new java.io.IOException("test")).when(filterChain).doFilter(request, response);
+        doThrow(new IOException("test")).when(filterChain).doFilter(request, response);
 
         assertThrows(
-                java.io.IOException.class,
-                () -> filter.doFilterInternal(request, response, filterChain));
+                IOException.class, () -> filter.doFilterInternal(request, response, filterChain));
     }
 
     @Test
-    void doFilter_setsMdcKeys() throws Exception {
+    void shouldPopulateTheMdc_whenTheRequestArrives() throws Exception {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER))
                 .thenReturn("0123456789abcdef0123456789abcdef");
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
@@ -195,7 +251,7 @@ class RequestContextInitializerFilterTest {
     }
 
     @Test
-    void doFilter_removesMdcKeysAfterChain() {
+    void shouldRemoveTheMdcKeys_whenTheChainReturns() {
         when(request.getHeader(RequestContextInitializerFilter.TRACE_HEADER)).thenReturn(null);
         when(request.getHeader("User-Agent")).thenReturn("TestAgent");
         when(request.getRequestURI()).thenReturn("/api/test");

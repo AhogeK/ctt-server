@@ -40,7 +40,9 @@ import java.util.Map;
  * </ul>
  *
  * <p><strong>Order Constraint:</strong> Must be ordered after {@link
- * RequestContextInitializerFilter} to ensure MDC context (traceId, clientIp) is available.
+ * RequestContextInitializerFilter} to ensure MDC context (traceId, clientIp) is available. The
+ * access line is written when the chain has returned, so this filter must be the inner one: it runs
+ * after the context filter and therefore still sees the MDC before that filter clears it.
  *
  * <p><strong>Header Logging:</strong> Request headers are only logged at DEBUG level or higher
  * verbosity. All sensitive headers (Authorization, Cookie, X-API-Key, etc.) are automatically
@@ -50,7 +52,7 @@ import java.util.Map;
  * @since 2026-03-16
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 1)
+@Order(Ordered.HIGHEST_PRECEDENCE + 3)
 public final class RequestLoggingFilter extends OncePerRequestFilter {
 
     private static final Logger ACCESS_LOG = LoggerFactory.getLogger("ACCESS_LOG");

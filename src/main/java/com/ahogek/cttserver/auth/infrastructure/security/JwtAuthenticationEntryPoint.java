@@ -1,5 +1,6 @@
 package com.ahogek.cttserver.auth.infrastructure.security;
 
+import com.ahogek.cttserver.common.context.TraceIds;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
@@ -16,7 +17,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -54,7 +54,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 
-        String traceId = UUID.randomUUID().toString();
+        String traceId = TraceIds.current();
 
         ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.AUTH_003).withTraceId(traceId);
 

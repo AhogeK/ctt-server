@@ -17,12 +17,17 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.micrometer.observation.ObservationRegistry;
 
 /**
  * Service for verifying hCaptcha tokens via the hCaptcha verification API.
  *
  * <p>Verifies captcha tokens submitted by users during registration or password reset to prevent
  * automated bot attacks. Gracefully degrades when hCaptcha is not configured (site-key is blank).
+ *
+ * <p>The client is built with the application's {@link ObservationRegistry} so the call is
+ * observed: it becomes a client span and carries the current {@code traceparent}, which is what
+ * connects a slow or failing verification to the request that caused it.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-05-23
@@ -35,7 +40,8 @@ public class CaptchaService {
     private final HcaptchaProperties captchaProperties;
     private final RestClient restClient;
 
-    public CaptchaService(HcaptchaProperties captchaProperties) {
+    public CaptchaService(
+            HcaptchaProperties captchaProperties, ObservationRegistry observationRegistry) {
         this.captchaProperties = captchaProperties;
         int timeoutMs = (int) captchaProperties.timeout().toMillis();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
@@ -43,6 +49,7 @@ public class CaptchaService {
         requestFactory.setReadTimeout(timeoutMs);
         this.restClient =
                 RestClient.builder()
+                        .observationRegistry(observationRegistry)
                         .baseUrl(captchaProperties.verifyUrl())
                         .requestFactory(requestFactory)
                         .build();

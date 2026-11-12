@@ -131,6 +131,16 @@ ctt:
       # stops deletion (the documented rollback). The base profile keeps every row.
       days: ${AUDIT_RETENTION_DAYS:180}
 
+# Tracing - one in ten requests is exported to the collector. The ratio is a reviewed default, not a
+# deployment-only secret: TRACING_SAMPLING_PROBABILITY overrides it, and 0 would stop exporting
+# entirely, which the production guard refuses.
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
+    export:
+      enabled: ${TRACING_EXPORT_ENABLED:true}
+
 # Logging - Production level
 logging:
   level:

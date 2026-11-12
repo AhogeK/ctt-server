@@ -194,6 +194,42 @@ class ProductionConfigurationGuardTest {
     }
 
     @Test
+    void shouldRejectTracing_whenTheExportIsDisabled() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("management.tracing.export.enabled", "false");
+
+        assertThat(violations(environment))
+                .anyMatch(it -> it.contains("management.tracing.export.enabled"));
+    }
+
+    @Test
+    void shouldRejectTracing_whenTheSamplingRatioIsZero() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("management.tracing.sampling.probability", "0");
+
+        assertThat(violations(environment))
+                .anyMatch(it -> it.contains("management.tracing.sampling.probability"));
+    }
+
+    @Test
+    void shouldRejectTracing_whenTracingIsDisabled() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("management.tracing.enabled", "false");
+
+        assertThat(violations(environment))
+                .anyMatch(it -> it.contains("management.tracing.enabled"));
+    }
+
+    @Test
+    void shouldRejectTracing_whenNothingProducesW3cHeaders() {
+        MockEnvironment environment = productionEnvironment();
+        environment.setProperty("management.tracing.propagation.produce[0]", "B3");
+
+        assertThat(violations(environment))
+                .anyMatch(it -> it.contains("management.tracing.propagation.produce"));
+    }
+
+    @Test
     void shouldThrow_whenTheConfigurationIsRejected() {
         MockEnvironment environment = productionEnvironment();
         environment.setProperty("springdoc.api-docs.enabled", "true");

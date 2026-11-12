@@ -7,6 +7,7 @@ import com.ahogek.cttserver.audit.enums.SecuritySeverity;
 import com.ahogek.cttserver.audit.model.AuditDetails;
 import com.ahogek.cttserver.common.context.RequestContext;
 import com.ahogek.cttserver.common.context.RequestInfo;
+import com.ahogek.cttserver.common.context.TraceIds;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.utils.DesensitizeUtils;
 
@@ -14,7 +15,6 @@ import jakarta.validation.ConstraintViolationException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
@@ -30,7 +30,6 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.UUID;
 
 /**
  * Global exception handler with three-level logging strategy.
@@ -94,15 +93,7 @@ public final class GlobalExceptionHandler {
     }
 
     private static String currentTraceId() {
-        return RequestContext.current()
-                .map(RequestInfo::traceId)
-                .orElseGet(
-                        () -> {
-                            String id = MDC.get("traceId");
-                            return (id != null && !id.isBlank())
-                                    ? id
-                                    : UUID.randomUUID().toString().replace("-", "");
-                        });
+        return TraceIds.current();
     }
 
     /**
