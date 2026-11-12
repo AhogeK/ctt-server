@@ -60,6 +60,11 @@ dependencies {
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     // Metrics exit: the Prometheus registry is version-managed by the Boot BOM, so no literal here.
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    // Tracing: Boot autoconfigures the OpenTelemetry bridge and the OTLP exporter; the bridge and
+    // the exporter are version-managed by the BOM, so no literals here.
+    implementation("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
     runtimeOnly(libs.org.postgresql)
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
@@ -74,6 +79,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation(libs.greenmail)
     testImplementation("org.awaitility:awaitility")
+    testImplementation("io.micrometer:micrometer-tracing-test")
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

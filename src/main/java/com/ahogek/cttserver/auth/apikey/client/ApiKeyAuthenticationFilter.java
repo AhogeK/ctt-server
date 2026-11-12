@@ -10,6 +10,7 @@ import com.ahogek.cttserver.auth.apikey.model.ApiKeyPrincipal;
 import com.ahogek.cttserver.auth.apikey.service.ApiKeyService;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
 import com.ahogek.cttserver.common.context.RequestContext;
+import com.ahogek.cttserver.common.context.TraceIds;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.exception.ForbiddenException;
 import com.ahogek.cttserver.common.exception.NotFoundException;
@@ -234,11 +235,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                 clientIp,
                 errorCode.message());
 
-        String traceId =
-                RequestContext.current()
-                        .map(info -> info.traceId())
-                        .filter(id -> id != null && !id.isBlank())
-                        .orElse(UUID.randomUUID().toString());
+        String traceId = TraceIds.current();
 
         auditLogService.logFailure(
                 null,

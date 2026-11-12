@@ -93,6 +93,28 @@ management:
         # prometheus is the only metrics surface: the generic metrics endpoint lets a caller query
         # arbitrary tag combinations and stays closed.
         include: health,info,prometheus
+  tracing:
+    # Local and test runs keep every trace so a developer sees a complete span tree; production
+    # lowers the ratio (application-prod.yaml). Export stays opt-in here because a developer machine
+    # rarely runs a collector, and a failing exporter only adds noise to the console.
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+    export:
+      enabled: ${TRACING_EXPORT_ENABLED:false}
+    propagation:
+      # W3C traceparent only: the edge sets it, and accepting B3 as well would add a second way to
+      # influence correlation without a caller that speaks it.
+      produce:
+        - W3C
+      consume:
+        - W3C
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          # The collector runs beside the application in the deployment stack; the endpoint is
+          # part of the deployment contract, so it is a variable rather than a hardcoded host.
+          endpoint: ${OTLP_TRACING_ENDPOINT:http://127.0.0.1:4318/v1/traces}
   endpoint:
     health:
       show-details: when-authorized
@@ -177,6 +199,7 @@ ctt:
         - "Origin"
       exposed-headers:
         - "Authorization"
+        - "X-Trace-Id"
       allow-credentials: true
       max-age: 3600
 

@@ -23,10 +23,15 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+import io.micrometer.observation.ObservationRegistry;
+
 /**
  * GitHub OAuth API client using Spring RestClient.
  *
  * <p>Handles token exchange, user info retrieval, and email fallback logic for private emails.
+ *
+ * <p>The client is built with the application's {@link ObservationRegistry}, so each call becomes a
+ * client span of the request that caused it and carries the current {@code traceparent} to GitHub.
  */
 @Component
 public class GitHubOAuthClient {
@@ -37,10 +42,12 @@ public class GitHubOAuthClient {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
 
     @Autowired
-    public GitHubOAuthClient(SecurityProperties securityProps) {
+    public GitHubOAuthClient(
+            SecurityProperties securityProps, ObservationRegistry observationRegistry) {
         this.props = securityProps.oauth().github();
         this.restClient =
                 RestClient.builder()
+                        .observationRegistry(observationRegistry)
                         .requestFactory(
                                 new JdkClientHttpRequestFactory(
                                         HttpClient.newBuilder()

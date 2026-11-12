@@ -20,6 +20,8 @@ import org.springframework.web.client.RestClient;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 
+import io.micrometer.observation.ObservationRegistry;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,7 +53,7 @@ class CaptchaServiceTest {
         lenient().when(captchaProperties.verifyUrl()).thenReturn(TEST_VERIFY_URL);
         lenient().when(captchaProperties.timeout()).thenReturn(TEST_TIMEOUT);
 
-        captchaService = new CaptchaService(captchaProperties);
+        captchaService = new CaptchaService(captchaProperties, ObservationRegistry.create());
 
         RestClient.Builder builder = RestClient.builder().baseUrl(TEST_VERIFY_URL);
         mockServer = MockRestServiceServer.bindTo(builder).build();

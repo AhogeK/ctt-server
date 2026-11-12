@@ -18,11 +18,12 @@ import java.util.regex.Pattern;
 /**
  * Rejects a production configuration that would start with development values.
  *
- * <p>Five mistakes are silent without it: the OpenAPI and Swagger endpoints stay exposed, CORS
- * keeps a placeholder origin, GitHub OAuth is advertised without credentials, a secret copied from
- * the repository keeps protecting a real deployment, and the management endpoints either share the
- * application port or listen beyond loopback. Every violation is collected and reported in one
- * message, so a single restart lists everything that must be fixed.
+ * <p>Six mistakes are silent without it: the OpenAPI and Swagger endpoints stay exposed, CORS keeps
+ * a placeholder origin, GitHub OAuth is advertised without credentials, a secret copied from the
+ * repository keeps protecting a real deployment, the management endpoints either share the
+ * application port or listen beyond loopback, and tracing runs with the export off or with a zero
+ * sampling ratio. Every violation is collected and reported in one message, so a single restart
+ * lists everything that must be fixed.
  *
  * <p>The guard only runs under the {@code prod} profile; development and tests keep their defaults.
  *
@@ -101,6 +102,7 @@ public class ProductionConfigurationGuard implements InitializingBean {
         checkSecret(environment, "spring.mail.password", 0, violations);
         checkSecret(environment, "ctt.security.two-factor.encryption-key", 32, violations);
         checkManagementSurface(environment, violations);
+        checkTracingSurface(environment, violations);
         return violations;
     }
 
@@ -198,6 +200,40 @@ public class ProductionConfigurationGuard implements InitializingBean {
                     "`management.server.address` must be a loopback address so the management"
                             + " endpoints stay local, was: "
                             + address);
+        }
+    }
+
+    /**
+     * Keeps trace export on and sampling above zero.
+     *
+     * <p>Both settings are legitimate during development and both are silently destructive in
+     * production: disabling the export leaves every dashboard empty, and a zero probability turns
+     * tracing into a no-op that still costs a context per request. The ratio itself is a deployment
+     * decision, so only its zero case is rejected here.
+     */
+    private static void checkTracingSurface(Environment environment, List<String> violations) {
+        if (!environment.getProperty("management.tracing.enabled", Boolean.class, true)) {
+            violations.add("`management.tracing.enabled` must stay on in production");
+        }
+        Boolean exportEnabled =
+                environment.getProperty("management.tracing.export.enabled", Boolean.class, true);
+        if (!Boolean.TRUE.equals(exportEnabled)) {
+            violations.add(
+                    "`management.tracing.export.enabled` must stay on in production so traces reach"
+                            + " the collector");
+        }
+        Double probability =
+                environment.getProperty("management.tracing.sampling.probability", Double.class);
+        if (probability != null && probability <= 0d) {
+            violations.add(
+                    "`management.tracing.sampling.probability` must be greater than 0 in"
+                            + " production, was: "
+                            + probability);
+        }
+        List<String> produce = list(environment, "management.tracing.propagation.produce");
+        if (!produce.isEmpty() && !produce.contains("W3C")) {
+            violations.add(
+                    "`management.tracing.propagation.produce` must include W3C, was: " + produce);
         }
     }
 

@@ -31,3 +31,8 @@ ctt:
 management:
   server:
     port: 0
+  tracing:
+    # Tests assert the trace identifier and the log correlation, never an export: a background
+    # exporter would retry against a collector that does not exist and slow every context down.
+    export:
+      enabled: false

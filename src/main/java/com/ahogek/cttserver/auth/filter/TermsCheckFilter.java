@@ -2,6 +2,7 @@ package com.ahogek.cttserver.auth.filter;
 
 import com.ahogek.cttserver.auth.infrastructure.security.PublicApiEndpointRegistry;
 import com.ahogek.cttserver.common.config.properties.TermsProperties;
+import com.ahogek.cttserver.common.context.TraceIds;
 import com.ahogek.cttserver.common.exception.ErrorCode;
 import com.ahogek.cttserver.common.response.ErrorResponse;
 import com.ahogek.cttserver.common.response.RestApiResponse;
@@ -26,7 +27,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
-import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -141,7 +141,7 @@ public class TermsCheckFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 
-        String traceId = UUID.randomUUID().toString();
+        String traceId = TraceIds.current();
         ErrorResponse errorResponse = ErrorResponse.of(ErrorCode.AUTH_019).withTraceId(traceId);
         RestApiResponse<ErrorResponse> apiResponse =
                 RestApiResponse.error(ErrorCode.AUTH_019.message(), errorResponse);
