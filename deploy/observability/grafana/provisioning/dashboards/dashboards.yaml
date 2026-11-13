@@ -1,0 +1,19 @@
+# Grafana dashboard provisioning for the deployment stack (P1.4).
+#
+# The file provider picks up everything under /var/lib/grafana/dashboards, which
+# the Compose file fills with the repository's dashboards. P2 owns the panels
+# themselves; this file only makes a dropped-in JSON appear without an import.
+
+apiVersion: 1
+
+providers:
+  - name: ctt-server
+    orgId: 1
+    folder: ctt-server
+    type: file
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

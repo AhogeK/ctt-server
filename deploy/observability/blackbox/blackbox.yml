@@ -1,0 +1,33 @@
+# Blackbox exporter modules (P1.4).
+#
+# http_2xx        public pages that must answer 2xx; TLS is verified, so an
+#                 expired or mismatched certificate fails the probe as well.
+# http_2xx_plain  the same over plain HTTP, used for loopback readiness probes.
+# http_reachable  services whose root answers something other than 2xx by
+#                 design; the accepted codes are listed here so a 5xx and a
+#                 connection failure still fail.
+
+modules:
+  http_2xx:
+    prober: http
+    timeout: 8s
+    http:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      follow_redirects: true
+
+  http_2xx_plain:
+    prober: http
+    timeout: 4s
+    http:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+
+  http_reachable:
+    prober: http
+    timeout: 8s
+    http:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      follow_redirects: true
+      valid_status_codes: [200, 301, 302, 401, 403, 404]

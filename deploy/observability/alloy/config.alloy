@@ -1,0 +1,51 @@
+// Alloy for the deployment host (P1.4).
+//
+// One job: read the container logs of this repository's own services and push
+// them to Loki. Container names are the only label, so the label set stays
+// bounded; the log line itself stays JSON and Grafana parses fields with
+// `| json`, which is what keeps `traceId`, `level` and `uri` queryable without
+// turning them into index labels.
+//
+// Host logs (journald) are deliberately out of scope: the application writes to
+// its container's stdout, and the host's own units already rotate under
+// journald caps.
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "ctt" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/ctt-.*"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "ctt" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.ctt.output
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://127.0.0.1:3100/loki/api/v1/push"
+  }
+  external_labels = {
+    cluster = "deployment",
+  }
+}

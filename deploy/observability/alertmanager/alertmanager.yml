@@ -1,0 +1,28 @@
+# Alertmanager for the deployment host (P1.4).
+#
+# Deliberately minimal: P2.1 writes the alert rules, P2.3 decides who gets
+# paged. Until then every alert lands in one receiver that does nothing, which
+# keeps the API, the UI and the rule-less configuration path exercised without
+# inventing a notification channel that nobody has approved.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: unconfigured
+  # `host` is the external label Prometheus attaches to every series, so alerts
+  # carry it. Grouping on a label no alert has (for example a log-only `cluster`)
+  # silently degrades to grouping by alertname alone.
+  group_by: [alertname, host]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: unconfigured
+
+inhibit_rules:
+  # One page per host outage, not one per affected target.
+  - source_matchers: [severity = "critical"]
+    target_matchers: [severity =~ "warning|info"]
+    equal: [host]

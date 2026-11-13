@@ -1,0 +1,101 @@
+# Prometheus for the deployment host (P1.4).
+#
+# Four probe layers, matching where a request can break:
+#   public edge   blackbox over https://<name>/ (TLS, nginx, tunnel, service)
+#   application   the management port of each slot (metrics and probes)
+#   host          node_exporter
+#   dependencies  the postgres and redis exporters
+#
+# The public target list is deployment-local (`targets/public-http.json`, see
+# targets/public-http.json.example) rather than part of this file: which names a
+# deployment serves is operator data, and the repository's other Prometheus
+# configuration carries no host names either.
+#
+# Rule files arrive with P2.1; until then nothing is evaluated and the alerting
+# block only points Alertmanager at an empty rule set.
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    host: deployment
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["127.0.0.1:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["127.0.0.1:9100"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["127.0.0.1:9187"]
+
+  - job_name: redis
+    static_configs:
+      - targets: ["127.0.0.1:9121"]
+
+  # The application is not deployed on this host yet (P3). Both slots are
+  # listed so the first deploy needs no Prometheus change: a missing target
+  # reports up == 0 instead of hiding a misconfigured one.
+  - job_name: ctt-server
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["127.0.0.1:8081"]
+        labels:
+          slot: blue
+      - targets: ["127.0.0.1:8082"]
+        labels:
+          slot: green
+
+  # Public URLs. Each entry carries `module`; http_2xx means "must answer 2xx"
+  # and http_reachable means "answered with one of the codes listed in the
+  # module". TLS is verified in both, so certificate expiry fails the probe.
+  - job_name: blackbox-public
+    metrics_path: /probe
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/public-http.json"]
+        refresh_interval: 60s
+    relabel_configs:
+      # A relabel rule replaces with $1 by default, so `(.+)` captures the module
+      # name; a target that carries no module falls back to http_2xx instead of
+      # probing with an empty module name.
+      - source_labels: [module]
+        target_label: __param_module
+        regex: "(.+)"
+      - source_labels: [module]
+        target_label: __param_module
+        regex: ""
+        replacement: http_2xx
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9115
+
+  # Application readiness read where the probes actually listen. The management
+  # port is loopback-only, so this probe stays on the host.
+  - job_name: blackbox-readiness
+    metrics_path: /probe
+    params:
+      module: [http_2xx_plain]
+    static_configs:
+      - targets:
+          - http://127.0.0.1:8081/actuator/health/readiness
+          - http://127.0.0.1:8082/actuator/health/readiness
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9115
