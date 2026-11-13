@@ -1,0 +1,46 @@
+# Tempo for the deployment host (P1.4).
+#
+# Spans arrive over OTLP/HTTP on the port the application already defaults to
+# (127.0.0.1:4318/v1/traces), and blocks stay on disk for the approved 30 days.
+# There is no metrics generator: span metrics and service graphs are a P2
+# dashboard decision, and enabling them here would silently grow the disk.
+#
+# Tempo 3 replaced the `compactor` block with `backend_worker`; for the
+# single-binary target it runs the compaction loop in-process, and
+# `compaction.block_retention` is still where the window lives.
+
+server:
+  http_listen_address: 127.0.0.1
+  http_listen_port: 3200
+  grpc_listen_address: 127.0.0.1
+  grpc_listen_port: 9095
+  log_level: info
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 127.0.0.1:4317
+        http:
+          endpoint: 127.0.0.1:4318
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+backend_worker:
+  compaction:
+    # 720h is the retention window; the same value appears in Loki.
+    block_retention: 720h
+    compacted_block_retention: 1h
+  ring:
+    kvstore:
+      store: inmemory
+
+usage_report:
+  reporting_enabled: false

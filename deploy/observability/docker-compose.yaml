@@ -1,0 +1,260 @@
+# Observability stack for the deployment host (P1.4).
+#
+#   ./deploy/secrets/render.sh --env prod     # payload this stack reads
+#   ./deploy/secrets/redis-exporter-passwords.sh
+#   cp prometheus/targets/public-http.json.example prometheus/targets/public-http.json
+#   docker compose -f deploy/observability/docker-compose.yaml up -d
+#
+# The target file is deployment data (it names public hosts), so it is not
+# tracked; without it the blackbox job simply has no targets.
+#
+# Every service runs on host networking and binds 127.0.0.1 only: the app's
+# management port (8081/8082), the exporters and every UI are reachable from the
+# host itself, and an operator reaches them through an SSH tunnel. Publishing a
+# dashboard to the internet is an edge decision (P3), not a property of the
+# stack, so no port here is bound to a routable address.
+#
+# Images follow `latest` like the rest of the repository (R12): record digests
+# with `docker inspect --format '{{index .RepoDigests 0}}'` when a deploy needs
+# to be reproduced later.
+#
+# Secrets come from the rendered SOPS payload (`deploy/secrets/run`). Grafana
+# reads its admin password through `__FILE`; the two database exporters read
+# the value from a mounted file in an entrypoint shim so neither the password
+# nor a copy of it appears in `docker inspect`.
+
+name: ctt-obs
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
+x-hardening: &hardening
+  restart: unless-stopped
+  logging: *default-logging
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  tmpfs:
+    - /tmp
+
+services:
+  prometheus:
+    <<: *hardening
+    image: prom/prometheus:latest
+    container_name: ctt-prometheus
+    network_mode: host
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # The approved retention window; Tempo and Loki carry the same value.
+      - --storage.tsdb.retention.time=30d
+      - --web.listen-address=127.0.0.1:9090
+      # Config changes (a new public target, a new rule file) reload without a
+      # restart: curl -X POST http://127.0.0.1:9090/-/reload
+      - --web.enable-lifecycle
+    volumes:
+      # The whole directory, not single files: a bind-mounted file is pinned to
+      # the inode it had at start-up, so rewriting prometheus.yml on the host
+      # would leave the container reading the old one while `/-/reload` says 200.
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    # A store needs time to flush its WAL before it is killed.
+    stop_grace_period: 45s
+    mem_limit: 1g
+    cpus: 1.5
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:9090/-/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  alertmanager:
+    <<: *hardening
+    image: prom/alertmanager:latest
+    container_name: ctt-alertmanager
+    network_mode: host
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.listen-address=127.0.0.1:9093
+      # Single instance: clustering would open a second listener for nothing.
+      - --cluster.listen-address=
+    volumes:
+      - ./alertmanager:/etc/alertmanager:ro
+      - alertmanager_data:/alertmanager
+    mem_limit: 128m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:9093/-/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  grafana:
+    <<: *hardening
+    image: grafana/grafana:latest
+    container_name: ctt-grafana
+    network_mode: host
+    environment:
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "3000"
+      # The tunnel in front of Grafana terminates on a different host name; the
+      # root URL stays relative so redirects and websockets work both ways.
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/"
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # Grafana otherwise downloads plugin builds on start-up, which on a proxied
+      # host leaves the container unhealthy for minutes; the stack uses none.
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      # The local stack's dashboard is the deployed one until P2.2 replaces it
+      # with the full set built as code.
+      - ../local/grafana-dashboard.json:/var/lib/grafana/dashboards/ctt-server.json:ro
+      - ../secrets/run/GRAFANA_ADMIN_PASSWORD:/run/secrets/grafana_admin_password:ro
+      - grafana_data:/var/lib/grafana
+    group_add:
+      - "${SECRET_GID:-1000}"
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  loki:
+    <<: *hardening
+    image: grafana/loki:latest
+    container_name: ctt-loki
+    network_mode: host
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    volumes:
+      - ./loki:/etc/loki:ro
+      - loki_data:/loki
+    stop_grace_period: 45s
+    mem_limit: 768m
+    cpus: 1.0
+
+  tempo:
+    <<: *hardening
+    image: grafana/tempo:latest
+    container_name: ctt-tempo
+    network_mode: host
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./tempo:/etc/tempo:ro
+      - tempo_data:/var/tempo
+    stop_grace_period: 45s
+    mem_limit: 768m
+    cpus: 1.0
+
+  alloy:
+    <<: *hardening
+    image: grafana/alloy:latest
+    container_name: ctt-alloy
+    network_mode: host
+    # The image's own uid owns the storage volume, and the stack runs without
+    # DAC_OVERRIDE, so root could not create its state directory. Running as the
+    # image's user is both the working and the smaller-privilege choice.
+    user: "473"
+    # The Docker API is the log source. It is mounted read-only, and Alloy only
+    # lists containers and streams their logs, so this path never mutates them.
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./alloy:/etc/alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy
+    group_add:
+      - "${DOCKER_GID:-999}"
+    mem_limit: 384m
+    cpus: 0.5
+
+  node-exporter:
+    <<: *hardening
+    image: prom/node-exporter:latest
+    container_name: ctt-node-exporter
+    network_mode: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=127.0.0.1:9100
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 128m
+    cpus: 0.3
+
+  postgres-exporter:
+    <<: *hardening
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: ctt-postgres-exporter
+    network_mode: host
+    # postgres_exporter only accepts the password through the environment, and
+    # `docker inspect` prints the environment of the container it started. The
+    # shim reads the rendered file and execs, so the value lives in the process
+    # of the exporter and nowhere in the container definition.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        export DATA_SOURCE_PASS="$$(cat /run/secrets/db_password)";
+        exec /bin/postgres_exporter --web.listen-address=127.0.0.1:9187
+    environment:
+      # The deployment database, not a developer's: the production role owns it
+      # and the production payload carries its password.
+      DATA_SOURCE_URI: ${POSTGRES_EXPORTER_URI:-127.0.0.1:5432/ctt_server_prod?sslmode=disable}
+      DATA_SOURCE_USER: ${POSTGRES_EXPORTER_USER:-ctt_app}
+    volumes:
+      - ../secrets/run/DB_PASSWORD:/run/secrets/db_password:ro
+    group_add:
+      - "${SECRET_GID:-1000}"
+    mem_limit: 128m
+    cpus: 0.3
+
+  redis-exporter:
+    <<: *hardening
+    image: oliver006/redis_exporter:latest
+    container_name: ctt-redis-exporter
+    network_mode: host
+    command:
+      - --redis.addr=redis://127.0.0.1:6379
+      # The exporter authenticates from a JSON map of URI to password, so the
+      # rendered file carries that shape (deploy/secrets/redis-exporter-passwords.sh)
+      # and the password never appears in the environment or the arguments.
+      - --redis.password-file=/run/secrets/redis-exporter-passwords.json
+      - --web.listen-address=127.0.0.1:9121
+    volumes:
+      - ../secrets/run/redis-exporter-passwords.json:/run/secrets/redis-exporter-passwords.json:ro
+    mem_limit: 128m
+    cpus: 0.3
+
+  blackbox-exporter:
+    <<: *hardening
+    image: prom/blackbox-exporter:latest
+    container_name: ctt-blackbox-exporter
+    network_mode: host
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+      - --web.listen-address=127.0.0.1:9115
+    volumes:
+      - ./blackbox:/etc/blackbox:ro
+    mem_limit: 128m
+    cpus: 0.5
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+  loki_data:
+  tempo_data:
+  alloy_data:

@@ -1,0 +1,14 @@
+[
+  {
+    "targets": ["https://example.com/"],
+    "labels": {
+      "module": "http_2xx"
+    }
+  },
+  {
+    "targets": ["https://api.example.com/"],
+    "labels": {
+      "module": "http_reachable"
+    }
+  }
+]

@@ -62,6 +62,10 @@ src/main/resources/application-local.properties
 # Rendered compose secrets (P0.5); only the SOPS payload is committed
 deploy/secrets/run/
 
+# Deployment-local scrape targets: the real list names the public hosts, the
+# committed .example shows only the shape.
+deploy/observability/prometheus/targets/*.json
+
 ### macOS ###
 .DS_Store
 ._*

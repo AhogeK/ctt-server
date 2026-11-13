@@ -1,0 +1,50 @@
+# Grafana datasources for the deployment stack (P1.4).
+#
+# One of each signal, addressed on loopback. Tempo and Loki carry the derived
+# fields that make the three views interchangeable: a `traceId` in a log line
+# opens the trace, and a trace opens the log lines that produced it.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://127.0.0.1:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://127.0.0.1:3100
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - name: traceId
+          matcherRegex: '"traceId":"([0-9a-f]{32})"'
+          url: "$${__value.raw}"
+          datasourceUid: tempo
+          matcherType: regex
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://127.0.0.1:3200
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: false
+      # No service map: it needs span metrics from Tempo's metrics generator,
+      # which this stack deliberately does not enable (P2 decides).
+      lokiSearch:
+        datasourceUid: loki
