@@ -15,6 +15,7 @@ token — only the mount paths.
 | `deploy/secrets/secrets.prod.enc.yaml` | yes (ciphertext only) | production values |
 | `deploy/secrets/render.sh` | yes | decrypts one payload (`--env dev` by default, or `--env prod`) into `0440` files for the container secrets |
 | `deploy/secrets/frp-token.sh` | yes | renders `FRP_TOKEN` to a `600` file, locally or over SSH |
+| `deploy/secrets/redis-exporter-passwords.sh` | yes | renders the JSON URI→password map the Redis exporter reads, locally or over SSH |
 | `deploy/secrets/run/` | no (gitignored) | rendered files that Compose mounts |
 | `~/.config/sops/age/keys.txt` | **never** | age private key (mode `600`) |
 
@@ -153,6 +154,26 @@ access host, `sudo systemctl restart frpc` on the deployment host.
 To verify: `grep -c '^auth.token =' frps.toml frpc.toml` returns zero on both hosts, and the frps
 log shows `client login info` followed by one `new proxy … success` line per proxy after the
 restart. The token never enters shell history, a tracked frp config or `docker inspect`.
+
+## Redis exporter password file
+
+The Redis exporter authenticates from a file, but that file is not a bare password: the exporter
+unmarshals it as a JSON object mapping each Redis URI to its password, so a plain-text file fails at
+start-up with a JSON parse error and the container restarts. The image has no shell for an entrypoint
+shim to convert it, so the map is rendered directly:
+
+```bash
+./deploy/secrets/redis-exporter-passwords.sh --remote <deploy-host> \
+  <checkout>/deploy/secrets/run/redis-exporter-passwords.json
+```
+
+The target is the file the Compose project mounts, so on a remote host it must be given
+explicitly; locally the script defaults to `deploy/secrets/run/redis-exporter-passwords.json`. The
+map is keyed by the address the exporter dials (`redis://127.0.0.1:6379` in the host-networked
+stack). The script follows the same rules as `frp-token.sh` — `mktemp` beside the
+target, rename into place, mode and size read back, `ssh -o BatchMode=yes` for the remote form, age
+identity only on the operator machine. Passwords may contain `@` and `:`; the charset guard rejects
+only `"`, `\` and control characters, which cannot appear unescaped inside the JSON string.
 
 ## Verifying a deployment
 
