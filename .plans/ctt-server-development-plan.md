@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1.3 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1、P1.2、P1.3 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.101.0 P1.3 分布式追踪（Micrometer Tracing + OTLP、W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样、导出关闭时的传播器补位）；v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1.4 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1、P1.2、P1.3、P1.4 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.102.0 P1.4 观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy 与 node/postgres/redis/blackbox exporter，全部回环地址、30 天保留，blackbox 覆盖 6 个公网 URL）；v0.101.0 P1.3 分布式追踪（Micrometer Tracing + OTLP、W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样、导出关闭时的传播器补位）；v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
 
 ## 🗺️ 计划总览
 
@@ -2186,7 +2186,7 @@ end note
 
 > **前置状态：** 面向生产的非功能性需求。真实地址/主机名见私密运维记录。**frps 与 frpc 均已 systemd 托管**；frps 代理端口仍绑 `0.0.0.0`，靠 ufw 默认拒绝；开发与联调仍共用同一个数据库。部署机另有既有公网 Jenkins，经 nginx 443 对外。
 
-**实现状态：** 🚧 **P0 部分交付 + P1.3 已完成**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1.4–P7 未开工，每步一个可独立验收的交付物。
+**实现状态：** 🚧 **P0 部分交付 + P1.4 已完成**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3，2026-11-13 补 P1.4）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）、P1.4（观测栈落地部署机）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P1.5–P7 未开工，每步一个可独立验收的交付物。
 
 **本轮交付（2026-11-07）**
 
@@ -2438,7 +2438,17 @@ end note
 > - 边界：Tempo 侧的可视化与 10% 采样的真实抽样率归 P1.4 复核；OTLP 端点默认值指向本机 collector，P1.4 落栈前不导出（基座默认关闭）；出站 span 目前只覆盖 `CaptchaService` 与 `GitHubOAuthClient`，Resend 等后续客户端接入时须同样注入 `ObservationRegistry`；`X-Trace-Id` 与 `traceparent` 的入站信任边界不变（仍由网关/直连客户端自报，trace id 不参与鉴权）。
 > - 重访：P1.4 落地后核对 Tempo 中的 span 树、采样率与日志 `traceId` 聚合；若要网关自行采样，须同步本服务的 parent-based 语义，否则 10% 比例永远不生效；若将来切到导出开关常开，可评估把 `TracingPropagationConfiguration` 并入统一配置（当前保留条件式补位）。
 > - 文档与版本：`docs/observability.md` 新增追踪一节（单一标识、配置表、传播器补位、parent-based 采样口径、出站 span、ACCESS_LOG 一致性、验证命令）、`docs/production-configuration.md` 增三行变量与守卫规则、`docs/api-reference.md` 新增 Trace Correlation、`AGENTS.md` R9 增补追踪规则（含 `TraceIds.current()` 与采样口径）；版本 `0.101.0`。
-
+>
+> **计划修订（2026-11-13，P1.4 收口）**：P1.4 按「观测栈自身可运行、可查询」收口为 ✅——十个容器全部回环监听、三处 30 天保留值各自落在自己的配置文件里、blackbox 对公网 URL 有 `probe_success` 数据、Tempo 收得到 OTLP span、Loki 收得到 `ctt-*` 容器日志。真实应用的抓取序列、span 树与 10% 抽样率，以及把 UI 发布到公网，都依赖首次生产部署（P3），不留在本条作为未完成验收。公网探测目标清单**不进仓库**（自有域名属部署事实），仓库只留 `targets/public-http.json.example` 说明形状，真文件放在部署机的 bind mount 目录里。
+>
+> **P1.4 完成总结（2026-11-13）**
+> - 交付：新增 `deploy/observability/`（Compose 项目 `ctt-obs`）：Prometheus（`127.0.0.1:9090`，`--storage.tsdb.retention.time=30d`，`--web.enable-lifecycle`）、Alertmanager（`9093`，占位 receiver，路由与规则留给 P2）、Grafana（`3000`，`__FILE` 读管理员口令，三个数据源与 file provider 面板）、Loki（`3100`，保留 720h + `retention_enabled`）、Tempo（`3200` 查询、`4317`/`4318` OTLP，`backend_worker` 块保留 720h）、Alloy（`12345`，Docker API 只读，只收名字匹配 `ctt-` 的容器、只加 `container` 标签）、node/postgres/redis/blackbox exporter（`9100`/`9187`/`9121`/`9115`）；新增 `deploy/secrets/redis-exporter-passwords.sh`（渲染 `-redis.password-file` 需要的 URI→口令 JSON 映射）。
+> - 三处配置陷阱（实测修正）：①`grafana/tempo:latest` 已是 Tempo 3，旧的 `compactor` 块被 `-config.verify` 直接拒绝，保留期改挂 `backend_worker.compaction`；② Alloy 镜像卷属 uid 473，而栈统一 `cap_drop: ALL`，root 也建不出目录 ⇒ 显式 `user: "473"`；③ Redis exporter 的口令文件不是纯文本而是 `map[string]string` JSON（键为规范化后的 `redis://host:port`），且镜像无 shell 不能做入口垫片 ⇒ 独立渲染脚本产出 JSON。
+> - 证据：`promtool check config`/`amtool check-config`/`blackbox --config.check`/`loki -verify-config`/`tempo -config.verify` 全部通过；十个容器 `Up`（Prometheus、Grafana、Alertmanager healthy）；`probe_success=1` 覆盖 `ahogek.com`、`blog.ahogek.com`、`link.ahogek.com`、`leetcard.ahogek.com`、`jenkins.ahogek.com/login`（`http_2xx`）与 `blogapi.ahogek.com`（`http_reachable`，接受 404），`probe_http_status_code` 与 `probe_ssl_earliest_cert_expiry` 有值；合成 OTLP span 可经 `GET /api/traces/<id>` 查回；Loki 的 `{container="ctt-prometheus"}` 有实时日志；`pg_up=1`、`redis_up=1`；Grafana API 列出 Loki/Prometheus/Tempo 三个数据源与一个面板。
+> - 边界：应用尚未部署，`ctt-server` 两条抓取目标 `up=0`、两条 readiness 探针 `probe_success=0`（连接被拒，约 1 ms），真实指标与 span 树归 P3 首次部署后复核；告警规则、值班路径与正式面板归 P2.1–P2.3；所有服务只监听回环，跨机访问靠 SSH 隧道，公网发布是 P3 的边缘决策；部署机同时承载其他租户的容器，Alloy 只收 `ctt-*` 前缀的日志，宿主 journald 不在本条范围。
+> - 重访：首次生产部署后核对 `cttserver_business_*` 的真实标签基数与抓取成本、Tempo 中的完整 span 树与 10% 抽样率；若要换掉占位 Alertmanager receiver，须同批写 runbook（P2.3）；配置目录必须整体挂载——单文件 bind mount 会钉住 inode，改文件后 `/-/reload` 返回 200 却什么都没变（本轮踩过，已写进文档与 Compose 注释）。
+> - 文档与版本：`docs/observability.md` 新增观测栈一节（服务与端口、无 collector 的追踪路径、保留期三处落点、三个密钥通道、`file_sd` 公网目标、目录挂载规则、面板归 P2）、`docs/deployment-secrets.md` 增补渲染脚本一行、README 索引同步；部署实例细节（主机、真实目标清单、镜像 digest）记在 `.omp/notes/2026-11-13/p1-4-observability-stack.md`；版本 `0.102.0`。
+> - 评审修正（Standards + Spec 两轴）：Postgres exporter 原指向开发库（`ctt_server`/`postgres` 与 dev 口令）⇒ 默认改为 `ctt_server_prod`/`ctt_app` 并由 `POSTGRES_EXPORTER_URI`/`_USER` 覆盖，部署机改用 prod 载荷口令后 `pg_up=1`；Grafana 与 postgres-exporter 补 `group_add: ["${SECRET_GID:-1000}"]`（`render.sh` 产 `0440` 属该组），Grafana Basic Auth 复测 200；Grafana 加 `GF_PLUGINS_PREINSTALL_DISABLED`（代理网络下启动期下载插件会让健康检查长时间失败）；Alertmanager 分组/抑制改用 `host`（与 Prometheus `external_labels.host` 对齐，`cluster` 无人携带）；数据源删掉必须 Tempo metrics-generator 的 `serviceMap` 与冗余 `nodeGraph`；Prometheus/Loki/Tempo 补 `stop_grace_period: 45s`；Compose 头部补第二条渲染脚本与 `cp targets/public-http.json.example …` 首启步骤；`redis-exporter-passwords.sh` 重写为 2 空格缩进 + `usage()`，`--remote` 必须显式给目标（原默认落在远端家目录）；`prometheus.yml` 注释把 relabel 误写成 reload；Loki 重启后 `/ready` 约十分钟 503（compactor 等 ring 稳定）已在文档写明，验证改用 `/loki/api/v1/labels`。
 
 > **P0.7 完成总结（2026-11-09）**
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
@@ -2520,7 +2530,7 @@ end note
 | P1 指标与追踪 | P1.1 ✅ | 指标出口：`micrometer-registry-prometheus`（版本由 Boot BOM 管，无需写版本号）+ 独立管理服务器 `management.server.port=${MANAGEMENT_PORT:8081}` 且 **`management.server.address=${MANAGEMENT_ADDRESS:127.0.0.1}`**；应用端口不提供管理载荷（白名单路径 404，其余 `/actuator/**` 401）；仅暴露 health/info/prometheus，生产由 `ProductionConfigurationGuard` 拒绝非回环或与 `server.port` 相同的管理端口 | `ActuatorSurfaceTest` + `ManagementSurfaceContractTest` 固定两端口暴露面与默认值；compose 健康检查与本地 Prometheus 改抓 8081/8082 | 中 |
 | | P1.2 ✅ | 六个业务指标：同步计数与耗时（`operation`/`outcome`/`payload`）、限流拒绝（`type`，含无维度的 `GLOBAL` 总闸）、邮件待发（`status` = `PENDING`/`FAILED`/`CANCELLED`，`SENDING` 不入序列）、排行榜待重算（无标签，Redis 脏集深度）、审计事件量（`severity`/`outcome`，`WRITTEN` 只在独立事务提交后累加）；业务标签 ≤3、取值全部来自枚举；耗时只发布直方图分桶（多实例可按 `histogram_quantile()` 聚合），gauge 抓取时现算并在读取失败时返回 `NaN` | `BusinessMetricsTest`（名称/标签/计数/三标签上限）+ `BusinessMetricsScrapeIntegrationTest`（管理端口抓取六个指标族与标签预算）+ `MailOutboxMetricsTest`/`LeaderboardMetricsTest`（含 `NaN` 路径） | 中 |
 | | P1.3 ✅ | 追踪：`spring-boot-micrometer-tracing-opentelemetry` + `micrometer-tracing-bridge-otel` + `opentelemetry-exporter-otlp`（均由 Boot BOM 管）；入站 W3C `traceparent` 由服务端 span 续接，日志 `traceId`、响应头 `X-Trace-Id` 与导出 span 同源；基座采样 1.0 不导出、生产 `TRACING_SAMPLING_PROBABILITY=0.1` 且导出开启（`ProductionConfigurationGuard` 拒绝关闭导出或采样比 ≤0）；`TracingPropagationConfiguration` 在导出关闭时补 W3C 传播器（Boot 4 只在导出开启时装配传播器，否则 no-op） | `TracingIntegrationTest`（真实容器续接 `traceparent`、无上下文时自生成）、`OtlpTraceExportIntegrationTest`（桩收集器收到的 protobuf 带调用方 trace id）、`ProductionTracingPolicyTest`（1.0/0.1/覆盖）、`RequestContextInitializerFilterTest` 12 例（span 优先、`X-Trace-Id` 仅兜底）；Tempo 内的完整 span 树归 P1.4 落地后复核 | 高 |
-| | P1.4 | 观测栈（**全部在部署机**）：Prometheus + Alertmanager + Grafana + Tempo + Loki + Alloy + node/postgres/redis/blackbox exporters，保留 30 天 | 各 UI 可访问；blackbox 对公网 URL 的探测有数据 | 中 |
+| | P1.4 ✅ | 观测栈（**全部在部署机**）：Prometheus + Alertmanager + Grafana + Tempo + Loki + Alloy + node/postgres/redis/blackbox exporters，保留 30 天；全部监听 `127.0.0.1`，经 SSH 隧道访问；Tempo 直接收 OTLP（`4317`/`4318`），Alloy 只收 `ctt-*` 容器日志推 Loki；公网探测目标由部署机的 `file_sd` 提供（仓库只留 `.example`），每目标可用 `module` 选 `http_2xx` 或 `http_reachable` | 各 UI 可经隧道访问；blackbox 对 6 个公网 URL 全部 `probe_success=1`；Tempo 查得回合成 span；Loki 有实时日志；`pg_up`/`redis_up` 为 1；应用的抓取与 span 树归 P3 | 中 |
 | | P1.5 | 日志补用户维度：MDC 现在只有 `traceId` / `clientIp`（已脱敏）/ `method` / `uri` / `deviceId` / `platform`，**没有 `userId`** ⇒ 按用户排障只能绕审计表。加 `userId`（UUID，不放邮箱），并确认请求结束会清理 | 一条请求日志能按 `userId` 过滤；响应结束后 MDC 无残留 | 低 |
 | P2 告警与面板 | P2.1 | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计增长率；另加隧道中断与证书 14 天到期；先 `severity: info` | `promtool check rules` 通过 | 中 |
 | | P2.2 | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康） | 新环境起栈后面板自动出现 | 中 |
@@ -2567,7 +2577,7 @@ end note
 | P0.0 本地全栈 | ✅ 完成 | 经 edge 200（`{"groups":["liveness","readiness"],"status":"UP"}`），两色直连亦 200；`--profile obs` 后 Prometheus `/-/ready` 就绪、`prometheus` 与两条 `blackbox-http` target 全 `up`、Grafana 13.3.0 `api/health` = `database: ok`；**内存实测（1.92 GB VM）**：默认栈 + `obs`（不含 Grafana）约 1.15 GB 稳定；加 Grafana 约 1.4 GB 稳定；**两色 + Grafana 不稳**——稳态接近 1.7 GB，启动期第二色被 OOM 杀（`OOMKilled=true`, exit 137）⇒ 三者同开建议 VM ≥ 3 GB（推荐 4 GB）。**4 GB VM 实测（3.81 GiB 可用）**：全 profile 同起占用约 2.06 GB，edge/blue/green/grafana/prom 五处 200，`oom=false`，Grafana 上限提到 768m。容器用 `mem_limit: 900m` + `-XX:MaxRAMPercentage=45`；双轴审查后补齐：profile 统一 `bluegreen`、obs 镜像一律 `latest`（用户决策，含大版本）、头注释改指 `up.sh`；Grafana 首启慢（约 3 分钟，app-platform 逐个装 API）已写入 README |
 | P0.1 prod 日志脱敏 | ✅ 完成 | 本地：`MaskingJsonEncoderTest` 4 例（消息明文、`query_string` 的 `token=`、干净事件保 schema、占位符模板）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过。E2E：prod profile 实跑 `java -jar ctt-server-0.93.1.jar`，请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志为 `"query_string":"token=******"`（全行无 token 原文）。残余：MDC 与 throwable 文本未掩码（已写进 `docs/security-architecture.md`） |
 
-**未开工**：P1.4–P1.5、P2–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
+**未开工**：P1.5、P2–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
 
 **工程与生产化缺口复查（2026-11-07）**
 

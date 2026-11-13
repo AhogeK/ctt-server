@@ -179,3 +179,13 @@ actuator 与 metrics 不由业务端口提供：`management.server.port`（默�
 平台事实（Boot 4.1.2）：`OpenTelemetryPropagationConfigurations$PropagationWith*` 带 `@ConditionalOnEnabledTracingExport`，**只有导出开启时才装配 `CompositeTextMapPropagator`**，否则是 `noopTextMapPropagator`，每个请求新开 trace、入站 `traceparent` 被丢弃。所以 `TracingPropagationConfiguration` 在 `management.tracing.export.enabled=false` 时补一个 `W3CTraceContextPropagator`；删掉这个条件，本地关联会静默失效（日志看起来一切正常，只是 trace 对不上），而生产因为导出开启反而不受影响——这类「只在基座出错」的默认值最容易被忽略。过滤器顺序是第二个坑：`RequestContextInitializerFilter` 必须在 `ServerHttpObservationFilter`（`HIGHEST_PRECEDENCE + 1`）之后、安全链（-100）之前，否则拿不到 span。验证只能在真实容器上做（`MockMvc` 不经过注册的过滤器链）：`TracingIntegrationTest` 断言响应头等于传入的 `traceparent`，`OtlpTraceExportIntegrationTest` 用桩收集器断言导出的 protobuf 里带同一个 trace id——「span 出进程」才是导出功能的验收，而不是「Bean 存在」。
 
 两个易漏的一致性点：`RequestLoggingFilter` 必须晚于 `RequestContextInitializerFilter`（当前 `HIGHEST_PRECEDENCE + 3`），否则它在 `finally` 里写 ACCESS_LOG 时 MDC 已被清掉，访问日志永远没有 traceId；出站客户端必须用应用的 `ObservationRegistry` 构建（`RestClient.builder().observationRegistry(...)`），静态 builder 既不会产生 client span 也不会注入 `traceparent`——`CaptchaService` 与 `GitHubOAuthClient` 是现有两例，新增下游时照此办理。
+
+## 观测栈：一个后端、一处保留期、整目录挂载
+
+应用侧只负责「产出」：指标走回环管理端口的抓取面，日志走 stdout 的 JSON，span 走 OTLP 的默认端点。接收侧必须**少一跳**：Tempo 直接听 `4317`/`4318`，`management.opentelemetry.tracing.export.otlp.endpoint` 指着它，就不需要再部署、再监控一个 OTel Collector；只有「stdout 日志 → 日志库」这类应用无法自己完成的搬运才引入采集器（Alloy），并且只收本服务的容器、只加容器名一个标签——日志里的 `traceId`/`level`/`uri` 留在正文里由查询时解析，进了索引标签就成了无界基数。
+
+保留期写在各自会执行它的地方：Prometheus 用 `--storage.tsdb.retention.time`，Loki 用 `limits_config.retention_period` 加 `compactor.retention_enabled`，Tempo 用 `backend_worker.compaction.block_retention`。写进文档而不写进配置的保留期等于没有保留期——P0.16c 的审计保留就吃过这个亏。同理，**部署事实不进仓库**：公网探测目标（自有域名、期望状态码）由部署机的 `file_sd` 文件提供，仓库只留 `.example` 说明形状，这样换一台机器部署不需要改代码，也不会把租户域名写进公开仓库。
+
+配置按**目录**挂载，不按单文件。单文件 bind mount 钉住的是启动时的 inode，之后在宿主上改写文件（尤其是用新 inode 的写入方式），容器仍然读旧内容——`POST /-/reload` 会返回 200 而配置毫无变化，排查方向容易被误导到「reload 不生效」。整目录挂载顺带让新增的规则文件、target 文件无需重建容器。三个镜像事实同样容易踩：`grafana/tempo:latest` 已是 Tempo 3（`compactor` 块改名 `backend_worker`，旧配置被 `-config.verify` 直接拒绝）；Alloy 的数据卷属 uid 473 而编排统一 `cap_drop: ALL`，不显式 `user` 就连 root 也建不出目录；Redis exporter 的口令文件不是纯文本而是 `map[string]string` JSON（键是规范化后的 `redis://host:port`），镜像又没有 shell 可做入口垫片，只能由渲染脚本直接产出 JSON。
+
+验收要落在「数据真的到了」：`probe_success`（不是 `up`——`up` 只说明 blackbox 自己被抓住）对每个公网目标为 1、Tempo 能用 `GET /api/traces/<id>` 查回一条合成 span、Loki 能按容器名查到实时日志、`pg_up`/`redis_up` 为 1。应用尚未部署时，抓取目标 `up=0` 是预期状态，不是故障——把它写进边界，而不是靠「看起来没红」判断栈是否可用。
