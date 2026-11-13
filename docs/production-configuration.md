@@ -27,7 +27,7 @@ collects every violation into one message, so one restart lists everything to fi
 | `MANAGEMENT_ADDRESS` | environment, optional | defaults to `127.0.0.1` and must stay loopback in production — the guard rejects any other value, so the scraper shares the host network namespace |
 | `TRACING_SAMPLING_PROBABILITY` | environment, optional | production profile defaults to `0.1`; a sampled trace is exported whole, an unsampled one is dropped |
 | `TRACING_EXPORT_ENABLED` | environment, optional | production profile defaults to `true`; the guard refuses a production instance that disables it |
-| `OTLP_TRACING_ENDPOINT` | environment, optional | collector address, defaults to `http://127.0.0.1:4318/v1/traces`; belongs to the deployment contract |
+| `OTLP_TRACING_ENDPOINT` | environment, optional | OTLP/HTTP receiver address, defaults to `http://127.0.0.1:4318/v1/traces` (Tempo in the deployment stack); belongs to the deployment contract |
 
 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/` maps every mounted file to a property of
 the same name, so secret files are read without exporting anything. Compose already mounts

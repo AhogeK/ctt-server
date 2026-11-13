@@ -25,15 +25,15 @@ That is deliberate: while both servers were one, metrics were reachable wherever
 
 Every request is traced with Micrometer Tracing over OpenTelemetry. One identifier ties the three
 places an operator looks at: the `traceId` in the log line, the `X-Trace-Id` response header and the
-span the collector stores. They agree because all three come from the server span. Sampling decides
-what the collector stores, not whether the identifier exists: an unsampled request still writes its
+span the trace backend stores. They agree because all three come from the server span. Sampling decides
+what the backend keeps, not whether the identifier exists: an unsampled request still writes its
 trace id into the header and the log line, so correlation survives for traffic that is not recorded.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `management.tracing.sampling.probability` | `1.0` base, `0.1` production (`TRACING_SAMPLING_PROBABILITY`) | share of traces recorded; a sampled trace is complete, an unsampled one is dropped whole |
 | `management.tracing.export.enabled` | `false` base, `true` production (`TRACING_EXPORT_ENABLED`) | whether spans leave the process over OTLP |
-| `management.opentelemetry.tracing.export.otlp.endpoint` | `http://127.0.0.1:4318/v1/traces` (`OTLP_TRACING_ENDPOINT`) | collector address; part of the deployment contract, not a code constant |
+| `management.opentelemetry.tracing.export.otlp.endpoint` | `http://127.0.0.1:4318/v1/traces` (`OTLP_TRACING_ENDPOINT`) | OTLP receiver address (Tempo in the deployment stack); part of the deployment contract, not a code constant |
 
 The incoming context is W3C `traceparent`. The gateway sets it, the server span continues that
 trace, and `traceparent` is also what the exporter reports, so a span tree started by the edge stays
@@ -166,6 +166,101 @@ runs them at the same time and each needs its own management port:
 the inactive slot appears. Blackbox probes read readiness on those same management ports and check
 one public path through the edge, so a proxy failure is distinguishable from an application failure.
 
+## Observability stack
+
+`deploy/observability/docker-compose.yaml` runs the stack that consumes what the application
+produces. Every service binds `127.0.0.1` and the Compose project uses the host network, so nothing
+is published beyond the machine: an operator reaches a UI through an SSH tunnel
+(`ssh -L 3000:127.0.0.1:3000 <host>`), which is also why the stack needs no authentication story of
+its own yet.
+
+| Service | Loopback | Role |
+| --- | --- | --- |
+| Prometheus | `9090` | scrapes the application and the exporters, evaluates rules |
+| Alertmanager | `9093` | groups and routes alerts; no rules are loaded yet, so its receiver is a placeholder |
+| Grafana | `3000` | dashboards over the three signals |
+| Loki | `3100` | log store, fed by Alloy |
+| Tempo | `3200` query, `4318` OTLP/HTTP, `4317` OTLP/gRPC | trace store, written by the application directly |
+| Alloy | `12345` | reads container logs from the Docker API and pushes them to Loki |
+| node_exporter | `9100` | host metrics |
+| postgres_exporter | `9187` | database metrics |
+| redis_exporter | `9121` | Redis metrics |
+| blackbox_exporter | `9115` | public URL and readiness probes |
+
+The trace path has no collector hop: the application's default
+`http://127.0.0.1:4318/v1/traces` is Tempo itself, so a span written by the application is queryable
+in Tempo without an OTel Collector to deploy, configure and monitor. The log path needs one piece of
+glue because the application writes JSON to stdout: Alloy tails the containers whose name matches
+`ctt-`, keeps the line intact and labels it with the container name only. Grafana parses the line with
+`| json`, which is what keeps `traceId`, `level` and `uri` queryable without turning them into index
+labels.
+
+Retention is thirty days in each store, expressed where each one keeps it:
+
+| Store | Setting |
+| --- | --- |
+| Prometheus | `--storage.tsdb.retention.time=30d` |
+| Tempo | `backend_worker.compaction.block_retention: 720h` (Tempo 3 replaced the `compactor` block) |
+| Loki | `limits_config.retention_period: 720h` plus `compactor.retention_enabled: true` and `delete_request_store: filesystem` |
+
+Three containers need a secret, and each gets it without the value appearing in `docker inspect`:
+Grafana reads `GF_SECURITY_ADMIN_PASSWORD__FILE`, the Postgres exporter loads the value from a
+mounted file in an entrypoint shim and exports it only for its own process, and the Redis exporter
+needs a JSON map of URI to password, which `deploy/secrets/redis-exporter-passwords.sh` renders
+(`-redis.password-file`). `render.sh` writes the files `0440` for the group named by `SECRET_GID`,
+and the two containers that are neither root nor that group receive it through `group_add`.
+The stack reads the **production** payload (`render.sh --env prod`): the Postgres exporter defaults
+to `ctt_server_prod` and the `ctt_app` role, and `POSTGRES_EXPORTER_URI` / `POSTGRES_EXPORTER_USER`
+point it elsewhere when a deployment names things differently.
+
+Public URLs are probed by blackbox, and the list lives outside this repository in the deployment's
+`prometheus/targets/public-http.json` — start from `targets/public-http.json.example` and copy it into
+place before the first start, because a missing file leaves the job with no targets and therefore no
+`probe_success` series at all. Each entry carries a `module` label — `http_2xx` for pages that must
+answer 2xx, `http_reachable` for services whose root answers something else by design — and a target
+without one defaults to `http_2xx`. Because the list is a file, Prometheus picks up a change within a
+minute without a restart.
+
+Mount configuration directories, not single files. A bind-mounted file is pinned to the inode it had
+when the container started, so rewriting the file on the host leaves the container reading the old
+content — `POST /-/reload` answers 200 while nothing changed. Every service here mounts its
+configuration directory for that reason.
+
+The dashboard provisioned today is the local stack's JSON (`deploy/local/grafana-dashboard.json`),
+mounted into Grafana's provisioning path so a fresh stack has something to look at. A later change
+replaces it with the full set built as code; until then the panels are a starting point, not a
+specification.
+
+### Verifying the stack
+
+Run these on the deployment host after `docker compose up -d`:
+
+```bash
+# Every container up, the three with healthchecks healthy
+docker ps --filter name=ctt- --format '{{.Names}} {{.Status}}'
+
+# Public probes carry data; `up` only says blackbox answered the scrape
+curl -s --get --data-urlencode 'query=probe_success{job="blackbox-public"}' \
+  http://127.0.0.1:9090/api/v1/query
+
+# The trace path end to end: Tempo answers 200 for a trace it stored
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3200/api/traces/<trace-id>
+
+# The log path: a container's own lines arrive with the container label (the
+# query API answers immediately; /ready stays 503 for about ten minutes after a
+# start while the compactor waits for its ring to settle)
+curl -s --get --data-urlencode 'query={container="ctt-prometheus"}' --data-urlencode 'limit=1' \
+  http://127.0.0.1:3100/loki/api/v1/query_range
+
+# Value from the probes: TLS expiry and HTTP status per target
+curl -s --get --data-urlencode 'query=probe_ssl_earliest_cert_expiry' http://127.0.0.1:9090/api/v1/query
+```
+
+Until the application is deployed, the two `ctt-server` scrape targets report `up 0` and the two
+readiness probes report `probe_success 0` with a sub-millisecond duration — a refused connection, not
+a broken stack. The real series and span tree are verified once the production overlay puts the
+application on the host.
+
 ## Deployment rule
 
 Publish the management port on loopback only. With bridge networking that means binding the host
@@ -223,9 +318,10 @@ answers — the same surface Prometheus scrapes.
 
 ## Not covered yet
 
-Long-term metric retention and the collector itself are separate pieces of work. Deploy-time alert
-rules live with the production overlay; until then, the business metrics above are what a dashboard
-or a first alert would read.
+Long-term metric retention is configured per store (see the table above) but has not yet been observed
+across a month of production traffic. Alert rules, receivers and the on-call path are not part of the
+stack yet: it runs Alertmanager with a placeholder receiver so the wiring is exercised, and until
+rules land the business metrics above are what a dashboard or a first alert would read.
 
 ## Related
 
