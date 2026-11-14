@@ -6,6 +6,7 @@ import com.ahogek.cttserver.auth.infrastructure.security.JwtAuthenticationEntryP
 import com.ahogek.cttserver.auth.infrastructure.security.JwtToCurrentUserConverter;
 import com.ahogek.cttserver.auth.infrastructure.security.PublicApiEndpointRegistry;
 import com.ahogek.cttserver.common.config.properties.SecurityProperties;
+import com.ahogek.cttserver.common.context.UserMdcFilter;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -52,6 +53,7 @@ public class SecurityConfig {
     private final TermsCheckFilter termsCheckFilter;
     private final CorsConfigurationSource corsConfigurationSource;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+    private final UserMdcFilter userMdcFilter;
 
     public SecurityConfig(
             PublicApiEndpointRegistry publicApiRegistry,
@@ -60,7 +62,8 @@ public class SecurityConfig {
             JwtToCurrentUserConverter jwtToCurrentUserConverter,
             TermsCheckFilter termsCheckFilter,
             CorsConfigurationSource corsConfigurationSource,
-            ApiKeyAuthenticationFilter apiKeyAuthenticationFilter) {
+            ApiKeyAuthenticationFilter apiKeyAuthenticationFilter,
+            UserMdcFilter userMdcFilter) {
         this.publicApiRegistry = publicApiRegistry;
         this.securityProperties = securityProperties;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
@@ -68,6 +71,7 @@ public class SecurityConfig {
         this.termsCheckFilter = termsCheckFilter;
         this.corsConfigurationSource = corsConfigurationSource;
         this.apiKeyAuthenticationFilter = apiKeyAuthenticationFilter;
+        this.userMdcFilter = userMdcFilter;
     }
 
     /**
@@ -155,7 +159,8 @@ public class SecurityConfig {
                                                         referrer.policy(
                                                                 ReferrerPolicy.NO_REFERRER)))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .addFilterAfter(termsCheckFilter, SecurityContextHolderAwareRequestFilter.class)
+                .addFilterAfter(userMdcFilter, SecurityContextHolderAwareRequestFilter.class)
+                .addFilterAfter(termsCheckFilter, UserMdcFilter.class)
                 .addFilterBefore(apiKeyAuthenticationFilter, BearerTokenAuthenticationFilter.class)
                 .oauth2ResourceServer(
                         oauth2 ->
