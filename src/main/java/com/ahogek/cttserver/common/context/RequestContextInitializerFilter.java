@@ -34,8 +34,10 @@ import io.micrometer.tracing.Tracer;
  * sampling decides only whether the span's data is exported, never whether the identifier exists.
  *
  * <p>Runs immediately after the observation filter that opens the server span (registered at {@code
- * HIGHEST_PRECEDENCE + 1}) and well before the security chain, so even a rejected request leaves
- * with a trace id.
+ * HIGHEST_PRECEDENCE + 1}) and well outside the security chain, so even a rejected request leaves
+ * with a trace id. It also owns the MDC lifetime: {@link UserMdcFilter} adds the authenticated
+ * user's identifier from inside the security chain, and this filter removes every key — that one
+ * included — when the request completes, so nothing survives on a reused thread.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-03-15
@@ -109,6 +111,7 @@ public final class RequestContextInitializerFilter extends OncePerRequestFilter 
             MDC.remove(MdcKey.REQUEST_URI);
             MDC.remove(MdcKey.DEVICE_ID);
             MDC.remove(MdcKey.PLATFORM);
+            MDC.remove(MdcKey.USER_ID);
         }
     }
 
