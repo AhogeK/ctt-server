@@ -180,6 +180,14 @@ actuator 与 metrics 不由业务端口提供：`management.server.port`（默�
 
 两个易漏的一致性点：`RequestLoggingFilter` 必须晚于 `RequestContextInitializerFilter`（当前 `HIGHEST_PRECEDENCE + 3`），否则它在 `finally` 里写 ACCESS_LOG 时 MDC 已被清掉，访问日志永远没有 traceId；出站客户端必须用应用的 `ObservationRegistry` 构建（`RestClient.builder().observationRegistry(...)`），静态 builder 既不会产生 client span 也不会注入 `traceparent`——`CaptchaService` 与 `GitHubOAuthClient` 是现有两例，新增下游时照此办理。
 
+## MDC 的写入可以分散，清理只能有一处
+
+请求级 MDC 键由不同层写入：外层上下文过滤器写 `traceId`/`clientIp`/`method`/`uri`/`deviceId`/`platform`，安全链内的 `UserMdcFilter` 在认证解析之后补 `userId`。**清理必须只由最外层的 `RequestContextInitializerFilter` 负责**：内层过滤器若在自己的 `finally` 里删键，`RequestLoggingFilter` 写 ACCESS_LOG 时值已经没了——表现是「日志里明明有用户上下文，访问行却是 anonymous」。反过来，把清理集中在最外层还顺带解决了线程复用：容器线程归还前所有键都已删除，下一个请求不会继承上一个请求的用户。**注入位置要按「想让它覆盖哪些拒绝」来定，而不是就近锚定**：`UserMdcFilter` 最初排在 `TermsCheckFilter` 之后，于是条款网关的 403 与它自己的 WARN 全是 `anonymous`——而这正是最需要归因的一类拒绝。改为 `addFilterAfter(userMdcFilter, SecurityContextHolderAwareRequestFilter.class)` + `addFilterAfter(termsCheckFilter, UserMdcFilter.class)` 后，安全链内先后关系变成显式声明（不再依赖相邻行的书写顺序），网关也带上了用户维度。锚点选框架类，别选自定义 Bean：链条读起来就是执行顺序。
+
+用户维度只放 UUID，不放邮箱或显示名：那是把个人数据复制进每一行日志与日志存储，且与审计表里的最小化原则（ADR-0002）冲突。`UserMdcFilterTest` 钉住「不写邮箱」，`UserMdcIntegrationTest` 钉住三条可观测契约——访问行带 `[U:<uuid>]`、条款网关的 403 与其 WARN 带同一 UUID、请求结束后 `MDC.get` 为 null。若将来请求内工作改到线程池或异步分发，MDC 不会自动传播（`TaskDecorator`/`ScopedValue` 才补得上），这条前提要重新评估。
+
+过滤器本身是「每片 web 上下文都会装配」的组件：`@WebMvcTest` 把 `Filter` Bean 一并拉进切片，所以过滤器新增的构造器依赖若在切片里不存在，失败的不是一个测试而是整批上下文（2026-11-14 实测 63 例）。日志、指标这类旁路关注点因此用 `ObjectProvider` 惰性取依赖（无提供者即不做事），而不是给几十个切片补 mock 或给过滤器加条件装配——旁路能力永远不该阻断上下文启动。判断依据是「这个依赖缺失时，本过滤器应当静默还是拒绝工作」，不是「测试能不能通过」。
+
 ## 观测栈：一个后端、一处保留期、整目录挂载
 
 应用侧只负责「产出」：指标走回环管理端口的抓取面，日志走 stdout 的 JSON，span 走 OTLP 的默认端点。接收侧必须**少一跳**：Tempo 直接听 `4317`/`4318`，`management.opentelemetry.tracing.export.otlp.endpoint` 指着它，就不需要再部署、再监控一个 OTel Collector；只有「stdout 日志 → 日志库」这类应用无法自己完成的搬运才引入采集器（Alloy），并且只收本服务的容器、只加容器名一个标签——日志里的 `traceId`/`level`/`uri` 留在正文里由查询时解析，进了索引标签就成了无界基数。

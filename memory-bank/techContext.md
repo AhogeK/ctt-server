@@ -17,7 +17,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-13 / v0.102.0（P1.4 只加观测栈编排与渲染脚本，不动 Java 依赖；P1.3 引入 `spring-boot-micrometer-tracing-opentelemetry`、`micrometer-tracing-bridge-otel`、`opentelemetry-exporter-otlp` 与测试用 `micrometer-tracing-test`，全部由 Boot BOM 管版本；P1.2 只加业务指标不涉及依赖；P1.1 引入 `micrometer-registry-prometheus`、删除重复的 `flyway-database-postgresql` 声明；上一次依赖核对为 2026-11-07 / v0.93.0，含 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-14 / v0.103.0（P1.5 只加日志用户维度，不动任何依赖；P1.4 只加观测栈编排与渲染脚本，不动 Java 依赖；P1.3 引入 `spring-boot-micrometer-tracing-opentelemetry`、`micrometer-tracing-bridge-otel`、`opentelemetry-exporter-otlp` 与测试用 `micrometer-tracing-test`，全部由 Boot BOM 管版本；P1.2 只加业务指标不涉及依赖；P1.1 引入 `micrometer-registry-prometheus`、删除重复的 `flyway-database-postgresql` 声明；上一次依赖核对为 2026-11-07 / v0.93.0，含 Flyway 13.12.1、commons-codec 1.23.0、Spotless 8.11.0、ben-manes 0.67.0、Gradle 9.9.0）。
 
 ## 架构
 
