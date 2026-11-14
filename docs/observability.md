@@ -69,6 +69,29 @@ agreement over the real servlet container; `TracingSamplingIntegrationTest` driv
 zero and proves that correlation survives when nothing downstream is recorded; and
 `RequestContextInitializerFilterTest` covers the fallback when no tracer is present.
 
+### Log fields
+
+Every line carries `traceId`, `clientIp` (masked) and, once the security chain has resolved a
+principal, `userId`. The user dimension is the UUID only — an email would put personal data into
+every log line and into whatever store ships them. Console output renders `[U:<uuid>]` and
+`[U:anonymous]` for unauthenticated traffic; the production JSON encoder writes the MDC map, so the
+same value is a queryable field.
+
+The value is added inside the security chain (`UserMdcFilter`, as soon as the context holds a
+principal, via `CurrentUserProvider`) and removed by `RequestContextInitializerFilter`, which owns
+the MDC lifetime. That is why a filtered line and an empty context after the response hold at the
+same time: the access line is written by `RequestLoggingFilter`, still inside the scope, and the
+cleanup runs when the outermost context filter returns — so a reused thread never inherits the
+previous request's user. `UserMdcFilterTest` covers the filter and `UserMdcIntegrationTest` covers
+the observable contracts (the line carries the identifier, the context is empty afterwards, and a
+rejection raised after authentication keeps the identifier).
+
+The injection point sits before the terms gate, so a request the gate rejects (403) is attributed to
+its user in both the access line and the gate's own warning; browser-session and API-key requests
+both reach the injection point with a principal. What stays `anonymous` is traffic that never
+authenticated (401), and work that runs after the response on another thread — asynchronous audit
+writes, mail delivery and leaderboard recomputation — where the audit row carries the user instead.
+
 ## Endpoints
 
 `management.endpoints.web.exposure.include` lists `health`, `info` and `prometheus` only. The
