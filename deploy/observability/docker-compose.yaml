@@ -87,8 +87,18 @@ services:
     volumes:
       - ./alertmanager:/etc/alertmanager:ro
       - alertmanager_data:/alertmanager
+      # Rendered by deploy/secrets/render.sh, which writes both files even when
+      # the payload has no value yet: a bind mount of a missing path would be
+      # created as a directory and Alertmanager would fail every delivery with a
+      # confusing "is a directory" instead of a clear Telegram rejection.
+      - ../secrets/run/TELEGRAM_BOT_TOKEN:/run/secrets/telegram_bot_token:ro
+      - ../secrets/run/TELEGRAM_CHAT_ID:/run/secrets/telegram_chat_id:ro
     mem_limit: 128m
     cpus: 0.5
+    # The rendered files are 0440 and belong to SECRET_GID, like every other
+    # credential here: the container user joins that group rather than the file
+    # being made world-readable.
+    group_add: ["${SECRET_GID:-1000}"]
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:9093/-/ready || exit 1"]
       interval: 30s

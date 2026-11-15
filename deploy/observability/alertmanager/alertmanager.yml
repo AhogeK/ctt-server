@@ -1,28 +1,85 @@
-# Alertmanager for the deployment host (P1.4).
+# Alertmanager for the deployment host (P1.4). P2.1 wrote the rules; P2.3 decides
+# who gets told, how often, and when an alert is suppressed by another one.
 #
-# Deliberately minimal: P2.1 writes the alert rules, P2.3 decides who gets
-# paged. Until then every alert lands in one receiver that does nothing, which
-# keeps the API, the UI and the rule-less configuration path exercised without
-# inventing a notification channel that nobody has approved.
+# Telegram, not email, is the paging channel: the transactional mail quota is
+# small and a quota failure would silently drop a page, while the Bot API costs
+# nothing and the operator already lives in Telegram. Delivery uses Alertmanager's
+# own `<telegram_config>` (upstream since v0.24.0) instead of a relay container:
+# one less thing to run, and the integration already handles HTML escaping, token
+# redaction in logs and its own retries. Email is deliberately not configured —
+# see docs/observability.md "Alerting" for the reasoning and for the one-line
+# route to add if a mail channel is ever needed.
+#
+# Credentials are files, not values: `bot_token_file` and `chat_id_file` keep the
+# token out of `docker inspect` and out of this repository. They are re-read for
+# every delivery, so no restart is needed when the *content of an already mounted
+# file* changes — but `deploy/secrets/render.sh` replaces each file (new inode), and
+# a single-file bind mount keeps pointing at the old one. After a re-render,
+# recreate the container: `docker compose up -d --force-recreate alertmanager`.
+# A missing or empty file does not stop Alertmanager from starting; it makes every
+# delivery fail, which `TelegramDeliveryFailing` reports.
 
 global:
   resolve_timeout: 5m
 
 route:
-  receiver: unconfigured
-  # `host` is the external label Prometheus attaches to every series, so alerts
-  # carry it. Grouping on a label no alert has (for example a log-only `cluster`)
-  # silently degrades to grouping by alertname alone.
+  # Anything that matches no severity route lands here on purpose: a rule that
+  # forgets its severity label shows up in the UI and the dashboards but must not
+  # page anyone.
+  receiver: silent
+  # `host` is the external label Prometheus attaches to every series, so every
+  # alert carries it. Grouping on a label no alert has (for example a log-only
+  # `cluster`) silently degrades to grouping by alertname alone.
   group_by: [alertname, host]
+  # 30s: fast enough to stay inside the one-minute delivery promise without
+  # merging unrelated incidents that happen to start seconds apart.
   group_wait: 30s
   group_interval: 5m
-  repeat_interval: 4h
+  repeat_interval: 12h
+  routes:
+    # info: plotted in Grafana, never a notification. LeaderboardRecomputeStalled
+    # is the only rule at this level today.
+    - matchers: ['severity = "info"']
+      receiver: silent
+    # warning: one message per group, reminded every four hours while it holds.
+    - matchers: ['severity = "warning"']
+      receiver: telegram
+      repeat_interval: 4h
+    # critical: same channel, but reminded hourly — an unreachable edge or a lost
+    # audit row is not something to discover twelve hours later.
+    - matchers: ['severity = "critical"']
+      receiver: telegram
+      repeat_interval: 1h
 
 receivers:
-  - name: unconfigured
+  # A receiver with no integrations is how Alertmanager means "accept and drop".
+  - name: silent
+  # Native Telegram. The credentials are files so `docker inspect` and this
+  # repository stay free of the token; the read happens per delivery, which is why
+  # only the inode question above needs a recreate after a re-render.
+  - name: telegram
+    telegram_configs:
+      - bot_token_file: /run/secrets/telegram_bot_token
+        chat_id_file: /run/secrets/telegram_chat_id
+        send_resolved: true
+        # HTML is Alertmanager's default; stating it keeps the escaping contract
+        # explicit — label values are escaped, so markup in a summary cannot
+        # break the message. 10s bounds a hung Bot API call.
+        parse_mode: HTML
+        timeout: 10s
 
 inhibit_rules:
-  # One page per host outage, not one per affected target.
-  - source_matchers: [severity = "critical"]
-    target_matchers: [severity =~ "warning|info"]
+  # One page per outage, not one per affected target. The source is limited to the
+  # two alerts that mean "the box is unreachable": `host` is a single external
+  # label here, so a blanket `severity = critical` source would also mute an
+  # unrelated 14-day certificate warning for the whole life of an application
+  # incident — the labels exist, the blast radius does not.
+  - source_matchers: ['alertname =~ "TunnelDown|PublicEndpointDown"']
+    target_matchers: ['severity =~ "warning|info"']
+    equal: [host]
+  # When every public probe fails, the tunnel is the story; the per-endpoint
+  # alerts underneath it are the same incident told once per host name. Both are
+  # critical, so the rule above cannot suppress them.
+  - source_matchers: ['alertname = "TunnelDown"']
+    target_matchers: ['alertname = "PublicEndpointDown"']
     equal: [host]

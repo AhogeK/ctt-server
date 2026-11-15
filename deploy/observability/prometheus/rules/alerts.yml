@@ -1,7 +1,17 @@
-# P2.1 alert rules. Every rule is symptom-based: it fires on a user-visible or
-# capacity signal, not on a guessed cause, and carries a link to the runbook in
-# docs/observability.md. Severity is deliberately info for all rules until the
-# paging story (P2.3) decides which of these deserve warning/critical.
+# P2.1 alert rules; severities assigned in P2.3. Every rule is symptom-based: it
+# fires on a user-visible or capacity signal, not on a guessed cause, and links
+# to the runbook in docs/observability.md.
+#
+# Severity selects the notification path (alertmanager/alertmanager.yml):
+#   critical -> pages: Telegram now, repeated hourly until the alert resolves.
+#   warning  -> Telegram once, repeated every four hours.
+#   info     -> no notification; visible in the Alertmanager UI and the P2.2
+#               dashboards only. LeaderboardRecomputeStalled is deliberately the
+#               single info rule: derived data lagging is worth plotting, not
+#               worth waking anyone.
+# The split follows blast radius, not metric family: a down endpoint, a lost
+# audit row or a breached error SLO is critical, while capacity pressure and a
+# degraded-but-working feature are warnings.
 #
 # The application rules reference metrics from the ctt-server job. Until the app
 # is deployed (P3) those series do not exist, so the rules stay inactive rather
@@ -19,7 +29,7 @@ groups:
             sum by (le) (rate(http_server_requests_seconds_bucket[5m]))) > 0.3
         for: 5m
         labels:
-          severity: info
+          severity: warning
         annotations:
           summary: p95 HTTP latency above 300ms SLO for 5 minutes
           description: >-
@@ -38,7 +48,7 @@ groups:
             and sum by () (rate(http_server_requests_seconds_count[5m])) > 0.1
         for: 5m
         labels:
-          severity: info
+          severity: critical
         annotations:
           summary: More than 0.5% of HTTP responses are 5xx
           description: >-
@@ -57,7 +67,7 @@ groups:
             / sum by () (rate(http_server_requests_seconds_count[5m])) > 0.1
         for: 10m
         labels:
-          severity: info
+          severity: warning
         annotations:
           summary: More than 10% of HTTP responses are 429
           description: >-
@@ -71,7 +81,7 @@ groups:
           sum(hikaricp_connections_active) / sum(hikaricp_connections_max) > 0.8
         for: 5m
         labels:
-          severity: info
+          severity: warning
         annotations:
           summary: HikariCP pool more than 80% occupied
           description: >-
@@ -94,7 +104,7 @@ groups:
             or cttserver_business_mail_pending_oldest_seconds != cttserver_business_mail_pending_oldest_seconds
         for: 5m
         labels:
-          severity: info
+          severity: warning
         annotations:
           summary: Mail backlog unreadable or oldest undelivered mail over 5 minutes old
           description: >-
@@ -130,7 +140,7 @@ groups:
           sum(rate(cttserver_business_audit_events_total{outcome="DROPPED"}[10m])) > 0
         for: 5m
         labels:
-          severity: info
+          severity: critical
         annotations:
           summary: Audit rows are being dropped
           description: >-
@@ -146,7 +156,7 @@ groups:
         expr: probe_success{job="blackbox-public"} == 0
         for: 5m
         labels:
-          severity: info
+          severity: critical
         annotations:
           summary: Public endpoint {{ $labels.instance }} unreachable
           description: >-
@@ -159,7 +169,7 @@ groups:
             and count(probe_success{job="blackbox-public"}) > 0
         for: 2m
         labels:
-          severity: info
+          severity: critical
         annotations:
           summary: All public endpoints unreachable (tunnel or edge down)
           description: >-
@@ -173,7 +183,7 @@ groups:
         expr: probe_ssl_earliest_cert_expiry - time() < 14 * 86400
         for: 1h
         labels:
-          severity: info
+          severity: warning
         annotations:
           summary: Certificate for {{ $labels.instance }} expires within 14 days
           description: >-
@@ -188,9 +198,26 @@ groups:
           node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
         for: 10m
         labels:
-          severity: info
+          severity: warning
         annotations:
           summary: Less than 10% disk free on the deployment host
           description: >-
             {{ $value | humanizePercentage }} of the root filesystem is free.
             See docs/observability.md#alerting.
+
+  - name: ctt-server-paging
+    rules:
+      # The paging path watches itself. Empty or revoked bot credentials do not
+      # stop Alertmanager from starting, so without this rule a page could vanish
+      # while every other signal stays green.
+      - alert: TelegramDeliveryFailing
+        expr: increase(alertmanager_notifications_failed_total{integration="telegram"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: A page failed to reach Telegram
+          description: >-
+            Alertmanager gave up on notifications in the last 10 minutes. Check
+            the bot credential and the chat id, then read the delivery error in
+            the Alertmanager log; see docs/observability.md#telegram-delivery.

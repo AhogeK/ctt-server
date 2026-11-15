@@ -36,6 +36,13 @@ case "$out" in
   deploy/secrets/*) ;;
   *) echo "refusing to render outside deploy/secrets/: $out" >&2; exit 1 ;;
 esac
+# A temporary render (for example the production payload next to the development
+# one) must land in a directory the ignore rule covers: `.gitignore` drops
+# `deploy/secrets/run*`, so any other name here would show up in `git status`.
+case "$(basename "$out")" in
+  run | run-*) ;;
+  *) echo "refusing to render into $out: name the directory run or run-<reason>" >&2; exit 1 ;;
+esac
 
 if [ ! -f "$enc" ]; then
   echo "missing $enc; run this script from a checkout that has the encrypted payload" >&2
@@ -58,13 +65,20 @@ sops --decrypt --output-type json "$enc" > "$tmp/secrets.json"
 mkdir -p "$tmp/rendered"
 # FRP_TOKEN is not a container secret: frp-token.sh renders it to a 600 file on
 # the tunnel hosts, so rendering it here would only widen who can read it.
+# The two lists below are named, not positional: one names the keys a dedicated
+# script owns, the other the files a container mounts and therefore must exist
+# even before the payload has a value.
+RENDER_ELSEWHERE="FRP_TOKEN" \
+ALWAYS_RENDER="TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID" \
 python3 -c '
 import json, os, pathlib, sys
 
 plaintext = pathlib.Path(sys.argv[1])
 out = pathlib.Path(sys.argv[2])
+mode = int(sys.argv[3], 8)
 data = json.loads(plaintext.read_text())
-skip = set(sys.argv[4].split(","))
+skip = {key for key in os.environ.get("RENDER_ELSEWHERE", "").split(",") if key}
+ensure = [key for key in os.environ.get("ALWAYS_RENDER", "").split(",") if key]
 written = 0
 for key, value in data.items():
     if key in skip:
@@ -75,10 +89,21 @@ for key, value in data.items():
         continue
     path = out / key
     path.write_text(str(value))
-    os.chmod(path, int(sys.argv[3], 8))
+    os.chmod(path, mode)
     written += 1
+
+# A file a container mounts must exist even before its value does: a bind mount of
+# a missing path is created as a directory, and the container reports "is a
+# directory" instead of a clear "no credential configured".
+for key in ensure:
+    path = out / key
+    if not path.exists():
+        path.write_text("")
+        os.chmod(path, mode)
+        print(f"rendered empty placeholder: {key}", file=sys.stderr)
+
 print(f"decrypted {written} secret files", file=sys.stderr)
-' "$tmp/secrets.json" "$tmp/rendered" "$mode" "FRP_TOKEN"
+' "$tmp/secrets.json" "$tmp/rendered" "$mode"
 
 # Assign the group before replacing the live set: a failed chgrp must leave
 # the previous set intact (the same rule as decryption failures).
