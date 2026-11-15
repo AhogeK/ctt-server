@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1–P1.5、P2.1–P2.3 已完成；P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.106.0 P2.3 值班路径（Telegram 走 Alertmanager 原生接收器、零新增依赖：12 条规则按 blast radius 定级并路由、group_wait 30s 满足一分钟承诺、两条抑制、`TelegramDeliveryFailing` 看住投递本身、静默与升级进 runbook）+ v0.105.0 P2.2 Grafana 面板 as code（三份面板 JSON 进仓库、provisioning 文件 provider、两栈共用一份目录挂载、面板画契约线并与规则同源）+ v0.104.0 P2.1 告警规则（`rules/alerts.yml` 11 条：p95/5xx/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计掉行/公网单点/隧道中断/证书 14 天；`severity` 按 blast radius 分级，promtool check 与 test 均通过）+ 新增 outbox 最老待发年龄 gauge；v0.103.0 P1.5 日志用户维度（MDC 增 `userId`，安全链内注入、请求结束由上下文过滤器清理，控制台与 JSON 均可按用户过滤）；v0.102.0 P1.4 观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy 与 node/postgres/redis/blackbox exporter，全部回环地址、30 天保留，blackbox 覆盖 6 个公网 URL）；v0.101.0 P1.3 分布式追踪（Micrometer Tracing + OTLP、W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样、导出关闭时的传播器补位）；v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1 已完成 + P2 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1–P1.5、P2.1–P2.3 已完成；P3.1 实现完成、待在 GitHub 上首跑；P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.107.0 P3.1 CI（三个 job 九个门：格式、全量测试与覆盖率、SOPS 渲染与 0440 断言、gitleaks 全历史、Trivy 文件系统、单次构建的 OCI 镜像 + SLSA v1 来源证明提取 + 镜像扫描 + CycloneDX SBOM；gitleaks 用指纹允许而非路径允许；Jenkins 去明文 `.env`）+ v0.106.0 P2.3 值班路径（Telegram 走 Alertmanager 原生接收器、零新增依赖：12 条规则按 blast radius 定级并路由、group_wait 30s 满足一分钟承诺、两条抑制、`TelegramDeliveryFailing` 看住投递本身、静默与升级进 runbook）+ v0.105.0 P2.2 Grafana 面板 as code（三份面板 JSON 进仓库、provisioning 文件 provider、两栈共用一份目录挂载、面板画契约线并与规则同源）+ v0.104.0 P2.1 告警规则（`rules/alerts.yml` 11 条告警；`severity` 按 blast radius 分级，promtool check 与 test 均通过）+ 新增 outbox 最老待发年龄 gauge；v0.103.0 P1.5 日志用户维度（MDC 增 `userId`，安全链内注入、请求结束由上下文过滤器清理）；v0.102.0 P1.4 观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy 与四类 exporter，回环地址、30 天保留）；v0.101.0 P1.3 分布式追踪（W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样）；v0.100.0 P1.2 六个业务指标（业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
 
 ## 🗺️ 计划总览
 
@@ -2190,7 +2190,7 @@ end note
 
 #### 实现状态
 
-🚧 **P0 部分交付 + P1 已完成 + P2 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3，2026-11-13 补 P1.4，2026-11-14 补 P1.5 与 P2.1，2026-11-15 补 P2.2 与 P2.3）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）、P1.4（观测栈落地部署机）、P1.5（日志补用户维度）、P2.1（告警规则）、P2.2（Grafana 面板 as code）、P2.3（值班路径：原生 Telegram 已接通）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P2.3 已完成（原生 Telegram 接收器已接通，真实通道实测投递成功）；P4–P7 未开工，每步一个可独立验收的交付物。
+🚧 **P0 部分交付 + P1 已完成 + P2 已完成 + P3 在途**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3，2026-11-13 补 P1.4，2026-11-14 补 P1.5 与 P2.1，2026-11-15 补 P2.2、P2.3 与 P3.1 实现）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）、P1.4（观测栈落地部署机）、P1.5（日志补用户维度）、P2.1（告警规则）、P2.2（Grafana 面板 as code）、P2.3（值班路径：原生 Telegram 已接通）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P3.1 的三个 job 与九个门已在本机按 CI 原样跑通，余项是在 GitHub 上首跑一次并写入仓库 secret `SOPS_AGE_KEY`；P3.2–P3.8 与 P4–P7 未开工，每步一个可独立验收的交付物。
 
 #### 本轮交付（2026-11-07）
 
@@ -2410,7 +2410,7 @@ end note
 
 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- |
-| P3.1 | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明；**CI 节点持有 age 身份**，流水线内 `render.sh` 成功（当前 Jenkins 只加了调用，未验证） | PR 红/绿可判定；人为坏用例能挡住合并；Jenkins 构建不再依赖明文 `.env` | 中 |
+| P3.1 🚧 | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明；**CI 节点持有 age 身份**，流水线内 `render.sh` 成功；Jenkins 去明文 `.env` | 已达成：`.github/workflows/ci.yml` 三个 job 九个门，每个门的命令在本地按 CI 原样跑通（见完成总结）；人为坏用例与假密钥都被挡住（gitleaks 用 `ghp_` 前缀假 token 命中、trivy 用含 lodash 4.17.11 的 lockfile 命中并退出 1）；Jenkinsfile 改文件凭证 + `render.sh`，无明文 `.env`。未达成：尚未在 GitHub 上跑过一次真正的工作流（无 runner），`SOPS_AGE_KEY` 需写入仓库 secret，分支保护需在仓库设置里打开 | 中 |
 | P3.2 | 镜像发布：GHCR 按 digest 部署，Renovate 管依赖与基础镜像 | 部署清单里是 digest | 中 |
 | P3.3 | 边缘转发：nginx 设 `X-Forwarded-For` **与 `X-Forwarded-Proto: https`**；edge 侧显式 `header_up X-Forwarded-Proto https`（不写会被改写成 http）；请求体与超时限制、`limit_req`、`return 503` | 外部只走 443；`getRealIp` 与 `isSecureRequest` 都返回真实值 | 高 |
 | P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察 + 一键回滚；压测下验证零 5xx | 压测中发布一轮，5xx = 0 | 高 |
@@ -2597,6 +2597,26 @@ end note
 > - 边界：单一运维者与单通道，无轮值、无第二接收人、无确认跟踪；`info` 级不上屏；Bot token 曾出现在对话记录中，稳定后应 `/revoke` 轮换（轮换后须 `--force-recreate`，因 render 换 inode）；`message_thread_id` 未用（单话题群）。
 > - 重访：改规则名/级别/阈值必须同批改 Alerting 表、triage 表与面板契约线；加频道（邮件/webhook）只需加 receiver 与一条 route；群里若出现噪声，先把 info 留在 `silent` 再考虑拆群。
 > - 文档与版本：`docs/observability.md` 增 `### Telegram delivery` 与 Alerting 表新行，`docs/ops-runbook.md` 新建，`docs/deployment-secrets.md` 记两个新键与空占位，`README.md` 改 12 条规则与原生集成；版本 `0.106.0`（`gradle/libs.versions.toml`）。
+##### 计划修订（2026-11-15，P3.1 CI 落地）
+> 六处判断性调整，理由写在实现旁边而不是事后解释。① **质量门不放 Jenkins**：计划把「Jenkins 不再依赖明文 `.env`」写进 P3.1，但 Jenkins 是部署作业；把全量套件也压在部署机上，等于让合并延迟取决于一台同时跑生产的机器。门移到 GitHub Actions，Jenkins 只负责发布与健康检查，其凭证改为 Jenkins 文件凭证 + `render.sh`。② **只构建一次**：被扫描的镜像与被证明的镜像必须是同一份，否则「扫的 digest」和「签的 digest」会分叉，而这正是来源证明要排除的失败。BuildKit 写归档、`trivy image --input` 只吃目录布局，故流水线解包后再扫描。③ **gitleaks 全历史 + 指纹允许**：历史里有 47 条命中（测试夹具、文档示例、旧 Jenkins 的密码字面量）。按路径允许会让这些文件里的真实密钥漏过；按指纹（`commit:path:rule:line`）允许，则新增命中——哪怕同一文件同一行——仍然失败。④ **`trivy fs` 显式跳过 `.agents/`**：那是代理工作区，只在 develop、不上 master、不随镜像发布；为一个没人部署的工具的 lockfile 卡合并是噪声，而静默跳过比显式跳过更糟，所以写在 workflow 里。`.opencode/` 按用户判断直接删除。⑤ **风险表的缓解落在 P3.1**：计划里「Testcontainers 在 CI 上拉不到镜像」的处置是缓存镜像层并失败重试一次，实现为预拉 `postgres:latest` 与 `redis:latest` 加单次重试。⑥ **不碰 `build.gradle.kts` 的覆盖率接线**：`check` 未挂 `jacocoTestCoverageVerification` 是 P3.7 的范围，CI 显式执行该任务，避免留下半套质量门。
+
+##### 计划修订（2026-11-15，P3.1 评审修正）
+> 双轴审查（Standards / Spec）后的六处修正，每条都对应一处「声明与实现不符」或「本来会误报/漏报」的机制。
+> ① **sops 下载到 `$RUNNER_TEMP`**：原来 `curl -o sops` 落在仓库根，后面的 `git status --porcelain` 断言把它当成「渲染产物没被忽略」，`secrets` job 每次必红——门自己挡自己。
+> ② **补 `docker/setup-buildx-action`**：默认 `docker` 驱动不支持 `type=oci` 导出，镜像构建与来源证明在干净 runner 上根本产不出来。
+> ③ **`trivy image --input` 的输入形态用实验定案**：直接喂 OCI 归档报 `unable to open … as an OCI Image: stat …/index.json: not a directory`，所以解包成目录是必需的；错的是文档里的本地复现命令，已改为 `--input=/repo/build/oci`。
+> ④ **证明必须与本次扫描的镜像配对**：`extract-provenance.py` 要求 attestation 的 `vnd.docker.reference.digest` 是本布局里真实存在的 manifest，并与 `subject` 交叉核对——只提取不核对，等于拿「某个构建」的证明当「这次构建」的证据。
+> ⑤ **报告先落盘再判定**：gitleaks 加 `--report-path`、`trivy fs` 加 `--output`，四份报告随证据上传；退出码不再代替证据。
+> ⑥ **重试只覆盖容器运行时**：先抓日志再判断，仅当出现 `Could not connect to Ryuk` 才重跑一次；原来整条 Gradle 命令重试会把确定性的红（失败用例、覆盖率不足）伪装成偶发。
+> 附带：`.gitignore` 补 `__pycache__/`、`*.pyc` 并清掉 `.opencode` 残留；`.gitleaksignore` 头注释补「OpenAPI 示例体」；`docs/ci.md` 删掉第三份分支表（只指向 `AGENTS.md`）并把「required checks 已强制」改成分步顺序；`README.md` 去掉「已门禁」措辞；`Jenkinsfile` 增 `Tooling` 阶段断言 `sops`/`python3`/`docker compose`，并对齐 `environment` 块。
+
+##### P3.1 完成总结（2026-11-15）
+> - 交付：`.github/workflows/ci.yml`（三个 job 九个门：`spotlessCheck`、`build jacocoTestReport jacocoTestCoverageVerification`、`render.sh --env dev` + 五个 secret 存在性与 `0440` 断言 + render 产物不可提交断言、`gitleaks detect` 全历史、`trivy fs`、带 `--provenance=mode=max` 的单次镜像构建、SLSA v1 证明提取、`trivy image`、CycloneDX SBOM）；`.github/scripts/extract-provenance.py`（读 OCI 目录或归档，缺证明即失败）；`.gitleaksignore`（41 条指纹，文件头写明「指纹允许，不是路径允许」）；`Jenkinsfile` 重写（`withCredentials(file(...))` 提供 age 身份、`render.sh` 渲染、断言五个 secret 非空，删除明文 `.env` 段，修掉 post 段容器名不一致）；`docs/ci.md` 新建；`README.md` 增 CI 能力与文档索引；`docker-compose.yaml` 头注释改为指向 `render.sh`。
+> - 证据：本机按 CI 同一命令逐项跑通——`ruby -ryaml` 解析 3 jobs / 5+4+8 steps；gitleaks 扫 1656 个提交、47 条命中 → 41 条指纹允许后 `no leaks found`，正向对照（`ghp_` 前缀随机 token）仍报 1 条；`trivy fs` 在删除 `.opencode/` 后无 HIGH/CRITICAL，正向对照（含 lodash 4.17.11 的 lockfile）报 3 HIGH + 1 CRITICAL 且退出码 1；`docker buildx build --provenance=mode=max` 产出 OCI 归档，解包后 `index.json`/`blobs/`/`oci-layout` 齐全，提取到 `https://slsa.dev/provenance/v1`，`subject` 为 `pkg:docker/ctt-server@ci?platform=linux%2Farm64`；`trivy image --input` 扫该布局得 **0 HIGH/CRITICAL**；SBOM 为 CycloneDX 1.7、315 个组件。
+> - 判断性调整：见上一条修订——门与部署分离、单次构建、指纹允许、显式跳过、预拉与重试、不碰 P3.7 的接线范围。
+> - 边界：尚未在 GitHub 上真正跑过（本机无 runner）；`SOPS_AGE_KEY` 已于 2026-11-15 写入仓库 secret 并加上「解不开就点名失败」的守卫；`master` 已由 ruleset `master-protection` 保护（禁删/禁强推/必须 PR，0 approvals，`bypass_actors` 清空），`develop` 仍可直接推送；**required status checks 尚未配置**——须先有一次 PR 上的成功运行，规则集才认这些 context；gitleaks 扫的是提交历史，未提交文件只能靠本地命令发现；`trivy` 只报 `HIGH`/`CRITICAL`，`MEDIUM` 留作观察；镜像扫描在本机是 arm64，CI 上若改多平台需同步调整。
+> - 重访：新增扫描器前先问「它挡的是哪个具体失败」，并把版本钉死；`.gitleaksignore` 有新条目时必须先确认值是假值；接 GHCR 发布（P3.2）后把 `IMAGE_TAG` 换成 digest，并把 SBOM 与证明作为发布资产而非仅构建产物。
+> - 文档与版本：`docs/ci.md` 新建（门清单、身份、允许列表政策、本地复现、红灯处置），`README.md` 增能力条目与文档行，`docs/deployment-secrets.md` 说明 CI 侧身份来源；版本 `0.107.0`（`gradle/libs.versions.toml`）。
 ##### P0.7 完成总结（2026-11-09）
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
 > - 实现补充：当前 Spring Boot 上下文未自动注册 Redis contributor，readiness 显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 继续委托，避免丢失 additional paths。
@@ -2687,7 +2707,7 @@ end note
 
 #### 未开工
 
-P4–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
+P3.1 余项（在 GitHub 上首跑一次、首次 PR 通过后把三个 job 写成 required status checks）、P3.2–P3.8、P4–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
 
 #### 工程与生产化缺口复查（2026-11-07）
 
@@ -2799,7 +2819,7 @@ sequenceDiagram
 | prod JSON 日志绕过脱敏 | P0.1：先修，再谈指标 |
 | 蓝绿期间破坏性迁移让旧色 500 | P3.5：expand/contract 强制，CI 禁止改已发布迁移 |
 | 备份成功但恢复不了（权限、扩展、序列） | P4.3：演练比对行数，不接受只看退出码 |
-| Testcontainers 在 CI 上拉不到镜像 | P3.1：缓存镜像层；失败重试一次再判定（对应 R17 已知抖动） |
+| Testcontainers 在 CI 上拉不到镜像 | P3.1 已实现：流水线先拉 `postgres:latest` 与 `redis:latest`，失败重试一次再判定（对应 R17 已知抖动） |
 
 #### 风险与反例
 

@@ -1,5 +1,17 @@
 # Active Context
 
+- [2026-11-15] - 分支模型改为 Git Flow + master 仅 PR（流程变更，不改版本）
+    - 触发：用户要求「今后按 Git Flow 走、master 只能合并」，并写进 `AGENTS.md` 与 memory-bank。
+    - 变更：GitHub ruleset `master-protection`（id 27307962）作用于 `refs/heads/master`——禁删、禁强推、必须 PR；0 approvals（单人仓库里 PR 作者不能自批）、要求会话解决、只开 merge+squash；`bypass_actors` 由 UI 默认的 RepositoryRole 清成空数组，管理员也绕不过。`AGENTS.md` R6 增 `git switch -c` 一行，R17 重写为 PR 版：`feature/<kebab>` 从 develop 切并 PR 回 develop，`release/v<x.y.z>` **从 master 切**再 cherry-pick 非 AI 提交，`hotfix/<yyyymmdd>-<kebab>` 从 master 切、PR 到 master 后回灌 develop。
+    - 命名取舍：先按用户示例写成 `feature_`/`release_v`/`hotfix_`（含 tag 同名同源），随后实测发现**分支与 tag 同名会让 `git checkout` 直接失败**（`warning: refname 'release_v0.107.0' is ambiguous` → `fatal: ambiguous object name`），改为斜杠分支名 + 纯语义化 tag：`release/v0.107.0` 与 tag `v0.107.0` 天生不撞，且 `v<x.y.z>` 是 `git describe`/语义化工具能解析的形式；发布类型写进 annotated tag 消息。保留两处对用户原规范的修正——`release` 必须带修订位、`hotfix` 用「日期-主题」而非纯日期。
+    - 现状：P3.1 的改动已挪到 `feature/p3-1-quality-gates`（从 develop 切，16 项未提交）；等 PR 跑出三个 CI job，再把 `required_status_checks` 写进规则集。
+    - 边界：required checks 还没配（名字必须与 job name 完全一致、且近 7 天在本仓库成功过）；`gh pr create/merge` 仍要单独授权（R6）。
+- [2026-11-15] - P3.1 实现完成：CI 质量门与供应链证据（v0.107.0）
+    - 决策：门留在 GitHub Actions，**Jenkins 只部署**——把全量套件压在跑生产的机器上，等于让合并延迟取决于那台机器；被扫描与被证明的镜像必须是**一次构建**，否则「扫的 digest」与「签的 digest」分叉。
+    - 变更：`.github/workflows/ci.yml`（quality 5 / secrets 4 / supply-chain 9 步，含 `docker/setup-buildx-action`）、`.github/scripts/extract-provenance.py`（提取 + 与本次布局配对校验）、`.gitleaksignore`（41 条指纹）、`Jenkinsfile` 重写（`Tooling` 阶段 + 文件凭证 + `render.sh`，删明文 `.env`）、`docs/ci.md` 新增、删除 `.opencode/`（用户要求，无用途）。
+    - 验证：本机按 CI 原样逐门跑通——`spotlessCheck`、1656 次提交的全历史扫描从 47 条命中收敛到 `no leaks found`、假 token 与带漏洞 lockfile 的正向对照（trivy 退出码 1）、`render.sh --env dev` 产出五个 0440 secret、镜像 **0 HIGH/CRITICAL**、SLSA v1 来源证明可从 OCI 布局提取、SBOM 315 组件；`--provenance=false` 时提取脚本正确失败。
+    - 评审修正（双轴）：① `curl -o sops` 会落在仓库根，被紧随其后的 `git status --porcelain` 当成「渲染产物未忽略」⇒ `secrets` job 每次必红，改下载到 `$RUNNER_TEMP`；② 默认 `docker` 驱动不支持 `type=oci` 导出，补 `setup-buildx-action`；③ `trivy image --input` 只吃**解包后的目录**（直接喂 tar 报 `unable to open … as an OCI Image: stat …/index.json: not a directory`，已实测），错的是文档里那条本地复现命令；④ 只提取不核对等于拿「某个构建」的证明当「这次构建」的证据，脚本改为要求 `vnd.docker.reference.digest` 是本布局的 manifest 并与 `subject` 交叉核对（伪造 digest 实测被拒）；⑤ gitleaks/trivy 的报告先落盘再判退出码，四份报告随证据上传；⑥ 重试只覆盖 `Could not connect to Ryuk`，否则把确定性的红伪装成偶发；附带 `.gitignore` 补 `__pycache__/`、`*.pyc`，`docs/ci.md` 删第三份分支表，README 与 AGENTS 去掉「已门禁」措辞。
+    - 边界与待办：未在 GitHub 上实跑（仓库尚无 Actions 运行记录）；`SOPS_AGE_KEY` 已于 2026-11-15 写入仓库 secret，`master` 已由 ruleset `master-protection` 保护（必须 PR、0 approvals、bypass 清空），但 **required status checks 未配置**——要先有一次 PR 上的成功运行；镜像扫描跑在本机 arm64，x86 结果以 CI 为准；覆盖率仍未挂进 `check`（P3.7）。
 - [2026-11-15] - P2.3 完成：值班路径（Alertmanager 原生 Telegram 投递，真实通道已接通，v0.106.0）
     - 决策：通道用 Telegram（原计划「邮件 + webhook」）——邮件额度小、投递失败等于静默丢页。**中转实现先写错后推翻**：我先按「第三方 Alertmanager→Telegram 镜像全部弃维护」写了 180 行标准库 relay，深研发现 Alertmanager 自 v0.24.0 就内置 `<telegram_config>`（部署机 0.35.0 在用，支持 `send_resolved`、`bot_token_file`/`chat_id_file`、`message_thread_id`、`parse_mode`、`timeout` 与自动重试）⇒ 删除 relay，零新增容器与依赖。教训：「第三方都死」只能推出「别用第三方」，推不出「自己写」。
     - 变更：`rules/alerts.yml` 增到 12 条（新增 `TelegramDeliveryFailing`：critical；`alertmanager_notifications_failed_total{integration="telegram"}` 任何增量）并按 blast radius 定级；`alertmanager/alertmanager.yml` 三条 severity 子路由（info 不投递、warning 重复 4h、critical 重复 1h）+ 两条抑制（**source 限 `TunnelDown|PublicEndpointDown`** 压同 host 的 warning/info；`TunnelDown` 压 `PublicEndpointDown`）+ 原生 `telegram_configs`（文件凭证、HTML 转义、10s 超时）；部署栈 Prometheus 新增 `alertmanager` 抓取 job（本地栈刻意不加：无规则无容器，只会永久 `up=0`）；`deploy/secrets/render.sh` 无条件渲染 `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`（缺失路径会被建成目录）；`docs/ops-runbook.md` 新增 `Alerts and on-call`（P6.1 首章）。
@@ -78,28 +90,6 @@
     - 开发参考：29,884 行 / 11,214,848 B（heap 6,799,360、索引 4,374,528），跨度 2026-08-30 → 2026-11-10；比 2026-11-09 的 29,801 行 +83
     - 计划：保留扫描走 `idx_audit_logs_created_at`（30 天截止 1,000 行 / 0.496 ms；180 天截止 0 行 / 0.014 ms）；删除批次 Hash Semi Join + 顺序扫描（仅普通 `EXPLAIN`）
     - 边界与记录：生产真实量级未验证 ⇒ 保留策略已由 P0.16c 落到 profile，量级复测拆为 P3.8（依赖生产首次部署/P3 覆盖层）；不把记录已建写成量级已知；记录：`.omp/acceptance/2026-11-11/p0-16b-production-audit-volume.md`（不入库）
-- [2026-11-10] - P0.16 生产配置收口（v0.98.0，代码+配置+密钥+文档）
-    - 交付：prod 关闭 springdoc（两路径 404）；CORS 取 `CORS_ALLOWED_ORIGINS`（回退 `FRONTEND_BASE_URL`），基础配置删占位域；OAuth 与前端 URL 生产必填；`ProductionConfigurationGuard` 覆盖四类违规并一次列出；`secrets.prod.enc.yaml` + `render.sh --env prod`；app 的 `DB_PASSWORD` 改源自 `db_password`；`PROD_DB_PASSWORD` 从 `.env` 移除
-    - 缺陷：未知路径原被 `Exception` 兜底成 500（关闭文档后也不满足 404）⇒ `NoResourceFoundException → 404 COMMON_002` + 单测
-    - 验证：prod 实测 api-docs/swagger-ui/swagger-index 均 404；缺 GitHub secret、占位 CORS、开启 api-docs、短 DB 口令四个分支 exit 1；CORS 回退正常启动；补 `ApiDocsDisabledIntegrationTest`（真实 MVC 派发）；`docker compose config`、两种 `--env` 渲染、全量 `./gradlew build`（含该集成测试）均通过
-    - 误判：guard 消息里属性名后的空格会让日志掩码把下一个词当值（`client-secret must` → `******`）；消息改为反引号包属性名
-    - 边界：生产编排 P3；GitHub OAuth App P7.2；生产库未初始化；Redis 口令因共享实例（db1 属另一服务、仅 default 用户）未轮换，约束与重访触发见 `docs/production-configuration.md`
-    - 文档：新增 `docs/production-configuration.md`；`docs/deployment-secrets.md` 改双载荷；README 与 `.env.example` 同步；验收记录 `.omp/acceptance/2026-11-10/p0-16-prod-config.md`
-- [2026-11-10] - P0.15 时钟与日志上限（完成，纯主机配置/验证，不 bump 版本）
-    - 两机：chrony 替换 systemd-timesyncd（接入机 4.5 / 部署机 4.8，enabled+active）；offset 0.00004 s / −0.0376 s（< 1 s）
-    - 接入机：journald 200M/1G/64M（16M）；nginx `maxsize 20M + rotate 14`、btmp `maxsize 10M + rotate 3`、rsyslog `maxsize 50M`
-    - 部署机：journald 500M/2G/64M（2.8G → 490.1M，`--vacuum-size`）；同一套轮转上限；`logrotate.service` Result=success
-    - 坑与误判：备份留在 `/etc/logrotate.d/` 会 duplicate log entry ⇒ 移到 `/root/`；首次 `chronyc tracking` 的 `Not synchronised` 是启动瞬时态（约 10s 后同步）；`du` 的 Permission denied 与 grep 命中的 `error_log` 文件名不是故障
-    - 边界与记录：部署机手工 nginx master（单元 inactive、无 80/443）未处理，归 P0.16/运维；未删除任何审计记录；记录：`.omp/acceptance/2026-11-10/p0-15-time-and-log-caps.md`
-- [2026-11-10] - P0.13c 外部负向验证（完成，纯验证/文档，不 bump 版本）
-    - 方法：以接入机（公网，独立于家庭 LAN）为外部视角；目标地址取 SSH 与 frpc 在接入机上的对端（两条独立流一致）；部署机自报 HTTP 出口与 SSH/frpc 不同，不可用
-    - 结果：`tcp/5432`、`tcp/6379` 两次均耗尽 5s 超时（丢弃非 `refused`）；`ping` 100% 丢包；`tracepath` 至中国电信骨干后无回应；同时段 frpc 隧道在线。LAN 内两端口可用，Redis 返回 `NOAUTH`
-    - 边界与记录：若为 CGNAT/共享地址，「无端口转发」与「无可寻址入口」无法从外部区分，需路由器侧确认；第二外部视角 SSH banner 超时未作证据；未创建任何临时路径；记录：`.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`；ADR-0003 与 `production-data-isolation` 的「无入站转发」已改为已测量
-- [2026-11-10] - P0.13b Redis 来源限制决策（纯文档/决策，不 bump 版本）
-    - 决策：不安装来源白名单；保留 `bind 127.0.0.1 + LAN`、口令、`protected-mode` 与「路由器不转发入站」边界。Redis ACL 只限命令/键/通道，没有客户端地址谓词；`bind` 只选监听地址 ⇒ 服务内无法表达「只允许本子网」
-    - 证据（部署机 2026-11-10）：`ss -lnt` 仅 `127.0.0.1:6379` 与 LAN 地址 `:6379`；`CONFIG GET bind` = 回环 + LAN，`protected-mode yes`，`requirepass` 已设；`ACL LIST` 只有 `default` 用户 `~* &* +@all`；`ip -brief addr` 仅一个 IPv4 接口，`ip -6 addr show scope global` 为空；数据面现存连接只来自开发机；其余容器走 bridge 自有发布端口，不使用数据面
-    - 触发（6 条，命中即先装主机 nftables 白名单再放行）：端口转发/新增路由/全局 IPv6、Redis 迁到容器发布端口或他机、口令扩散、出现异常来源访问
-    - 边界与交付：外部负向验证仍归 P0.13c；未启用 UFW；Redis ACL 用户加固属独立决策（ADR 已列为替代方案）；交付 `docs/decisions/ADR-0003-redis-source-restriction.md`、`docs/production-data-isolation.md`、README 文档索引、`systemPatterns` 与计划 P0.13b 状态同步，`AGENTS.md` R8 增「平台能力要按机制核实」（Redis 无来源地址 ACL；共享主机加防火墙前先证明能拒绝真实可达来源）
 - [2026-11-09] - P0.13a 固定 LAN 地址（完成）：路由器静态租约已保存，续租后地址不变、租约 43,200 秒，路由为 `192.168.5.1`；P0.13b 已按 ADR-0003 决策收口（不装来源白名单）；P0.13c 外部负向验证未开始
 - [2026-11-09] - P0.12 生产数据隔离（v0.97.0）：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色；开发继续 `ctt_server`；两个库的 `PUBLIC` 连接权限已撤销，`ctt_app` 不能连接开发库；原 db1 被 `check-approver-sort:*` 占用，生产改用 db2，本地/开发 db0；角色密码仅在本机 `.env` 的 `PROD_DB_PASSWORD`，P0.16 已迁入 SOPS（`secrets.prod.enc.yaml` 的 `DB_PASSWORD`）
 - [2026-11-09] - P0.11 端口与编排 + secret 组读修复（v0.96.1）：edge/蓝/绿/obs host 网络并绑定 `127.0.0.1`；Caddy `:18080` + `bind` 代理 blue；应用 `SERVER_ADDRESS=127.0.0.1`、`TRUSTED_PROXY_ADDRESSES=127.0.0.1`；frpc `18080 -> 18080` 已存在；完整 Linux app/edge/obs 验证通过；secret 0440 + `SECRET_GID`/`group_add`
