@@ -171,9 +171,11 @@ services:
       - grafana_admin_password
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./deploy/local/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
-      - ./deploy/local/grafana-dashboard-provider.yml:/etc/grafana/provisioning/dashboards/ctt.yml:ro
-      - ./deploy/local/grafana-dashboard.json:/var/lib/grafana/dashboards/ctt-local.json:ro
+      - ./deploy/local/grafana/provisioning:/etc/grafana/provisioning:ro
+      # The same dashboard JSON the deployment stack mounts: one set of panels,
+      # two stacks. A directory mount keeps a rewritten panel visible without
+      # recreating the container.
+      - ./deploy/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
   blackbox:
     <<: *hardening
@@ -183,8 +185,12 @@ services:
     network_mode: host
     ports: !reset []
     command:
-      - --config.file=/etc/blackbox_exporter/config.yml
+      - --config.file=/etc/blackbox/blackbox.yml
       - --web.listen-address=127.0.0.1:9115
+    volumes:
+      # The same modules the deployment stack loads, so a probe that works here
+      # works there: http_2xx for the public path, http_2xx_plain for readiness.
+      - ./deploy/observability/blackbox:/etc/blackbox:ro
     mem_limit: 96m
     cpus: 0.5
     tmpfs:

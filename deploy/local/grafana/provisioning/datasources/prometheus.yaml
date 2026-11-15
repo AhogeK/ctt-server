@@ -1,0 +1,19 @@
+# Grafana datasource for the local stack (P2.2).
+#
+# The uid is fixed because the provisioned dashboards address it by that uid;
+# without one Grafana generates a random uid per provisioning run and every
+# panel shows "datasource not found". Only Prometheus exists locally: Loki and
+# Tempo are deployment-stack services (see deploy/observability/grafana).
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://127.0.0.1:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s

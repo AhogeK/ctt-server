@@ -21,17 +21,32 @@ scrape_configs:
         labels:
           slot: green
 
-  - job_name: blackbox-http
+  # Two probe jobs, named as on the deployment host: the dashboards and alert rules
+  # address probes by job, so the same panel reads the same series in both stacks.
+  - job_name: blackbox-public
     metrics_path: /probe
     params:
       module: [http_2xx]
     static_configs:
-      - targets:
-          # Public path through the edge: proves the proxy forwards to the application.
-          - http://127.0.0.1:18080/ctt-server/api/v1/config/public
-          # Readiness of each slot, read where the probes actually listen.
-          - http://127.0.0.1:8081/actuator/health/readiness
-          - http://127.0.0.1:8082/actuator/health/readiness
+      # Public path through the edge: proves the proxy forwards to the application.
+      - targets: ["http://127.0.0.1:18080/ctt-server/api/v1/config/public"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9115
+
+  # Readiness is probed with a plain module so a 200 is the only success: the
+  # endpoint answers 503 while a slot drains, and a redirect must not count.
+  - job_name: blackbox-readiness
+    metrics_path: /probe
+    params:
+      module: [http_2xx_plain]
+    static_configs:
+      - targets: ["http://127.0.0.1:8081/actuator/health/readiness"]
+      - targets: ["http://127.0.0.1:8082/actuator/health/readiness"]
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

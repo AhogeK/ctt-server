@@ -1,0 +1,240 @@
+{
+  "uid": "ctt-server-background",
+  "title": "CTT Server — background work and dependencies",
+  "description": "The work that runs after the response: the mail outbox, the leaderboard recompute queue and the audit writer, plus the two pools everything above depends on. Each panel mirrors one alert rule so a firing alert has a curve here.",
+  "tags": ["ctt-server", "background", "provided"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "links": [
+    {"title": "Requests and sync", "url": "/d/ctt-server-requests", "type": "link"},
+    {"title": "Edge and hosts", "url": "/d/ctt-edge-hosts", "type": "link"}
+  ],
+  "annotations": {"list": []},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Oldest undelivered mail against the 60 s contract",
+      "description": "Alert MailOutboxStalled evaluates the same series with a 5-minute hold. A gap means the queue is empty (the gauge reports 0) or the count query failed (NaN, drawn as no point and alerted by the rule).",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "contract 60 s"},
+            "properties": [
+              {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
+              {"id": "custom.fillOpacity", "value": 0},
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "cttserver_business_mail_pending_oldest_seconds{job=\"ctt-server\"}", "legendFormat": "oldest awaiting dispatch"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "vector(60)", "legendFormat": "contract 60 s"},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "vector(300)", "legendFormat": "rule fires 300 s"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Mail backlog by status",
+      "description": "PENDING is queued, FAILED is retrying, CANCELLED exhausted its retries. SENDING is deliberately absent: it flaps per poll and a zombie reset returns rows to PENDING.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "cttserver_business_mail_pending{job=\"ctt-server\"}", "legendFormat": "{{status}}"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Leaderboard dirty set depth",
+      "description": "Alert LeaderboardRecomputeStalled holds 30 minutes above zero. The depth is Redis SCARD, so it also drops to zero after a restart that lost the dirty set.",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "cttserver_business_leaderboard_pending_recomputes{job=\"ctt-server\"}", "legendFormat": "users awaiting recompute"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Audit writes per second by outcome",
+      "description": "WRITTEN is counted after the row commits; DROPPED means the write failed or the bounded queue overflowed. Alert AuditWritesLost watches the DROPPED rate: a writer that stops consuming entirely produces no counter movement, which no absence-based rule can see.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum by (outcome) (rate(cttserver_business_audit_events_total{job=\"ctt-server\"}[10m]))", "legendFormat": "{{outcome}}"}
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Connection pool saturation against 80%",
+      "description": "Alert DbPoolUsageHigh at 0.8. Active over max is the saturation the rule reads; pending acquires above zero means requests are already waiting.",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 18},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "alert threshold 80%"},
+            "properties": [
+              {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
+              {"id": "custom.fillOpacity", "value": 0},
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(hikaricp_connections_active{job=\"ctt-server\"}) / sum(hikaricp_connections_max{job=\"ctt-server\"})", "legendFormat": "pool usage"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "vector(0.8)", "legendFormat": "alert threshold 80%"}
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Pool connections: active, idle, pending",
+      "description": "Read next to the saturation line: an idle pool with pending acquires points at a stuck connection rather than a small pool.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 18},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "active", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(hikaricp_connections_active{job=\"ctt-server\"})", "legendFormat": "active"},
+        {"refId": "idle", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(hikaricp_connections_idle{job=\"ctt-server\"})", "legendFormat": "idle"},
+        {"refId": "pending", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(hikaricp_connections_pending{job=\"ctt-server\"})", "legendFormat": "pending"},
+        {"refId": "max", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(hikaricp_connections_max{job=\"ctt-server\"})", "legendFormat": "max"}
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "JVM heap used against its limit",
+      "description": "Saturation here explains a latency alert before the pool does; the container limit is the number the JVM was sized against.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 27},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "used", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(jvm_memory_used_bytes{job=\"ctt-server\", area=\"heap\"})", "legendFormat": "heap used"},
+        {"refId": "max", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(jvm_memory_max_bytes{job=\"ctt-server\", area=\"heap\"})", "legendFormat": "heap max"}
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Async executor threads busy",
+      "description": "The audit listener is the only consumer of the application task executor, so a growing queue here means audit writes are backing up. Sync runs on the request threads and shows up in the request dashboard instead.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 27},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "busy", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(executor_active_threads{job=\"ctt-server\", name=\"applicationTaskExecutor\"})", "legendFormat": "busy threads"},
+        {"refId": "pool", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(executor_pool_size_threads{job=\"ctt-server\", name=\"applicationTaskExecutor\"})", "legendFormat": "pool size"},
+        {"refId": "queued", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(executor_queued_tasks{job=\"ctt-server\", name=\"applicationTaskExecutor\"})", "legendFormat": "queued"}
+      ]
+    }
+  ]
+}

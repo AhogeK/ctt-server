@@ -116,9 +116,10 @@ services:
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      # The local stack's dashboard is the deployed one until P2.2 replaces it
-      # with the full set built as code.
-      - ../local/grafana-dashboard.json:/var/lib/grafana/dashboards/ctt-server.json:ro
+      # Dashboard JSON lives in the repository (grafana/dashboards) and is
+      # mounted as a directory: a bind-mounted file would pin the inode and a
+      # rewritten dashboard would never reach the running container.
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ../secrets/run/GRAFANA_ADMIN_PASSWORD:/run/secrets/grafana_admin_password:ro
       - grafana_data:/var/lib/grafana
     group_add:
