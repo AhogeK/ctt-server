@@ -109,12 +109,36 @@ jobs:
       # `cosign verify-attestation` can check "this digest was built from that
       # commit by that workflow" without trusting our own JSON files.
       - name: Attest the build provenance
+        continue-on-error: true
         run: |
           cosign verify-attestation \
             --type slsaprovenance \
             --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/publish.yml@.*" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             "${{ steps.reference.outputs.value }}"
+
+      # Diagnostics: how a provenance attestation can be found depends on what
+      # the registry actually stores, and registries differ. Print what is
+      # there instead of guessing.
+      - name: Inspect what the registry holds
+        if: always()
+        continue-on-error: true
+        env:
+          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
+          REF: ${{ steps.reference.outputs.value }}
+        run: |
+          echo "::group::index"
+          docker buildx imagetools inspect --raw "$REF" | head -c 2500 || true
+          echo "::endgroup::"
+          echo "::group::attestations of any type"
+          cosign verify-attestation \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/publish.yml@.*" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$REF" || true
+          echo "::endgroup::"
+          echo "::group::build metadata"
+          printf '%s' "$BUILD_METADATA" | head -c 2500 || true
+          echo "::endgroup::"
 
       - name: Summarise
         run: |
