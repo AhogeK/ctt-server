@@ -28,6 +28,10 @@
 - **Operable from the first run.** Health probes and Prometheus metrics are served by a loopback-only
   management server, and the business counters — sync, rate limits, mail backlog, leaderboard backlog and
   audit — carry a bounded label set, so a dashboard or an alert cannot be broken by user data.
+  Eleven symptom-based rules ship with the stack — request latency, 5xx and 429 ratios, connection-pool
+  saturation, the age of the oldest undelivered mail, stale leaderboards, dropped audit rows, public
+  endpoint and tunnel reachability, certificate expiry and disk — all at `info` severity so nothing pages
+  before the thresholds have met real traffic.
 - **Traceable end to end.** Each request carries one trace id — the W3C `traceparent` value when the caller sends
   one — and the same id appears in the log line, the `X-Trace-Id` response header and the span exported over OTLP,
   so a log search and a trace view describe the same request. Every authenticated request also puts the user's id
@@ -153,7 +157,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Developer Handbook](docs/developer-handbook.md) | standard operations: error codes, audit events, exceptions, protected interfaces |
 | [API Governance](docs/api-governance.md) | security tiers, rate limiting and idempotency rules |
 | [Security Architecture](docs/security-architecture.md) | authentication, authorization and threat boundaries |
-| [Observability](docs/observability.md) | the loopback management server, business metrics, trace correlation, the request log fields and the deployed stack |
+| [Observability](docs/observability.md) | the loopback management server, business metrics, trace correlation, the request log fields, the deployed stack and the alert rules it evaluates |
 | [Time Strategy](docs/time-strategy.md) | UTC-first time handling across the system |
 | [Case Normalization](docs/case-normalization.md) | email identity normalization |
 | [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |
