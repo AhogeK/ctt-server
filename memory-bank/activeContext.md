@@ -4,8 +4,8 @@
     - 触发：master 上的 `publish.yml` 连续三次失败，每次只暴露一层原因——引用路径大小写（`AhogeK/ctt-server` 不是合法镜像引用）、`--yes` 用在验证子命令上（那是签名的透明日志确认开关）、buildx 的内联证明 cosign 查不到。第三次用诊断步骤打印注册表真实内容才定位：`vnd.docker.reference.digest` 指向**平台清单**而非被签的索引，注册表又不把它暴露给 cosign。
     - 修复：证明从 build metadata 取出（`.github/scripts/extract-predicate.py`）后用 `cosign attest` 重新绑到被签的 digest；发布构建改 `provenance: mode=min`（重新发布的证明会进公开的 Rekor，max 版带构建环境）；`deploy/verify-image.sh` 的 cosign 查找覆盖 `$HOME/.local/bin` 与 `COSIGN_BIN`（部署机把 cosign 装在用户 bin 下，PATH 里没有）；`Jenkinsfile` 增 `Registry login` 阶段，缺凭证时明确提示「包需可公开拉取」而不是让 `docker pull` 报含糊的 401。
     - 验证：master run `43711391594` 全绿（`cosign sign` 写 tlog index 3901721894；证明复验输出「透明日志中的声明存在性已离线验证」与「签名证书已用受信 CA 证书验证」）；**部署机复验**——`deploy/verify-image.sh ghcr.io/ahogek/ctt-server@sha256:af316447…` 退出 0，签名与 SLSA 证明双通过（证书 subject = `publish.yml@refs/heads/master`）。
-    - 教训：cosign 从透明日志读签名、从注册表读证明，所以**验证不需要注册表凭证而拉取需要**——两者混为一谈会得出错误的凭证要求。验证的对象必须与被验的对象一致，否则证明没有意义。
-    - 边界：GHCR 包仍是私有的（匿名拉取 401），部署机首次按 digest 拉取需要注册表凭证或把包设为可公开拉取；Jenkins 新路径尚未跑过一次；Renovate App 未安装。
+    - 教训：验证与拉取是**两件不同的事**——签名验证读透明日志、证明验证读注册表里的证明条目，都不需要拉取镜像的权限；而能不能匿名拉取取决于包可见性。先前把「REST API 401」当成「包是私有的」是错的取证方式（本机 token 缺 `read:packages` scope，401 说明的是**调用方**没权限，不是包不让拉）。验证的对象必须与被验的对象一致，否则证明没有意义。
+    - 边界：**GHCR 包其实可匿名拉取**——部署机 `docker pull ghcr.io/ahogek/ctt-server@sha256:af316447…` 无凭证成功（先前「包是私有的」是拿 REST API 的 401 下的结论，那只是本机 token 缺 `read:packages` scope），所以部署不需要注册表凭证，登录阶段只是为将来转私有时留的路；Jenkins 新路径尚未跑过一次；Renovate App 未安装。
     - 规则：`AGENTS.md` 新增「验证命令必须能在目标环境查到它要验的东西」——查不到对象的验证要么报错得莫名其妙，要么空过，而空过更坏。
 - [2026-11-15] - 分支模型改为 Git Flow + master 仅 PR（流程变更，不改版本）
     - 触发：用户要求「今后按 Git Flow 走、master 只能合并」，并写进 `AGENTS.md` 与 memory-bank。
