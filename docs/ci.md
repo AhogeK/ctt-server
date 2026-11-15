@@ -147,6 +147,25 @@ so two builds of one commit are two different images and the tag that names
 them points at whichever landed last; a digest names one image and does not
 move. Deployments pin a digest, and `deploy/verify-image.sh` refuses a tag.
 
+To see what the registry currently holds, list the tags with their digests. The
+registry answers a manifest request with the digest in a header, so a pull
+token is enough — no image has to be downloaded:
+
+```bash
+REPO=ahogek/ctt-server
+TOKEN=$(curl -fsS "https://ghcr.io/token?scope=repository:$REPO:pull&service=ghcr.io" | jq -r .token)
+for tag in $(curl -fsS -H "Authorization: Bearer $TOKEN" "https://ghcr.io/v2/$REPO/tags/list" | jq -r '.tags | sort | .[]'); do
+  digest=$(curl -fsSI -H "Authorization: Bearer $TOKEN" \
+    -H 'Accept: application/vnd.oci.image.index.v1+json' \
+    "https://ghcr.io/v2/$REPO/manifests/$tag" | tr -d '\r' | awk -F': ' 'tolower($1)=="docker-content-digest"{print $2}')
+  printf '%-15s %s\n' "$tag" "$digest"
+done
+```
+
+A `401` from these endpoints means the caller has no `read:packages` scope; it
+does not mean the package is private. `docker pull` by digest is the test for
+that, and it works without credentials.
+
 ## The CI identity
 
 `sops` needs one secret the repository cannot hold in plain text. The runner
