@@ -34,6 +34,13 @@ case "$IMAGE_REF" in
      a tag can be moved after verification, a digest cannot" ;;
 esac
 
+# A registry path is lowercase by definition, so a reference carrying the
+# repository's capital letters cannot be parsed by the registry client even
+# though the digest behind it is correct.
+name_part="${IMAGE_REF%@sha256:*}"
+digest_part="${IMAGE_REF##*@sha256:}"
+IMAGE_REF="$(printf '%s' "$name_part" | tr '[:upper:]' '[:lower:]')@sha256:${digest_part}"
+
 command -v cosign >/dev/null 2>&1 || die "cosign is not installed (releases: https://github.com/sigstore/cosign/releases)"
 
 echo "verify-image: pinning identity to ${IDENTITY_REGEXP}"
