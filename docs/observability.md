@@ -203,7 +203,7 @@ its own yet.
 | Service | Loopback | Role |
 | --- | --- | --- |
 | Prometheus | `9090` | scrapes the application and the exporters, evaluates rules |
-| Alertmanager | `9093` | groups and routes alerts; routes every alert to a placeholder receiver until P2.3 decides who gets paged |
+| Alertmanager | `9093` | groups and routes alerts by severity; a rule with no recognised severity reaches the silent receiver and notifies nobody |
 | Grafana | `3000` | dashboards over the three signals |
 | Loki | `3100` | log store, fed by Alloy |
 | Tempo | `3200` query, `4318` OTLP/HTTP, `4317` OTLP/gRPC | trace store, written by the application directly |
@@ -382,25 +382,26 @@ answers — the same surface Prometheus scrapes.
 
 ## Alerting
 
-`deploy/observability/prometheus/rules/alerts.yml` holds the alert rules (P2.1). Each one is
-symptom-based — it fires on a user-visible or capacity signal, not on a guessed cause — and every
-annotation ends with a pointer to this document. All rules carry `severity: info` for now: P2.3
-decides which of them deserve warning/critical and who gets paged, and until then Alertmanager
-routes everything to its placeholder receiver.
+`deploy/observability/prometheus/rules/alerts.yml` holds the alert rules (P2.1) and their severities
+(P2.3). Each rule is symptom-based — it fires on a user-visible or capacity signal, not on a guessed
+cause — and its annotations end with a pointer to this document. Severity is decided by blast radius,
+not by metric family: something a user notices now, or evidence that is lost for good, is `critical`;
+capacity pressure and a degraded-but-working feature are `warning`; derived data lagging is `info`.
 
-| Alert | Signal | Threshold | Fires when |
-| --- | --- | --- | --- |
-| `HttpP95LatencyHigh` | `http_server_requests_seconds_bucket` (percentiles-histogram for `http.server.requests` is enabled in `application.yaml`) | p95 > 300ms for 5m | the SLO is breached for five minutes straight |
-| `Http5xxRatioHigh` | `http_server_requests_seconds_count` | 5xx share > 0.5% for 5m, with more than ~30 requests in the window | the monthly 5xx SLO is breached; the traffic guard keeps a lone 500 on an idle instance from reading as 100% |
-| `Http429RatioHigh` | `http_server_requests_seconds_count` | 429 share > 10% for 10m | the rate limiter throttles a large share of traffic. No SLO covers throttling, so the number is a judgement call to revisit together with the severities (P2.3) |
-| `DbPoolUsageHigh` | `hikaricp_connections_active` / `hikaricp_connections_max` | > 80% for 5m | the pool approaches exhaustion |
-| `MailOutboxStalled` | `cttserver_business_mail_pending_oldest_seconds` | > 300s for 5m, or `m != m` (unreadable) | the oldest mail entry waits over five minutes, or the age query stops answering and the backlog becomes unmeasurable. Delivery SLO is p95 ≤ 60s, but a single slow retry is normal: this rule waits for a poller that stopped draining, and the SLO itself is read from the same gauge on the P2.2 dashboard |
-| `LeaderboardRecomputeStalled` | `cttserver_business_leaderboard_pending_recomputes` | > 0 for 30m, or `m != m` (unreadable) | the recompute queue stops draining, or its depth cannot be read |
-| `AuditWritesLost` | `cttserver_business_audit_events_total{outcome="DROPPED"}` | any rate over 10m, sustained 5m | rows offered to the audit writer fail to persist and are lost |
-| `PublicEndpointDown` | `probe_success{job="blackbox-public"}` | `== 0` for 5m | one public URL stops answering |
-| `TunnelDown` | all `probe_success{job="blackbox-public"}` | all `== 0` for 2m | the whole public surface is gone, i.e. the tunnel/edge itself |
-| `CertificateExpiring` | `probe_ssl_earliest_cert_expiry` | < 14 days for 1h | a certificate approaches expiry while the site still works |
-| `HostDiskSpaceLow` | `node_filesystem_avail_bytes` / `node_filesystem_size_bytes` | < 10% free for 10m | the deployment host runs out of disk |
+| Alert | Severity | Signal | Threshold | Fires when |
+| --- | --- | --- | --- | --- |
+| `HttpP95LatencyHigh` | `warning` | `http_server_requests_seconds_bucket` (percentiles-histogram for `http.server.requests` is enabled in `application.yaml`) | p95 > 300ms for 5m | the SLO is breached for five minutes straight |
+| `Http5xxRatioHigh` | `critical` | `http_server_requests_seconds_count` | 5xx share > 0.5% for 5m, with more than ~30 requests in the window | the monthly 5xx SLO is breached; the traffic guard keeps a lone 500 on an idle instance from reading as 100% |
+| `Http429RatioHigh` | `warning` | `http_server_requests_seconds_count` | 429 share > 10% for 10m | the rate limiter throttles a large share of traffic. No SLO covers throttling, so the number stays a judgement call until there is a week of real data |
+| `DbPoolUsageHigh` | `warning` | `hikaricp_connections_active` / `hikaricp_connections_max` | > 80% for 5m | the pool approaches exhaustion |
+| `MailOutboxStalled` | `warning` | `cttserver_business_mail_pending_oldest_seconds` | > 300s for 5m, or `m != m` (unreadable) | the oldest mail entry waits over five minutes, or the age query stops answering and the backlog becomes unmeasurable. Delivery SLO is p95 ≤ 60s, but a single slow retry is normal: this rule waits for a poller that stopped draining, and the SLO itself is read from the same gauge on the P2.2 dashboard |
+| `LeaderboardRecomputeStalled` | `info` | `cttserver_business_leaderboard_pending_recomputes` | > 0 for 30m, or `m != m` (unreadable) | the recompute queue stops draining, or its depth cannot be read |
+| `AuditWritesLost` | `critical` | `cttserver_business_audit_events_total{outcome="DROPPED"}` | any rate over 10m, sustained 5m | rows offered to the audit writer fail to persist and are gone; a lost row cannot be reconstructed, so this pages instead of waiting |
+| `PublicEndpointDown` | `critical` | `probe_success{job="blackbox-public"}` | `== 0` for 5m | one public URL stops answering |
+| `TunnelDown` | `critical` | all `probe_success{job="blackbox-public"}` | all `== 0` for 2m | the whole public surface is gone, i.e. the tunnel/edge itself |
+| `CertificateExpiring` | `warning` | `probe_ssl_earliest_cert_expiry` | < 14 days for 1h | a certificate approaches expiry while the site still works |
+| `HostDiskSpaceLow` | `warning` | `node_filesystem_avail_bytes` / `node_filesystem_size_bytes` | < 10% free for 10m | the deployment host runs out of disk |
+| `TelegramDeliveryFailing` | `critical` | `alertmanager_notifications_failed_total{integration="telegram"}` | any increase over 10m, sustained 5m | at least one delivery attempt was rejected — a wrong or missing bot token, a revoked chat, or the Bot API refusing the message. Alertmanager retries on its own, so a single rejection can still end up delivered; the counter counts attempts, not lost pages |
 
 Until the application is deployed (P3), the `ctt-server` job has no targets, so the application
 rules have no series and stay inactive rather than firing on missing data; the edge rules (public
@@ -429,14 +430,98 @@ curl -s -X POST http://127.0.0.1:9090/-/reload
 curl -s http://127.0.0.1:9090/api/v1/rules | jq '.data.groups[].rules | length'
 ```
 
+### Who gets told
+
+`deploy/observability/alertmanager/alertmanager.yml` turns severity into a channel, and nothing else
+routes alerts: a rule that forgets its severity label shows up in the Alertmanager UI and the
+dashboards but never notifies anyone, because silence is the safe default for an unknown severity.
+
+| Severity | Channel | Repeats |
+| --- | --- | --- |
+| `critical` | Telegram | hourly until the alert resolves |
+| `warning` | Telegram | every four hours |
+| `info` | none | visible in the Alertmanager UI and the P2.2 dashboards only |
+
+Grouping is `alertname` + `host` with a 30-second `group_wait`, so a burst of the same alert about the
+same host arrives as one message and the first message leaves inside the one-minute delivery promise.
+An alert that joins a group which has already been notified waits for the next `group_interval` (five
+minutes) before it is mentioned — that is grouping working, not a slow channel. A *first* message that
+takes longer means the Bot API is unwell: the delivery counters are scraped from Alertmanager itself
+(`alertmanager_notifications_total` and `alertmanager_notifications_failed_total`, job `alertmanager`),
+and `TelegramDeliveryFailing` reports a rejected attempt. It cannot report a channel nobody has asked
+to deliver anything yet, which is why the runbook's self-test is the only proof of an unused path.
+
+Two inhibition rules keep one incident from being reported once per symptom, and both are scoped to
+what they can actually reason about. A host-level outage (`TunnelDown`, `PublicEndpointDown`)
+suppresses `warning`/`info` alerts on the same host, because the box being unreachable makes its own
+capacity warnings moot. An application-level `critical` does **not** mute unrelated warnings: `host`
+carries a single external label here, so a blanket "critical suppresses warning" rule would hide a
+14-day certificate warning for the whole life of an incident. `TunnelDown` additionally suppresses the
+per-endpoint `PublicEndpointDown` alerts it already explains — both are critical, so the host-level
+rule cannot cover them.
+
+Email is deliberately not configured. The transactional mail quota is small, and a quota or
+deliverability failure drops a page with nobody noticing; Telegram costs nothing, has no deliverability
+question, and is where the operator already reads. Adding a mail channel later is one receiver with
+`email_configs` plus one route matching the severities that should also mail — no other part of the
+path changes.
+
+### Telegram delivery
+
+Alertmanager delivers to Telegram itself through `telegram_configs` (upstream since v0.24.0). The stack
+pulls `prom/alertmanager:latest`, which is 0.35.0 today; `alertmanager --version` inside the container
+is the authority if a field below is rejected. The integration already escapes label values under
+`parse_mode: HTML`, redacts the bot token from its error logs and retries a failed delivery on its own
+schedule, so wrapping it in a bridge would only add a second process to keep alive.
+
+The credentials are files — `bot_token_file` and `chat_id_file` — so the token never appears in the
+Compose file, in `docker inspect`, or in this repository. `deploy/secrets/render.sh` renders
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from the SOPS payload, and writes both files **empty** when
+the payload has no value yet: a bind mount of a missing path would be created as a directory, which
+Alertmanager can only report as a confusing read error. An empty token does not stop Alertmanager from
+starting; it makes every delivery fail, which is what `TelegramDeliveryFailing` reports.
+`chat_id_file` carries one destination — a private chat or a group, not both. A second recipient is a
+second `telegram_configs` entry under the same receiver, which also duplicates every page, so the file
+holds the one place the operator actually reads.
+
+Rotation has one trap. Alertmanager re-reads both files for every delivery, but `render.sh` writes a
+**new file** (new inode) and a single-file bind mount keeps pointing at the old one — after a
+re-render the container still serves the previous credential until it is recreated:
+`docker compose up -d --force-recreate alertmanager`. Mounting the whole directory would avoid that,
+but it would also hand every other rendered secret to this container.
+
+Self-testing the path without real credentials works because `api_url` is part of the receiver: point it
+at a stub (`api_url: http://127.0.0.1:8099`) in a temporary copy of the config, fire an alert with
+`amtool`, and assert the stub received `POST /bot<token>/sendMessage` for the firing and — with
+`send_resolved: true` — for the resolved notification too. The shipped configuration keeps the default
+`https://api.telegram.org`, because Alertmanager does not interpolate environment variables.
+
+### Silencing and escalation
+
+Silence the alert, not the monitoring. A silence always carries a reason and an expiry and is created
+against the labels you actually see:
+
+```bash
+docker exec ctt-alertmanager amtool silence add \
+  --alertmanager.url=http://127.0.0.1:9093 \
+  --author="<you>" --comment="replacing the certificate, tracked in <issue>" --duration=2h \
+  alertname="CertificateExpiring"
+```
+
+The first repeat of a `critical` alert means it is still unresolved an hour later; three repeats mean
+the incident belongs in writing rather than being watched. If you are not going to act on a
+notification, silence it with a reason instead of ignoring it — an ignored page trains everyone to
+ignore the next one. The steps for working a page (what to check first, how to confirm the fix, what
+to record) are in the [runbook](ops-runbook.md#alerts-and-on-call).
+
 ## Not covered yet
 
 Long-term metric retention is configured per store (see the table above) but has not yet been observed
 across a month of production traffic. The dashboards describe the signals, not every question that can
 be asked of them: cross-service tracing views, span-level latency breakdowns and capacity forecasting
-are still ad hoc queries. Alert severity, receivers and the on-call path are not part of the story
-yet: every rule is `severity: info` and Alertmanager routes to a placeholder receiver, so P2.3 decides
-who gets paged.
+are still ad hoc queries. The paging path stops at one operator and one channel: no rotation, no second
+recipient and no acknowledgement tracking, which is the honest shape for a single-operator service
+rather than a pretend rota.
 
 ## Related
 

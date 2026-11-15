@@ -13,7 +13,7 @@ token — only the mount paths.
 | `.sops.yaml` | yes | SOPS creation rule and the age recipient |
 | `deploy/secrets/secrets.enc.yaml` | yes (ciphertext only) | development values |
 | `deploy/secrets/secrets.prod.enc.yaml` | yes (ciphertext only) | production values |
-| `deploy/secrets/render.sh` | yes | decrypts one payload (`--env dev` by default, or `--env prod`) into `0440` files for the container secrets |
+| `deploy/secrets/render.sh` | yes | decrypts one payload (`--env dev` by default, or `--env prod`) into `0440` files for the container secrets; it also writes `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` **empty** when the payload has no value yet, because a bind mount of a missing path becomes a directory and the container can only report a misleading read error |
 | `deploy/secrets/frp-token.sh` | yes | renders `FRP_TOKEN` to a `600` file, locally or over SSH |
 | `deploy/secrets/redis-exporter-passwords.sh` | yes | renders the JSON URI→password map the Redis exporter reads, locally or over SSH |
 | `deploy/secrets/run/` | no (gitignored) | rendered files that Compose mounts |
@@ -25,7 +25,10 @@ application), `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`,
 `DB_PASSWORD` (the `ctt_app` role), `REDIS_PASSWORD`, `JWT_SECRET_KEY`, `OAUTH_TOKEN_ENCRYPTION_KEY`,
 `GRAFANA_ADMIN_PASSWORD` and `RESEND_API_KEY`; it has no `POSTGRES_PASSWORD` because production
 uses the host database, not the Compose container, and no `FRP_TOKEN` because the tunnel is host
-infrastructure shared by every stack on that host and is stored once. Edit either file with
+infrastructure shared by every stack on that host and is stored once. The production payload also
+carries `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, the paging bot's credentials and its single
+destination chat; the development payload has neither, and the renderer writes both files empty there so
+the Alertmanager mounts stay valid. Edit either file with
 `sops deploy/secrets/secrets.enc.yaml` or `sops deploy/secrets/secrets.prod.enc.yaml`.
 
 One constraint remains: the Redis password is **shared by every database on the instance**. Redis

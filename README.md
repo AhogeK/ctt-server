@@ -28,10 +28,12 @@
 - **Operable from the first run.** Health probes and Prometheus metrics are served by a loopback-only
   management server, and the business counters — sync, rate limits, mail backlog, leaderboard backlog and
   audit — carry a bounded label set, so a dashboard or an alert cannot be broken by user data.
-  Eleven symptom-based rules ship with the stack — request latency, 5xx and 429 ratios, connection-pool
+  Twelve symptom-based rules ship with the stack — request latency, 5xx and 429 ratios, connection-pool
   saturation, the age of the oldest undelivered mail, stale leaderboards, dropped audit rows, public
-  endpoint and tunnel reachability, certificate expiry and disk — all at `info` severity so nothing pages
-  before the thresholds have met real traffic.
+  endpoint and tunnel reachability, certificate expiry, disk, and a page that never reached Telegram —
+  graded by blast radius and routed by severity: `critical` pages the operator through Alertmanager's own
+  Telegram integration, with the bot credentials mounted as files, `warning` notifies with a longer
+  repeat interval, and `info` stays on the dashboards.
   Three dashboards ship as code with the same stack — requests and sync, background work, and edge and
   hosts — each drawing the value the deployment promises as a contract line on the chart, and the rule
   threshold beside it where the rule deliberately waits longer.
@@ -160,7 +162,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Developer Handbook](docs/developer-handbook.md) | standard operations: error codes, audit events, exceptions, protected interfaces |
 | [API Governance](docs/api-governance.md) | security tiers, rate limiting and idempotency rules |
 | [Security Architecture](docs/security-architecture.md) | authentication, authorization and threat boundaries |
-| [Observability](docs/observability.md) | the loopback management server, business metrics, trace correlation, the request log fields, the deployed stack, the alert rules it evaluates and the dashboards that ship with it |
+| [Observability](docs/observability.md) | the loopback management server, business metrics, trace correlation, the request log fields, the deployed stack, the alert rules it evaluates, the dashboards that ship with it and who gets told |
 | [Time Strategy](docs/time-strategy.md) | UTC-first time handling across the system |
 | [Case Normalization](docs/case-normalization.md) | email identity normalization |
 | [Derived Score Invalidation](docs/derived-score-invalidation.md) | when stored scores and statistics must be recomputed |
@@ -171,6 +173,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0440` group-readable files, rotation and the frp token |
 | [Production Data Isolation](docs/production-data-isolation.md) | production database, role, Redis logical database, data-plane network and verification |
 | [Production Configuration](docs/production-configuration.md) | required production environment, startup guard rules and the API-documentation posture |
+| [Operations Runbook](docs/ops-runbook.md) | what to do when an alert fires: first checks, per-alert triage, silencing, proving the paging path and rotating the bot credential |
 
 ## Related projects
 
