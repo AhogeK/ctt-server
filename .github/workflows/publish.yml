@@ -110,7 +110,7 @@ jobs:
       # commit by that workflow" without trusting our own JSON files.
       - name: Attest the build provenance
         run: |
-          cosign verify-attestation --yes \
+          cosign verify-attestation \
             --type slsaprovenance \
             --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/publish.yml@.*" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
