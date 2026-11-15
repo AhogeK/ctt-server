@@ -252,10 +252,48 @@ when the container started, so rewriting the file on the host leaves the contain
 content — `POST /-/reload` answers 200 while nothing changed. Every service here mounts its
 configuration directory for that reason.
 
-The dashboard provisioned today is the local stack's JSON (`deploy/local/grafana-dashboard.json`),
-mounted into Grafana's provisioning path so a fresh stack has something to look at. A later change
-replaces it with the full set built as code; until then the panels are a starting point, not a
-specification.
+### Dashboards
+
+The panels live in `deploy/observability/grafana/dashboards/` as three JSON files, and the file
+provider in `grafana/provisioning/dashboards/` drops them into the `ctt-server` folder on startup —
+no import step, no UI state to reproduce:
+
+| Dashboard | Answers |
+|---|---|
+| `ctt-server-requests` | what clients got: request rate by status class, 5xx share, p95 latency, 429 share, sync outcomes and durations, rate-limit rejections by scope |
+| `ctt-server-background` | what the server owes: mail backlog and the age of its oldest entry, leaderboard dirty depth, audit writes by outcome, pool saturation, JVM heap, async executor threads |
+| `ctt-edge-hosts` | what the outside sees and what the machines have left: probe results per target, certificate runway, tunnel reachability, disk and memory, Postgres and Redis reachability and load |
+
+Each panel reads the same series as the corresponding alert rule. The reference line drawn on a chart
+is the **contract value**, not always the rule's threshold: p95 at 300ms, 5xx at 0.5%, pool saturation
+at 80%, certificates at 14 days, the root filesystem at 90% used, and the oldest mail entry at 60s —
+while the outbox rule deliberately waits 300s before firing, because one slow retry is normal and a
+poller that stopped draining is not. That panel draws both lines so an alert on it is explained by the
+chart; every other rule fires at the value its line shows. The two are the same query: the panels add
+`job="ctt-server"` because the stack scrapes several jobs, while the rules omit it since those families
+are emitted only by the application. Probe panels filter on `job="blackbox-public"`, a job both stacks
+define.
+
+One set of JSON serves both stacks. The deployment stack mounts `grafana/dashboards` directly; the
+local stack mounts the same directory and supplies its own provisioning under
+`deploy/local/grafana/provisioning`, whose Prometheus data source carries the fixed uid `prometheus`
+that the panels address by. Locally, only series the local stack cannot produce stay empty: the node,
+Postgres and Redis exporters, and certificate expiry, since the local edge speaks plain HTTP. Probe
+panels are populated because `deploy/local/prometheus.yml` defines the same two probe jobs as the
+deployment host. Nothing is forked.
+
+`provisioning/alerting/` and `provisioning/plugins/` exist in both stacks but stay empty: Grafana
+scans every directory in its provisioning path and logs an error for each one it cannot open, so an
+absent directory is a permanent error line that hides the real ones.
+
+The local stack runs these services with host networking, which on Docker Desktop means the VM's own
+loopback: `curl 127.0.0.1:3000` from macOS reaches nothing even while Grafana answers inside. Check
+them with `docker exec ctt-grafana wget -qO- http://127.0.0.1:3000/api/health` instead.
+
+When the data source uid or its definition changes, drop the Grafana volume before starting: the
+provisioning records stored inside it still point at the previous definition, and Grafana exits with
+`Datasource provisioning error: data source not found` on every restart until the volume is recreated
+(`docker volume rm ctt-server_grafana_data` locally, `ctt-obs_grafana_data` on the deployment host).
 
 ### Verifying the stack
 
@@ -394,9 +432,11 @@ curl -s http://127.0.0.1:9090/api/v1/rules | jq '.data.groups[].rules | length'
 ## Not covered yet
 
 Long-term metric retention is configured per store (see the table above) but has not yet been observed
-across a month of production traffic. Alert severity, receivers and the on-call path are not part of
-the story yet: every rule is `severity: info` and Alertmanager routes to a placeholder receiver, so
-P2.3 decides who gets paged, and the dashboards beyond the provisioned starting point are P2.2.
+across a month of production traffic. The dashboards describe the signals, not every question that can
+be asked of them: cross-service tracing views, span-level latency breakdowns and capacity forecasting
+are still ad hoc queries. Alert severity, receivers and the on-call path are not part of the story
+yet: every rule is `severity: info` and Alertmanager routes to a placeholder receiver, so P2.3 decides
+who gets paged.
 
 ## Related
 
