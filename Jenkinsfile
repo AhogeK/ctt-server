@@ -127,6 +127,29 @@ pipeline {
             }
         }
 
+        // A package that only the owner can pull needs a registry credential.
+        // When the credential is absent the stage says so and continues: a
+        // public package needs no login, and failing here would hide that
+        // choice behind a missing secret.
+        stage('Registry login') {
+            steps {
+                script {
+                    try {
+                        withCredentials([usernamePassword(credentialsId: 'ctt-ghcr-registry',
+                                                          usernameVariable: 'GHCR_USERNAME',
+                                                          passwordVariable: 'GHCR_TOKEN')]) {
+                            sh '''
+                                echo "$GHCR_TOKEN" | docker login ghcr.io \
+                                    --username "$GHCR_USERNAME" --password-stdin
+                            '''
+                        }
+                    } catch (MissingCredentialsException missing) {
+                        echo 'No ctt-ghcr-registry credential: the package must be publicly pullable.'
+                    }
+                }
+            }
+        }
+
         stage('Verify image') {
             steps {
                 dir("${REPO_DIR}") {
