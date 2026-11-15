@@ -49,29 +49,39 @@ jobs:
       # gets signed has to be built the same way.
       - name: Resolve the image name
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Log in to the container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # `sha-<short>` always exists and never moves; `latest` follows master;
-      # `vX.Y.Z` comes from the tag. A digest is still what a deployment pins.
+      # What the registry ends up holding:
+      #   `sha-<short>` — the newest build of this commit. Two builds of one
+      #     commit differ (the build is not byte-reproducible), so this tag can
+      #     move; a digest is the immutable handle.
+      #   `master` — the branch build, reachable without a release.
+      #   `X.Y.Z` — the release: the `vX.Y.Z` git tag publishes the image tag
+      #     without the `v`.
+      #   `latest` — the newest release. `flavor: latest=false` stops the action
+      #     from adding it on its own (it would add it for every semver tag);
+      #     the explicit rule below adds it for a tag only, so an unreleased
+      #     branch build never moves it.
       - name: Derive tags
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE }}
+          flavor: latest=false
           tags: |
             type=sha,format=short,prefix=sha-
             type=ref,event=branch
             type=semver,pattern={{version}}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
 
       # One build: the pushed image, its provenance and its SBOM all describe
       # the same bytes. `push: true` also means the registry holds it before
@@ -79,7 +89,7 @@ jobs:
       # resolves to nothing.
       - name: Build and push
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true

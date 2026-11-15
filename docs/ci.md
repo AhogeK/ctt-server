@@ -125,6 +125,28 @@ deploy job runs it and then `docker compose up -d --no-build`: a missing or
 unverified image fails the deployment rather than falling back to a locally
 built one nobody signed.
 
+### What the registry holds
+
+One publish run pushes several tags, and only one of them is a release:
+
+| Tag | Points at | Moves |
+| --- | --- | --- |
+| `sha-<short>` | the newest build of that commit | yes — a second build of the same commit is a different image |
+| `master` | the newest branch build | yes, with every push to `master` |
+| `X.Y.Z` | the release | no |
+| `latest` | the newest release | only when a release is published |
+
+The `vX.Y.Z` git tag publishes the image tag `X.Y.Z`: the `v` belongs to the
+git tag, the image tag has none. `latest` follows releases rather than the
+branch — the publish workflow turns the action's own `latest` off and adds the
+tag itself for a release only, so an unreleased branch build never becomes the
+image somebody pulls by name.
+
+None of these tags are a deployment handle. The build is not byte-reproducible,
+so two builds of one commit are two different images and the tag that names
+them points at whichever landed last; a digest names one image and does not
+move. Deployments pin a digest, and `deploy/verify-image.sh` refuses a tag.
+
 ## The CI identity
 
 `sops` needs one secret the repository cannot hold in plain text. The runner
