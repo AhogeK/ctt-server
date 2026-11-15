@@ -148,6 +148,18 @@ docker pull "$IMAGE"
 IMAGE_REF="$IMAGE" docker compose up -d --no-build app
 ```
 
+Pulling a private package needs a registry credential; the deploy job takes it
+from the Jenkins credential `ctt-ghcr-registry` (username plus a token with
+`read:packages`). Without that credential the job still runs the verification
+and says the package has to be publicly pullable — `cosign` reads the
+signature from the transparency log and the attestation from the registry, so
+the check itself works either way, but `docker pull` does not.
+
+```bash
+# Only needed on a host that pulls by hand rather than through the job.
+echo "$GHCR_TOKEN" | docker login ghcr.io --username AhogeK --password-stdin
+```
+
 `verify-image.sh` exits `2` when it cannot run at all — `cosign` missing, or a
 tag instead of a digest — and `1` when the signature or the attestation does not
 match this repository's publish workflow. Both are deployment blockers; neither
