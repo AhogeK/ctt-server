@@ -1,5 +1,11 @@
 # Active Context
 
+- [2026-11-15] - P3.2 修订：镜像 tag 语义与 action 运行时（v0.110.0）
+    - 触发与教训：发布注释与 runbook 按推测写着「`latest` 跟着 master、`sha-<short>` 永不移动」，注册表实测是另一回事——`latest` 每次 semver 发布都移动、`sha-<short>` 会被同一提交的后一次构建覆盖（构建非字节可复现）、镜像 tag 名是 `X.Y.Z` 而非 `vX.Y.Z`；CI 注解同时点名七处 action 的 `runs.using` 是 node20（已被 runner 弃用，强制按 node24 跑）。教训：action 的运行时版本与 pin 一样是仓库内容（读各 action `action.yml` 的 `runs.using` 判定，不能凭印象），破坏性变更要逐个大版本读 release notes，而不是升完只看「能跑」。
+    - 变更：`publish.yml` 关掉 metadata-action 自带的 latest（`flavor: latest=false`，否则任何 semver tag 都会带）并加显式规则只在 tag 推送时加 latest（`enable=${{ github.ref_type == 'tag' }}`）；七处 action 升到 node24 版本（checkout v7、setup-java v6、upload-artifact v7、setup-buildx v4、login-action v4、metadata-action v6、build-push-action v7），cosign-installer 是 composite action 保持 v3；`docs/ci.md` 新增「注册表里最终有什么」表格、`docs/ops-runbook.md` 回滚段按实测语义改写；版本 0.110.0。
+    - 验证：发版前基线 `latest` = `sha256:222f3557…`（= `0.109.0`）、`master` = `sha256:75de93c7…`、`0.110.0` 不存在；`ruby -ryaml` 解析两个 workflow 正常（编辑中一次误删 `ci.yml` 的 `env:` 块，由 YAML 解析报错当场抓出并补回）。
+    - 边界：构建非字节可复现 ⇒ 部署与回滚一律用 digest，不用 tag；Renovate App 未安装，action 版本 pin 暂由人工升级；发布证据（run 与 digest）待 `v0.110.0` tag 发布后补录。
+
 - [2026-11-15] - P3.2 首次发布成功，部署机验证通过（v0.109.0）
     - 触发：master 上的 `publish.yml` 连续三次失败，每次只暴露一层原因——引用路径大小写（`AhogeK/ctt-server` 不是合法镜像引用）、`--yes` 用在验证子命令上（那是签名的透明日志确认开关）、buildx 的内联证明 cosign 查不到。第三次用诊断步骤打印注册表真实内容才定位：`vnd.docker.reference.digest` 指向**平台清单**而非被签的索引，注册表又不把它暴露给 cosign。
     - 修复：证明从 build metadata 取出（`.github/scripts/extract-predicate.py`）后用 `cosign attest` 重新绑到被签的 digest；发布构建改 `provenance: mode=min`（重新发布的证明会进公开的 Rekor，max 版带构建环境）；`deploy/verify-image.sh` 的 cosign 查找覆盖 `$HOME/.local/bin` 与 `COSIGN_BIN`（部署机把 cosign 装在用户 bin 下，PATH 里没有）；`Jenkinsfile` 增 `Registry login` 阶段，缺凭证时明确提示「包需可公开拉取」而不是让 `docker pull` 报含糊的 401。
@@ -9,16 +15,13 @@
     - 边界：**GHCR 包实测可匿名拉取**——部署机 `docker pull ghcr.io/ahogek/ctt-server@sha256:af316447…` 无凭证成功（先前「包是私有的」是拿 REST API 的 401 下的结论，那只是本机 token 缺 `read:packages` scope），所以部署不需要注册表凭证，登录阶段只是为将来转私有时留的路；Jenkins 新路径尚未跑过一次；Renovate App 未安装。
     - 规则：`AGENTS.md` 新增「验证命令必须能在目标环境查到它要验的东西」——查不到对象的验证要么报错得莫名其妙，要么空过，而空过更坏。
 - [2026-11-15] - 分支模型改为 Git Flow + master 仅 PR（流程变更，不改版本）
-    - 触发：用户要求「今后按 Git Flow 走、master 只能合并」，并写进 `AGENTS.md` 与 memory-bank。
-    - 变更：GitHub ruleset `master-protection`（id 27307962）作用于 `refs/heads/master`——禁删、禁强推、必须 PR；0 approvals（单人仓库里 PR 作者不能自批）、要求会话解决、只开 merge+squash；`bypass_actors` 由 UI 默认的 RepositoryRole 清成空数组，管理员也绕不过。`AGENTS.md` R6 增 `git switch -c` 一行，R17 重写为 PR 版：`feature/<kebab>` 从 develop 切并 PR 回 develop，`release/v<x.y.z>` **从 master 切**再 cherry-pick 非 AI 提交，`hotfix/<yyyymmdd>-<kebab>` 从 master 切、PR 到 master 后回灌 develop。
+    - 触发与变更：用户要求「今后按 Git Flow 走、master 只能合并」并写进 `AGENTS.md` 与 memory-bank；GitHub ruleset `master-protection`（id 27307962）作用于 `refs/heads/master`——禁删、禁强推、必须 PR；0 approvals（单人仓库里 PR 作者不能自批）、要求会话解决、只开 merge+squash；`bypass_actors` 由 UI 默认的 RepositoryRole 清成空数组，管理员也绕不过。`AGENTS.md` R6 增 `git switch -c` 一行，R17 重写为 PR 版：`feature/<kebab>` 从 develop 切并 PR 回 develop，`release/v<x.y.z>` **从 master 切**再 cherry-pick 非 AI 提交，`hotfix/<yyyymmdd>-<kebab>` 从 master 切、PR 到 master 后回灌 develop。
     - 命名取舍：先按用户示例写成 `feature_`/`release_v`/`hotfix_`（含 tag 同名同源），随后实测发现**分支与 tag 同名会让 `git checkout` 直接失败**（`warning: refname 'release_v0.107.0' is ambiguous` → `fatal: ambiguous object name`），改为斜杠分支名 + 纯语义化 tag：`release/v0.107.0` 与 tag `v0.107.0` 天生不撞，且 `v<x.y.z>` 是 `git describe`/语义化工具能解析的形式；发布类型写进 annotated tag 消息。保留两处对用户原规范的修正——`release` 必须带修订位、`hotfix` 用「日期-主题」而非纯日期。
-    - 现状：P3.1 的改动已挪到 `feature/p3-1-quality-gates`（从 develop 切，16 项未提交）；等 PR 跑出三个 CI job，再把 `required_status_checks` 写进规则集。
-    - 边界：required checks 还没配（名字必须与 job name 完全一致、且近 7 天在本仓库成功过）；`gh pr create/merge` 仍要单独授权（R6）。
+    - 现状：P3.1 已合并（PR #1 三个 CI job 全绿，job 名已写入 ruleset 的 `required_status_checks`），后续改动按 Git Flow 从 develop 切 `feature/<kebab>`、PR 回 develop；`gh pr create/merge` 仍要单独授权（R6）。
 - [2026-11-15] - P3.2 实现：镜像发布、keyless 签名与按 digest 部署（v0.108.0）
     - 决策：签名走 keyless（GitHub OIDC 短证书 + Rekor），不自建密钥对——没有私钥就没有轮换、备份与泄漏面；代价是验证方必须钉住 **workflow 身份 + issuer**，而不是一个公钥文件。签名对象是 **digest**：tag 能在验证之后、容器启动之前被移动，digest 不能。另加一条常被忽略的推论：签名只证明「谁签的」，任何仓库的任何 workflow 都能签，所以必须再用 `verify-attestation` 复核构建来源，否则干净的签名会掩盖「不是从这条提交构建的」。
     - 变更：`.github/workflows/publish.yml`（master 与 `v*` 触发；单次 `build-push` 带 `provenance=mode=max` 与 SBOM；`cosign sign` 签 `IMAGE@digest`；随后 `verify-attestation --type slsaprovenance` 自查；step summary 打印可直接复制的验证命令）、`deploy/verify-image.sh`（拒绝非 digest 引用，钉 `publish.yml` 身份与 `token.actions.githubusercontent.com`，签名与证明双检，退出码 2=跑不起来 / 1=验证不过）、`docker-compose.yaml` 的 `image: ${IMAGE_REF:-ctt-server-app}`、`Jenkinsfile` 增 `IMAGE_REF` 参数 + `Tooling` 断言 `cosign` + 新增 `Verify image` 阶段 + `Deploy` 改 `--no-build`、`docs/ci.md` 增「Publishing and signing」并修正 required checks 与 Jenkins 的过时描述、`docs/ops-runbook.md` 增「Deploying a signed image」、`.github/renovate.json`、README 能力条目。
     - 验证：本地 `registry:2` + `ghcr.io/sigstore/cosign/cosign:v2.6.0` 端到端（`--network container:` 共享 netns 才能让容器内 `localhost:5000` 通到 registry）——`cosign sign --key` 成功写入 tlog，`verify --key cosign.pub` 退出 0，换另一把公钥退出 12；`verify-image.sh` 三条守卫实测（无参 2 / tag 引用 2 / 无 cosign 2），tag 那条打印「tag 可移动、digest 不能」；`ruby -ryaml` 解析 `publish.yml` = 1 job / 10 steps / 权限 `contents,packages,id-token,attestations`。
-    - 边界与待办：见上方「P3.2 首次发布」条目——真实 keyless 签名与部署机验证已于同日完成；余项是私有包拉取凭证、Jenkins 新路径首跑、Renovate App。
 - [2026-11-15] - P3.1 实现完成：CI 质量门与供应链证据（v0.107.0）
     - 决策：门留在 GitHub Actions，**Jenkins 只部署**——把全量套件压在跑生产的机器上，等于让合并延迟取决于那台机器；被扫描与被证明的镜像必须是**一次构建**，否则「扫的 digest」与「签的 digest」分叉。
     - 变更：`.github/workflows/ci.yml`（quality 5 / secrets 4 / supply-chain 9 步，含 `docker/setup-buildx-action`）、`.github/scripts/extract-provenance.py`（提取 + 与本次布局配对校验）、`.gitleaksignore`（41 条指纹）、`Jenkinsfile` 重写（`Tooling` 阶段 + 文件凭证 + `render.sh`，删明文 `.env`）、`docs/ci.md` 新增、删除 `.opencode/`（用户要求，无用途）。
