@@ -46,7 +46,11 @@ secrets:
 services:
   app:
     <<: *hardening
-    image: ctt-server-app
+    # A deployment sets IMAGE_REF to the digest the publish workflow signed;
+    # `docker compose up --no-build` then runs exactly the verified bytes. Left
+    # unset, compose builds the working tree, which is what local development
+    # and the CI scan want.
+    image: ${IMAGE_REF:-ctt-server-app}
     build:
       context: .
       dockerfile: Dockerfile

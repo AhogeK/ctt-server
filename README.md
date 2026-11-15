@@ -44,7 +44,10 @@
 - **Gates, not judgement.** One workflow runs the formatting check, the full suite and the coverage
   thresholds, scans the whole history for committed credentials, scans manifests and the built image with
   Trivy, and publishes a CycloneDX SBOM beside a SLSA v1 provenance attestation — the scanned image and the
-  attested image are the same build. The deploy job only ships a tree that passed; it holds no plaintext
+  attested image are the same build. A second workflow builds the image that can be deployed, signs its
+  digest with a keyless OIDC certificate and re-verifies the provenance it carries. The deploy job ships only
+  that digest: it checks the signature against the publishing workflow's own identity, then starts the
+  container with `--no-build`, so an unverified image cannot reach the host. It holds no plaintext
   credentials, and renders them from the encrypted payload with a file-based identity.
 
 ## How it works

@@ -1,9 +1,11 @@
-// Deploy job: it ships the tree on master and health-checks it.
+// Deploy job: it runs the digest the publish workflow signed, on master.
 //
 // The merge gates live in .github/workflows/ci.yml — formatting, the full test
 // suite, coverage, the secret scan, Trivy, the SBOM and the build provenance all
-// run there, on a machine that is not also running production. This job builds
-// only to prove the deployment still starts.
+// run there, on a machine that is not also running production. The image is
+// built and signed by .github/workflows/publish.yml; this job pulls that digest,
+// checks the signature against the workflow's own identity, and never builds on
+// the host that runs production.
 //
 // Credentials: the SOPS age identity is a Jenkins file credential. Nothing is
 // written to a plaintext .env — Compose reads the rendered 0440 files and the
@@ -13,6 +15,14 @@ pipeline {
 
     tools {
         jdk 'Java25'
+    }
+
+    parameters {
+        // A tag can be moved between verification and start; a digest cannot,
+        // which is why the job refuses anything else.
+        string(name: 'IMAGE_REF',
+               defaultValue: '',
+               description: 'ghcr.io/ahogek/ctt-server@sha256:<digest> printed by the Publish workflow')
     }
 
     environment {
@@ -44,8 +54,8 @@ pipeline {
             steps {
                 dir("${REPO_DIR}") {
                     // Checked first so a missing tool names itself instead of
-                    // surfacing as sops noise inside render.sh.
-                    sh 'sops --version && python3 --version && docker compose version'
+                    // surfacing as sops or cosign noise inside the run.
+                    sh 'sops --version && python3 --version && docker compose version && cosign version'
                 }
             }
         }
@@ -117,12 +127,31 @@ pipeline {
             }
         }
 
+        stage('Verify image') {
+            steps {
+                dir("${REPO_DIR}") {
+                    sh '''
+                        set -euo pipefail
+                        if [ -z "${IMAGE_REF:-}" ]; then
+                            echo "IMAGE_REF is empty: pass the digest printed by the Publish workflow" >&2
+                            exit 1
+                        fi
+                        deploy/verify-image.sh "$IMAGE_REF"
+                    '''
+                }
+            }
+        }
+
         stage('Deploy') {
             steps {
                 dir("${REPO_DIR}") {
                     sh '''
                         export SECRET_GID="${SECRET_GID:-$(id -g)}"
-                        CONTAINER_NAME=ctt-server-test docker compose up -d --build app
+                        # --no-build is the point: if the image is missing, the
+                        # deploy fails instead of silently substituting a
+                        # locally built one nobody verified.
+                        CONTAINER_NAME=ctt-server-test IMAGE_REF="$IMAGE_REF" \
+                            docker compose up -d --no-build app
                     '''
                 }
             }
