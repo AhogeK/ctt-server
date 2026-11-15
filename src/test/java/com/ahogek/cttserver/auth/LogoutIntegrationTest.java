@@ -21,11 +21,13 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.time.Duration;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -126,6 +128,27 @@ class LogoutIntegrationTest {
                 .single();
     }
 
+    /**
+     * Waits for the asynchronous audit listener to persist a row.
+     *
+     * <p>The listener runs after the request commits, so reading audit_logs straight after the
+     * response races it under load.
+     */
+    private void awaitAuditAction(String action) {
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(
+                        () ->
+                                assertThat(
+                                                jdbcClient
+                                                        .sql(
+                                                                "SELECT COUNT(*) FROM audit_logs"
+                                                                        + " WHERE action = ?")
+                                                        .param(action)
+                                                        .query(Long.class)
+                                                        .single())
+                                        .isPositive());
+    }
+
     private boolean isTokenRevoked(String rawRefreshToken) {
         String tokenHash = TokenUtils.hashToken(rawRefreshToken);
         Long revokedCount =
@@ -185,12 +208,7 @@ class LogoutIntegrationTest {
             assertTokenRejected(tokens.refreshToken());
 
             // Then 4: Audit log contains LOGOUT_SUCCESS
-            Long auditCount =
-                    jdbcClient
-                            .sql("SELECT COUNT(*) FROM audit_logs WHERE action = 'LOGOUT_SUCCESS'")
-                            .query(Long.class)
-                            .single();
-            assertThat(auditCount).isPositive();
+            awaitAuditAction("LOGOUT_SUCCESS");
         }
 
         @Test
@@ -275,12 +293,7 @@ class LogoutIntegrationTest {
             assertThat(isTokenRevoked(tokensB.refreshToken())).isFalse();
 
             // Then 3: Audit log contains SECURITY_ALERT for BOLA attempt
-            Long alertCount =
-                    jdbcClient
-                            .sql("SELECT COUNT(*) FROM audit_logs WHERE action = 'SECURITY_ALERT'")
-                            .query(Long.class)
-                            .single();
-            assertThat(alertCount).isPositive();
+            awaitAuditAction("SECURITY_ALERT");
         }
 
         @Test
@@ -390,13 +403,7 @@ class LogoutIntegrationTest {
             assertTokenRejected(tokens3.refreshToken());
 
             // Then 3: Audit log contains LOGOUT_ALL_DEVICES
-            Long auditCount =
-                    jdbcClient
-                            .sql(
-                                    "SELECT COUNT(*) FROM audit_logs WHERE action = 'LOGOUT_ALL_DEVICES'")
-                            .query(Long.class)
-                            .single();
-            assertThat(auditCount).isPositive();
+            awaitAuditAction("LOGOUT_ALL_DEVICES");
         }
 
         @Test
