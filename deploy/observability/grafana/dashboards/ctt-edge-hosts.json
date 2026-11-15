@@ -1,0 +1,372 @@
+{
+  "uid": "ctt-edge-hosts",
+  "title": "CTT edge and hosts",
+  "description": "What the public sees and what the machines underneath have left: probe results per target, certificate runway, and the host resources the exporters report. The three contract lines here are the alert thresholds, drawn where the rule reads them.",
+  "tags": ["ctt-server", "edge", "provided"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "1m",
+  "time": {"from": "now-6h", "to": "now"},
+  "links": [
+    {"title": "Requests and sync", "url": "/d/ctt-server-requests", "type": "link"},
+    {"title": "Background work", "url": "/d/ctt-server-background", "type": "link"}
+  ],
+  "annotations": {"list": []},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Public probes reporting success",
+      "description": "Alert PublicEndpointDown fires per target after 5 minutes; this stat is the count an operator checks first when a page arrives.",
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(probe_success{job=\"blackbox-public\"})", "legendFormat": "targets up"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Targets configured",
+      "description": "Probe count comes from the deployment's own target file; a drop here means the file lost an entry, not that a site recovered.",
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "text", "value": null}]}},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "count(probe_success{job=\"blackbox-public\"})", "legendFormat": "targets"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Nearest certificate expiry",
+      "description": "Alert CertificateExpiring fires below 14 days. The value is the smallest runway across every probed host, so it answers \"how long until the first page\".",
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "decimals": 1,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "orange", "value": 14}, {"color": "green", "value": 30}]}
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "(min(probe_ssl_earliest_cert_expiry{job=\"blackbox-public\"}) - time()) / 86400", "legendFormat": "days left"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Tunnel down",
+      "description": "Shows 1 when every public probe fails at once — the signature of the tunnel rather than of one site — and 0 otherwise; this is the TunnelDown rule's own expression. One target down is PublicEndpointDown instead.",
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "(sum(probe_success{job=\"blackbox-public\"}) == 0) and (count(probe_success{job=\"blackbox-public\"}) > 0)", "legendFormat": "tunnel down"}
+      ]
+    },
+    {
+      "id": 5,
+      "type": "state-timeline",
+      "title": "Probe result per target",
+      "description": "One row per probed URL: green is a passing status, red is a failure. The legend carries the instance label, which is the target URL.",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 1,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+          "custom": {"lineWidth": 0, "fillOpacity": 80, "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "rowHeight": 0.85,
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": false},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "probe_success{job=\"blackbox-public\"}", "legendFormat": "{{instance}}"}
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Certificate days remaining",
+      "description": "Alert CertificateExpiring below 14 days, drawn as the dashed line. Per-target so the panel names the host whose renewal is late.",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": true}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "alert threshold 14 d"},
+            "properties": [
+              {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
+              {"id": "custom.fillOpacity", "value": 0},
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min"]},
+        "tooltip": {"mode": "multi", "sort": "asc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "(probe_ssl_earliest_cert_expiry{job=\"blackbox-public\"} - time()) / 86400", "legendFormat": "{{instance}}"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "vector(14)", "legendFormat": "alert threshold 14 d"}
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Probe duration",
+      "description": "How long the HTTP exchange took, not how long the page takes to feel fast. A rise here is the earliest signal that the tunnel is degrading.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": true}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "probe_duration_seconds{job=\"blackbox-public\"}", "legendFormat": "{{instance}}"}
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Root filesystem used against the 90% alert threshold",
+      "description": "Alert HostDiskSpaceLow fires below 10% available, which is the dashed line drawn here as usage. Every mountpoint is exported; only / is the alert's concern.",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 23},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "alert threshold 90%"},
+            "properties": [
+              {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
+              {"id": "custom.fillOpacity", "value": 0},
+              {"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "1 - (node_filesystem_avail_bytes{job=\"node\", mountpoint=\"/\"} / node_filesystem_size_bytes{job=\"node\", mountpoint=\"/\"})", "legendFormat": "{{instance}} /"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "vector(0.9)", "legendFormat": "alert threshold 90%"}
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Memory available",
+      "description": "No alert watches memory on purpose: this host also runs the observability stack, and a memory warning without a growth trend only adds noise. Read it against the swap and OOM lines below.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 23},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "node_memory_MemAvailable_bytes{job=\"node\"} / node_memory_MemTotal_bytes{job=\"node\"}", "legendFormat": "{{instance}} available"}
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Load average (1m) against core count",
+      "description": "Load above the core count means the host queues work. Drawn with the core count as a dashed reference rather than a threshold, because a short spike above it is normal.",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 32},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": true}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "cores"},
+            "properties": [
+              {"id": "custom.lineStyle", "value": {"dash": [10, 10], "fill": "dash"}},
+              {"id": "custom.fillOpacity", "value": 0}
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "node_load1{job=\"node\"}", "legendFormat": "{{instance}} load1"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "count by (instance) (node_cpu_seconds_total{job=\"node\", mode=\"idle\"})", "legendFormat": "cores"}
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Dependency exporters",
+      "description": "pg_up and redis_up answer whether the exporter could reach the service; a zero here means the dependency or its credentials are broken, and every application panel above is about to look strange.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 32},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 1,
+          "decimals": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "pg", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "pg_up{job=\"postgres\"}", "legendFormat": "postgres"},
+        {"refId": "redis", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "redis_up{job=\"redis\"}", "legendFormat": "redis"}
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Database connections",
+      "description": "Backends include the exporter's own session; the application's pool has its own panel on the background dashboard.",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 41},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "sum(pg_stat_database_numbackends{job=\"postgres\"})", "legendFormat": "backends"}
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Redis memory used",
+      "description": "The deployment runs Redis in its own logical database; a climb here without a key-count change points at a lengthening dirty set rather than at more users.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 41},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "spanNulls": false}
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "redis_memory_used_bytes{job=\"redis\"}", "legendFormat": "used memory"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "editorMode": "code", "range": true, "expr": "redis_memory_max_bytes{job=\"redis\"}", "legendFormat": "maxmemory"}
+      ]
+    }
+  ]
+}

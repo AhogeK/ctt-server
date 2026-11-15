@@ -1,0 +1,20 @@
+# Grafana dashboard provider for the local stack (P2.2).
+#
+# The panels themselves live in deploy/observability/grafana/dashboards and are
+# mounted here unchanged: one set of JSON, two stacks. Panels whose series only
+# exist on the deployment host (node, postgres, redis exporters) stay empty
+# locally instead of being forked for the local stack.
+
+apiVersion: 1
+
+providers:
+  - name: ctt-server
+    orgId: 1
+    folder: ctt-server
+    type: file
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
