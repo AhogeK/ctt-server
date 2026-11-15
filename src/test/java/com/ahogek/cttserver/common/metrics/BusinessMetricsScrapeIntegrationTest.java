@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalManagementPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
@@ -27,6 +28,23 @@ class BusinessMetricsScrapeIntegrationTest {
     @Autowired private BusinessMetrics businessMetrics;
 
     @LocalManagementPort private int managementPort;
+
+    @LocalServerPort private int serverPort;
+
+    @Test
+    @DisplayName("should expose HTTP latency buckets once a request reaches the application")
+    void shouldExposeHttpLatencyBuckets_whenARequestHitsTheApplication() throws IOException {
+        // The p95 SLO alert (deploy/observability/prometheus/rules/alerts.yml) reads
+        // http_server_requests_seconds_bucket; Spring Boot 4 publishes those buckets only when
+        // the percentiles-histogram for http.server.requests is enabled (application.yaml). A real
+        // request must land on the application port before the timer has anything to record.
+        HttpResponse<String> response =
+                LoopbackHttpProbe.get(serverPort, "/ctt-server/api/v1/config/public");
+        assertThat(response.statusCode()).isEqualTo(200);
+
+        String scrape = scrape();
+        assertThat(seriesOf(scrape, "http_server_requests_seconds_bucket")).isNotEmpty();
+    }
 
     @Test
     @DisplayName("should expose every business metric family on the management port")
@@ -59,6 +77,7 @@ class BusinessMetricsScrapeIntegrationTest {
                                         .contains("outcome=\"WRITTEN\""));
         assertThat(seriesOf(scrape, "cttserver_business_mail_pending"))
                 .anySatisfy(line -> assertThat(line).contains("status=\"PENDING\""));
+        assertThat(seriesOf(scrape, "cttserver_business_mail_pending_oldest_seconds")).isNotEmpty();
         assertThat(seriesOf(scrape, "cttserver_business_leaderboard_pending_recomputes"))
                 .isNotEmpty();
     }

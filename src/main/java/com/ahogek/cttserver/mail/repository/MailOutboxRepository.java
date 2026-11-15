@@ -66,6 +66,27 @@ public interface MailOutboxRepository extends JpaRepository<MailOutbox, UUID> {
     List<MailOutbox> findPendingJobs(@Param("now") Instant now, Pageable pageable);
 
     /**
+     * Returns when the oldest entry currently awaiting dispatch was created.
+     *
+     * <p>Applies the exact predicate of {@link #findPendingJobs} (PENDING, or FAILED whose retry
+     * window has elapsed and is not exhausted), so the metric agrees with what the scheduler would
+     * pick. Backed by {@code idx_mail_outbox_dispatch}, whose leading column is {@code status}.
+     *
+     * @param now current timestamp; FAILED records with {@code nextRetryAt > now} are excluded
+     * @return the oldest eligible {@code createdAt}, or {@link Optional#empty()} when nothing is
+     *     waiting to be dispatched
+     */
+    @Query(
+            """
+            SELECT MIN(m.createdAt) FROM MailOutbox m
+            WHERE m.status = com.ahogek.cttserver.mail.enums.MailOutboxStatus.PENDING
+               OR (    m.status = com.ahogek.cttserver.mail.enums.MailOutboxStatus.FAILED
+                   AND m.nextRetryAt <= :now
+                   AND m.retryCount < m.maxRetries)
+            """)
+    Optional<Instant> findOldestAwaitingDispatchCreatedAt(@Param("now") Instant now);
+
+    /**
      * Looks up a delivery record by its OpenTelemetry trace ID.
      *
      * <p>Useful for correlating a distributed trace span back to the outbox entry without knowing

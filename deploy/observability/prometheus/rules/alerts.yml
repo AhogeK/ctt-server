@@ -1,0 +1,196 @@
+# P2.1 alert rules. Every rule is symptom-based: it fires on a user-visible or
+# capacity signal, not on a guessed cause, and carries a link to the runbook in
+# docs/observability.md. Severity is deliberately info for all rules until the
+# paging story (P2.3) decides which of these deserve warning/critical.
+#
+# The application rules reference metrics from the ctt-server job. Until the app
+# is deployed (P3) those series do not exist, so the rules stay inactive rather
+# than firing — a missing target reports up == 0 instead of a false alert.
+
+groups:
+  - name: ctt-server-app
+    rules:
+      # SLO: p95 latency <= 300ms (docs/observability.md, deployment contract).
+      # The percentiles-histogram for http.server.requests is enabled in
+      # application.yaml so histogram_quantile has buckets to work on.
+      - alert: HttpP95LatencyHigh
+        expr: >-
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_server_requests_seconds_bucket[5m]))) > 0.3
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: p95 HTTP latency above 300ms SLO for 5 minutes
+          description: >-
+            p95 latency is {{ $value | humanizeDuration }} while the SLO is
+            300ms. See docs/observability.md#alerting.
+
+      # SLO: 5xx share <= 0.5% per month. The rule fires at that promise rather
+      # than at a looser "something is badly wrong" number, so a breach is
+      # visible immediately; info severity means it never pages during the first
+      # week of data. The traffic guard keeps one 500 on an otherwise idle
+      # instance from reading as a 100% ratio.
+      - alert: Http5xxRatioHigh
+        expr: >-
+          sum by () (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            / sum by () (rate(http_server_requests_seconds_count[5m])) > 0.005
+            and sum by () (rate(http_server_requests_seconds_count[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: More than 0.5% of HTTP responses are 5xx
+          description: >-
+            5xx ratio is {{ $value | humanizePercentage }} over the last 5
+            minutes, above the 0.5% monthly SLO. The guard needs roughly 30
+            requests in the window, so low traffic never fires this. See
+            docs/observability.md#alerting.
+
+      # 429 (rate-limited) share of all responses above 10%: either real users
+      # are being throttled or a client is retry-looping into the limiter. No
+      # SLO covers throttling, so 10% is a judgement call to revisit once a week
+      # of data exists (P2.3 tightens thresholds and severities together).
+      - alert: Http429RatioHigh
+        expr: >-
+          sum by () (rate(http_server_requests_seconds_count{status="429"}[5m]))
+            / sum by () (rate(http_server_requests_seconds_count[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: More than 10% of HTTP responses are 429
+          description: >-
+            429 ratio is {{ $value | humanizePercentage }} over the last 5
+            minutes; legitimate users are being throttled. See
+            docs/observability.md#alerting.
+
+      # Connection pool near exhaustion (>= 80% in use).
+      - alert: DbPoolUsageHigh
+        expr: >-
+          sum(hikaricp_connections_active) / sum(hikaricp_connections_max) > 0.8
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: HikariCP pool more than 80% occupied
+          description: >-
+            Connection pool is {{ $value | humanizePercentage }} in use; check
+            for leaked connections or a slow dependency. See
+            docs/observability.md#alerting.
+
+      # Oldest outbox entry awaiting dispatch older than 5 minutes: the mail
+      # poller is stuck or the queue grew faster than it drains. The delivery
+      # SLO is p95 <= 60 s, but this rule waits five minutes on purpose: one
+      # slow retry is normal, a poller that stops draining is not, and the SLO
+      # itself is read from the same gauge on the P2.2 dashboard.
+      # NaN means the gauge could not be read (its query failed), which is never
+      # good news for the pipeline that is supposed to drain this queue, so both
+      # states fire. PromQL has no isnan(): a NaN sample is the one value that
+      # compares unequal to itself, so `m != m` selects it and nothing else.
+      - alert: MailOutboxStalled
+        expr: >-
+          cttserver_business_mail_pending_oldest_seconds > 300
+            or cttserver_business_mail_pending_oldest_seconds != cttserver_business_mail_pending_oldest_seconds
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: Mail backlog unreadable or oldest undelivered mail over 5 minutes old
+          description: >-
+            The oldest entry awaiting dispatch is either unmeasurable (the age
+            query failed) or over 5 minutes old. The mail poller may be stuck.
+            See docs/observability.md#alerting.
+
+      # Leaderboard recompute backlog persists for 30 minutes: the queue stops
+      # draining, so rankings shown to users go stale. NaN is the Redis read
+      # failing, which leaves the backlog unmeasurable for the same 30 minutes.
+      # NaN is detected with `m != m` for the reason given above.
+      - alert: LeaderboardRecomputeStalled
+        expr: >-
+          cttserver_business_leaderboard_pending_recomputes > 0
+            or cttserver_business_leaderboard_pending_recomputes != cttserver_business_leaderboard_pending_recomputes
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: Leaderboard recompute backlog unreadable or stale for 30 minutes
+          description: >-
+            Either the pending-recompute count could not be read, or users are
+            waiting for a score recompute; rankings are stale. See
+            docs/observability.md#alerting.
+
+      # Audit rows are being lost. The writer counts DROPPED when persisting an
+      # event throws, so this rule has real signal and no idle false positive.
+      # A writer that stops consuming events without an error emits nothing at
+      # all, which no counter can distinguish from a quiet system; that case is
+      # covered by a drill that exercises an audit-producing path.
+      - alert: AuditWritesLost
+        expr: >-
+          sum(rate(cttserver_business_audit_events_total{outcome="DROPPED"}[10m])) > 0
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: Audit rows are being dropped
+          description: >-
+            {{ $value | humanize }} audit events per second failed to persist;
+            the rows are gone. Check the writer log for the cause. See
+            docs/observability.md#alerting.
+
+  - name: ctt-server-edge
+    rules:
+      # Any one public endpoint unreachable for 5 minutes is a real outage of
+      # that probe; all of them down means the tunnel/edge itself is gone.
+      - alert: PublicEndpointDown
+        expr: probe_success{job="blackbox-public"} == 0
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: Public endpoint {{ $labels.instance }} unreachable
+          description: >-
+            The probe for {{ $labels.instance }} has failed for 5 minutes. See
+            docs/observability.md#alerting.
+
+      - alert: TunnelDown
+        expr: >-
+          sum(probe_success{job="blackbox-public"}) == 0
+            and count(probe_success{job="blackbox-public"}) > 0
+        for: 2m
+        labels:
+          severity: info
+        annotations:
+          summary: All public endpoints unreachable (tunnel or edge down)
+          description: >-
+            Every public probe fails; the frp tunnel or the edge is down. See
+            docs/observability.md#alerting.
+
+      # Certificates: alert 14 days before expiry. TLS is verified by the
+      # blackbox module, so an expired cert also fails the probe; this rule
+      # catches the approaching expiry while the site still works.
+      - alert: CertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry - time() < 14 * 86400
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: Certificate for {{ $labels.instance }} expires within 14 days
+          description: >-
+            Earliest cert for {{ $labels.instance }} expires in under 14 days
+            ({{ $value | humanizeDuration }} remaining). Renew before then; see
+            docs/observability.md#alerting.
+
+      # Disk free on the host, from node_exporter (the only filesystem worth a
+      # page here is the root of the deployment host).
+      - alert: HostDiskSpaceLow
+        expr: >-
+          node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: Less than 10% disk free on the deployment host
+          description: >-
+            {{ $value | humanizePercentage }} of the root filesystem is free.
+            See docs/observability.md#alerting.

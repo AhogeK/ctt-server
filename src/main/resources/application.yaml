@@ -87,6 +87,13 @@ management:
         # Boot 4 creates neither the Prometheus registry nor the scrape endpoint unless the export
         # is enabled explicitly; without this the endpoint never exists and the path answers 404.
         enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        # Spring Boot 4 records http.server.requests as a timer without percentile buckets by
+        # default; the P2.1 p95 latency SLO rule (deploy/observability/prometheus/rules/alerts.yml)
+        # reads histogram_quantile over _bucket, so the buckets must exist.
+        http.server.requests: true
   endpoints:
     web:
       exposure:

@@ -56,6 +56,10 @@ public class BusinessMetrics {
     /** Outbox entries waiting for delivery, tagged by status. */
     public static final String MAIL_PENDING = "cttserver.business.mail.pending";
 
+    /** Seconds since the oldest outbox entry awaiting dispatch was created; 0 when none waits. */
+    public static final String MAIL_PENDING_OLDEST_SECONDS =
+            "cttserver.business.mail.pending.oldest.seconds";
+
     /** Users whose leaderboard scores are stale and waiting for a recompute. */
     public static final String LEADERBOARD_PENDING_RECOMPUTES =
             "cttserver.business.leaderboard.pending.recomputes";
