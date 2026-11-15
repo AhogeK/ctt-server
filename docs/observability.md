@@ -141,6 +141,7 @@ and never free text such as a platform string.
 | `cttserver_business_sync_duration_seconds` | timer | same three | how slow the two operations are; read p50/p95/p99 with `histogram_quantile()` over the `_bucket` series |
 | `cttserver_business_ratelimit_rejections_total` | counter | `type` (`IP`/`USER`/`EMAIL`/`GLOBAL`) | whether the limiter is the reason clients get refused; `GLOBAL` is the installation-wide ceiling, which has no dimension |
 | `cttserver_business_mail_pending` | gauge | `status` (`PENDING`/`FAILED`/`CANCELLED`) | the mail backlog: `PENDING` waits for a send, `FAILED` is scheduled for a retry, `CANCELLED` exhausted its retries and is a dead letter. `SENDING` is deliberately absent — a row flaps through it and returns to `PENDING` after the zombie reset, so it would add noise without answering a question |
+| `cttserver_business_mail_pending_oldest_seconds` | gauge | none | age in seconds of the oldest entry awaiting dispatch, using the same predicate as the poller — so the number answers "how long has mail been stuck", not "how much is waiting". `0` when the queue is empty, because nothing has waited; `NaN` only when the query itself failed, so an unreadable queue is never mistaken for an idle one |
 | `cttserver_business_leaderboard_pending_recomputes` | gauge | none | whether leaderboard work is falling behind (depth of the Redis dirty set) |
 | `cttserver_business_audit_events_total` | counter | `severity` (`INFO`/`WARNING`/`CRITICAL`), `outcome` (`WRITTEN`/`DROPPED`) | audit events offered to the writer and how many were lost. `WRITTEN` is counted only after the row's own transaction commits, so it counts durable rows, and a missing severity is tagged `UNKNOWN` |
 
@@ -149,8 +150,10 @@ Counters only move forward, so a restart resets them to zero — read them with 
 published, because two slots scraped separately cannot be merged; the histogram buckets are, so
 quantiles stay aggregatable. Both pending gauges are read when Prometheus scrapes — one SQL count
 per status and one Redis `SCARD`. A failed read reports `NaN`, which is a sample carrying no value,
-not a missing series: `absent()` stays empty and `sum()` propagates it, so an alert tests
-`isnan(cttserver_business_mail_pending)` instead of `absent()`.
+not a missing series: `absent()` stays empty and `sum()` propagates it. PromQL has no `isnan()`
+function, so an alert selects it with `metric != metric` — a NaN is the one value that compares
+unequal to itself — which is how `MailOutboxStalled` and `LeaderboardRecomputeStalled` keep firing
+when the queue cannot be read instead of going quiet exactly then.
 
 The three-tag budget covers the tags the application sets. Prometheus histograms add `le` to
 `_bucket` series, which is structural, not a business dimension.
@@ -200,7 +203,7 @@ its own yet.
 | Service | Loopback | Role |
 | --- | --- | --- |
 | Prometheus | `9090` | scrapes the application and the exporters, evaluates rules |
-| Alertmanager | `9093` | groups and routes alerts; no rules are loaded yet, so its receiver is a placeholder |
+| Alertmanager | `9093` | groups and routes alerts; routes every alert to a placeholder receiver until P2.3 decides who gets paged |
 | Grafana | `3000` | dashboards over the three signals |
 | Loki | `3100` | log store, fed by Alloy |
 | Tempo | `3200` query, `4318` OTLP/HTTP, `4317` OTLP/gRPC | trace store, written by the application directly |
@@ -339,12 +342,61 @@ docker run --rm -v "$PWD/deploy/local/prometheus.yml:/etc/prometheus/prometheus.
 Compose healthchecks read the management port, so a container is only healthy when its probe server
 answers — the same surface Prometheus scrapes.
 
+## Alerting
+
+`deploy/observability/prometheus/rules/alerts.yml` holds the alert rules (P2.1). Each one is
+symptom-based — it fires on a user-visible or capacity signal, not on a guessed cause — and every
+annotation ends with a pointer to this document. All rules carry `severity: info` for now: P2.3
+decides which of them deserve warning/critical and who gets paged, and until then Alertmanager
+routes everything to its placeholder receiver.
+
+| Alert | Signal | Threshold | Fires when |
+| --- | --- | --- | --- |
+| `HttpP95LatencyHigh` | `http_server_requests_seconds_bucket` (percentiles-histogram for `http.server.requests` is enabled in `application.yaml`) | p95 > 300ms for 5m | the SLO is breached for five minutes straight |
+| `Http5xxRatioHigh` | `http_server_requests_seconds_count` | 5xx share > 0.5% for 5m, with more than ~30 requests in the window | the monthly 5xx SLO is breached; the traffic guard keeps a lone 500 on an idle instance from reading as 100% |
+| `Http429RatioHigh` | `http_server_requests_seconds_count` | 429 share > 10% for 10m | the rate limiter throttles a large share of traffic. No SLO covers throttling, so the number is a judgement call to revisit together with the severities (P2.3) |
+| `DbPoolUsageHigh` | `hikaricp_connections_active` / `hikaricp_connections_max` | > 80% for 5m | the pool approaches exhaustion |
+| `MailOutboxStalled` | `cttserver_business_mail_pending_oldest_seconds` | > 300s for 5m, or `m != m` (unreadable) | the oldest mail entry waits over five minutes, or the age query stops answering and the backlog becomes unmeasurable. Delivery SLO is p95 ≤ 60s, but a single slow retry is normal: this rule waits for a poller that stopped draining, and the SLO itself is read from the same gauge on the P2.2 dashboard |
+| `LeaderboardRecomputeStalled` | `cttserver_business_leaderboard_pending_recomputes` | > 0 for 30m, or `m != m` (unreadable) | the recompute queue stops draining, or its depth cannot be read |
+| `AuditWritesLost` | `cttserver_business_audit_events_total{outcome="DROPPED"}` | any rate over 10m, sustained 5m | rows offered to the audit writer fail to persist and are lost |
+| `PublicEndpointDown` | `probe_success{job="blackbox-public"}` | `== 0` for 5m | one public URL stops answering |
+| `TunnelDown` | all `probe_success{job="blackbox-public"}` | all `== 0` for 2m | the whole public surface is gone, i.e. the tunnel/edge itself |
+| `CertificateExpiring` | `probe_ssl_earliest_cert_expiry` | < 14 days for 1h | a certificate approaches expiry while the site still works |
+| `HostDiskSpaceLow` | `node_filesystem_avail_bytes` / `node_filesystem_size_bytes` | < 10% free for 10m | the deployment host runs out of disk |
+
+Until the application is deployed (P3), the `ctt-server` job has no targets, so the application
+rules have no series and stay inactive rather than firing on missing data; the edge rules (public
+probes, certificate, disk) start evaluating on a fresh deployment because the stack carries them
+already. Thresholds follow the deployment contract: p95 300ms, 5xx 0.5% and outbox p95 60s are the
+promises themselves, while the outbox alert waits five minutes because one slow retry is normal; a
+rule that departs from a contract number says why in its table row. A rule change is validated
+twice: `promtool check rules` for syntax, and `promtool test rules` against
+`rules/tests/alerts_test.yml` (a subdirectory, because `rule_files:` loads every `rules/*.yml`),
+which pins the behaviours that are easy to lose — a NaN sample must fire `MailOutboxStalled` and
+`LeaderboardRecomputeStalled` instead of passing silently, ordinary values must stay quiet, and the
+5xx rule must ignore a ratio produced by almost no traffic. Both checks are manual today; wiring
+them into CI is part of the build pipeline work. Rules are loaded through the `/-/reload` endpoint
+(the configuration directory is bind-mounted, so a file rewrite followed by a reload is picked up
+without a restart). A reload resets every rule to `unknown` until its first evaluation completes, so
+read the state after one 15-second interval rather than immediately after the `200`:
+
+```bash
+docker run --rm --entrypoint promtool \
+  -v "$PWD/deploy/observability/prometheus:/etc/prometheus:ro" \
+  prom/prometheus:latest check rules /etc/prometheus/rules/alerts.yml
+docker run --rm --entrypoint promtool \
+  -v "$PWD/deploy/observability/prometheus:/etc/prometheus:ro" \
+  prom/prometheus:latest test rules /etc/prometheus/rules/tests/alerts_test.yml
+curl -s -X POST http://127.0.0.1:9090/-/reload
+curl -s http://127.0.0.1:9090/api/v1/rules | jq '.data.groups[].rules | length'
+```
+
 ## Not covered yet
 
 Long-term metric retention is configured per store (see the table above) but has not yet been observed
-across a month of production traffic. Alert rules, receivers and the on-call path are not part of the
-stack yet: it runs Alertmanager with a placeholder receiver so the wiring is exercised, and until
-rules land the business metrics above are what a dashboard or a first alert would read.
+across a month of production traffic. Alert severity, receivers and the on-call path are not part of
+the story yet: every rule is `severity: info` and Alertmanager routes to a placeholder receiver, so
+P2.3 decides who gets paged, and the dashboards beyond the provisioned starting point are P2.2.
 
 ## Related
 
