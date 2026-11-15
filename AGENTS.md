@@ -224,7 +224,7 @@
 
 - **测试要覆盖「空关联」**：集合为空、外键全为 null 的输入也要有一条用例——`Map.of()`（不可变空表）的 `get(null)` 会抛 NPE，2026-10-28 因此线上 `GET /users/me/sessions` 直接 500，而既有用例的夹具里总有已注册设备，恰好绕过了这条路径。
 
-- **审计写入是异步的，测试读取审计行必须轮询（强制）**：`AuditEventListener` 用 `@Async` + `@TransactionalEventListener(AFTER_COMMIT)`，行本身由 `AuditLogWriter.persist`（`REQUIRES_NEW`）提交；HTTP 请求返回不代表审计行已落库，直接 `query(...).single()` 会间歇失败。新增审计断言用 Awaitility 轮询（参考 `MailOutboxServiceIntegrationTest`），或在测试上下文改用同步执行器。2026-11-08 P0.6b 的 passkey 断言因此被审查拦下；P1.2 起 `WRITTEN` 只在 writer 返回后累加，该断言同样要等提交。
+- **审计写入是异步的，测试读取审计行必须轮询（强制）**：`AuditEventListener` 用 `@Async` + `@TransactionalEventListener(AFTER_COMMIT)`，行本身由 `AuditLogWriter.persist`（`REQUIRES_NEW`）提交；HTTP 请求返回不代表审计行已落库，直接 `query(...).single()` 会间歇失败。新增审计断言用 Awaitility 轮询（参考 `MailOutboxServiceIntegrationTest`），或在测试上下文改用同步执行器。**断言「没有写审计」要用 `await().during(...).untilAsserted(...)`**——只断言瞬时 0 会在行落库前假通过。2026-11-08 P0.6b 的 passkey 断言因此被审查拦下；P1.2 起 `WRITTEN` 只在 writer 返回后累加，该断言同样要等提交；2026-11-15 P3.1 的 CI 首跑把 `LogoutIntegrationTest` 的 BOLA 告警断言打成红色（本地全绿、CI 上 1/1784 失败），同批把 5 个测试类里直读审计行的断言全部改成轮询。
 - **CI 的门要能在本机用同一条命令复现，且只挡它真能挡的东西（强制）**：门（格式/测试/覆盖率/密钥/漏洞/SBOM/来源证明）留在 CI，**部署作业只部署**——把全量套件压在跑生产的机器上，等于让合并延迟取决于那台机器。扫描器版本必须钉死（`v8.30.1` 这类），`latest` 会让昨天的绿今天无从复现。**被扫描的镜像与被证明的镜像必须是一次构建**，否则「扫的 digest」与「签的 digest」分叉，而这正是来源证明要排除的失败；BuildKit 写归档、`trivy image --input` 只吃**目录布局**，因此流水线解包 `index.json`+`blobs/` 后再扫。密钥扫描的允许列表只允许**指纹**（`commit:path:rule:line`）不允许路径——按路径允许会让该文件里的真实密钥一起漏过；允许条目必须先确认值是假值。扫描范围要显式声明而不是静默跳过（`.agents/` 属代理工作区、不上 master、不随镜像发布，故写在 workflow 里 skip）。报告先落盘再判定退出码，红色构建也要留下解释自己的证据（2026-11-15 P3.1：47 条历史命中→41 条指纹允许后 `no leaks found`，假 token 仍命中 1 条；镜像 0 HIGH/CRITICAL，SBOM 315 组件）
 
 - **编辑前验证（强制）**：先读完整文件（片段读取不足时直接整文件读取，不反复片段读同一文件）→ 编辑后LSP diagnostics → 编译验证 → 运行相关测试
