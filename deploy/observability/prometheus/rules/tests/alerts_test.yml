@@ -38,7 +38,7 @@ tests:
         alertname: MailOutboxStalled
         exp_alerts:
           - exp_labels:
-              severity: info
+              severity: warning
             exp_annotations:
               summary: Mail backlog unreadable or oldest undelivered mail over 5 minutes old
               description: The oldest entry awaiting dispatch is either unmeasurable (the age query failed) or over 5 minutes old. The mail poller may be stuck. See docs/observability.md#alerting.
@@ -52,7 +52,7 @@ tests:
         alertname: MailOutboxStalled
         exp_alerts:
           - exp_labels:
-              severity: info
+              severity: warning
             exp_annotations:
               summary: Mail backlog unreadable or oldest undelivered mail over 5 minutes old
               description: The oldest entry awaiting dispatch is either unmeasurable (the age query failed) or over 5 minutes old. The mail poller may be stuck. See docs/observability.md#alerting.
@@ -117,7 +117,38 @@ tests:
         alertname: Http5xxRatioHigh
         exp_alerts:
           - exp_labels:
-              severity: info
+              severity: critical
             exp_annotations:
               summary: More than 0.5% of HTTP responses are 5xx
               description: 5xx ratio is 1% over the last 5 minutes, above the 0.5% monthly SLO. The guard needs roughly 30 requests in the window, so low traffic never fires this. See docs/observability.md#alerting.
+
+  # A healthy paging path increments the success counter and never the failure
+  # one: the rule must stay quiet although a telegram series exists.
+  - interval: 1m
+    input_series:
+      - series: alertmanager_notifications_total{integration="telegram"}
+        values: 0+1x12
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: TelegramDeliveryFailing
+        exp_alerts: []
+
+  # One failed delivery is a page that never arrived: critical, without waiting
+  # for the failure counter to keep growing.
+  - interval: 1m
+    input_series:
+      - series: alertmanager_notifications_failed_total{integration="telegram"}
+        values: 0+0x3 1+0x10
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: TelegramDeliveryFailing
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: TelegramDeliveryFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              integration: telegram
+            exp_annotations:
+              summary: A page failed to reach Telegram
+              description: Alertmanager gave up on notifications in the last 10 minutes. Check the bot credential and the chat id, then read the delivery error in the Alertmanager log; see docs/observability.md#telegram-delivery.

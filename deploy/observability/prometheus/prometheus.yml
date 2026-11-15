@@ -47,6 +47,12 @@ scrape_configs:
     static_configs:
       - targets: ["127.0.0.1:9121"]
 
+  # Alertmanager's own delivery counters. Without this job a failed page is
+  # invisible to the stack that is supposed to page.
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["127.0.0.1:9093"]
+
   # The application is not deployed on this host yet (P3). Both slots are
   # listed so the first deploy needs no Prometheus change: a missing target
   # reports up == 0 instead of hiding a misconfigured one.

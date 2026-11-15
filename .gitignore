@@ -60,7 +60,10 @@ src/main/resources/application-local.properties
 .alma-snapshots
 
 # Rendered compose secrets (P0.5); only the SOPS payload is committed
-deploy/secrets/run/
+# `run/` is the live set; any `run-*` is a temporary render (for example when
+# rendering the production payload next to the development one). Missing the
+# wildcard once put a real credential in `git status` as an untracked file.
+deploy/secrets/run*/
 
 # Deployment-local scrape targets: the real list names the public hosts, the
 # committed .example shows only the shape.
