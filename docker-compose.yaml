@@ -1,7 +1,8 @@
 # Docker Compose - Local Development Infrastructure
 # Provides: PostgreSQL, Redis, Mailpit (SMTP sandbox), CTT Server (app)
 # Usage: docker compose up -d
-# Prerequisites: Copy .env.example to .env and customize passwords
+# Secrets: render first with ./deploy/secrets/render.sh --env dev (docs/deployment-secrets.md).
+# .env only serves ./gradlew bootRun; the stack reads the rendered 0440 files.
 
 x-logging: &default-logging
   driver: json-file

@@ -1,3 +1,13 @@
+// Deploy job: it ships the tree on master and health-checks it.
+//
+// The merge gates live in .github/workflows/ci.yml — formatting, the full test
+// suite, coverage, the secret scan, Trivy, the SBOM and the build provenance all
+// run there, on a machine that is not also running production. This job builds
+// only to prove the deployment still starts.
+//
+// Credentials: the SOPS age identity is a Jenkins file credential. Nothing is
+// written to a plaintext .env — Compose reads the rendered 0440 files and the
+// values below, none of which is a secret.
 pipeline {
     agent any
 
@@ -6,8 +16,17 @@ pipeline {
     }
 
     environment {
-        REPO_DIR = '/repository/ctt-server'
-        CTX_PATH = '/ctt-server'
+        REPO_DIR                = '/repository/ctt-server'
+        CTX_PATH                = '/ctt-server'
+
+        APP_PORT                = '8080'
+        APP_EXTERNAL_PORT       = '8004'
+        MANAGEMENT_PORT         = '8081'
+        POSTGRES_EXTERNAL_PORT  = '15432'
+        REDIS_EXTERNAL_PORT     = '16379'
+        MAIL_SMTP_EXTERNAL_PORT = '1025'
+        MAIL_UI_EXTERNAL_PORT   = '8025'
+        SPRING_PROFILES_ACTIVE  = 'local'
     }
 
     stages {
@@ -21,36 +40,25 @@ pipeline {
             }
         }
 
+        stage('Tooling') {
+            steps {
+                dir("${REPO_DIR}") {
+                    // Checked first so a missing tool names itself instead of
+                    // surfacing as sops noise inside render.sh.
+                    sh 'sops --version && python3 --version && docker compose version'
+                }
+            }
+        }
+
         stage('Configure') {
             steps {
                 dir("${REPO_DIR}") {
-                    sh '''
-                        JWT_SECRET_KEY=$(openssl rand -base64 48)
-                        OAUTH_TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)
-                        cat > .env << EOF
-POSTGRES_DB=ctt_server
-POSTGRES_USER=ctt
-POSTGRES_PASSWORD=ctt_local_pass
-POSTGRES_EXTERNAL_PORT=15432
-REDIS_PASSWORD=ctt_redis_pass
-REDIS_EXTERNAL_PORT=16379
-MAIL_SMTP_EXTERNAL_PORT=1025
-MAIL_UI_EXTERNAL_PORT=8025
-APP_PORT=8004
-APP_EXTERNAL_PORT=8004
-JWT_SECRET_KEY=$JWT_SECRET_KEY
-OAUTH_TOKEN_ENCRYPTION_KEY=$OAUTH_TOKEN_ENCRYPTION_KEY
-MAIL_FROM_ADDRESS=noreply@ci.test
-MAIL_FROM_NAME=CTT CI
-FRONTEND_BASE_URL=http://localhost:5173
-SPRING_PROFILES_ACTIVE=local
-EOF
-                    '''
+                    // The template only carries non-secret defaults; the rendered
+                    // secrets override its datasource and Redis passwords.
                     sh '''
                         LOCAL_YAML=src/main/resources/application-local.yaml
-                        TEMPLATE=src/main/resources/application-local.yaml.template
                         if [ ! -f "$LOCAL_YAML" ]; then
-                            cp "$TEMPLATE" "$LOCAL_YAML"
+                            cp "$LOCAL_YAML.template" "$LOCAL_YAML"
                             echo "application-local.yaml generated from template."
                         else
                             echo "application-local.yaml already exists, skipping."
@@ -60,12 +68,33 @@ EOF
             }
         }
 
+        stage('Secrets') {
+            steps {
+                dir("${REPO_DIR}") {
+                    withCredentials([file(credentialsId: 'ctt-sops-age-identity', variable: 'SOPS_AGE_KEY_FILE')]) {
+                        sh '''
+                            set -euo pipefail
+                            export SECRET_GID="${SECRET_GID:-$(id -g)}"
+                            ./deploy/secrets/render.sh --env dev
+
+                            for name in DB_PASSWORD REDIS_PASSWORD JWT_SECRET_KEY \
+                                        OAUTH_TOKEN_ENCRYPTION_KEY RESEND_API_KEY; do
+                                if [ ! -s "deploy/secrets/run/$name" ]; then
+                                    echo "missing rendered secret: $name" >&2
+                                    exit 1
+                                fi
+                            done
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Infra Up') {
             steps {
                 dir("${REPO_DIR}") {
                     sh '''
                         export SECRET_GID="${SECRET_GID:-$(id -g)}"
-                        ./deploy/secrets/render.sh
                         docker compose up -d postgres redis mailpit
                     '''
                     sh '''
@@ -91,7 +120,10 @@ EOF
         stage('Deploy') {
             steps {
                 dir("${REPO_DIR}") {
-                    sh 'export SECRET_GID="${SECRET_GID:-$(id -g)}"; CONTAINER_NAME=ctt-server-test docker compose up -d --build app'
+                    sh '''
+                        export SECRET_GID="${SECRET_GID:-$(id -g)}"
+                        CONTAINER_NAME=ctt-server-test docker compose up -d --build app
+                    '''
                 }
             }
         }
@@ -125,7 +157,7 @@ EOF
             echo "✅ Deploy success → http://localhost:8004/ctt-server/swagger-ui.html"
         }
         failure {
-            sh 'docker logs ctt-server --tail 100 || true'
+            sh 'docker logs ctt-server-test --tail 100 || true'
             echo "❌ Deploy failed — check Console Output above"
         }
     }

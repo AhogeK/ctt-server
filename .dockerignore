@@ -37,7 +37,6 @@ dev-docs
 docs
 .agents
 .omp
-.opencode
 .omo
 .claude
 .gstack
