@@ -105,6 +105,20 @@ cosign verify-attestation --type slsaprovenance \
   "$IMAGE"
 ```
 
+The provenance reaches the registry twice, and only one of the two copies can be
+verified. BuildKit keeps it inside the image index, addressed to the platform
+manifest rather than to the index the release signs, and registries do not
+expose it in a form `cosign` can query — the first publish run proved that
+`cosign verify-attestation` answers `no matching attestations` for an image
+that demonstrably carries one. So the pipeline takes the same provenance from
+the build metadata and re-publishes it as a cosign attestation, which attaches
+it to the digest that was signed. `publish.yml` then verifies it with the
+exact command the deployment runs.
+
+The published copy uses `mode=min`, because it lands in the public Rekor
+transparency log and the maximal provenance carries the build environment.
+The minimal one still records the commit the image was built from.
+
 `deploy/verify-image.sh` applies both pins and rejects a tag before it contacts
 the registry, so the check has one definition instead of one per caller. The
 deploy job runs it and then `docker compose up -d --no-build`: a missing or
