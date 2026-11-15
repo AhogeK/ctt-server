@@ -87,7 +87,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             APP_PORT=8080
-          provenance: mode=max
+          provenance: mode=min
           sbom: true
 
       - name: Fix the reference this run signed
@@ -105,40 +105,36 @@ jobs:
       - name: Sign the digest
         run: cosign sign --yes "${{ steps.reference.outputs.value }}"
 
-      # The provenance buildx produced is attested under the same identity, so
-      # `cosign verify-attestation` can check "this digest was built from that
-      # commit by that workflow" without trusting our own JSON files.
+      # BuildKit stores the provenance inside the image index, addressed to the
+      # platform manifest rather than to the index this release signs, and
+      # registries expose it in ways cosign cannot query: the publish run
+      # proved that `cosign verify-attestation` reports "no matching
+      # attestations" for an image that demonstrably carries one. Publishing
+      # the same provenance as a cosign attestation attaches it to the digest
+      # that was signed — the digest a deployment pulls and the one
+      # `deploy/verify-image.sh` checks.
+      #
+      # `mode=min` for this build: the predicate ends up in the public Rekor
+      # transparency log, and the maximal provenance carries the build
+      # environment. The minimal one still binds the image to the commit.
+      - name: Publish the provenance as a signed attestation
+        env:
+          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
+          REF: ${{ steps.reference.outputs.value }}
+        run: |
+          printf '%s' "$BUILD_METADATA" > build-metadata.json
+          python3 .github/scripts/extract-predicate.py build-metadata.json provenance.json
+          cosign attest --yes --predicate provenance.json --type slsaprovenance "$REF"
+
+      # The same command the deployment runs: if this passes here, the gate on
+      # the host has something real to check.
       - name: Attest the build provenance
-        continue-on-error: true
         run: |
           cosign verify-attestation \
             --type slsaprovenance \
             --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/publish.yml@.*" \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             "${{ steps.reference.outputs.value }}"
-
-      # Diagnostics: how a provenance attestation can be found depends on what
-      # the registry actually stores, and registries differ. Print what is
-      # there instead of guessing.
-      - name: Inspect what the registry holds
-        if: always()
-        continue-on-error: true
-        env:
-          BUILD_METADATA: ${{ steps.build.outputs.metadata }}
-          REF: ${{ steps.reference.outputs.value }}
-        run: |
-          echo "::group::index"
-          docker buildx imagetools inspect --raw "$REF" | head -c 2500 || true
-          echo "::endgroup::"
-          echo "::group::attestations of any type"
-          cosign verify-attestation \
-            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/publish.yml@.*" \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-            "$REF" || true
-          echo "::endgroup::"
-          echo "::group::build metadata"
-          printf '%s' "$BUILD_METADATA" | head -c 2500 || true
-          echo "::endgroup::"
 
       - name: Summarise
         run: |
