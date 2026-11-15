@@ -4,9 +4,11 @@
 `develop` or `master`. It answers one question — may this tree be merged? — and
 it answers with a red or green check rather than a judgement.
 
-The Jenkins job in `Jenkinsfile` is **not** a gate. It deploys the tree on
-`master` to the deployment host and health-checks it; running the suite there as
-well would tie merge latency to a machine that also runs production.
+The Jenkins job in `Jenkinsfile` is **not** a gate, and it no longer builds. It
+pulls the digest `publish.yml` signed, verifies the signature against that
+workflow's identity, and health-checks the result on the deployment host.
+Running the suite there as well would tie merge latency to a machine that also
+runs production.
 
 ## Where the gates apply
 
@@ -15,12 +17,13 @@ or written to directly — everything arrives through a pull request, and no one
 administrators included, is on a bypass list. `develop` is unprotected; the gates
 still run on its pushes, they simply do not block anything there.
 
-The three job names in this workflow are what the ruleset requires before a merge.
-They are not listed there yet: GitHub only accepts a required check that has
-already completed successfully in the repository within the last seven days, so
-the order is *open a pull request → let it go green → write the checks into the
-ruleset → read back the ruleset*. Until that write happens a red pull request is
-still mergeable, which is why the ordering matters.
+The three job names in this workflow are the checks the ruleset requires before a
+merge, and they are in place. GitHub only accepts a required check that has
+already completed successfully in the repository within the last seven days,
+which is why they were written in this order: *open a pull request → let it go
+green → write the checks into the ruleset → read the ruleset back*. A workflow
+that is renamed without updating the ruleset leaves a pending check that blocks
+every merge, so the two move together.
 
 Branch naming, where each branch is cut from, and the tag rules live in one
 place — [the branch model in `AGENTS.md`](../AGENTS.md) — so they cannot drift
@@ -64,6 +67,49 @@ pointing it at the tar fails with `unable to open … as an OCI Image: stat
 …/index.json: not a directory`. The pipeline therefore unpacks `build/image.tar`
 into `build/oci` and scans that, so the scan, the attestation and the SBOM all
 describe one build.
+
+## Publishing and signing
+
+`ci.yml` builds an image so it can be scanned, then discards it. The deployable
+image — the one with a tag and a signature — is built by `publish.yml`, on
+`master` and on `v*` tags, pushed to `ghcr.io/ahogek/ctt-server`, and signed at
+the digest it pushed.
+
+Signing is keyless: GitHub issues a short-lived certificate to that run's OIDC
+identity, cosign records the signature in the Rekor transparency log, and no
+private key exists to store, rotate or leak. What that proves is **who signed**,
+not what was built — a bare signature check would accept any workflow in any
+repository. Two things close the gap:
+
+- the certificate identity is pinned to `.github/workflows/publish.yml` on this
+  repository, and the issuer to `https://token.actions.githubusercontent.com`;
+- the provenance attestation, which `publish.yml` re-verifies, records the
+  commit, the Dockerfile and the builder.
+
+Verification takes a digest, never a tag: a tag can be moved between the check
+and the container start, which swaps the bytes underneath a passing
+verification.
+
+```bash
+IMAGE=ghcr.io/ahogek/ctt-server@sha256:<digest>
+IDENTITY='https://github.com/AhogeK/ctt-server/.github/workflows/publish.yml@.*'
+
+cosign verify \
+  --certificate-identity-regexp "$IDENTITY" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  "$IMAGE"
+
+cosign verify-attestation --type slsaprovenance \
+  --certificate-identity-regexp "$IDENTITY" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  "$IMAGE"
+```
+
+`deploy/verify-image.sh` applies both pins and rejects a tag before it contacts
+the registry, so the check has one definition instead of one per caller. The
+deploy job runs it and then `docker compose up -d --no-build`: a missing or
+unverified image fails the deployment rather than falling back to a locally
+built one nobody signed.
 
 ## The CI identity
 
