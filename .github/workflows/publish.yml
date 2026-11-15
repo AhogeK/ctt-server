@@ -1,0 +1,129 @@
+# Publishes the image that `ci.yml` proved, and signs it.
+#
+# The split is deliberate: `ci.yml` gates merges and builds a throwaway image to
+# scan, while this workflow runs only on the commits that actually reach a
+# deployable ref. Building here as well means the byte that gets a tag, a
+# signature and a provenance attestation is the byte the receiving host pulls —
+# a local `--build` on the deploy host would have no such claim.
+#
+# Keyless signing: the certificate is issued to this workflow's identity through
+# GitHub's OIDC token, so there is no long-lived private key to store, rotate or
+# leak. Verification therefore pins the identity and the issuer instead of a
+# public key — see `deploy/verify-image.sh`.
+name: Publish
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  # Lets a branch build and sign a throwaway tag without merging, which is how
+  # the signing path is exercised before it is trusted.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  REGISTRY: ghcr.io
+
+jobs:
+  publish:
+    name: Build, push and sign
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      reference: ${{ steps.reference.outputs.value }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `sha-<short>` always exists and never moves; `latest` follows master;
+      # `vX.Y.Z` comes from the tag. A digest is still what a deployment pins.
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=short,prefix=sha-
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+
+      # One build: the pushed image, its provenance and its SBOM all describe
+      # the same bytes. `push: true` also means the registry holds it before
+      # the signature is attempted, so a signature can never name a tag that
+      # resolves to nothing.
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_PORT=8080
+          provenance: mode=max
+          sbom: true
+
+      - name: Fix the reference this run signed
+        id: reference
+        run: echo "value=${IMAGE}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+      - uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.6.0
+
+      # `--yes` skips the "this will be published to a transparency log" prompt,
+      # which is meaningless in an unattended run. The signature lands in the
+      # Rekor transparency log, so a verifier can later establish that it was
+      # made while the OIDC certificate was valid.
+      - name: Sign the digest
+        run: cosign sign --yes "${{ steps.reference.outputs.value }}"
+
+      # The provenance buildx produced is attested under the same identity, so
+      # `cosign verify-attestation` can check "this digest was built from that
+      # commit by that workflow" without trusting our own JSON files.
+      - name: Attest the build provenance
+        run: |
+          cosign verify-attestation --yes \
+            --type slsaprovenance \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/publish.yml@.*" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${{ steps.reference.outputs.value }}"
+
+      - name: Summarise
+        run: |
+          {
+            echo "### Published image"
+            echo
+            echo "\`${{ steps.reference.outputs.value }}\`"
+            echo
+            echo "Verify it anywhere with:"
+            echo
+            echo '```'
+            echo "cosign verify \\"
+            echo "  --certificate-identity-regexp 'https://github.com/${{ github.repository }}/.github/workflows/publish.yml@.*' \\"
+            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\"
+            echo "  ${{ steps.reference.outputs.value }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
