@@ -57,6 +57,7 @@
 | `git commit/push`          | **仅当前变更** | 授权仅针对用户指明的那些文件/变更 |
 | `git status/log/diff/show` | 无需授权      | 只读操作，可自主执行        |
 | `git branch`               | 仅创建分支     | 不包含后续 commit/push |
+| `git switch -c <branch>`   | 仅创建分支     | 把未提交改动挪到功能分支不算提交；其上的 commit 仍需授权 |
 | `gh pr create/merge`       | 需单独授权     | 与 commit 授权独立     |
 
 #### 触发关键词
@@ -224,6 +225,7 @@
 - **测试要覆盖「空关联」**：集合为空、外键全为 null 的输入也要有一条用例——`Map.of()`（不可变空表）的 `get(null)` 会抛 NPE，2026-10-28 因此线上 `GET /users/me/sessions` 直接 500，而既有用例的夹具里总有已注册设备，恰好绕过了这条路径。
 
 - **审计写入是异步的，测试读取审计行必须轮询（强制）**：`AuditEventListener` 用 `@Async` + `@TransactionalEventListener(AFTER_COMMIT)`，行本身由 `AuditLogWriter.persist`（`REQUIRES_NEW`）提交；HTTP 请求返回不代表审计行已落库，直接 `query(...).single()` 会间歇失败。新增审计断言用 Awaitility 轮询（参考 `MailOutboxServiceIntegrationTest`），或在测试上下文改用同步执行器。2026-11-08 P0.6b 的 passkey 断言因此被审查拦下；P1.2 起 `WRITTEN` 只在 writer 返回后累加，该断言同样要等提交。
+- **CI 的门要能在本机用同一条命令复现，且只挡它真能挡的东西（强制）**：门（格式/测试/覆盖率/密钥/漏洞/SBOM/来源证明）留在 CI，**部署作业只部署**——把全量套件压在跑生产的机器上，等于让合并延迟取决于那台机器。扫描器版本必须钉死（`v8.30.1` 这类），`latest` 会让昨天的绿今天无从复现。**被扫描的镜像与被证明的镜像必须是一次构建**，否则「扫的 digest」与「签的 digest」分叉，而这正是来源证明要排除的失败；BuildKit 写归档、`trivy image --input` 只吃**目录布局**，因此流水线解包 `index.json`+`blobs/` 后再扫。密钥扫描的允许列表只允许**指纹**（`commit:path:rule:line`）不允许路径——按路径允许会让该文件里的真实密钥一起漏过；允许条目必须先确认值是假值。扫描范围要显式声明而不是静默跳过（`.agents/` 属代理工作区、不上 master、不随镜像发布，故写在 workflow 里 skip）。报告先落盘再判定退出码，红色构建也要留下解释自己的证据（2026-11-15 P3.1：47 条历史命中→41 条指纹允许后 `no leaks found`，假 token 仍命中 1 条；镜像 0 HIGH/CRITICAL，SBOM 315 组件）
 
 - **编辑前验证（强制）**：先读完整文件（片段读取不足时直接整文件读取，不反复片段读同一文件）→ 编辑后LSP diagnostics → 编译验证 → 运行相关测试
 - **按行编辑要分清「替换」与「插入」**：`PUT N:` 是**替换**第 N 行，插入必须用 `PUT >N:`。本会话两次用替换语义做插入，把 `import` 与字段声明整行覆盖，编译才暴露。改完 import / 字段区立刻编译一次
@@ -402,14 +404,30 @@
 
 | 分支 | 用途 | 允许 | 禁止 |
 |---|---|---|---|
-| master | 生产环境 | 业务代码/测试/版本号/面向用户的项目文档（`docs/` 下的 handbook、strategy、governance 等） | AI文件（memory-bank/.agents/.opencode/AGENTS.md/CLAUDE.md/SKILL_GRAPH.md/skills-lock.json）+ 开发内容（`dev-docs/`、`docs/plans/`、面向对接方的前端/QA 指南） |
+| master | 生产环境 | 业务代码/测试/版本号/面向用户的项目文档（`docs/` 下的 handbook、strategy、governance 等） | AI文件（memory-bank/.agents/AGENTS.md/CLAUDE.md/SKILL_GRAPH.md/skills-lock.json）+ 开发内容（`dev-docs/`、`docs/plans/`、面向对接方的前端/QA 指南） |
 | develop | 开发环境 | 业务代码 + AI文件 + 开发内容 | 无 |
 
 **内容边界判据**：「面向本项目的使用者/运维」=项目文档（进 master）；「面向 AI 或面向对接方开发者（前端/插件）的实施过程与对接说明」= AI/开发内容（不进 master）。位于 `docs/` 但内容是对接指南的文件，按**内容**判定，不按目录。
 
-**master同步规则**：从固定起点 → `git rm -rf` AI文件 → cherry-pick develop（排除 `docs(memory-bank)`、`dev-docs/`、`docs/plans/` 路径的变更——feature 提交常携带这些路径，会随 cherry-pick 被捎带进 master） → 冲突处理（memory-bank冲突用 `git rm -f`，版本号冲突用 `--theirs`） → 验证（`git ls-files` 无 AI 文件、无 `dev-docs/`、无 `docs/plans/` + `./gradlew build` 通过）
+**分支模型：Git Flow + master 仅 PR（2026-11-15 生效）**：`master` 上有 ruleset `master-protection`（`deletion` + `non_fast_forward` + `pull_request`，required approvals 0、`bypass_actors` 为空），**任何人（含管理员）都推不上去**，一切改动经 PR 进入。合并方式只开放 merge 与 squash。
 
-**禁止操作**：直接merge develop、在master创建AI文件、在master提交docs(memory-bank)、`git reset --hard develop`、反向cherry-pick（master→develop）、在master直接修改代码
+| 分支 | 从哪切 | 合到哪 | 触发者 |
+|---|---|---|---|
+| `feature/<kebab>` | `develop` | `develop`（PR） | 日常开发（功能、修复、chore、文档都走它） |
+| `release/v<x.y.z>` | **`master`** | `master`（PR） | 发布 |
+| `hotfix/<yyyymmdd>-<kebab>` | `master` | `master`（PR）→ 再 PR 回 `develop` | 生产事故 |
+
+**命名规则（2026-11-15 定）**：前缀与名字之间用 `/`，名字内部用 `-`。`feature/<kebab>`（如 `feature/p3-1-quality-gates`）、`release/v<主>.<次>.<修订>`（如 `release/v0.107.0`，**必须带修订位**，否则补丁版回滚后同名）、`hotfix/<yyyymmdd>-<kebab>`（日期在前便于按时间排序，主题在后避免同日两次热修撞名）。
+
+**tag 用 `v<x.y.z>`，不加 `release_`/`hotfix_` 前缀**：分支与 tag 同名会让 `git checkout` 直接失败（实测 `warning: refname 'release_v0.107.0' is ambiguous` → `fatal: ambiguous object name`），而 `release/v0.107.0` 与 tag `v0.107.0` 天生不撞。发布类型的追溯写进 annotated tag 的消息（`release v0.107.0 from release/v0.107.0`），不写进名字——名字要给 `git describe` 与语义化版本工具解析。
+
+**发布分支从 master 切，不从 develop 切**：develop 含 AI 文件与开发内容，从它切出来的分支一合并就会把 `AGENTS.md`、`memory-bank/`、`.plans/` 带进生产。正确构造是 `git switch -c release/v<x.y.z> origin/master` → 逐条 cherry-pick develop 上的**非 AI** 提交 → PR，合并后打 annotated tag `v<x.y.z>`。
+
+**PR 的准入条件**：CI 三个 job（`Format, tests and coverage`、`Render secrets with the CI age identity`、`Secrets, vulnerabilities, SBOM and provenance`）全绿。这三项**尚未**写进 ruleset 的 required status checks——GitHub 只允许把近 7 天在本仓库成功跑过的检查设为必需，所以顺序是「先让 PR 跑绿 → 再用 API 写入规则集 → 回读确认」，在此之前红灯 PR 仍可合并。单人仓库设 0 approvals——PR 作者不能批准自己的 PR，要求 1 会让唯一的作者永远合并不进去。
+
+**master 同步规则（PR 版）**：`git switch -c release/v<x.y.z> origin/master` → `git cherry-pick` 非 AI 提交（排除 `docs(memory-bank)` 与 `.plans/`、`AGENTS.md`、`memory-bank/`、`dev-docs/`、`docs/plans/` 路径）→ `git push -u origin release/v<x.y.z>` → `gh pr create --base master` → CI 全绿 → `gh pr merge --merge`（需授权）→ 在 master 上打 annotated tag `v<x.y.z>`（消息写 `release v<x.y.z> from release/v<x.y.z>`）→ `gh pr create --base develop --head master` 回灌。每步核对 `git show --stat` 与 `git ls-files` 无 AI 路径。
+
+**禁止操作**：直推 `master`（ruleset 已拒绝，不要试图用 bypass）、整分支合并 develop、在 master 创建 AI 文件、在 master 提交 `docs(memory-bank)`、`git reset --hard develop`、反向 cherry-pick（master→develop）、在 master 直接修改代码
 
 **事故恢复**：立即停止 → 确认污染 → 重置到安全点 → 重新cherry-pick → `--force-with-lease`推送 → 记录事故
 
