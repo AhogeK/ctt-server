@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-14] - P2.1 完成：告警规则与 outbox 最老待发 gauge（v0.104.0）
+    - 背景：P1.4 观测栈落地后只有占位 receiver、无规则，故障发生时无人知晓；计划 P2.1 要求 8 条业务/容量规则 + 隧道中断 + 证书 14 天，先 `severity: info`
+    - 变更：新增 `deploy/observability/prometheus/rules/alerts.yml` 两告警组 11 条（`ctt-server-app` 7 条：p95 >300ms、5xx >0.5% 且窗口内 >~30 请求、429 >10%、DB 池 >80%、outbox 最老待发 >300s、排行榜待重算 >0 持续 30m、审计掉行 >0；`ctt-server-edge` 4 条：公网单点探测失败、隧道整链失联、证书 <14 天、根盘 <10%），全部 `severity: info`、annotation 指向 `docs/observability.md#alerting`；`prometheus.yml` 接 `rule_files`；`application.yaml` 加 `management.metrics.distribution.percentiles-histogram.http.server.requests: true`（Boot 4 默认不发布该 `_bucket`，p95 规则需要）
+    - 新增能力（计划原文没有）：`cttserver.business.mail.pending.oldest.seconds` gauge——`mail.pending` 是分状态计数，无法表达「卡了多久」；`MailOutboxRepository.findOldestAwaitingDispatchCreatedAt` 与 `findPendingJobs` 用同一判定（PENDING ∪ 可重试 FAILED），`MailOutboxMetrics` 注册无标签 gauge：**空队列报 `0`**（没有东西在等），只有查询失败才由 `registerGauge` 包装层报 `NaN`，两者必须可区分
+    - 验证：本机 `promtool check rules` 11 rules SUCCESS、`check config` 1 rule file SUCCESS、`promtool test rules rules/tests/alerts_test.yml` **SUCCESS**（7 例：健康 0 不触发、mail 400 于 6m 触发、mail NaN 于 8m 触发、leaderboard 3 于 20m 静默而 35m 触发、leaderboard NaN 于 35m 触发、5xx 低流量 12m 静默、5xx 1% 于 12m 触发）；部署机同步 + `POST /-/reload` 返 200 后 `/api/v1/rules` 两 group 11 条、表达式为 `> 阈值 or m != m`、全 inactive（应用未部署 ⇒ 无数据不误报）；代码测试 `MailOutboxRepositoryTest`/`MailOutboxMetricsTest`/`BusinessMetricsTest`/`BusinessMetricsScrapeIntegrationTest`（第 3 例：真实请求后断言 `http_server_requests_seconds_bucket` 出现，证明百分位直方图真生效）/`LeaderboardMetricsTest` 全绿
+    - 评审修正（双轴 + 实测）：① 两条 gauge 规则补 NaN 守卫，写法是 `metric != metric` 而非 `isnan(...)`——**PromQL 没有 `isnan()` 函数**，首次同步到部署机时 `/-/reload` 返 500、promtool 报 `unknown function with name "isnan"`；NaN 是唯一与自身不相等的值，实测 `x != x` 对 NaN 触发、对有限值不触发，并新增规则单测把该行为钉住；这条错误自 P1.2 起同时写在 `AGENTS.md` R9 与文档里，两处一并更正；② 年龄 gauge 空队列语义 `NaN` → `0` 并补查询异常用例钉住 `NaN` 路径；③ 计划原文的「审计增长率」换成 `AuditWritesLost`（`DROPPED` 速率 > 0）——`WRITTEN` 平坦无法区分健康空闲与写者卡死，且原注释「写前计数」不成立；④ 仓储测试把 `SENDING`/`SENT`/`CANCELLED` 回填得更老，使状态过滤真正被断言；⑤ 指标改 `_seconds` 后缀、计划行计数改「7 应用 + 4 边沿」、修掉 `docs/observability.md` 里「每次部署前自动跑 promtool」的失实表述与 `-/-reload` 拼写；⑥ 规则单测放 `rules/tests/`——`rule_files: rules/*.yml` 会把同目录 `*_test.yml` 当规则加载而失败
+    - 边界与重访：阈值未按生产流量校准，先 info 观察；P3 首部署后复核真实触发阈值；`TunnelDown` = 全部公网探针失联（单域名故障走 `PublicEndpointDown`）；证书只覆盖已探测 HTTPS 目标；磁盘只查根挂载；「写者静默停止消费且不报错」没有任何计数能看到，只能靠演练主动触发审计路径，规则不覆盖；severity 升级与接收方归 P2.3
 - [2026-11-14] - P1.5 完成：日志补用户维度（v0.103.0）
     - 背景：MDC 只有 `traceId`/`clientIp`/`method`/`uri`/`deviceId`/`platform`，按用户排障只能绕审计表；要求加 `userId`（UUID，不放邮箱）且请求结束清理
     - 变更：新增 `common/context/UserMdcFilter`（经 `ObjectProvider<CurrentUserProvider>` 惰性取主体，认证存在时 `MDC.put(MdcKey.USER_ID, uuid)`，**不自清理**），由 `SecurityConfig` 注册在 `SecurityContextHolderAwareRequestFilter` 之后、`TermsCheckFilter` 之前（认证已解析、匿名过滤器之前，条款网关的 403 与 WARN 因此同样带用户维度）；`RequestContextInitializerFilter` 在 finally 统一清除并文档化归属（它在外层、拥有 MDC 生命周期，ACCESS_LOG 仍在清理前写出——这是「可过滤」与「无残留」同时成立的原因）；控制台与测试 pattern 增 `[U:%X{userId:-anonymous}]`，生产 JSON 编码器本就输出 MDC 映射
@@ -25,7 +32,7 @@
     - 变更：新增 `common/metrics/BusinessMetrics`（统一注册六个指标，嵌套枚举约束取值，gauge 失败兜底内聚在 `registerGauge`）与 `common/LoopbackHttpProbe`（测试侧抓取工具，迁移到 `common`）；`SyncPushService.push` 用 `PushOutcome`（response/conflict/changed）区分成功、冲突与失败，`ConflictResolver` 新增 `SKIP_UNCHANGED` 把「内容与删除状态都一致的重复提交」记 `SUCCESS`+`EMPTY`，`SyncPullService.pull` 按返回列表是否为空区分 `CHANGED`/`EMPTY`；`RateLimitAspect` 在分桶拒绝与无维度总闸处各记一次（总闸记 `type=GLOBAL`）；`AuditEventListener` 改调 `AuditLogWriter.persist`（`REQUIRES_NEW`，返回即提交），提交成功记 `WRITTEN`、catch 记 `DROPPED`；`MailOutboxRepository.countByStatus` 走 `idx_mail_outbox_dispatch`，导出 `PENDING`/`FAILED`/`CANCELLED`（死信），`SENDING` 不入序列；`LeaderboardRecomputeQueue.pendingCount()` 读 Redis 脏集，两个 gauge 抓取时现算、读取失败返回 `NaN`；同步耗时只发布直方图分桶（去掉 `publishPercentiles`，多实例无法合并）
     - 关键发现：`publishPercentiles` 会额外生成带 `phi` 标签的 `*.percentile` 计量，突破三标签预算；blue/green 两个实例分别被抓取，客户端分位数无法合并，正解是只用 `publishPercentileHistogram()` 并在 Prometheus 侧 `histogram_quantile()`。评审又暴露三处「指标名与语义不符」：`KEEP_EXISTING` 同时覆盖「内容相同的重复提交」与「版本竞争失败」，导致插件常规重放被记成冲突；`FAILED` 只是安排重试，重试耗尽实际转 `CANCELLED`，原实现把死信算进了 `failed` 却从未导出；审计 `WRITTEN` 在 `save()` 后立即累加，而事务尚未提交，提交失败会被记成写入成功。三处都按「指标语义 = 被观测对象定义」改写，而不是调整文案
     - 验证：`BusinessMetricsTest` 8/0/0（名称、标签集合、计数、三标签上限、无 severity → `UNKNOWN`、gauge 抛错 → `NaN`）、`BusinessMetricsScrapeIntegrationTest` 2/0/0（管理端口抓取六个指标族 + 标签预算）、`MailOutboxMetricsTest` 2/0/0、`LeaderboardMetricsTest` 2/0/0（含 `NaN` 路径）、`AuditEventListenerTest` 6/0/0、`RateLimitAspectTest` 5/0/0、`ConflictResolverTest` 19/0/0（含 `SKIP_UNCHANGED` 与墓碑竞争）、`SyncPushServiceTest$Push` 16/0/0、`SyncPullServiceTest$Pull` 12/0/0；全量 `spotlessApply build test jacocoTestCoverageVerification` BUILD SUCCESSFUL 196 s，381 个测试类 / 1754 例 / 0 失败 / 0 错误 / 1 跳过，覆盖率门通过
-    - 边界：标签只表达业务维度（无用户/设备/会话/邮箱/平台字符串）；两个 gauge 每次抓取各多一次轻量查询；`NaN` 是存在但无值的样本（告警用 `isnan()`，不是 `absent()`）；Grafana 面板与告警规则归 P1.4，本轮只保证指标可抓可断言
+    - 边界：标签只表达业务维度（无用户/设备/会话/邮箱/平台字符串）；两个 gauge 每次抓取各多一次轻量查询；`NaN` 是存在但无值的样本（告警用 `metric != metric` 选中它——PromQL 无 `isnan()`，2026-11-15 P2.1 更正；不是 `absent()`）；Grafana 面板与告警规则归 P1.4，本轮只保证指标可抓可断言
     - 记录：`docs/observability.md` 业务指标一节；`.plans/ctt-server-development-plan.md` P1.2 行、修订说明与完成总结；`AGENTS.md` R9 业务指标规则
 - [2026-11-11] - P1.1 完成：指标出口与双端口暴露面（v0.99.0）
     - 背景：actuator 与业务同端口，一旦开启 Prometheus 就等于把管理面挂到公网 API 端口；任务要求注册表 + `management.server.port=8081` + `address=127.0.0.1`，并用测试固定两端口暴露面
@@ -46,7 +53,6 @@
     - 变更：三份 ADR 重写为日期锚定的描述性表述，去掉里程碑编号、内部版本号（`v0.93.x`）、私有路径与共享主机上其他服务名；ADR-0002 激活清单改写为与计划无关的运维步骤，修订段去掉计划坐标；ADR-0003 外部探针表述去掉计划编号；同类清理 `deployment-secrets`（P0.17）与 `production-configuration`（P7.2/P7.5/P3）中的计划坐标；AGENTS R26 增「ADR 只写读者能独立理解的内容」规则
     - 验证：`grep -nE 'P[0-9]+\.[0-9]|\.plans/|\.omp/|memory-bank|v0\.9[0-9]' docs/decisions/*.md` 为空；README 与 5 份文档的 ADR 链接路径未变
     - 记录：`.omp/plans/2026-11-11/docs-adr-boundary-plan.md`
-
 - [2026-11-11] - P0.16c 完成：生产审计保留期落到 profile（v0.98.1）
     - 背景：文档称生产必须 `AUDIT_RETENTION_DAYS=180`，但 `application-prod.yaml` 未设置，基础默认 0 ⇒ 以 prod 启动会静默永不删除，且无日志可发现
     - 变更：`application-prod.yaml` 设 `ctt.audit.retention.days: ${AUDIT_RETENTION_DAYS:180}`（基础 profile 仍 0，`0` 为回滚开关）；`AuditRetentionJob` 增加 `@PostConstruct` 启动日志（启用 INFO；禁用时开发 INFO、生产 WARN），每轮清理输出 cutoff/删除行数/耗时（零删除也记录，批次细节 DEBUG；失败轮次记录 cutoff 与已删行数后重抛，保证每轮都可核对）
@@ -59,8 +65,7 @@
     - 生产：`ctt_server_prod` 0 张表（`audit_logs` 不存在，首次 prod 启动才由 Flyway 建表），库 7,870,143 B；行数/表与索引体积/计划均 N/A
     - 开发参考：29,884 行 / 11,214,848 B（heap 6,799,360、索引 4,374,528），跨度 2026-08-30 → 2026-11-10；比 2026-11-09 的 29,801 行 +83
     - 计划：保留扫描走 `idx_audit_logs_created_at`（30 天截止 1,000 行 / 0.496 ms；180 天截止 0 行 / 0.014 ms）；删除批次 Hash Semi Join + 顺序扫描（仅普通 `EXPLAIN`）
-    - 记录：`.omp/acceptance/2026-11-11/p0-16b-production-audit-volume.md`（不入库）
-    - 边界：生产真实量级未验证 ⇒ 保留策略已由 P0.16c 落到 profile，量级复测拆为 P3.8（依赖生产首次部署/P3 覆盖层）；不把记录已建写成量级已知
+    - 边界与记录：生产真实量级未验证 ⇒ 保留策略已由 P0.16c 落到 profile，量级复测拆为 P3.8（依赖生产首次部署/P3 覆盖层）；不把记录已建写成量级已知；记录：`.omp/acceptance/2026-11-11/p0-16b-production-audit-volume.md`（不入库）
 - [2026-11-10] - P0.16 生产配置收口（v0.98.0，代码+配置+密钥+文档）
     - 交付：prod 关闭 springdoc（两路径 404）；CORS 取 `CORS_ALLOWED_ORIGINS`（回退 `FRONTEND_BASE_URL`），基础配置删占位域；OAuth 与前端 URL 生产必填；`ProductionConfigurationGuard` 覆盖四类违规并一次列出；`secrets.prod.enc.yaml` + `render.sh --env prod`；app 的 `DB_PASSWORD` 改源自 `db_password`；`PROD_DB_PASSWORD` 从 `.env` 移除
     - 缺陷：未知路径原被 `Exception` 兜底成 500（关闭文档后也不满足 404）⇒ `NoResourceFoundException → 404 COMMON_002` + 单测
@@ -73,19 +78,16 @@
     - 接入机：journald 200M/1G/64M（16M）；nginx `maxsize 20M + rotate 14`、btmp `maxsize 10M + rotate 3`、rsyslog `maxsize 50M`
     - 部署机：journald 500M/2G/64M（2.8G → 490.1M，`--vacuum-size`）；同一套轮转上限；`logrotate.service` Result=success
     - 坑与误判：备份留在 `/etc/logrotate.d/` 会 duplicate log entry ⇒ 移到 `/root/`；首次 `chronyc tracking` 的 `Not synchronised` 是启动瞬时态（约 10s 后同步）；`du` 的 Permission denied 与 grep 命中的 `error_log` 文件名不是故障
-    - 边界：部署机手工 nginx master（单元 inactive、无 80/443）未处理，归 P0.16/运维；未删除任何审计记录
-    - 记录：`.omp/acceptance/2026-11-10/p0-15-time-and-log-caps.md`
+    - 边界与记录：部署机手工 nginx master（单元 inactive、无 80/443）未处理，归 P0.16/运维；未删除任何审计记录；记录：`.omp/acceptance/2026-11-10/p0-15-time-and-log-caps.md`
 - [2026-11-10] - P0.13c 外部负向验证（完成，纯验证/文档，不 bump 版本）
     - 方法：以接入机（公网，独立于家庭 LAN）为外部视角；目标地址取 SSH 与 frpc 在接入机上的对端（两条独立流一致）；部署机自报 HTTP 出口与 SSH/frpc 不同，不可用
     - 结果：`tcp/5432`、`tcp/6379` 两次均耗尽 5s 超时（丢弃非 `refused`）；`ping` 100% 丢包；`tracepath` 至中国电信骨干后无回应；同时段 frpc 隧道在线。LAN 内两端口可用，Redis 返回 `NOAUTH`
-    - 边界：若为 CGNAT/共享地址，「无端口转发」与「无可寻址入口」无法从外部区分，需路由器侧确认；第二外部视角 SSH banner 超时未作证据；未创建任何临时路径
-    - 记录：`.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`；ADR-0003 与 `production-data-isolation` 的「无入站转发」已改为已测量
+    - 边界与记录：若为 CGNAT/共享地址，「无端口转发」与「无可寻址入口」无法从外部区分，需路由器侧确认；第二外部视角 SSH banner 超时未作证据；未创建任何临时路径；记录：`.omp/acceptance/2026-11-10/p0-13c-external-negative-verification.md`；ADR-0003 与 `production-data-isolation` 的「无入站转发」已改为已测量
 - [2026-11-10] - P0.13b Redis 来源限制决策（纯文档/决策，不 bump 版本）
     - 决策：不安装来源白名单；保留 `bind 127.0.0.1 + LAN`、口令、`protected-mode` 与「路由器不转发入站」边界。Redis ACL 只限命令/键/通道，没有客户端地址谓词；`bind` 只选监听地址 ⇒ 服务内无法表达「只允许本子网」
     - 证据（部署机 2026-11-10）：`ss -lnt` 仅 `127.0.0.1:6379` 与 LAN 地址 `:6379`；`CONFIG GET bind` = 回环 + LAN，`protected-mode yes`，`requirepass` 已设；`ACL LIST` 只有 `default` 用户 `~* &* +@all`；`ip -brief addr` 仅一个 IPv4 接口，`ip -6 addr show scope global` 为空；数据面现存连接只来自开发机；其余容器走 bridge 自有发布端口，不使用数据面
     - 触发（6 条，命中即先装主机 nftables 白名单再放行）：端口转发/新增路由/全局 IPv6、Redis 迁到容器发布端口或他机、口令扩散、出现异常来源访问
-    - 边界：外部负向验证仍归 P0.13c；未启用 UFW；Redis ACL 用户加固属独立决策（ADR 已列为替代方案）
-    - 交付：`docs/decisions/ADR-0003-redis-source-restriction.md`；`docs/production-data-isolation.md`、README 文档索引、`systemPatterns` 与计划 P0.13b 状态同步；`AGENTS.md` R8 增「平台能力要按机制核实」（Redis 无来源地址 ACL；共享主机加防火墙前先证明能拒绝真实可达来源）
+    - 边界与交付：外部负向验证仍归 P0.13c；未启用 UFW；Redis ACL 用户加固属独立决策（ADR 已列为替代方案）；交付 `docs/decisions/ADR-0003-redis-source-restriction.md`、`docs/production-data-isolation.md`、README 文档索引、`systemPatterns` 与计划 P0.13b 状态同步，`AGENTS.md` R8 增「平台能力要按机制核实」（Redis 无来源地址 ACL；共享主机加防火墙前先证明能拒绝真实可达来源）
 - [2026-11-09] - P0.13a 固定 LAN 地址（完成）：路由器静态租约已保存，续租后地址不变、租约 43,200 秒，路由为 `192.168.5.1`；P0.13b 已按 ADR-0003 决策收口（不装来源白名单）；P0.13c 外部负向验证未开始
 - [2026-11-09] - P0.12 生产数据隔离（v0.97.0）：新建 `ctt_server_prod`（owner `ctt_app`）与普通 LOGIN 角色；开发继续 `ctt_server`；两个库的 `PUBLIC` 连接权限已撤销，`ctt_app` 不能连接开发库；原 db1 被 `check-approver-sort:*` 占用，生产改用 db2，本地/开发 db0；角色密码仅在本机 `.env` 的 `PROD_DB_PASSWORD`，P0.16 已迁入 SOPS（`secrets.prod.enc.yaml` 的 `DB_PASSWORD`）
 - [2026-11-09] - P0.11 端口与编排 + secret 组读修复（v0.96.1）：edge/蓝/绿/obs host 网络并绑定 `127.0.0.1`；Caddy `:18080` + `bind` 代理 blue；应用 `SERVER_ADDRESS=127.0.0.1`、`TRUSTED_PROXY_ADDRESSES=127.0.0.1`；frpc `18080 -> 18080` 已存在；完整 Linux app/edge/obs 验证通过；secret 0440 + `SECRET_GID`/`group_add`
@@ -96,11 +98,9 @@
     - compose 与 blackbox 改打 readiness；本地栈停 PostgreSQL 实测 liveness UP/200、readiness OUT_OF_SERVICE/503
     - 测试：`HealthProbeIntegrationTest` 覆盖分组/真实 contributor/503/UNKNOWN/匿名访问，`PublicApiEndpointRegistryTest` 覆盖公开路径
 - [2026-11-09] - 审计保留配置注释与版本同步(v0.94.1)
-    - `application.yaml` 注释改为「默认 0 永久保留；生产设 180」，与 ADR-0002 一致
-    - `appVersion` 0.94.1；仅注释与版本，无行为变更
+    - `application.yaml` 注释改为「默认 0 永久保留；生产设 180」，与 ADR-0002 一致；`appVersion` 0.94.1，仅注释与版本，无行为变更
 - [2026-11-09] - P0.6c 审计保留策略确认（纯文档/决策，不 bump 版本）
-    - 决策:生产 180 天(`AUDIT_RETENTION_DAYS=180`),启用后整行删除;ADR-0002 Accepted;应用默认仍 0,生产启用按部署清单
-    - 记录:替代方案(90/365/永久/脱敏保留)、部署验证与回滚、签核;生产量级仍待 P0.16b
+    - 决策:生产 180 天(`AUDIT_RETENTION_DAYS=180`),启用后整行删除;ADR-0002 Accepted;应用默认仍 0,生产启用按部署清单;替代方案(90/365/永久/脱敏保留)、部署验证与回滚、签核;生产量级仍待 P0.16b
     - 权责/边界: 项目所有者即 operator/compliance authority; ADR-0002 为书面记录, 无独立外部审计人; 2026-11-11 P0.16c 已把 180 天落到生产 profile（量级复测拆为 P3.8）
     - 规则: `AGENTS.md` R10 增「完成项必须有总结」, 禁止只改状态标记
 - [2026-11-09] - 计划自洽性修正（纯计划，不 bump 版本）
