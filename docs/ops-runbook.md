@@ -132,6 +132,37 @@ There is one operator and one channel today, so escalation is a decision, not a 
 - A `critical` that fires while you are already working another incident: fix the one with user-visible
   impact first; silence the other with a note that points at the active incident.
 
+## Deploying a signed image
+
+The deploy job ships a digest the publish workflow signed. It verifies before it
+starts anything, and it never builds on the host: a host build would be an image
+no one signed, which is the case this check exists to exclude.
+
+```bash
+# The digest is printed by the publish run and pinned in the deploy job.
+IMAGE=ghcr.io/ahogek/ctt-server@sha256:<digest>
+
+deploy/verify-image.sh "$IMAGE"     # signature + provenance, identity pinned
+docker pull "$IMAGE"
+
+IMAGE_REF="$IMAGE" docker compose up -d --no-build app
+```
+
+`verify-image.sh` exits `2` when it cannot run at all — `cosign` missing, or a
+tag instead of a digest — and `1` when the signature or the attestation does not
+match this repository's publish workflow. Both are deployment blockers; neither
+is a warning to look at later.
+
+Rolling back is the same command with the previous digest. Tags are not a
+rollback target: `latest` moves, so a rollback that names it can land on the
+build you were rolling back from.
+
+If verification fails on a digest that used to pass, treat the registry or the
+signing identity as suspect before touching the host: re-run
+`cosign verify-attestation` by hand, compare the certificate identity it prints
+with `.github/workflows/publish.yml`, and check the Rekor entry's timestamp
+against the publish run.
+
 ## Related
 
 - [Observability](observability.md) — metrics, dashboards, alert rules and the paging path
