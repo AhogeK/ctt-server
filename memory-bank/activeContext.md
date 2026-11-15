@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-15] - P3.2 首次发布成功，部署机验证通过（v0.109.0）
+    - 触发：master 上的 `publish.yml` 连续三次失败，每次只暴露一层原因——引用路径大小写（`AhogeK/ctt-server` 不是合法镜像引用）、`--yes` 用在验证子命令上（那是签名的透明日志确认开关）、buildx 的内联证明 cosign 查不到。第三次用诊断步骤打印注册表真实内容才定位：`vnd.docker.reference.digest` 指向**平台清单**而非被签的索引，注册表又不把它暴露给 cosign。
+    - 修复：证明从 build metadata 取出（`.github/scripts/extract-predicate.py`）后用 `cosign attest` 重新绑到被签的 digest；发布构建改 `provenance: mode=min`（重新发布的证明会进公开的 Rekor，max 版带构建环境）；`deploy/verify-image.sh` 的 cosign 查找覆盖 `$HOME/.local/bin` 与 `COSIGN_BIN`（部署机把 cosign 装在用户 bin 下，PATH 里没有）；`Jenkinsfile` 增 `Registry login` 阶段，缺凭证时明确提示「包需可公开拉取」而不是让 `docker pull` 报含糊的 401。
+    - 验证：master run `43711391594` 全绿（`cosign sign` 写 tlog index 3901721894；证明复验输出「透明日志中的声明存在性已离线验证」与「签名证书已用受信 CA 证书验证」）；**部署机复验**——`deploy/verify-image.sh ghcr.io/ahogek/ctt-server@sha256:af316447…` 退出 0，签名与 SLSA 证明双通过（证书 subject = `publish.yml@refs/heads/master`）。
+    - 教训：cosign 从透明日志读签名、从注册表读证明，所以**验证不需要注册表凭证而拉取需要**——两者混为一谈会得出错误的凭证要求。验证的对象必须与被验的对象一致，否则证明没有意义。
+    - 边界：GHCR 包仍是私有的（匿名拉取 401），部署机首次按 digest 拉取需要注册表凭证或把包设为可公开拉取；Jenkins 新路径尚未跑过一次；Renovate App 未安装。
+    - 规则：`AGENTS.md` 新增「验证命令必须能在目标环境查到它要验的东西」——查不到对象的验证要么报错得莫名其妙，要么空过，而空过更坏。
 - [2026-11-15] - 分支模型改为 Git Flow + master 仅 PR（流程变更，不改版本）
     - 触发：用户要求「今后按 Git Flow 走、master 只能合并」，并写进 `AGENTS.md` 与 memory-bank。
     - 变更：GitHub ruleset `master-protection`（id 27307962）作用于 `refs/heads/master`——禁删、禁强推、必须 PR；0 approvals（单人仓库里 PR 作者不能自批）、要求会话解决、只开 merge+squash；`bypass_actors` 由 UI 默认的 RepositoryRole 清成空数组，管理员也绕不过。`AGENTS.md` R6 增 `git switch -c` 一行，R17 重写为 PR 版：`feature/<kebab>` 从 develop 切并 PR 回 develop，`release/v<x.y.z>` **从 master 切**再 cherry-pick 非 AI 提交，`hotfix/<yyyymmdd>-<kebab>` 从 master 切、PR 到 master 后回灌 develop。
@@ -10,7 +17,7 @@
     - 决策：签名走 keyless（GitHub OIDC 短证书 + Rekor），不自建密钥对——没有私钥就没有轮换、备份与泄漏面；代价是验证方必须钉住 **workflow 身份 + issuer**，而不是一个公钥文件。签名对象是 **digest**：tag 能在验证之后、容器启动之前被移动，digest 不能。另加一条常被忽略的推论：签名只证明「谁签的」，任何仓库的任何 workflow 都能签，所以必须再用 `verify-attestation` 复核构建来源，否则干净的签名会掩盖「不是从这条提交构建的」。
     - 变更：`.github/workflows/publish.yml`（master 与 `v*` 触发；单次 `build-push` 带 `provenance=mode=max` 与 SBOM；`cosign sign` 签 `IMAGE@digest`；随后 `verify-attestation --type slsaprovenance` 自查；step summary 打印可直接复制的验证命令）、`deploy/verify-image.sh`（拒绝非 digest 引用，钉 `publish.yml` 身份与 `token.actions.githubusercontent.com`，签名与证明双检，退出码 2=跑不起来 / 1=验证不过）、`docker-compose.yaml` 的 `image: ${IMAGE_REF:-ctt-server-app}`、`Jenkinsfile` 增 `IMAGE_REF` 参数 + `Tooling` 断言 `cosign` + 新增 `Verify image` 阶段 + `Deploy` 改 `--no-build`、`docs/ci.md` 增「Publishing and signing」并修正 required checks 与 Jenkins 的过时描述、`docs/ops-runbook.md` 增「Deploying a signed image」、`.github/renovate.json`、README 能力条目。
     - 验证：本地 `registry:2` + `ghcr.io/sigstore/cosign/cosign:v2.6.0` 端到端（`--network container:` 共享 netns 才能让容器内 `localhost:5000` 通到 registry）——`cosign sign --key` 成功写入 tlog，`verify --key cosign.pub` 退出 0，换另一把公钥退出 12；`verify-image.sh` 三条守卫实测（无参 2 / tag 引用 2 / 无 cosign 2），tag 那条打印「tag 可移动、digest 不能」；`ruby -ryaml` 解析 `publish.yml` = 1 job / 10 steps / 权限 `contents,packages,id-token,attestations`。
-    - 边界与待办：真实 keyless 签名尚未产生——需要 master 上跑一次 `publish.yml`，目前 10 个 step 只有 YAML 结构被验证；部署机无 cosign、无 GHCR 登录，真实 `cosign verify` 也待发布后执行；Renovate 配置已入仓但 App 未安装（惰性）；`IMAGE_REF` 现在是部署必填参数，缺省即失败，这是设计。
+    - 边界与待办：见上方「P3.2 首次发布」条目——真实 keyless 签名与部署机验证已于同日完成；余项是私有包拉取凭证、Jenkins 新路径首跑、Renovate App。
 - [2026-11-15] - P3.1 实现完成：CI 质量门与供应链证据（v0.107.0）
     - 决策：门留在 GitHub Actions，**Jenkins 只部署**——把全量套件压在跑生产的机器上，等于让合并延迟取决于那台机器；被扫描与被证明的镜像必须是**一次构建**，否则「扫的 digest」与「签的 digest」分叉。
     - 变更：`.github/workflows/ci.yml`（quality 5 / secrets 4 / supply-chain 9 步，含 `docker/setup-buildx-action`）、`.github/scripts/extract-provenance.py`（提取 + 与本次布局配对校验）、`.gitleaksignore`（41 条指纹）、`Jenkinsfile` 重写（`Tooling` 阶段 + 文件凭证 + `render.sh`，删明文 `.env`）、`docs/ci.md` 新增、删除 `.opencode/`（用户要求，无用途）。
