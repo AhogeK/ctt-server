@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -95,6 +96,86 @@ class MailOutboxRepositoryTest {
                             boundary, PageRequest.of(0, 10, Sort.by("createdAt").ascending()));
 
             assertThat(result).extracting(MailOutbox::getRecipient).contains("boundary@x.com");
+        }
+    }
+
+    @Nested
+    @DisplayName("findOldestAwaitingDispatchCreatedAt")
+    class FindOldestAwaitingDispatchCreatedAt {
+
+        /**
+         * {@code createdAt} is {@code @CreatedDate} (updatable=false), so the only way to backdate
+         * a row is a native update, as the audit retention tests do.
+         */
+        private void backdate(MailOutbox row, Instant createdAt) {
+            em.getEntityManager()
+                    .createNativeQuery(
+                            "UPDATE mail_outbox SET created_at = :createdAt WHERE id = :id")
+                    .setParameter("createdAt", createdAt)
+                    .setParameter("id", row.getId())
+                    .executeUpdate();
+            em.clear();
+        }
+
+        @Test
+        @DisplayName("returns the oldest dispatchable entry, ignoring non-dispatchable statuses")
+        void returnsOldestDispatchable() {
+            Instant now = Instant.now();
+            MailOutbox dispatchable = persist(MailOutboxFixtures.pending().recipient("old@x.com"));
+            persist(MailOutboxFixtures.pending().recipient("new@x.com"));
+            MailOutbox sending = persist(MailOutboxFixtures.sending().recipient("sending@x.com"));
+            MailOutbox sent = persist(MailOutboxFixtures.sent().recipient("sent@x.com"));
+            MailOutbox cancelled =
+                    persist(MailOutboxFixtures.cancelled().recipient("cancelled@x.com"));
+            backdate(dispatchable, now.minusSeconds(600));
+            // Older than the dispatchable row on purpose: a query that ignored status would
+            // return one of these and the assertion below would catch it.
+            backdate(sending, now.minusSeconds(900));
+            backdate(sent, now.minusSeconds(1200));
+            backdate(cancelled, now.minusSeconds(1500));
+
+            Optional<Instant> result = repository.findOldestAwaitingDispatchCreatedAt(now);
+
+            assertThat(result)
+                    .isPresent()
+                    .hasValueSatisfying(
+                            createdAt ->
+                                    assertThat(createdAt)
+                                            .isBetween(
+                                                    now.minusSeconds(610), now.minusSeconds(590)));
+        }
+
+        @Test
+        @DisplayName("ignores retryable FAILED rows whose window has not elapsed")
+        void ignoresNotYetRetryableFailedRows() {
+            Instant now = Instant.now();
+            MailOutbox waiting = persist(MailOutboxFixtures.notYetRetryableFailed());
+            backdate(waiting, now.minusSeconds(600));
+
+            assertThat(repository.findOldestAwaitingDispatchCreatedAt(now)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("includes retryable FAILED rows once the window has elapsed")
+        void includesRetryableFailedRowsAfterWindow() {
+            Instant now = Instant.now();
+            MailOutbox retryable =
+                    persist(MailOutboxFixtures.retryableFailed().nextRetryAt(now.minusSeconds(1)));
+            backdate(retryable, now.minusSeconds(300));
+
+            assertThat(repository.findOldestAwaitingDispatchCreatedAt(now))
+                    .isPresent()
+                    .hasValueSatisfying(
+                            createdAt -> assertThat(createdAt).isBefore(now.minusSeconds(290)));
+        }
+
+        @Test
+        @DisplayName("returns empty when nothing is waiting to be dispatched")
+        void returnsEmptyWhenNothingIsDispatchable() {
+            persist(MailOutboxFixtures.exhaustedFailed());
+            persist(MailOutboxFixtures.sent());
+
+            assertThat(repository.findOldestAwaitingDispatchCreatedAt(Instant.now())).isEmpty();
         }
     }
 

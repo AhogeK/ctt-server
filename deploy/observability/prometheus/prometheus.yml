@@ -11,8 +11,9 @@
 # deployment serves is operator data, and the repository's other Prometheus
 # configuration carries no host names either.
 #
-# Rule files arrive with P2.1; until then nothing is evaluated and the alerting
-# block only points Alertmanager at an empty rule set.
+# Rule files land in rules/ (P2.1) and are evaluated every evaluation_interval;
+# the alerting block forwards resolved alerts to Alertmanager, which decides
+# paging in P2.3.
 
 global:
   scrape_interval: 15s
@@ -20,6 +21,9 @@ global:
   evaluation_interval: 15s
   external_labels:
     host: deployment
+
+rule_files:
+  - rules/*.yml
 
 alerting:
   alertmanagers:

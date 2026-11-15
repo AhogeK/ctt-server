@@ -11,9 +11,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
+import java.util.Optional;
+
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -26,6 +30,40 @@ class MailOutboxMetricsTest {
     @BeforeEach
     void setUp() {
         registry = new SimpleMeterRegistry();
+    }
+
+    @Test
+    @DisplayName("should publish the age of the oldest entry awaiting dispatch")
+    void shouldPublishOldestAwaitingDispatchAge_whenTheGaugeIsRead() {
+        Instant createdAt = Instant.now().minusSeconds(480);
+        when(mailOutboxRepository.findOldestAwaitingDispatchCreatedAt(any()))
+                .thenReturn(Optional.of(createdAt));
+        new MailOutboxMetrics(mailOutboxRepository, new BusinessMetrics(registry));
+
+        assertThat(registry.get(BusinessMetrics.MAIL_PENDING_OLDEST_SECONDS).gauge().value())
+                .isGreaterThanOrEqualTo(470.0);
+    }
+
+    @Test
+    @DisplayName("should report zero for the oldest age when nothing is awaiting dispatch")
+    void shouldReportZero_whenNothingIsAwaitingDispatch() {
+        when(mailOutboxRepository.findOldestAwaitingDispatchCreatedAt(any()))
+                .thenReturn(Optional.empty());
+        new MailOutboxMetrics(mailOutboxRepository, new BusinessMetrics(registry));
+
+        assertThat(registry.get(BusinessMetrics.MAIL_PENDING_OLDEST_SECONDS).gauge().value())
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("should report NaN for the oldest age when its query fails")
+    void shouldReportNaN_whenTheOldestAgeQueryFails() {
+        when(mailOutboxRepository.findOldestAwaitingDispatchCreatedAt(any()))
+                .thenThrow(new IllegalStateException("database unavailable"));
+        new MailOutboxMetrics(mailOutboxRepository, new BusinessMetrics(registry));
+
+        assertThat(registry.get(BusinessMetrics.MAIL_PENDING_OLDEST_SECONDS).gauge().value())
+                .isNaN();
     }
 
     @Test

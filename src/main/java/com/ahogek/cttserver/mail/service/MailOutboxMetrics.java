@@ -6,7 +6,10 @@ import com.ahogek.cttserver.mail.repository.MailOutboxRepository;
 
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import io.micrometer.core.instrument.Tags;
 
@@ -24,6 +27,13 @@ import io.micrometer.core.instrument.Tags;
  * <p>The value is counted when Prometheus scrapes, so it reflects the queue at that moment instead
  * of a counter that drifts from the table. A failed query reports {@code NaN} rather than the last
  * successful value: a stale backlog depth hides exactly the incident the gauge exists to catch.
+ *
+ * <p>A second gauge reports the age in seconds of the oldest entry waiting to be dispatched, using
+ * the same predicate as {@link MailOutboxRepository#findOldestAwaitingDispatchCreatedAt}. An empty
+ * queue reports {@code 0} — nothing has been waiting — so a non-finite value can only mean the
+ * query failed, which {@link BusinessMetrics#registerGauge} turns into {@code NaN}. The two states
+ * must stay distinguishable: the alert selects {@code NaN} with {@code age != age} as well as
+ * firing on a large age, and an unreadable queue is exactly the case where silence would hurt.
  *
  * @author AhogeK [ahogek@gmail.com]
  * @since 2026-11-11
@@ -43,5 +53,19 @@ public class MailOutboxMetrics {
                     Tags.of(BusinessMetrics.TAG_STATUS, status.name()),
                     () -> repository.countByStatus(status));
         }
+        metrics.registerGauge(
+                BusinessMetrics.MAIL_PENDING_OLDEST_SECONDS,
+                "Seconds since the oldest outbox entry awaiting dispatch was created",
+                Tags.empty(),
+                () -> oldestAwaitingDispatchAge(repository));
+    }
+
+    private static double oldestAwaitingDispatchAge(MailOutboxRepository repository) {
+        Instant now = Instant.now();
+        Optional<Instant> oldest = repository.findOldestAwaitingDispatchCreatedAt(now);
+        return oldest.map(
+                        createdAt ->
+                                (double) Math.max(0, Duration.between(createdAt, now).getSeconds()))
+                .orElse(0.0);
     }
 }
