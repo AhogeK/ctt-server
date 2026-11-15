@@ -2648,7 +2648,7 @@ end note
 ##### P3.2 修订完成总结（2026-11-15）
 > - 交付：`publish.yml` 的标签推导（`flavor: latest=false` + 显式 latest 规则）；七处 action 版本升级；`docs/ci.md` 新增「注册表里最终有什么」表格；`docs/ops-runbook.md` 的回滚段按实测语义改写（latest 随发布移动、指名提交的 tag 可能指向该提交的另一份构建）。
 > - 证据：注册表只读探测（取 pull token 后读 manifest 的 `Docker-Content-Digest`）逐次核对——发版前 `latest` = `sha256:222f3557…`（= `0.109.0`）、`master` = `sha256:75de93c7…`、`0.110.0` 不存在；**分支构建**（run `43715237198`，master push，来源提交 `14306dc`）把 `master` 推到 `sha256:669567de…` 而 `latest` **纹丝不动**；**tag 构建**（run `43715404344`，`v0.110.0`）把 `0.110.0` 与 `latest` 一起指向 `sha256:1ec6e8fc…`，`master` 仍停在 `669567de`——同一提交两次构建 digest 不同，再次印证构建非字节可复现。**部署机复验**：`deploy/verify-image.sh ghcr.io/ahogek/ctt-server@sha256:1ec6e8fc…` 退出 0（签名与 SLSA 证明双通过，证书 subject = `publish.yml@refs/tags/v0.110.0`、workflow SHA = `14306dc…`、issuer = `token.actions.githubusercontent.com`），镜像已按该 digest 拉到部署机本地。
-> - 边界：构建非字节可复现，同一提交两次构建 digest 不同 ⇒ 部署与回滚一律用 digest，不用 tag；action 版本升级只验证了「能跑」，破坏性变更的完整核对依据是各 major 的 release notes。
+> - 边界：构建非字节可复现，同一提交两次构建 digest 不同 ⇒ 部署与回滚一律用 digest，不用 tag；action 版本升级只验证了「能跑」，破坏性变更的完整核对依据是各 major 的 release notes；**已知缺口**：0.108.0 没有 git tag——发布流水线与它同批引入、首次成功发布是 0.109.0，补 tag 会触发一次旧构建并把 `latest` 指针拉回旧代码，故不补，登记在此。
 > - 重访：Renovate App 安装后把 action 版本 pin 交回 Renovate（配置已在 `.github/renovate.json`）；若将来发多平台镜像，`subject` 的平台段会变，`verify-image.sh` 的身份正则需同步核对。
 ##### P0.7 完成总结（2026-11-09）
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
