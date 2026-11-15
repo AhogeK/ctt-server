@@ -14,6 +14,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -22,6 +23,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
@@ -243,12 +245,20 @@ class UserProfileIntegrationTest {
                     .isEqualTo("RenamedUser");
 
             String details =
-                    jdbcClient
-                            .sql(
-                                    "SELECT details::text FROM audit_logs WHERE action = 'PROFILE_UPDATED' AND user_id = ?")
-                            .param(userId)
-                            .query(String.class)
-                            .single();
+                    await().atMost(Duration.ofSeconds(5))
+                            .until(
+                                    () ->
+                                            jdbcClient
+                                                    .sql(
+                                                            "SELECT details::text FROM audit_logs"
+                                                                    + " WHERE action ="
+                                                                    + " 'PROFILE_UPDATED'"
+                                                                    + " AND user_id = ?")
+                                                    .param(userId)
+                                                    .query(String.class)
+                                                    .optional()
+                                                    .orElse(null),
+                                    value -> value != null);
             assertThat(details)
                     .contains("displayName")
                     .doesNotContain(DISPLAY_NAME)
@@ -270,13 +280,19 @@ class UserProfileIntegrationTest {
                             .exchange();
 
             assertThat(patched).hasStatusOk();
-            assertThat(
-                            jdbcClient
-                                    .sql(
-                                            "SELECT count(*) FROM audit_logs WHERE action = 'PROFILE_UPDATED'")
-                                    .query(Integer.class)
-                                    .single())
-                    .isZero();
+            await().during(Duration.ofSeconds(1))
+                    .atMost(Duration.ofSeconds(5))
+                    .untilAsserted(
+                            () ->
+                                    assertThat(
+                                                    jdbcClient
+                                                            .sql(
+                                                                    "SELECT count(*) FROM audit_logs"
+                                                                            + " WHERE action ="
+                                                                            + " 'PROFILE_UPDATED'")
+                                                            .query(Integer.class)
+                                                            .single())
+                                            .isZero());
         }
 
         @Test

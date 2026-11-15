@@ -32,6 +32,7 @@ import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 /**
@@ -699,14 +700,21 @@ class StatsIntegrationTest {
                     .bodyJson()
                     .extractingPath("$.data[?(@.code=='STREAK_7')].tier")
                     .isEqualTo(List.of(2));
-            Long auditCount =
-                    jdbcClient
-                            .sql(
-                                    "SELECT COUNT(*) FROM audit_logs WHERE user_id = ? AND action = 'ACHIEVEMENT_UNLOCKED' AND resource_id = 'STREAK_3'")
-                            .param(userId)
-                            .query(Long.class)
-                            .single();
-            assertThat(auditCount).isEqualTo(1);
+            await().atMost(Duration.ofSeconds(5))
+                    .untilAsserted(
+                            () ->
+                                    assertThat(
+                                                    jdbcClient
+                                                            .sql(
+                                                                    "SELECT COUNT(*) FROM audit_logs"
+                                                                            + " WHERE user_id = ?"
+                                                                            + " AND action ="
+                                                                            + " 'ACHIEVEMENT_UNLOCKED'"
+                                                                            + " AND resource_id = 'STREAK_3'")
+                                                            .param(userId)
+                                                            .query(Long.class)
+                                                            .single())
+                                            .isEqualTo(1));
         }
 
         @Test
