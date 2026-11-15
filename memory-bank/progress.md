@@ -7,9 +7,9 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.105.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.106.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
-| 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流（含 180 天保留策略，ADR-0002）、liveness/readiness health 探针、Prometheus 指标出口（回环管理端口）、六个业务指标（同步、限流、邮件、排行榜、审计）、W3C 追踪与 OTLP 导出、部署机观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy + 四类 exporter，30 天保留）、日志用户维度（`userId` 进 MDC，请求结束清理）、告警规则（11 条：p95 300ms/5xx 0.5%/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计掉行/公网单点/隧道中断/证书 14 天，`severity: info`）、Grafana 面板 as code（请求/后台/边缘与宿主机三份，随栈自动出现，每块画告警阈值的契约线） |
+| 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流（含 180 天保留策略，ADR-0002）、liveness/readiness health 探针、Prometheus 指标出口（回环管理端口）、六个业务指标（同步、限流、邮件、排行榜、审计）、W3C 追踪与 OTLP 导出、部署机观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy + 四类 exporter，30 天保留）、日志用户维度（`userId` 进 MDC，请求结束清理）、告警规则（12 条：p95 300ms/5xx 0.5%/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计掉行/公网单点/隧道中断/证书 14 天/Telegram 投递失败）、Grafana 面板 as code（请求/后台/边缘与宿主机三份，随栈自动出现，每块画告警阈值的契约线）、值班路径（规则按 blast radius 定级，critical/warning 经 Alertmanager 原生 Telegram 集成投递到操作者的私聊与工作群，文件凭证、零新增依赖、已在生产通道实测送达，info 只看面板；两条抑制；投递失败本身有告警；runbook 首章 `Alerts and on-call`） |
 
 ## 版本里程碑
 
@@ -18,6 +18,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.106.0` | 2026-11-15 | feat(observability): route alerts by severity into Alertmanager's native Telegram integration |
 | `0.105.0` | 2026-11-15 | feat(obs): provision Grafana dashboards with the stack and draw the alert thresholds on them |
 | `0.104.0` | 2026-11-14 | feat(observability): alert rules for the business and edge signals + outbox oldest-pending age gauge |
 | `0.103.0` | 2026-11-14 | feat(logging): put the authenticated user identifier into the request log context |

@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1–P1.5、P2.1、P2.2 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.105.0 P2.2 Grafana 面板 as code（三份面板 JSON 进仓库、provisioning 文件 provider、两栈共用一份目录挂载、面板画契约线并与规则同源）+ v0.104.0 P2.1 告警规则（`rules/alerts.yml` 11 条：p95/5xx/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计停滞/公网单点/隧道中断/证书 14 天；`severity: info`，promtool 通过）+ 新增 outbox 最老待发年龄 gauge；v0.103.0 P1.5 日志用户维度（MDC 增 `userId`，安全链内注入、请求结束由上下文过滤器清理，控制台与 JSON 均可按用户过滤）；v0.102.0 P1.4 观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy 与 node/postgres/redis/blackbox exporter，全部回环地址、30 天保留，blackbox 覆盖 6 个公网 URL）；v0.101.0 P1.3 分布式追踪（Micrometer Tracing + OTLP、W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样、导出关闭时的传播器补位）；v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1–P1.5、P2.1–P2.3 已完成；P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.106.0 P2.3 值班路径（Telegram 走 Alertmanager 原生接收器、零新增依赖：12 条规则按 blast radius 定级并路由、group_wait 30s 满足一分钟承诺、两条抑制、`TelegramDeliveryFailing` 看住投递本身、静默与升级进 runbook）+ v0.105.0 P2.2 Grafana 面板 as code（三份面板 JSON 进仓库、provisioning 文件 provider、两栈共用一份目录挂载、面板画契约线并与规则同源）+ v0.104.0 P2.1 告警规则（`rules/alerts.yml` 11 条：p95/5xx/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计掉行/公网单点/隧道中断/证书 14 天；`severity` 按 blast radius 分级，promtool check 与 test 均通过）+ 新增 outbox 最老待发年龄 gauge；v0.103.0 P1.5 日志用户维度（MDC 增 `userId`，安全链内注入、请求结束由上下文过滤器清理，控制台与 JSON 均可按用户过滤）；v0.102.0 P1.4 观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy 与 node/postgres/redis/blackbox exporter，全部回环地址、30 天保留，blackbox 覆盖 6 个公网 URL）；v0.101.0 P1.3 分布式追踪（Micrometer Tracing + OTLP、W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样、导出关闭时的传播器补位）；v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
 
 ## 🗺️ 计划总览
 
@@ -2190,7 +2190,7 @@ end note
 
 #### 实现状态
 
-🚧 **P0 部分交付 + P1 已完成 + P2 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3，2026-11-13 补 P1.4，2026-11-14 补 P1.5 与 P2.1，2026-11-15 补 P2.2）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）、P1.4（观测栈落地部署机）、P1.5（日志补用户维度）、P2.1（告警规则）、P2.2（Grafana 面板 as code）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P2.3–P7 未开工，每步一个可独立验收的交付物。
+🚧 **P0 部分交付 + P1 已完成 + P2 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3，2026-11-13 补 P1.4，2026-11-14 补 P1.5 与 P2.1，2026-11-15 补 P2.2 与 P2.3）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）、P1.4（观测栈落地部署机）、P1.5（日志补用户维度）、P2.1（告警规则）、P2.2（Grafana 面板 as code）、P2.3（值班路径：原生 Telegram 已接通）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P2.3 已完成（原生 Telegram 接收器已接通，真实通道实测投递成功）；P4–P7 未开工，每步一个可独立验收的交付物。
 
 #### 本轮交付（2026-11-07）
 
@@ -2403,9 +2403,9 @@ end note
 
 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- |
-| P2.1 ✅ | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计掉行；另加隧道中断与证书 14 天到期；先 `severity: info` | `promtool check rules` = 11 rules、`promtool test rules` **7 例**通过（含 NaN 必触发与 5xx 流量守卫；规则单测放 `rules/tests/`，`rule_files: rules/*.yml` 不会误加载）；阈值对齐部署契约（p95 300ms、5xx 0.5%、outbox p95 60s），偏离处写在规则行理由里；部署机 reload 返 200 后 `/api/v1/rules` 11 条 inactive，表达式带 `m != m` NaN 守卫 | 中 |
+| P2.1 ✅ | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计掉行；另加隧道中断与证书 14 天到期（P2.3 又加 `TelegramDeliveryFailing`，并按 blast radius 分成 critical/warning/info 三级） | `promtool check rules` = **12 rules**、`promtool test rules` **9 例**通过（含 NaN 必触发与 5xx 流量守卫；规则单测放 `rules/tests/`，`rule_files: rules/*.yml` 不会误加载）；阈值对齐部署契约（p95 300ms、5xx 0.5%、outbox p95 60s），偏离处写在规则行理由里；部署机 reload 返 200 后 `/api/v1/rules` 12 条 inactive，表达式带 `m != m` NaN 守卫 | 中 |
 | P2.2 ✅ | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康）：面板 JSON 与 provisioning 进仓库，`deploy/observability/grafana/` 整目录挂载；每个面板读的指标与 P2.1 规则同源（RED 三率、Hikari 池、outbox 年龄与分状态积压、排行榜深度、审计 WRITTEN/DROPPED、`probe_success` 与证书剩余天数、宿主磁盘与内存），并在图上画出契约线（p95 300ms、5xx 0.5%、outbox 60s） | 三份面板（requests 8 / background 8 / edge-hosts 13 面板）由文件 provider 自动出现于 `ctt-server` 文件夹（本地与部署机均已验证，无需导入）；部署机 `fs/query` 经 uid `prometheus` 取到 `probe_success` 帧，且面板与规则在同刻取到相同数值（p95、池饱和度、outbox 年龄、排行榜深度四处一致）；47 条查询表达式逐条在真实栈上执行，应用侧全部有数据、宿主侧 15 条在部署机全部有序列 | 中 |
-| P2.3 | 值班路径：Alertmanager 接收方（邮件 + webhook）与分组/抑制规则落地；按 P2.1 的 11 条规则逐条定级（info 不寻呼、warning 邮件、critical 邮件 + webhook），静默流程与升级路径写进 `docs/observability.md` 与 runbook（P6.1） | 手动触发一条测试告警并在 1 分钟内收到通知；同一告警不会因分组震荡重复轰炸 | 低 |
+| P2.3 ✅ | 值班路径：Alertmanager 接收方与分组/抑制规则落地；按 P2.1 的规则逐条定级，静默流程与升级路径写进 `docs/observability.md` 与 runbook（P6.1）。**通道用 Telegram，走 Alertmanager 原生 `telegram_configs`**（原计划的邮件 + webhook）：邮件额度小、投递失败等于静默丢页，而操作者重度使用 Telegram；自己写转发器曾被判定为必须，深研后推翻——原生的 `<telegram_config>` 自 v0.24.0 起存在（部署机 0.35.0 已在用），支持 `send_resolved`、`bot_token_file`/`chat_id_file`、`message_thread_id`、`parse_mode` 与自动重试，第三方镜像则全部弃维护。因此不引入任何新增依赖，并新增 `TelegramDeliveryFailing` 让「页没送到」本身成为告警 | 已达成：`amtool check-config` 通过（3 条 severity 子路由、2 个 receiver、2 条抑制）；原生投递在桩上实测 firing 与 resolved 均到达（`--end` 到期路径），文件凭证被读取、HTML 标签被转义、失败日志不含 token；`telegram_configs` 在缺凭证文件时仍能启动（只让投递失败并被新规则捕获）；规则 12 条通过 `promtool check rules` 与 `promtool test rules`；部署机 reload 后 `api 7 / edge 4 / paging 1` 全部 inactive；**真实通道已接通**：凭证写入生产载荷并经 `render.sh --env prod` 渲染、`--force-recreate alertmanager` 后容器内可读，`alertmanager_notifications_total{integration="telegram"}` 递增而 `failed_total` 无增量，操作者在 Telegram 私聊与「方木工作群」（`chat_id=-5277364365`）均收到 `Alerts Firing` | 低 |
 ##### P3 发布链（P3.1–P3.8）
 
 | # | 交付物（独立可验收） | 判定 | 复杂度 |
@@ -2586,6 +2586,17 @@ end note
 > - 重访：P3 首次生产部署后把 `ctt-server` 目标由 down 转为 up，再复核面板里应用曲线与契约线的贴合度；若 P2.3 调整 severity 或阈值，面板契约线必须同批改（同一份数字，两处呈现）；新增信号前先确认是否已有面板承载，避免同一指标在两块面板重复。
 > - 文档与版本：`docs/observability.md` 新增 `### Dashboards`（三份面板的用途、契约线取值、两栈共用一份 JSON 与固定数据源 uid 的原因、host 网络下的本地验证方式），`## Not covered yet` 随之改写；`README.md` 的 Operable 条目与文档索引同步；版本 `0.105.0`（`gradle/libs.versions.toml`）。
 
+##### 计划修订（2026-11-15，P2.3 通道决策）
+
+> P2.3 原文写「接收方（邮件 + webhook）」，落地时改为 **Telegram，走 Alertmanager 原生 `telegram_configs`**，并对定级方式做了判断性调整；五项决定都写下来，避免日后被当成随意偏离。① 通道：邮件服务额度小、投递失败等于静默丢页，而操作者重度使用 Telegram。**中途我自己写过一个标准库 relay，理由是「第三方 Alertmanager→Telegram 镜像全部已弃维护」——这个推理跳过了一步：先查上游原生能力。** 深研后确认 Alertmanager 自 v0.24.0 起内置 `<telegram_config>`（部署机 0.35.0 在用），支持 `send_resolved`、`bot_token_file`/`chat_id_file`、`message_thread_id`、`parse_mode`、`timeout` 与自动重试，且近三个版本仍在修它的转义、长度与日志脱敏；第三方镜像（`metalmatze/alertmanager-bot` 最后构建 2021-02、`janw` 与 `ix-ai` 已归档）因此不构成依赖理由。relay 已删除，零新增容器与依赖。② 失败可见：`telegram_configs` 在凭证文件缺失或为空时仍能启动，只让投递失败——沉默的投递失败等于没有告警，故新增 `TelegramDeliveryFailing`（`alertmanager_notifications_failed_total{integration="telegram"}` 任何增量，critical），并给 Alertmanager 加抓取 job 让这条规则有信号。③ 定级：按 **blast radius**（用户是否可见、证据是否永久丢失）而不是按指标族——`Http5xxRatioHigh`、`AuditWritesLost`、`PublicEndpointDown`、`TunnelDown`、`TelegramDeliveryFailing` 为 critical；p95/429/池/outbox/证书/磁盘为 warning；只有 `LeaderboardRecomputeStalled` 是 info（派生数据过期，无用户可见损失）。④ 抑制：critical 抑制同 host 的 warning|info，且 `TunnelDown` 抑制 `PublicEndpointDown`——隧道断了必然所有端点都不可达，报 6 条只会掩盖根因。⑤ 静默与升级写进 `docs/ops-runbook.md`（P6.1 的 `Alerts and on-call` 章）而不是只写 `docs/observability.md`：前者是压力下照着做的步骤，后者是读者理解机制的地方。
+##### P2.3 完成总结（2026-11-15）
+
+> - 交付：`deploy/observability/alertmanager/alertmanager.yml` 用原生 `telegram_configs`（`bot_token_file`/`chat_id_file`、`send_resolved: true`、`parse_mode: HTML`、`timeout: 10s`）+ 3 条 severity 子路由（info→`silent`、warning 重复 4h、critical 重复 1h、`group_wait: 30s`、`group_interval: 5m`）+ 2 条抑制；`deploy/observability/prometheus/rules/alerts.yml` 新增 `ctt-server-paging` 组与 `TelegramDeliveryFailing`（`increase(alertmanager_notifications_failed_total{integration="telegram"}[10m]) > 0`，for 5m，critical），规则总数 12；`deploy/observability/prometheus/prometheus.yml` 新增 `job_name: alertmanager`（`127.0.0.1:9093`）让投递计数有信号（本地栈刻意不加：那里既无 `rule_files` 也无 Alertmanager 容器，加了只会得到永久 `up=0`）；`deploy/observability/docker-compose.yaml` 移除 relay、给 alertmanager 挂两个 0440 凭证并 `group_add: ["${SECRET_GID:-1000}"]`；`deploy/secrets/render.sh` 无条件渲染 `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`（缺值写空文件，避免 bind mount 变成目录）；`.gitignore` 由 `deploy/secrets/run/` 扩为 `deploy/secrets/run*/`；新增 `docs/ops-runbook.md`（P6.1 首章 `Alerts and on-call`）。
+> - 证据：`amtool check-config` 通过（2 receivers / 2 inhibit rules / 3 子路由）；`promtool check rules` = 12 rules；`promtool test rules` SUCCESS（新增 4 例：投递成功必须安静、单次失败 5 分钟后必触发、5xx 低流量 12m 不触发、5xx 1% 在 12m 触发；共 9 个 alert_rule_test）；部署机 `--force-recreate alertmanager` 后 `status=running`、`groups=[1000]`、容器内可读 46/10 字节凭证，`/-/reload` = 200，`/api/v1/rules` = app 7 / edge 4 / paging 1 全 `inactive`，`up{job="alertmanager"}` = 1；路由树 `default→silent`、`info→silent`、`warning/critical→telegram`；**真实通道**：`alertmanager_notifications_total{integration="telegram"}` 递增、`failed_total` 无增量，操作者在私聊（`chat_id=5934019094`）与「方木工作群」（`chat_id=-5277364365`）均收到 `Alerts Firing:` 报文（`Labels:` 里 `alertname = PathCheck`、`severity = critical`、`host = deployment`）。
+> - 判断性调整：① 放弃自建 relay——「第三方镜像全弃维护」只能推出「别用第三方」，推不出「自己写」；先查上游原生能力，结果零新增依赖。② 定级按 blast radius 而非指标族：critical = 5xx 比例 / 审计掉行 / 公网单点 / 隧道中断 / 页没送到；warning = 延迟 / 429 / 池 / outbox / 证书 / 磁盘；info = 排行榜陈旧。③ 投递失败必须自成一类告警（`TelegramDeliveryFailing`），否则「页没送到」是唯一没人知道的故障。④ 抑制的 source 按 `alertname` 收窄而不是按 severity 一把压：`host` 只有一个外部取值时 `equal: [host]` 等于全局，故 source 只取 `TunnelDown|PublicEndpointDown`；实测收窄后 `TunnelDown` 仍压住 `HostDiskSpaceLow`，而 `Http5xxRatioHigh` 不再压掉它。⑤ 静默与升级写进 runbook 而非只写 observability，因为那是压力下照着做的步骤。
+> - 边界：单一运维者与单通道，无轮值、无第二接收人、无确认跟踪；`info` 级不上屏；Bot token 曾出现在对话记录中，稳定后应 `/revoke` 轮换（轮换后须 `--force-recreate`，因 render 换 inode）；`message_thread_id` 未用（单话题群）。
+> - 重访：改规则名/级别/阈值必须同批改 Alerting 表、triage 表与面板契约线；加频道（邮件/webhook）只需加 receiver 与一条 route；群里若出现噪声，先把 info 留在 `silent` 再考虑拆群。
+> - 文档与版本：`docs/observability.md` 增 `### Telegram delivery` 与 Alerting 表新行，`docs/ops-runbook.md` 新建，`docs/deployment-secrets.md` 记两个新键与空占位，`README.md` 改 12 条规则与原生集成；版本 `0.106.0`（`gradle/libs.versions.toml`）。
 ##### P0.7 完成总结（2026-11-09）
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
 > - 实现补充：当前 Spring Boot 上下文未自动注册 Redis contributor，readiness 显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 继续委托，避免丢失 additional paths。
@@ -2676,7 +2687,7 @@ end note
 
 #### 未开工
 
-P2.3–P7（含值班路径、域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
+P4–P7（含域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
 
 #### 工程与生产化缺口复查（2026-11-07）
 
@@ -2736,7 +2747,7 @@ flowchart TB
     B -.->|"8081 回环"| P["Prometheus（部署机）"]
     G -.->|"8081 回环"| P
     P --> AM["Alertmanager"]
-    AM --> MAIL["邮件 / webhook"]
+    AM --> TG["Telegram（原生 telegram_configs）"]
     P --> BB["blackbox_exporter<br/>探公网 URL"]
     P --- G2["Grafana"]
     P --- LK["Loki + Alloy"]
@@ -2842,8 +2853,8 @@ sequenceDiagram
 - [ ] **重启接入机与重启部署机各一次，隧道自动恢复**（无需人工 tmux）
 - [ ] 停 frpc 时公网返回 503 维护页并在 1 分钟内触发告警；恢复后自动回到 200
 - [ ] 停库演练：readiness `OUT_OF_SERVICE`、liveness `UP`，记录写入 runbook
-- [x] `promtool check rules` = 11 rules 通过；`promtool test rules` 7 例通过（含 NaN 必触发与 5xx 流量守卫）
-- [ ] 测试告警 1 分钟内到达邮件与 webhook（P2.3）
+- [x] `promtool check rules` = 12 rules 通过；`promtool test rules` 9 例通过（含 NaN 必触发与 5xx 流量守卫）
+- [x] 测试告警 1 分钟内到达 Telegram（P2.3，真实 bot 与私聊/群两个 chat 均实测收到 FIRING）
 - [ ] PR 上 CI 全绿；人为坏用例与人为密钥串分别被测试与 gitleaks 挡住
 - [ ] 镜像以 digest 部署；`docker inspect` 里看不到任何密钥
 - [ ] 压测下完成一次蓝绿发布：5xx = 0，p95 无尖峰，旧色在宽限内退出
