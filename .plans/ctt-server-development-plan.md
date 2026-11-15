@@ -26,7 +26,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1–P1.5、P2.1 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.104.0 P2.1 告警规则（`rules/alerts.yml` 11 条：p95/5xx/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计停滞/公网单点/隧道中断/证书 14 天；`severity: info`，promtool 通过）+ 新增 outbox 最老待发年龄 gauge；v0.103.0 P1.5 日志用户维度（MDC 增 `userId`，安全链内注入、请求结束由上下文过滤器清理，控制台与 JSON 均可按用户过滤）；v0.102.0 P1.4 观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy 与 node/postgres/redis/blackbox exporter，全部回环地址、30 天保留，blackbox 覆盖 6 个公网 URL）；v0.101.0 P1.3 分布式追踪（Micrometer Tracing + OTLP、W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样、导出关闭时的传播器补位）；v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
+| 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0 部分交付 + P1 已完成（P0.0–P0.16、P0.16b、P0.16c、P0.17、P1.1–P1.5、P2.1、P2.2 已完成，P0.9 重启抽检按用户要求暂缓；P0.16c 只收口策略落地，生产量级实测拆为 P3.8） | v0.105.0 P2.2 Grafana 面板 as code（三份面板 JSON 进仓库、provisioning 文件 provider、两栈共用一份目录挂载、面板画契约线并与规则同源）+ v0.104.0 P2.1 告警规则（`rules/alerts.yml` 11 条：p95/5xx/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计停滞/公网单点/隧道中断/证书 14 天；`severity: info`，promtool 通过）+ 新增 outbox 最老待发年龄 gauge；v0.103.0 P1.5 日志用户维度（MDC 增 `userId`，安全链内注入、请求结束由上下文过滤器清理，控制台与 JSON 均可按用户过滤）；v0.102.0 P1.4 观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy 与 node/postgres/redis/blackbox exporter，全部回环地址、30 天保留，blackbox 覆盖 6 个公网 URL）；v0.101.0 P1.3 分布式追踪（Micrometer Tracing + OTLP、W3C `traceparent` 透传、traceId 单一来源、生产 10% 采样、导出关闭时的传播器补位）；v0.100.0 P1.2 六个业务指标（同步计数/耗时、限流拒绝、邮件待发、排行榜待重算、审计写入量，业务标签 ≤3）；v0.99.0 P1.1 指标出口（管理端口 8081 回环、Prometheus 注册表、双端口暴露面测试）；v0.98.2 P0.17 frp token 进 SOPS 并改为两端文件读取；v0.98.1 P0.16c 生产 profile 默认 180 天 + 启动日志 + 契约测试；v0.98.0 P0.16 生产配置收口；P0.16b 生产审计只读实测（prod 空库 0 表，开发参考 29,884 行 / 11.2 MB） |
 
 ## 🗺️ 计划总览
 
@@ -2190,7 +2190,7 @@ end note
 
 #### 实现状态
 
-🚧 **P0 部分交付 + P1 已完成 + P2 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3，2026-11-13 补 P1.4，2026-11-14 补 P1.5 与 P2.1）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）、P1.4（观测栈落地部署机）、P1.5（日志补用户维度）、P2.1（告警规则）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P2–P7 未开工，每步一个可独立验收的交付物。
+🚧 **P0 部分交付 + P1 已完成 + P2 部分交付**（2026-11-07 首批，2026-11-08 补 P0.1–P0.6b，2026-11-09 补 P0.6c/P0.7/P0.9/P0.11，2026-11-11 补 P0.16b/P0.16c/P0.17、P1.1 与 P1.2，2026-11-12 补 P1.3，2026-11-13 补 P1.4，2026-11-14 补 P1.5 与 P2.1，2026-11-15 补 P2.2）。已完成：P0.0–P0.16、P0.16b、P0.16c（策略落地）、P0.17（密钥收尾）、P1.1（指标出口落管理端口）、P1.2（业务指标与标签预算）、P1.3（分布式追踪与 traceId 单一来源）、P1.4（观测栈落地部署机）、P1.5（日志补用户维度）、P2.1（告警规则）、P2.2（Grafana 面板 as code）；P0.9 的 systemd unit 已安装/enabled/active，`WantedBy=multi-user.target`，重启抽检按用户要求暂缓。生产审计量级与首批清理日志的复核按 R10 拆为 P3.8，排在首次生产部署之后，不留在 P0.16c 作为未完成验收。P2.3–P7 未开工，每步一个可独立验收的交付物。
 
 #### 本轮交付（2026-11-07）
 
@@ -2404,7 +2404,7 @@ end note
 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- |
 | P2.1 ✅ | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计掉行；另加隧道中断与证书 14 天到期；先 `severity: info` | `promtool check rules` = 11 rules、`promtool test rules` **7 例**通过（含 NaN 必触发与 5xx 流量守卫；规则单测放 `rules/tests/`，`rule_files: rules/*.yml` 不会误加载）；阈值对齐部署契约（p95 300ms、5xx 0.5%、outbox p95 60s），偏离处写在规则行理由里；部署机 reload 返 200 后 `/api/v1/rules` 11 条 inactive，表达式带 `m != m` NaN 守卫 | 中 |
-| P2.2 | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康）：面板 JSON 与 provisioning 进仓库，`deploy/observability/grafana/` 整目录挂载；每个面板读的指标与 P2.1 规则同源（RED 三率、Hikari 池、outbox 年龄与分状态积压、排行榜深度、审计 WRITTEN/DROPPED、`probe_success` 与证书剩余天数、宿主磁盘与内存），并在图上画出契约线（p95 300ms、5xx 0.5%、outbox 60s） | 新环境起栈后面板自动出现，无需手工导入；同一告警在面板上能看到触发它的曲线 | 中 |
+| P2.2 ✅ | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康）：面板 JSON 与 provisioning 进仓库，`deploy/observability/grafana/` 整目录挂载；每个面板读的指标与 P2.1 规则同源（RED 三率、Hikari 池、outbox 年龄与分状态积压、排行榜深度、审计 WRITTEN/DROPPED、`probe_success` 与证书剩余天数、宿主磁盘与内存），并在图上画出契约线（p95 300ms、5xx 0.5%、outbox 60s） | 三份面板（requests 8 / background 8 / edge-hosts 13 面板）由文件 provider 自动出现于 `ctt-server` 文件夹（本地与部署机均已验证，无需导入）；部署机 `fs/query` 经 uid `prometheus` 取到 `probe_success` 帧，且面板与规则在同刻取到相同数值（p95、池饱和度、outbox 年龄、排行榜深度四处一致）；47 条查询表达式逐条在真实栈上执行，应用侧全部有数据、宿主侧 15 条在部署机全部有序列 | 中 |
 | P2.3 | 值班路径：Alertmanager 接收方（邮件 + webhook）与分组/抑制规则落地；按 P2.1 的 11 条规则逐条定级（info 不寻呼、warning 邮件、critical 邮件 + webhook），静默流程与升级路径写进 `docs/observability.md` 与 runbook（P6.1） | 手动触发一条测试告警并在 1 分钟内收到通知；同一告警不会因分组震荡重复轰炸 | 低 |
 ##### P3 发布链（P3.1–P3.8）
 
@@ -2573,6 +2573,19 @@ end note
 > - 重访：P3 首部署后复核业务规则真实触发阈值（尤其 p95 300ms、5xx 0.5% 与流量守卫的 ~30 请求下限、429 的 10% 是否贴合实际分布）；P2.3 决定 severity 升级与接收方时按文档「Alerting」表格逐条评级；新增探针目标时检查 `TunnelDown` 的 `count(...) > 0` 守卫仍成立；若将来需要「审计写入静默」检测，改由演练或合成探针承担，不要回到按量判断。
 > - 文档与版本：`docs/observability.md` 新增 `## Alerting`（11 条规则表 + 阈值依据 + `promtool check rules`/`promtool test rules`/reload/查询校验命令）；`cttserver_business_mail_pending_oldest_seconds` 入指标表（空队列 `0`、失败 `NaN`）；`application.yaml` 加 percentiles-histogram 配置并注释原因；`AGENTS.md` R9 的「告警要用 `isnan()` 判断」更正为 `metric != metric`（该错误自 P1.2 起就写在规范里，P2.1 只是在 rules 里沿用了它）；`README.md` 特性句补 11 条规则、文档索引描述补告警；版本 `0.104.0`。
 
+##### 计划修订（2026-11-15，P2.2 收口）
+
+> P2.2 按「面板 as code + 契约线」自身收口为 ✅，对计划原文做了三处判断性补充。① 面板不只是「读同源指标」，还把 P2.1 规则的阈值画成图上的契约线（`vector(0.3)`、`vector(0.005)`、`vector(0.8)`、`vector(60)`、`vector(14)`、`vector(0.9)`）：规则与曲线必须能对照，否则「告警在响、面板看不出为什么」仍要靠猜。② 面板放 `deploy/observability/grafana/dashboards/` 并由两栈共用同一目录：本地栈补自己的 provisioning（`deploy/local/grafana/provisioning`，Prometheus 数据源固定 uid `prometheus`），删掉原先三个单文件（`grafana-dashboard.json` / `grafana-dashboard-provider.yml` / `grafana-datasource.yml`）——单文件 bind mount 会钉住 inode，重写面板不生效，这是 P1.4 已记录过的坑。③ 应用侧查询显式带 `job="ctt-server"`，规则侧不带：面板所在的 Prometheus 同时抓 node/postgres/redis/blackbox 多个 job，而规则读的那些族只有应用会产出，语义等价；面板加 `job` 是为了与宿主面板混排时可读。
+
+##### P2.2 完成总结（2026-11-15）
+
+> - 交付：`deploy/observability/grafana/dashboards/` 三份面板 JSON —— `ctt-server-requests`（8 面板：按状态类请求速率、5xx 比例与 0.5% 线、p95 与 300ms 线、429 比例与 10% 线、同步 outcome/payload/时长、限流拒绝按 scope）、`ctt-server-background`（8 面板：outbox 最老待发年龄与 60s 线、按状态积压、排行榜脏集深度、审计 WRITTEN/DROPPED、池饱和度与 80% 线、active/idle/pending/max、JVM heap used/max、同步线程与排队）、`ctt-edge-hosts`（13 面板：探针成功数/目标数/证书剩余天数与 14 天线/隧道可达、`probe_success` 时间线、逐目标证书天数、探针耗时、根分区占用与 90% 线、可用内存比例、`node_load1` 与核数、`pg_up`/`redis_up`、DB 连接数、Redis 内存）；本地栈补 `deploy/local/grafana/provisioning/{datasources,dashboards}`（目录挂载，datasource uid 固定）；`deploy/observability/docker-compose.yaml` 与 `docker-compose.local.yaml` 改为挂载 dashboards 目录；删除三个被取代的本地单文件。
+> - 证据：本地 `./deploy/local/up.sh --profile obs` 起栈后 `docker exec ctt-grafana … /api/search?type=dash-db` 直接列出三份面板（无导入）；部署机同步后 `docker compose up -d grafana` → 容器 healthy、日志无 provisioning 报错、`/api/search` 同样三份、旧单文件面板已被清理；部署机 `POST /api/ds/query` 经 uid `prometheus` 返回 `probe_success` 数据帧（`resultType: vector`），证明数据源 uid 与面板查询端到端可用；47 条表达式逐条执行——应用侧在本地栈全部有数据（p95 69 个桶、池饱和度、outbox 年龄、排行榜深度、executor、heap），宿主侧 15 条在部署机全部有序列（node/postgres/redis/blackbox-probe/证书），无解析错误；面板与规则同刻取到的四个数值逐一相同（p95 `0.00672486681`、池饱和度 `0`、outbox 年龄 `0`、排行榜深度 `0`）。
+> - 评审修正（双轴审查）：① 文档原称「图上画的就是规则阈值」，而 outbox 契约 60s、规则 300s ⇒ 改为「契约值」，并给该面板补上 300s 规则线；② 本地探测 job 原叫 `blackbox-http`，与面板写死的 `job="blackbox-public"` 不一致（本地 7 块面板恒空、文档却说只有 node/pg/redis 为空）⇒ 拆成 `blackbox-public`（`http_2xx`，探公网路径）与 `blackbox-readiness`（`http_2xx_plain`，探 8081/8082），本地 blackbox 改为加载部署机同一份模块配置；起栈后 `probe_success{job="blackbox-public"}` = 1、8081 就绪 = 1、8082 = 0（green 未起），证明两栈同名 job 生效；③ 「Tunnel targets reachable」与「Public probes reporting success」表达式逐字重复 ⇒ 前者改为 `TunnelDown` 的语义表达式（全挂为 1、否则 0），阈值反向；④ 「Sync worker threads busy」实际查 `applicationTaskExecutor`，而同步跑在请求线程、该执行器唯一消费者是审计监听 ⇒ 改名「Async executor threads busy」并改写描述；⑤ 盘占用面板多余的 `fstype="ext4"` 去掉，与 `HostDiskSpaceLow` 一致；⑥ 「Database connections and size」只有连接数一条目标 ⇒ 去掉「and size」；⑦ 审计面板速率窗口 5m 对齐到规则的 10m；⑧ `provisioning/{alerting,plugins}/` 补空目录（缺目录时 Grafana 每次启动打两条 error，长期噪声会掩掉真错误），文档补「改 datasource 定义须删 Grafana 卷」的升级动作。
+> - 边界：定级与接收方仍是 P2.3（全部 `severity: info`、Alertmanager 占位接收方）；面板本身不做异常检测，只是同源曲线的可视化；本地栈的观测容器用 host 网络，在 Docker Desktop 上是 VM 自己的回环，macOS 侧 `curl 127.0.0.1:3000/9090` 不可达，验证要用 `docker exec`（已写进文档）；Tempo/Loki 的 trace 与日志下钻仍走 Explore，没有固化成面板。
+> - 重访：P3 首次生产部署后把 `ctt-server` 目标由 down 转为 up，再复核面板里应用曲线与契约线的贴合度；若 P2.3 调整 severity 或阈值，面板契约线必须同批改（同一份数字，两处呈现）；新增信号前先确认是否已有面板承载，避免同一指标在两块面板重复。
+> - 文档与版本：`docs/observability.md` 新增 `### Dashboards`（三份面板的用途、契约线取值、两栈共用一份 JSON 与固定数据源 uid 的原因、host 网络下的本地验证方式），`## Not covered yet` 随之改写；`README.md` 的 Operable 条目与文档索引同步；版本 `0.105.0`（`gradle/libs.versions.toml`）。
+
 ##### P0.7 完成总结（2026-11-09）
 > - 配置：liveness 仅 `livenessState`；readiness 为 `readinessState + db + redis`，依赖为 `DOWN`/`UNKNOWN` 时 readiness 为 `OUT_OF_SERVICE`、HTTP 503。
 > - 实现补充：当前 Spring Boot 上下文未自动注册 Redis contributor，readiness 显式提供条件式 `DataRedisHealthIndicator`；`AdditionalPathsMapper` 继续委托，避免丢失 additional paths。
@@ -2663,7 +2676,7 @@ end note
 
 #### 未开工
 
-P2.2–P7（含 Grafana 面板、值班路径、域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
+P2.3–P7（含值班路径、域名与证书、GitHub OAuth 生产 App、Resend 切换，以及依赖首次生产部署的 P3.8 审计量级复测）。**这份枚举只为速读，状态一律以阶段表为准**
 
 #### 工程与生产化缺口复查（2026-11-07）
 
