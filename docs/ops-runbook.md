@@ -166,8 +166,11 @@ match this repository's publish workflow. Both are deployment blockers; neither
 is a warning to look at later.
 
 Rolling back is the same command with the previous digest. Tags are not a
-rollback target: `latest` moves, so a rollback that names it can land on the
-build you were rolling back from.
+rollback target: `latest` moves with every release, and a tag that names a
+commit can name a different build of that commit, so a rollback that names
+either can land on the build you were rolling back from. The release tag
+`X.Y.Z` names the released image; the digest the publish run printed names it
+exactly.
 
 If verification fails on a digest that used to pass, treat the registry or the
 signing identity as suspect before touching the host: re-run
