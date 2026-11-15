@@ -1,0 +1,241 @@
+name: CI
+
+# Every gate the release chain depends on runs here, on the same tree a merge
+# would produce: formatting, the full test suite, the coverage thresholds, the
+# secret scan, the dependency and filesystem scan, the image scan, an SBOM and
+# the build provenance attestation. A pull request is red exactly when one of
+# them fails; a gate that is red on a technicality gets switched off, so each
+# step below fails only for the thing it measures.
+on:
+  pull_request:
+  push:
+    branches: [develop, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Pinned, not `latest`: a scanner that changes under the repository would make
+  # yesterday's green build un-reproducible. Renovate (P3.2) bumps these.
+  GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1
+  TRIVY_IMAGE: aquasec/trivy:0.76.2
+  SOPS_VERSION: v3.13.3
+  IMAGE_TAG: ctt-server:ci
+
+jobs:
+  quality:
+    name: Format, tests and coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      # A formatting failure is a one-line fix, so it fails first and fast
+      # instead of after a four-minute suite.
+      - name: Check formatting
+        run: ./gradlew spotlessCheck --no-daemon
+
+      # `check` does not cover the coverage thresholds: the verification task is
+      # declared but nothing depends on it (P3.7 wires it). Naming it here keeps
+      # the threshold a gate in the meantime.
+      - name: Build and test
+        run: |
+          set -o pipefail
+          # The suite starts real PostgreSQL and Redis. Pulling them first keeps a
+          # registry hiccup from surfacing as a test failure.
+          docker pull postgres:latest
+          docker pull redis:latest
+          mkdir -p build
+          if ./gradlew build jacocoTestReport jacocoTestCoverageVerification --no-daemon 2>&1 | tee build/gradle.log; then
+            exit 0
+          fi
+          # One retry, and only for the one failure a rerun actually fixes: the
+          # container runtime not being reachable yet. Retrying a red test or a
+          # coverage gap would hide a deterministic failure behind a green tick.
+          if grep -q 'Could not connect to Ryuk' build/gradle.log; then
+            echo "Docker was not reachable for Testcontainers; retrying once" >&2
+            ./gradlew build jacocoTestReport jacocoTestCoverageVerification --no-daemon
+            exit 0
+          fi
+          echo "the suite failed for a reason a rerun would not change" >&2
+          exit 1
+
+      - name: Publish test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ github.sha }}
+          path: |
+            build/reports/tests/
+            build/test-results/
+            build/reports/jacoco/
+            build/gradle.log
+          retention-days: 14
+
+  secrets:
+    name: Render secrets with the CI age identity
+    runs-on: ubuntu-24.04
+    # A pull request from a fork runs without repository secrets, so this job
+    # skips there. A skipped required check counts as passing, whereas a job
+    # that runs and fails would make outside contributions unmergeable.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Downloaded outside the work tree: anything written into it would show up
+      # in the `git status` check below and fail this job for its own tooling.
+      - name: Install sops
+        run: |
+          set -euo pipefail
+          curl -fsSLo "$RUNNER_TEMP/sops" "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64"
+          chmod +x "$RUNNER_TEMP/sops"
+          sudo install -m 0755 "$RUNNER_TEMP/sops" /usr/local/bin/sops
+          sops --version
+
+      # The identity is the one thing the runner must hold. It arrives as a
+      # secret and is written to the path render.sh already understands, so the
+      # script needs no CI-specific branch.
+      - name: Write the age identity
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SOPS_AGE_KEY:-}" ]; then
+            echo "SOPS_AGE_KEY is not configured for this repository" >&2
+            exit 1
+          fi
+          install -d -m 0700 "$HOME/.config/sops/age"
+          printf '%s' "$SOPS_AGE_KEY" > "$HOME/.config/sops/age/keys.txt"
+          chmod 0600 "$HOME/.config/sops/age/keys.txt"
+          # A secret can exist and still be the wrong key — a truncated paste or
+          # an identity from another project. Prove it decrypts this repository's
+          # payload now, so the failure names the cause instead of surfacing as
+          # sops noise inside render.
+          if ! sops -d --extract '["DB_PASSWORD"]' deploy/secrets/secrets.enc.yaml >/dev/null; then
+            echo "SOPS_AGE_KEY cannot decrypt deploy/secrets/secrets.enc.yaml" >&2
+            echo "check that the secret holds the age identity whose public key is in .sops.yaml:" >&2
+            grep -A1 'path_regex: deploy/secrets' .sops.yaml >&2 || true
+            exit 1
+          fi
+          echo "age identity decrypts the dev payload"
+
+      - name: Render Compose secrets
+        run: |
+          set -euo pipefail
+          export SECRET_GID="$(id -g)"
+          ./deploy/secrets/render.sh --env dev
+
+          # Compose mounts these by name; a missing file fails the container at
+          # start with a confusing message, so the pipeline checks first.
+          for name in DB_PASSWORD REDIS_PASSWORD JWT_SECRET_KEY OAUTH_TOKEN_ENCRYPTION_KEY RESEND_API_KEY; do
+            test -s "deploy/secrets/run/$name" || { echo "missing rendered secret: $name" >&2; exit 1; }
+            mode="$(stat -c '%a' "deploy/secrets/run/$name")"
+            [ "$mode" = "440" ] || { echo "$name has mode $mode, expected 440" >&2; exit 1; }
+          done
+
+          # Render output must never be committable.
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "rendered secrets are not ignored by git" >&2
+            git status --porcelain
+            exit 1
+          fi
+
+  supply-chain:
+    name: Secrets, vulnerabilities, SBOM and provenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The report lands before the exit code is decided: a red scan still has
+      # to leave the evidence that explains it.
+      - name: Scan the repository for committed secrets
+        run: |
+          mkdir -p build
+          docker run --rm -v "$PWD:/repo" -w /repo "${GITLEAKS_IMAGE}" \
+            detect --source . --redact --verbose --no-banner \
+            --report-format json --report-path /repo/build/gitleaks.json \
+            --exit-code 1
+
+      # Filesystem scan covers what an image scan cannot see: Dockerfiles,
+      # compose files and the dependency manifests of the build itself.
+      # `.agents/` is the agent workspace: develop only, never on master, never
+      # shipped. Gating a merge on a scanner tool's lockfile would be noise, so
+      # it is skipped explicitly rather than silently.
+      - name: Scan the filesystem
+        run: |
+          docker run --rm -v "$PWD:/repo" "${TRIVY_IMAGE}" \
+            fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
+            --skip-dirs /repo/.agents --skip-dirs /repo/build \
+            --format json --output /repo/build/trivy-fs.json \
+            --exit-code 1 --no-progress /repo
+
+      # One build produces both the image to scan and the provenance that names
+      # it. Building twice would let the scanned digest and the attested digest
+      # diverge, which defeats the point of the attestation.
+      # BuildKit writes an archive while `trivy image --input` reads an unpacked
+      # layout (an OCI tar fails with "file manifest.json not found in tar"), so
+      # the pipeline unpacks one into the other. Both the scan and the
+      # attestation then describe the same build.
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the image with provenance
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          docker buildx build --provenance=mode=max \
+            --output "type=oci,dest=build/image.tar" \
+            --metadata-file build/build-metadata.json \
+            -t "${IMAGE_TAG}" .
+          mkdir -p build/oci
+          tar -xf build/image.tar -C build/oci
+
+      - name: Extract the provenance attestation
+        run: python3 .github/scripts/extract-provenance.py build/oci build/provenance.json
+
+      # Severity filtering stays in one place: Trivy decides what counts, and
+      # its exit code decides the job. Re-listing severities here would be a
+      # second, silently diverging definition of "bad enough to block".
+      - name: Scan the image
+        run: |
+          docker run --rm -v "$PWD:/repo" "${TRIVY_IMAGE}" \
+            image "--input=/repo/build/oci" --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --format json --output /repo/build/trivy-image.json \
+            --exit-code 1 --no-progress
+
+      - name: Generate the SBOM
+        run: |
+          docker run --rm -v "$PWD:/repo" "${TRIVY_IMAGE}" \
+            image "--input=/repo/build/oci" \
+            --format cyclonedx --output /repo/build/sbom.cdx.json --no-progress
+
+      - name: Upload supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-${{ github.sha }}
+          path: |
+            build/gitleaks.json
+            build/trivy-fs.json
+            build/provenance.json
+            build/build-metadata.json
+            build/sbom.cdx.json
+            build/trivy-image.json
+          retention-days: 90

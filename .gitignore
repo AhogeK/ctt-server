@@ -50,8 +50,9 @@ src/main/resources/application-local.properties
 *.env
 .gstack/
 
-.opencode/node_modules
-.opencode/package-lock.json
+# Python bytecode from the CI helper scripts
+__pycache__/
+*.pyc
 .omo
 
 # AI plan files (internal, not for public docs)
