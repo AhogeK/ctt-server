@@ -14,6 +14,7 @@
 # Environment:
 #   COSIGN_IDENTITY_REGEXP  override the workflow identity (forks)
 #   COSIGN_ISSUER           override the OIDC issuer
+#   COSIGN_BIN              override the cosign executable
 #
 # Exit codes: 0 verified, 1 verification failed, 2 usage or missing tooling.
 set -euo pipefail
@@ -41,7 +42,15 @@ name_part="${IMAGE_REF%@sha256:*}"
 digest_part="${IMAGE_REF##*@sha256:}"
 IMAGE_REF="$(printf '%s' "$name_part" | tr '[:upper:]' '[:lower:]')@sha256:${digest_part}"
 
-command -v cosign >/dev/null 2>&1 || die "cosign is not installed (releases: https://github.com/sigstore/cosign/releases)"
+# The deployment does not always happen in the shell an operator opened: the
+# deploy job runs inside a container with its own PATH, and a manual install
+# usually lands in the user's own bin directory. Look in the usual places
+# before giving up, and let COSIGN_BIN override all of them.
+COSIGN_BIN="${COSIGN_BIN:-$(command -v cosign || true)}"
+if [ -z "$COSIGN_BIN" ] && [ -x "$HOME/.local/bin/cosign" ]; then
+  COSIGN_BIN="$HOME/.local/bin/cosign"
+fi
+[ -n "$COSIGN_BIN" ] || die "cosign is not installed (releases: https://github.com/sigstore/cosign/releases)"
 
 echo "verify-image: pinning identity to ${IDENTITY_REGEXP}"
 echo "verify-image: pinning issuer to ${ISSUER}"
@@ -49,7 +58,7 @@ echo "verify-image: pinning issuer to ${ISSUER}"
 # The certificate the workflow was issued proves who signed; the transparency
 # log entry proves when. cosign checks both and fails on an expired certificate
 # that was not valid at signing time.
-cosign verify \
+"$COSIGN_BIN" verify \
   --certificate-identity-regexp "$IDENTITY_REGEXP" \
   --certificate-oidc-issuer "$ISSUER" \
   "$IMAGE_REF" >/dev/null
@@ -57,7 +66,7 @@ cosign verify \
 # The signature says "this digest exists"; the attestation says how it was
 # built. A deployment that only checks the signature would accept an image the
 # workflow signed but nobody built from our commit.
-cosign verify-attestation \
+"$COSIGN_BIN" verify-attestation \
   --type slsaprovenance \
   --certificate-identity-regexp "$IDENTITY_REGEXP" \
   --certificate-oidc-issuer "$ISSUER" \
