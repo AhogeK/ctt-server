@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 
 @BaseIntegrationTest
@@ -127,13 +128,18 @@ class TwoFactorEndpointsIntegrationTest {
         assertThat(disable(token, null, recoveryCode)).hasStatus(204);
         assertThat(refreshRaw(third[1])).hasStatus(401);
         assertThat(refresh(rotatedRefresh)).isNotBlank();
-        List<String> actions =
-                jdbcClient
-                        .sql("SELECT action FROM audit_logs WHERE user_id = ?")
-                        .param(userId)
-                        .query(String.class)
-                        .list();
-        assertThat(actions).contains("TOTP_ENABLED", "TOTP_DISABLED");
+        await().atMost(Duration.ofSeconds(5))
+                .untilAsserted(
+                        () ->
+                                assertThat(
+                                                jdbcClient
+                                                        .sql(
+                                                                "SELECT action FROM audit_logs"
+                                                                        + " WHERE user_id = ?")
+                                                        .param(userId)
+                                                        .query(String.class)
+                                                        .list())
+                                        .contains("TOTP_ENABLED", "TOTP_DISABLED"));
         String auditDetails =
                 jdbcClient
                         .sql(

@@ -1,7 +1,8 @@
 # Docker Compose - Local Development Infrastructure
 # Provides: PostgreSQL, Redis, Mailpit (SMTP sandbox), CTT Server (app)
 # Usage: docker compose up -d
-# Prerequisites: Copy .env.example to .env and customize passwords
+# Secrets: render first with ./deploy/secrets/render.sh --env dev (docs/deployment-secrets.md).
+# .env only serves ./gradlew bootRun; the stack reads the rendered 0440 files.
 
 x-logging: &default-logging
   driver: json-file
@@ -45,7 +46,11 @@ secrets:
 services:
   app:
     <<: *hardening
-    image: ctt-server-app
+    # A deployment sets IMAGE_REF to the digest the publish workflow signed;
+    # `docker compose up --no-build` then runs exactly the verified bytes. Left
+    # unset, compose builds the working tree, which is what local development
+    # and the CI scan want.
+    image: ${IMAGE_REF:-ctt-server-app}
     build:
       context: .
       dockerfile: Dockerfile

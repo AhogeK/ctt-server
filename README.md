@@ -41,6 +41,14 @@
   one — and the same id appears in the log line, the `X-Trace-Id` response header and the span exported over OTLP,
   so a log search and a trace view describe the same request. Every authenticated request also puts the user's id
   (a UUID, never the email) into the log context, so per-user troubleshooting does not require reading the audit trail.
+- **Gates, not judgement.** One workflow runs the formatting check, the full suite and the coverage
+  thresholds, scans the whole history for committed credentials, scans manifests and the built image with
+  Trivy, and publishes a CycloneDX SBOM beside a SLSA v1 provenance attestation — the scanned image and the
+  attested image are the same build. A second workflow builds the image that can be deployed, signs its
+  digest with a keyless OIDC certificate and re-verifies the provenance it carries. The deploy job ships only
+  that digest: it checks the signature against the publishing workflow's own identity, then starts the
+  container with `--no-build`, so an unverified image cannot reach the host. It holds no plaintext
+  credentials, and renders them from the encrypted payload with a file-based identity.
 
 ## How it works
 
@@ -174,6 +182,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Production Data Isolation](docs/production-data-isolation.md) | production database, role, Redis logical database, data-plane network and verification |
 | [Production Configuration](docs/production-configuration.md) | required production environment, startup guard rules and the API-documentation posture |
 | [Operations Runbook](docs/ops-runbook.md) | what to do when an alert fires: first checks, per-alert triage, silencing, proving the paging path and rotating the bot credential |
+| [Continuous Integration](docs/ci.md) | what runs on every pull request, which gate turns red for what, how the CI identity is supplied and how to reproduce each gate locally |
 
 ## Related projects
 

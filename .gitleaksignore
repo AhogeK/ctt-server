@@ -1,0 +1,50 @@
+# gitleaks fingerprints for findings that are already in the history and are not
+# live credentials: test fixtures, documentation examples (OpenAPI example bodies
+# included), and the plaintext password block the Jenkins pipeline carried in
+# earlier commits.
+#
+# This is a fingerprint allowlist (commit:path:rule:line), not a path allowlist.
+# A new finding produces a different fingerprint -- even inside one of these
+# files, even on the same line -- and still fails the scan. Add an entry only
+# after confirming the value is fake; never to silence a live credential.
+0a84ebe51664d83e47e1c3cd4c420236f35d9a3b:Jenkinsfile:generic-api-key:39
+0d5313bb56ceb0dff5ac178cceb0970489580e5f:src/test/java/com/ahogek/cttserver/common/config/ProductionConfigurationGuardTest.java:generic-api-key:17
+0d5313bb56ceb0dff5ac178cceb0970489580e5f:src/test/java/com/ahogek/cttserver/common/config/ProductionConfigurationGuardTest.java:generic-api-key:19
+0d5313bb56ceb0dff5ac178cceb0970489580e5f:src/test/java/com/ahogek/cttserver/common/config/ProductionConfigurationGuardTest.java:generic-api-key:34
+0d5313bb56ceb0dff5ac178cceb0970489580e5f:src/test/java/com/ahogek/cttserver/common/config/ProductionConfigurationGuardTest.java:generic-api-key:35
+1c2b90e19b7ec209583beeb3901ce3574e132152:src/test/java/com/ahogek/cttserver/common/config/ProductionConfigurationGuardTest.java:generic-api-key:17
+1c2b90e19b7ec209583beeb3901ce3574e132152:src/test/java/com/ahogek/cttserver/common/config/ProductionConfigurationGuardTest.java:generic-api-key:19
+1c2b90e19b7ec209583beeb3901ce3574e132152:src/test/java/com/ahogek/cttserver/common/config/ProductionConfigurationGuardTest.java:generic-api-key:34
+1c2b90e19b7ec209583beeb3901ce3574e132152:src/test/java/com/ahogek/cttserver/common/config/ProductionConfigurationGuardTest.java:generic-api-key:35
+445350e99ece491b4f724dee2d28c6c16f6613b2:docs/plans/2026-05-02-terms-acceptance.md:generic-api-key:31
+445350e99ece491b4f724dee2d28c6c16f6613b2:docs/plans/2026-05-02-terms-acceptance.md:generic-api-key:32
+4b02ac5090583340b38f68ca9030cbe5d2006b29:docs/plans/2026-05-02-terms-acceptance.md:generic-api-key:31
+4b02ac5090583340b38f68ca9030cbe5d2006b29:docs/plans/2026-05-02-terms-acceptance.md:generic-api-key:32
+6effec65ef53f43088b37c5ecf0045f4476ec85b:src/test/java/com/ahogek/cttserver/fixtures/TokenFixtures.java:jwt:60
+70efe8f5bcbf90894536bae886a3ec2aa14b8c25:src/test/java/com/ahogek/cttserver/auth/oauth/crypto/AesGcmTokenEncryptorTest.java:github-oauth:51
+70efe8f5bcbf90894536bae886a3ec2aa14b8c25:src/test/resources/application-test.yaml:generic-api-key:50
+77c9e6219b1ea410845d992a06d4c0905247ef03:docs/terms-acceptance-frontend-guide.md:generic-api-key:132
+77c9e6219b1ea410845d992a06d4c0905247ef03:docs/terms-acceptance-frontend-guide.md:generic-api-key:133
+77c9e6219b1ea410845d992a06d4c0905247ef03:docs/terms-acceptance-frontend-guide.md:generic-api-key:77
+77c9e6219b1ea410845d992a06d4c0905247ef03:docs/terms-acceptance-frontend-guide.md:generic-api-key:78
+8ed09d9d013ad4e245e9abbd6adf345c688f511f:src/test/java/com/ahogek/cttserver/auth/twofactor/service/TotpServiceTest.java:generic-api-key:21
+8ed09d9d013ad4e245e9abbd6adf345c688f511f:src/test/resources/application-test.yaml:generic-api-key:19
+a89e5964c1cf72adccfd1ffe7c5497d113b62862:Jenkinsfile:generic-api-key:39
+adf369c1c3f28cbd29eca7a779838af8fe10e0ad:src/main/java/com/ahogek/cttserver/auth/apikey/controller/ApiKeyController.java:generic-api-key:104
+adf369c1c3f28cbd29eca7a779838af8fe10e0ad:src/test/java/com/ahogek/cttserver/auth/apikey/crypto/ApiKeyHasherTest.java:generic-api-key:83
+adf369c1c3f28cbd29eca7a779838af8fe10e0ad:src/test/java/com/ahogek/cttserver/auth/apikey/service/ApiKeyServiceImplTest.java:generic-api-key:48
+b4be337f9ebb424edf8a460e6d0808b4084cfdb9:src/test/java/com/ahogek/cttserver/auth/oauth/crypto/AesGcmTokenEncryptorTest.java:github-oauth:51
+b4be337f9ebb424edf8a460e6d0808b4084cfdb9:src/test/resources/application-test.yaml:generic-api-key:50
+b6e2be11389c9e5a20e3a3657092e952fcf076cc:dev-docs/apikey/frontend-integration.md:generic-api-key:105
+c7292ed8f3acb9f8c338dfb2d33dbb9266a76bca:src/main/java/com/ahogek/cttserver/auth/apikey/controller/ApiKeyController.java:generic-api-key:104
+c7292ed8f3acb9f8c338dfb2d33dbb9266a76bca:src/test/java/com/ahogek/cttserver/auth/apikey/crypto/ApiKeyHasherTest.java:generic-api-key:83
+c7292ed8f3acb9f8c338dfb2d33dbb9266a76bca:src/test/java/com/ahogek/cttserver/auth/apikey/service/ApiKeyServiceImplTest.java:generic-api-key:48
+ca6e673fde89f0f7c3ac56600c63932e1cbc7753:src/test/resources/application-test.yaml:generic-api-key:23
+cfec177a7bab8d53c5db8b3681da973b58bcdbb3:src/test/resources/application-test.yaml:generic-api-key:23
+d2ab2dd1e14b09815969db217d8232027bc0d822:dev-docs/apikey/frontend-integration.md:generic-api-key:105
+d6941e7c0d48017bb9056c0626cf418de30ff8b2:docs/terms-acceptance-frontend-guide.md:generic-api-key:132
+d6941e7c0d48017bb9056c0626cf418de30ff8b2:docs/terms-acceptance-frontend-guide.md:generic-api-key:133
+d6941e7c0d48017bb9056c0626cf418de30ff8b2:docs/terms-acceptance-frontend-guide.md:generic-api-key:77
+d6941e7c0d48017bb9056c0626cf418de30ff8b2:docs/terms-acceptance-frontend-guide.md:generic-api-key:78
+f35bfd45e351ebeef2a7654df918ec4488446b8a:src/test/java/com/ahogek/cttserver/auth/twofactor/service/TotpServiceTest.java:generic-api-key:21
+f35bfd45e351ebeef2a7654df918ec4488446b8a:src/test/resources/application-test.yaml:generic-api-key:19

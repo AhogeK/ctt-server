@@ -691,17 +691,23 @@ class ApiKeyIntegrationTest {
                             .single();
             assertThat(remaining).isZero();
 
-            Long auditCount =
-                    jdbcClient
-                            .sql(
-                                    "SELECT COUNT(*) FROM audit_logs WHERE action = 'API_KEY_DELETED'"
-                                            + " AND resource_id = ?")
-                            .param(created.id().toString())
-                            .query(Long.class)
-                            .single();
-            assertThat(auditCount)
-                    .as("deletion must be recorded in audit_logs with the key id")
-                    .isPositive();
+            Awaitility.await()
+                    .atMost(5, TimeUnit.SECONDS)
+                    .untilAsserted(
+                            () ->
+                                    assertThat(
+                                                    jdbcClient
+                                                            .sql(
+                                                                    "SELECT COUNT(*) FROM audit_logs"
+                                                                            + " WHERE action ="
+                                                                            + " 'API_KEY_DELETED'"
+                                                                            + " AND resource_id = ?")
+                                                            .param(created.id().toString())
+                                                            .query(Long.class)
+                                                            .single())
+                                            .as(
+                                                    "deletion must be recorded in audit_logs with the key id")
+                                            .isPositive());
         }
 
         @Test
