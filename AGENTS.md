@@ -433,15 +433,17 @@
 
 **命名规则（2026-11-15 定）**：前缀与名字之间用 `/`，名字内部用 `-`。`feature/<kebab>`（如 `feature/p3-1-quality-gates`）、`release/v<主>.<次>.<修订>`（如 `release/v0.107.0`，**必须带修订位**，否则补丁版回滚后同名）、`hotfix/<yyyymmdd>-<kebab>`（日期在前便于按时间排序，主题在后避免同日两次热修撞名）。
 
-**发布前不建 `release/*`，不占 `v*` tag（2026-11-16 定）**：两者的意义都是「把 develop 的非 AI 内容带进 master 并标记一次发布」，没有发布动作就没有它们——提前切一支「预备发布」只会在旧 master 上沉淀一份迟早过期的副本（2026-11-16 清理时 `release/v0.112.0` 与 `hotfix/20261115-registry-tag-docs` 的内容早已并入 master，只剩分支本身；演练用的 `v0.109.0`/`v0.110.0`/`v0.112.0` 三个 tag 同批删除）。演练发布链用 `publish.yml` 的 `workflow_dispatch` 在分支上出一次性镜像（该文件里写着这条用途），不要把 `v<版本>` 当演练占位。`appVersion` 仍逐次递增：它喂 `/actuator/info`、SBOM 与镜像标签，但不构成「已发布」的证据——发布与否只看 master 上有没有 tag。
+**发布前不建 `release/*`，不占 `v*` tag（2026-11-16 定）**：两者的意义都是「标记一次发布」，没有发布动作就没有它们——提前切一支「预备发布」只会在旧 master 上沉淀一份迟早过期的副本（2026-11-16 清理时 `release/v0.112.0` 与 `hotfix/20261115-registry-tag-docs` 的内容早已并入 master，只剩分支本身；演练用的 `v0.109.0`/`v0.110.0`/`v0.112.0` 三个 tag 同批删除）。把 develop 的成果搬到 master 是另一件事，用 `sync/master-<yyyymmdd>`（见下），合并后即删、不打 tag；演练发布链用 `publish.yml` 的 `workflow_dispatch`。`appVersion` 仍逐次递增：它喂 `/actuator/info`、SBOM 与镜像标签，但不构成「已发布」的证据——发布与否只看 master 上有没有 tag。
 
 **tag 用 `v<x.y.z>`，不加 `release_`/`hotfix_` 前缀**：分支与 tag 同名会让 `git checkout` 直接失败（实测 `warning: refname 'release_v0.107.0' is ambiguous` → `fatal: ambiguous object name`），而 `release/v0.107.0` 与 tag `v0.107.0` 天生不撞。发布类型的追溯写进 annotated tag 的消息（`release v0.107.0 from release/v0.107.0`），不写进名字——名字要给 `git describe` 与语义化版本工具解析。
 
-**发布分支从 master 切，不从 develop 切**：develop 含 AI 文件与开发内容，从它切出来的分支一合并就会把 `AGENTS.md`、`memory-bank/`、`.plans/` 带进生产。正确构造是 `git switch -c release/v<x.y.z> origin/master` → 逐条 cherry-pick develop 上的**非 AI** 提交 → PR，合并后打 annotated tag `v<x.y.z>`。
+**发布分支与同步分支都从 master 切，不从 develop 切**：develop 含 AI 文件与开发内容，从它切出来的分支一合并就会把 `AGENTS.md`、`memory-bank/`、`.plans/` 带进生产。两种分支的构造相同——`git switch -c <name> origin/master`，只带**非 AI** 改动，PR 到 master，合并后删除分支。
 
 **PR 的准入条件**：CI 三个 job（`Format, tests and coverage`、`Render secrets with the CI age identity`、`Secrets, vulnerabilities, SBOM and provenance`）全绿。这三项**尚未**写进 ruleset 的 required status checks——GitHub 只允许把近 7 天在本仓库成功跑过的检查设为必需，所以顺序是「先让 PR 跑绿 → 再用 API 写入规则集 → 回读确认」，在此之前红灯 PR 仍可合并。单人仓库设 0 approvals——PR 作者不能批准自己的 PR，要求 1 会让唯一的作者永远合并不进去。
 
-**master 同步规则（PR 版）**：`git switch -c release/v<x.y.z> origin/master` → `git cherry-pick` 非 AI 提交（排除 `docs(memory-bank)` 与 `.plans/`、`AGENTS.md`、`memory-bank/`、`dev-docs/`、`docs/plans/` 路径）→ `git push -u origin release/v<x.y.z>` → `gh pr create --base master` → CI 全绿 → `gh pr merge --merge`（需授权）→ 在 master 上打 annotated tag `v<x.y.z>`（消息写 `release v<x.y.z> from release/v<x.y.z>`）→ `gh pr create --base develop --head master` 回灌。每步核对 `git show --stat` 与 `git ls-files` 无 AI 路径。
+**master 同步规则（PR 版，2026-11-16 修订）**：develop 每交付一批就把非 AI 内容同步到 master，分支名 `sync/master-<yyyymmdd>`；它不是发布——不打 tag，也不额外改版本号（版本已随 develop bump，同步只是把它带过去）。**按内容同步，不按提交 cherry-pick**：两边历史早已分叉（`origin/master..origin/develop` 实测 967 条，多数是 cherry-pick 造成的重影而非内容差），逐条重放只会制造冲突与噪声。做法是 `git diff --stat origin/master origin/develop -- . ':(exclude)AGENTS.md' ':(exclude).plans' ':(exclude)memory-bank' ':(exclude).agents' ':(exclude).claude' ':(exclude).omp' ':(exclude)docs/plans' ':(exclude)dev-docs'` 列出真实缺口 → `git checkout origin/develop -- <列出的路径>` → 一个提交写清补齐了什么 → push → `gh pr create --base master` → CI 全绿 → `gh pr merge --merge` → 回灌 develop（`gh pr create --base develop --head master`）→ 删同步分支。每步用 `git show --stat` 核对没有 AI 路径混入（`.claude/skills/*` 是指向 `.agents/skills/` 的符号链接，同属 AI 内容）。
+
+**真发布时**才用 `release/v<x.y.z>`：同样从 master 切、只带非 AI 改动、PR 合并后打 annotated tag `v<x.y.z>`（消息写 `release v<x.y.z> from release/v<x.y.z>`）→ 回灌 develop。版本号与 tag 到这一步才代表「发布过」。
 
 **禁止操作**：直推 `master`（ruleset 已拒绝，不要试图用 bypass）、整分支合并 develop、在 master 创建 AI 文件、在 master 提交 `docs(memory-bank)`、`git reset --hard develop`、反向 cherry-pick（master→develop）、在 master 直接修改代码
 
