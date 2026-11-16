@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-16] - 分支与 tag 清理：首发前不留发布痕迹
+    - 背景：本地 8 条、远端 8 条分支里，6 条 feature 早已并入 `develop`，`release/v0.112.0` 与 `hotfix/20261115-registry-tag-docs` 早已并入 `master`，只剩分支本身；另有 3 个 tag（`v0.109.0`/`v0.110.0`/`v0.112.0`）是 P3.2 练签名链路时打的，指向 `master` 上的旧提交，名字却像"已发布"。
+    - 处置：删除 6 条 feature、`release/v0.112.0`、`hotfix/20261115-registry-tag-docs`（本地 + 远端）与三个 tag（本地 + 远端）。现在本地与远端都只剩 `develop`、`master`，tag 数为 0，工作区停在 `develop` 的 `73814bd`（PR #25 合并点）。
+    - 判据：tag 的唯一消费者是 `publish.yml` 的 `tags: ["v*"]`（决定这次构建要不要签名与出证明）；部署按 digest（`deploy/verify-image.sh`、Jenkins 都是），代码与 CI 门不读 tag。发布前打 tag 只是"看起来发布过"的噪声，演练发布链走 `workflow_dispatch` 在分支上出一次性镜像。
+    - 同批规则：`AGENTS.md` R17 增「发布前不建 `release/*`，不占 `v*` tag」。
 - [2026-11-16] - 运维工具安装走仓库脚本（v0.114.0）
     - 背景：cosign 与 sops 之前都是「按 release 页手动下一份」——在部署机上就是这么装的 v2.6.0，而这条路有三种安静失败：资产名不是一套规则、校验和文件里混着 SBOM 行、版本命令不是同一个。
     - 变更：新增 `scripts/install.sh` 与 `scripts/lib/install-functions.sh`（工具表：仓库、钉版本、资产名、checksums 名、版本命令都在这一个文件里）、`scripts/tests/install-functions-test.sh`（无网络单测 41 项）、`scripts/tests/install-probe.sh`（端到端序列，本机与容器共用同一份）、`scripts/test-install-matrix.sh`（本机 + Debian/Ubuntu/Alpine 容器，四目标都装**两个**工具）与 `.github/workflows/installer-test.yml`（`workflow_dispatch` 探针，不上每提交的门）。钉 cosign `v2.6.0`（部署机实盘验证过、v3 改了 `verify-image.sh` 用的旗标）与 sops `v3.13.3`；下载到 `mktemp -d`、校验发布方 checksums、**在同目录暂存后 `mv` 覆盖**（`install`/`cp` 是就地截断，中断会留下坏二进制）、再用二进制自己的版本命令复验；从不 `sudo`。退出码 `0` 成功 / `1` 用法与下载失败 / `2` 装好了但版本不符。决策记录见 `docs/decisions/ADR-0004-tool-installation.md`（对照 aqua / mise / asdf / eget / `cosign-installer` 与各自被排除的理由）。
