@@ -291,8 +291,10 @@ Two things make a local run match the runner:
 
 - **Dependency checksums.** `gradle/verification-metadata.xml` pins the sha256 of every resolved
   artifact, so a swap in a repository fails the build rather than entering it.
-  `--write-verification-metadata` regenerates it after a deliberate dependency change;
-  `./gradlew check --offline` proves the recorded set is complete without touching the network.
+  `--write-verification-metadata` regenerates it after a deliberate dependency change. Prove the
+  recorded set is complete with an empty Gradle home — `GRADLE_USER_HOME=$(mktemp -d) ./gradlew
+  bootJar -x test` — because a warm cache serves files it never verified and hides the gap until a
+  cold runner downloads them.
 - **Timeouts.** The `test` task stops after 20 minutes and JUnit fails any single test after 5, so a
   hung test reports itself instead of consuming the runner's whole budget.
 
