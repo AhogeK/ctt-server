@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-16] - 覆盖率阈值第一次真正挂进 `check`（v0.117.0）
+   - 背景：`jacocoTestCoverageVerification` 写了 80% / 70%，却没有任何任务依赖它——本地 `./gradlew check` 从不执行，只有 CI 在命令行里点名才跑，于是「阈值」只存在于流水线一侧（P3.7 才发现）。
+   - 变更：`dependsOn(tasks.test)` 并挂进 `check`；`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时；`gradle/verification-metadata.xml`（578 组件 sha256）随仓库提交，离线解析即校验；`ci.yml` 删掉手工点名。没有做依赖锁定（版本集中在 `libs.versions.toml`、无动态版本，lockfile 只增噪声，校验和已覆盖换包）与 `maxParallelForks`（套件绑 Testcontainers，并行 fork 会成倍起容器）。
+   - 验证：阈值临时提到 0.99 → `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99`、`BUILD FAILED`、exit 1，恢复 0.80 后转绿；实测指令 94.78%（32345/34126）、分支 83.41%（1880/2254）、行 94.65%、类 98.57%；`check --offline` 3m28s 通过且校验和全部命中。
+   - 教训：**注册不等于强制**——门必须被聚合任务依赖，并用一次故意失败证明它会红；Renovate 的 `renovate.json` 同样只有配置没有 App，已作为 P3.10 记账而不是当成已接入。
 - [2026-11-16] - 蓝绿窗口的判据改为「只看正在服务的那一色」（v0.116.1）
    - 背景：v0.116.0 合并后自审发现窗口的 5xx/p95 查询是 `{job="ctt-server"}` **跨两色聚合**——空闲色在切换前服务的 5xx 会在随后一分钟继续计进来，于是可能出现「为修 5xx 而发布、却被上一分钟的 5xx 判成破损」。
    - 变更：`deploy/local/release.sh` 的 5xx 与 p95 都按 `slot="$target"` 过滤；p95 为 `NaN` 或空时打印 `n/a` 且**不计为健康测量**，窗口结束若一次都测不到则 exit 1；切上游前先等目标色在 Prometheus 出现可算 rate 的序列（新容器只有一次抓取，首个样本必然为空——`docker restart` 目标色即复现）；`query()` 末尾 `|| true`，免得 Prometheus 中途失联时 `set -e` 直接中止而不切回；回滚模式窗口破损时不再切回刚被回滚掉的 `$current`，改为留在 `$target` 并说明 forward 修复。

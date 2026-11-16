@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.4 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚）；P3.5–P3.9 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通、v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.4、P3.7 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚，P3.7 为质量门接线）；P3.5、P3.6、P3.8–P3.10 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.117.0 `check` 自带覆盖率阈值并以一次失败证明会红、v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通、v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
 
 ## 🗺️ 计划总览
 
@@ -81,7 +81,7 @@ left side
 *** 告警、面板与值班 ✅（P2.1–P2.3）
 *** CI 与签名发布 ✅（P3.1 九道门、P3.2 keyless 签 digest）
 *** 蓝绿切换与回滚 ✅（P3.4：上游文件 + reload + 观察窗 + 一键回滚）
-*** 发布链余项 ⬜（P3.5 迁移兼容 / P3.6 staging / P3.7 质量门接线 / P3.8 首次生产发布 / P3.9 审计实测）
+*** 发布链余项 ⬜（P3.5 迁移兼容 / P3.6 staging / P3.8 首次生产发布 / P3.9 审计实测 / P3.10 依赖自动升级）
 *** 备份、恢复演练与密钥轮换 ⬜（P4.1–P4.5）
 *** 压测与故障演练 ⬜（P5.1–P5.3）
 *** Runbook 与对外接入 ⬜（P6–P7）
@@ -2422,7 +2422,7 @@ sequenceDiagram
 | P2.2 ✅ | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康）：面板 JSON 与 provisioning 进仓库，`deploy/observability/grafana/` 整目录挂载；每个面板读的指标与 P2.1 规则同源（RED 三率、Hikari 池、outbox 年龄与分状态积压、排行榜深度、审计 WRITTEN/DROPPED、`probe_success` 与证书剩余天数、宿主磁盘与内存），并在图上画出契约线（p95 300ms、5xx 0.5%、outbox 60s） | 面板与规则用同一条表达式，同刻取值逐项一致；Grafana 旧卷与新 datasource 规格冲突会崩溃，处置是删卷；host 网络下验证只能走 `docker exec`。 | 中 |
 | P2.3 ✅ | 值班路径：Alertmanager 接收方与分组/抑制规则落地；按 P2.1 的规则逐条定级，静默流程与升级路径写进 `docs/observability.md` 与 runbook（P6.1）。**通道用 Telegram，走 Alertmanager 原生 `telegram_configs`**（原计划的邮件 + webhook）：邮件额度小、投递失败等于静默丢页，而操作者重度使用 Telegram；自己写转发器曾被判定为必须，深研后推翻——原生的 `<telegram_config>` 自 v0.24.0 起存在（部署机 0.35.0 已在用），支持 `send_resolved`、`bot_token_file`/`chat_id_file`、`message_thread_id`、`parse_mode` 与自动重试，第三方镜像则全部弃维护。因此不引入任何新增依赖，并新增 `TelegramDeliveryFailing` 让「页没送到」本身成为告警。**同一条通道也承运流水线失败**：`.github/workflows/ci-notify.yml` 以 `workflow_run` 监听 `CI` 与 `Publish` 的 `completed`，只在 `conclusion == failure` 时发（消息含仓库、workflow、分支、提交短号、第几次尝试、失败 job 名与链接），凭证取仓库 secret `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`（值来自 SOPS，不进仓库），缺 secret 时打印一行退出 0，免得 fork 被永久打红；配套 `.github/scripts/wait-for-run.sh` 用 `gh run watch --exit-status` 阻塞到结束，并断言 `status=completed`、`conclusion=success`，把结论编码成一个退出码 | 先按任务做了邮件 + webhook，深研后确认 Alertmanager 自 v0.24.0 起内置 Telegram 支持，遂改原生 `telegram_configs` 并删掉自写 relay。抑制按 alertname 收窄——`host` 只有一个取值，按 severity 压会在整个事故期静音容量告警。真实通道 firing 40 秒到达，resolved 亦收到；流水线通知端到端已证（2026-11-16：`ci-notify.yml` 随 release/v0.113.0 进 `master`，探针分支 `test/ci-notification` 上故意未格式化的提交让 `Check formatting` 失败 ⇒ 通知运行 `43826795430` `completed/success`，日志末行 `Notified about CI on test/ci-notification (workflow_dispatch).`，消息到达手机；`CI`/`Publish` 成功时该 workflow 为 `skipped`，不刷屏）；`wait-for-run.sh 43803384086` → `completed/success`、`VERDICT: green`、exit 0，堵住「`--exit-status \| tail` 的退出码属于 `tail`」与「按日志最后几步的 ✓ 下结论」这两个真实误判 | 低 |
 
-##### P3 发布链（P3.1–P3.9）
+##### P3 发布链（P3.1–P3.10）
 
 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- |
@@ -2432,9 +2432,10 @@ sequenceDiagram
 | P3.4 ✅ | 蓝绿切换与回滚的**机制**（已交付）：上游放进 `deploy/local/edge-upstream/{blue,green}.caddy` 两个手写变体，站点块改成 `handle { import /etc/caddy-upstream/active.caddy }`，`active.caddy` 是 gitignore 的运行时 symlink（`up.sh` 首次生成）；edge 的 admin 从 `off` 改为 `127.0.0.1:2019`，切上游只做一件事——`caddy reload`（坏配置不改现状）；`switch-colour.sh` 用 `ln -sfn` 建新链接再 `mv -f` 原子替换、reload 成功后**读运行中配置**断言 dial、最后用 `/ctt-server/api/v1/config/public` 复核流量；`release.sh` 负责准备目标色、切上游、按窗口每 10 s 断言 `probe_success=1`、5xx 速率 `=0`、p95 ≤ 300 ms，任一破损立即切回。取舍见 `docs/decisions/ADR-0005-blue-green-cutover.md`，用法见 `deploy/local/README.md` | 本机实测一次发布一次回滚：`release.sh blue --no-build --observe 90` → `edge → blue (127.0.0.1:18081) · reload accepted · /ctt-server/api/v1/config/public answered · previous: green`，90 s 内每个 10 s 样本 `probe_success=1 5xx=0/s p95≈0.0054–0.0067s http=200`；`release.sh --rollback --observe 60` → 切回 green，60 s 样本同样健康，两次 `EXIT=0`。演练暴露并修掉两处静默缺陷：切换复核曾用应用端口**不提供**的 `/actuator/health`（404 → 被判定失败并回退），窗口采样曾因锚点写错恒为空、被当成健康。**压测并发期间的同签验证属 P5.2；生产环境上的首次发布与回滚属 P3.8** | 高 |
 | P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
 | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
-| P3.7 | **质量门接线与供应链**：`jacocoTestCoverageVerification` 已定义（指令 80% / 分支 70%）却**没有挂到 `check`**，等于从未执行；`test` 只有 `useJUnitPlatform()`（无超时、无并行）；仓库无依赖校验元数据、无依赖锁定；依赖与基础镜像的自动升级未接（`renovate.json` 已在仓库，缺 App 安装）。把校验挂进 `check`、给测试加超时、生成 `gradle/verification-metadata.xml`、装上 Renovate App | 人为把覆盖率降到阈值以下时 `./gradlew check` 失败；离线加校验元数据后构建仍通过；Renovate 开出第一张升级 PR | 中 |
+| P3.7 ✅ | **质量门接线与测试可终止性**：`jacocoTestCoverageVerification`（指令 80% / 分支 70%）此前只被声明、无人依赖——CI 靠命令行点名才生效，本地 `./gradlew check` 从不执行它；现 `dependsOn(tasks.test)` 并挂进 `check`，本地与流水线同一判据。`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时，悬停用例自己失败而不是耗满 runner；`gradle/verification-metadata.xml`（578 组件 sha256）由 `--write-verification-metadata` 生成，离线解析即校验 | 阈值临时提到 0.99 时 `jacocoTestCoverageVerification` 报 `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99` 并 `BUILD FAILED`（exit 1），恢复 0.80 后转绿；实测指令 94.78% / 分支 83.41%；`./gradlew check --offline` 3m28s 通过且校验和全部命中；`ci.yml` 删掉手工点名的注释与参数 | 中 |
 | P3.8 | **首次生产发布：按 digest 的蓝绿发布与回滚**：部署机起两色（`app-blue`/`app-green`）与 edge，Jenkins 把新镜像部署到**空闲色**（`CONTAINER_NAME` 选色 + `IMAGE_REF` 传 digest），切上游、跑观察窗、保留回滚命令；回滚即切回旧色。机制本身已在 P3.4 证明，本行只证明它在生产环境、由流水线驱动时成立 | 生产环境一次发布一次回滚：`docker inspect` 里运行中容器的镜像 digest 等于 Jenkins 传入值；切换后窗口内 `probe_success` 保持 1、应用 5xx = 0、p95 ≤ 300 ms；回滚后同样成立且旧色仍在服务。**首发会写入真实用户数据与生产库，执行前需用户明确授权** | 高 |
 | P3.9 | **首次生产部署后的审计保留实测**（原 P3.8，依赖 P3.8 的首次部署）：生产表由首次 prod 启动（Flyway）建立并产生真实审计后，确认 `AUDIT_RETENTION_DAYS` 生效（默认 180 天），用 P0.16b 同一查询集复测行数/表与索引体积/保留扫描与删除计划，核对启动日志与每轮清理汇总日志（cutoff、删除行数、耗时，零删除轮次也有记录）；若删除的顺序扫描成为瓶颈再评估索引或分批策略（结构变更须新迁移） | prod `audit_logs` 存在且 180 天策略生效；复测快照与开发参考分开记录；180 天稳态规模有生产实测值；清理汇总日志可核对（含零删除轮次） | 中 |
+| P3.10 | **依赖自动升级接入**：`renovate.json` 已在仓库（`baseBranches: ["develop"]`、容器镜像 / gradle+spring / actions 大版本三组、并发 3），但从未装 App，`gh pr list --search renovate` 只有自建 PR ⇒ 配置目前没有执行者。装上 Renovate App 即生效，无需改配置 | Renovate 开出第一张升级 PR 且其 CI 全绿 | 低 |
 
 ##### P4 备份与恢复（P4.1–P4.5）
 
@@ -2588,6 +2589,18 @@ sequenceDiagram
 ## 📦 交付记录：一次性需求与修复（2026-09 → 2026-11）
 
 > 按主题追加的交付记录，标题带来源、日期与版本；不保证严格排序，查找用上面的能力索引。
+
+### 质量门接线与测试可终止性（发布链，2026-11-16，v0.117.0）
+
+> 来源：`jacocoTestCoverageVerification` 写了 80% / 70% 的阈值，却没有任何任务依赖它——**注册不等于强制**。CI 靠命令行点名让它跑，本地 `./gradlew check` 从不执行，于是「阈值」只在流水线里存在；`test` 也没有超时，一个挂住的用例会耗到 runner 上限才失败。
+
+| 项 | 结论 |
+|---|---|
+| 入口 | `./gradlew check` 现在自己执行覆盖率校验；离线构建用 `./gradlew check --offline`（校验和已随仓库提交） |
+| 机制 | `tasks.jacocoTestCoverageVerification { dependsOn(tasks.test) }` + `tasks.check { dependsOn(tasks.jacocoTestCoverageVerification) }`；`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时；`gradle/verification-metadata.xml`（578 组件 sha256）由 `--write-verification-metadata` 生成，解析依赖时即校验 |
+| 验证 | 阈值临时提到 0.99 → `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99`、`BUILD FAILED`、exit 1；恢复 0.80 后转绿。实测指令 94.78%（32345/34126）、分支 83.41%（1880/2254）、行 94.65%、类 98.57%；`check --offline` 3m28s 通过 |
+| 没有做 | **依赖锁定**：版本集中在 `libs.versions.toml`、没有动态版本，lockfile 只会在每次 bump 时增加噪声，而校验和已经覆盖「换了包」。**`maxParallelForks`**：套件是 Testcontainers 绑定，并行 fork 会成倍起 Postgres 容器，收益不抵风险 |
+| 相关文档 | `docs/ci.md`（离线构建、校验和、超时的位置与为什么） |
 
 ### 蓝绿切换与回滚（发布链，2026-11-16，v0.116.0）
 
