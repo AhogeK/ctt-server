@@ -17,7 +17,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：**2026-11-16 / v0.111.0**。P3.3 零新增依赖（nginx、Caddy 都是既有镜像）；P3.2 修订后镜像 tag 语义为 `X.Y.Z`（来自 `vX.Y.Z`）与 `latest`（只跟发布），分支构建不再移动 `latest`。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：**2026-11-16 / v0.112.0**。P3.3 零新增依赖（nginx、Caddy 都是既有镜像）；v0.112.0 只在 CI 里加了 `type=gha` 构建缓存与一个分类 job，应用依赖未变；P3.2 修订后镜像 tag 语义为 `X.Y.Z`（来自 `vX.Y.Z`）与 `latest`（只跟发布），分支构建不再移动 `latest`。
 
 ## 架构
 

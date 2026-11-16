@@ -1,5 +1,13 @@
 # Active Context
 
+- [2026-11-16] - CI 提速：文档类 PR 不再等测试（v0.112.0）
+    - 背景：每次合并要等 6 分 13 秒（run `43792194309` 的 `quality`：格式化 52s + 构建测试 321s），而最近几个 PR 只改文档。
+    - 变更：`ci.yml` 新增 `changes` job 先分类 diff，`quality` 与 `supply-chain` 读它的输出——文档类 PR 的检出/构建/扫描全部跳过（数秒完成）；`secrets` 不设门（几秒钟，且能抓到「顺手提交了渲染出的密钥」）；两个门 job 一律 `if: always()` 且带一个「分类器没跑完就失败」的兜底步骤，因为 GitHub 会把 skipped 的必需检查算作通过。
+    - 同批：gitleaks 在 PR 上只扫 `base..HEAD`（分支仍扫全历史）；镜像构建加 `type=gha` 层缓存（`mode=min`，与 Gradle 共享 10 GB 缓存池）；两处 Gradle 调用去掉 `--no-daemon` 以便复用守护进程。
+    - 判定口径：判定「文档」要求每个改动文件都落在 `*.md`/`docs/`/`.plans/`/`memory-bank/` 内，其余一律当代码——放宽只多花几分钟，收窄会放出未测改动。
+    - 验证：本地 `ruby -ryaml` 解析通过（4 个 job、依赖关系正确）；分类器用四组样例演练（纯文档→跳过、文档+代码→跑门、仅工作流→跑门、空 diff→跳过）。真实收益待首个 PR 的 job 耗时确认。
+    - 边界：`quality` 的 6 分钟对**代码类** PR 没有变化（分片才是那一项的解，尚未做——Gradle 无内置分片，需按包分组且必须配「所有测试类都被某片覆盖」的断言）。
+    - 同批规则：`AGENTS.md` R24 增「附件图片先走视觉工具」——本模型通道不携带像素，`read`/`acp_read_original_image` 只回元数据，须用 `mcp__magpie_vision_analyze_image` 转文字；教训是连试四张图才定位，白耗回合。
 - [2026-11-16] - P3.3 边缘转发：两跳头契约与探针实测（v0.111.0）
     - 背景：公网入口由接入机 nginx 终止 TLS 后经 frp 隧道到 Caddy edge，再到应用。应用只在 socket peer 属于 `ctt.security.trusted-proxy-addresses` 时采信 `X-Forwarded-For`/`X-Forwarded-Proto`，因此每一跳必须既追加真实客户端、又声明 `https`，任一环漏掉都会让 IP 限流与 Secure Cookie 静默退化。
     - 变更：新增 `deploy/edge/nginx/ctt-server.conf`（仓库首个 nginx vhost：80 只放 ACME 并 301；443 设 `X-Forwarded-For $proxy_add_x_forwarded_for`、`X-Forwarded-Proto https`、`X-Real-IP`、`client_max_body_size 4194304`（4 MiB）、`limit_req 50r/s burst=100`、连接与读写超时 5s/30s/30s、`error_page 502 504` 收敛为 503）；`deploy/local/Caddyfile` 补 `servers { trusted_proxies static 127.0.0.1 }`、`request_body { max_size 4MiB }`、`transport http` 超时，并把 `handle_errors` 限定到 `502 503 504`。
