@@ -2598,7 +2598,7 @@ sequenceDiagram
 | 退出码 | `0` 成功（含已是该版本）、`1` 失败、`2` 装完但与请求的版本不一致 |
 | 落地 | CI 的 `Install sops`、`deploy/verify-image.sh` 的缺件提示、`Jenkinsfile` 的 `Tooling` 预检全部指向脚本；新增消费点必须同样如此 |
 | 测试 | `scripts/tests/install-functions-test.sh` 41 项无网络用例（含「版本复验失败」与 127 空过防护）；`scripts/tests/install-probe.sh` 跑端到端序列：冷装 → 二次 no-op → `--verify-only` → 不存在的版本被拒且不留临时目录 → 版本不符 exit 2 → 替换提示；`scripts/test-install-matrix.sh` 在 host / `debian:12-slim` / `ubuntu:24.04` / `alpine:3.20` 上跑同一序列；`.github/workflows/installer-test.yml` 的 job 也调这一份 probe（v0.115.0 删掉手抄副本，它漂移掉了 exit-2 断言），本机实跑 `41 checks, 0 failure(s)`、exit 0 |
-| 验证 | 四目标全绿（每个目标两个工具都装，113 s）；`shellcheck -S info` 五个脚本零告警；rename 以 inode 变化为证（旧 1059013155 → 新 1059013188，无 `.new.` 残留）；exit 2 用伪造的同名二进制打印 `1.0.0` 实测 |
+| 验证 | 四目标全绿（每个目标两个工具都装，113 s）；`shellcheck -S info` 五个脚本零告警；rename 以 inode 变化为证（旧 9013155 → 新 9013188，无 `.new.` 残留）；exit 2 用伪造的同名二进制打印 `1.0.0` 实测；**Actions 上派发 `installer-test.yml` 实跑** run `43857002941`，`macos-15` 与 `ubuntu-24.04` 两个 job 各 6 步全 success，日志 `41 checks, 0 failure(s)` + `PASS: probe (all)`（改前是 12 步手抄副本，且缺 exit-2 断言） |
 | 决策 | `docs/decisions/ADR-0004-tool-installation.md`：对照 aqua / mise / asdf / eget / `sigstore/cosign-installer` 的排除理由与重访触发 |
 | 不采用 | 不引入版本管理器，不加 `sudo`，不改用户的 shell profile，不做离线镜像 |
 
