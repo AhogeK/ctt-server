@@ -142,7 +142,7 @@
 - **提交顺序**：功能代码 → 版本号更新 → AI记忆记录（禁止版本早于功能、混合提交）
 - **提交拆分**：原子性一致可合并，不过分拆分刷提交，不过于宽泛堆积大量文件
 - **分支顺序**：优先完成 develop 全部提交再考虑 master
-- **AI独立**：AI相关内容（memory-bank等）单独提交，不与代码混在一起
+- **AI独立，但不独立成 PR（强制）**：AI 内容（`memory-bank/`、`AGENTS.md`、`.plans/`）**单独成提交**，不与代码混在一起；但必须落在**承载该变更的同一个 PR 里**——一起推送、一起过 CI、一起合并。事后单开一个 PR 补记计划/记忆等于把一次变更拆成两段，CI 要跑两遍、审查要看两遍（2026-11-17 用户要求：「计划 memory-bank 版本这类以后不要后置再单独开，跟着实施一起提交跟 pr，不要多余拆分两段」）
 - **master 合并**：见 R17（非 AI 内容逐条 cherry-pick；严禁整分支合并、严禁错误 cherry-pick 旧 develop）
 
 **提交信息格式**：`feat(scope): 功能描述` / `fix(scope): 根因+修复+验证` / `chore: bump version to X.Y.Z` / `docs(memory-bank): record implementation`
