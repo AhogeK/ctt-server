@@ -50,7 +50,7 @@ COSIGN_BIN="${COSIGN_BIN:-$(command -v cosign || true)}"
 if [ -z "$COSIGN_BIN" ] && [ -x "$HOME/.local/bin/cosign" ]; then
   COSIGN_BIN="$HOME/.local/bin/cosign"
 fi
-[ -n "$COSIGN_BIN" ] || die "cosign is not installed (releases: https://github.com/sigstore/cosign/releases)"
+[ -n "$COSIGN_BIN" ] || die "cosign is not installed; scripts/install.sh --tool cosign installs the pinned release"
 
 echo "verify-image: pinning identity to ${IDENTITY_REGEXP}"
 echo "verify-image: pinning issuer to ${ISSUER}"

@@ -6,6 +6,9 @@ production — and a render step turns the selected one into mode `0440` group-r
 host. Compose mounts those files as secrets, so `docker inspect` shows no password, secret key or
 token — only the mount paths.
 
+Install the pinned `sops` with `./scripts/install.sh --tool sops` (or `--tool all` for `cosign`
+too); the version and its checksum come from the repository, not from a release page.
+
 ## What lives where
 
 | Path | Committed | Purpose |
