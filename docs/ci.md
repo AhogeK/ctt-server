@@ -275,6 +275,11 @@ Rendering secrets locally needs the age identity at
 `$HOME/.config/sops/age/keys.txt`; without it, that job is the only one you
 cannot reproduce on a laptop.
 
+`sops` and `cosign` are not baked into any gate's image — install the pinned pair with
+`./scripts/install.sh --tool all`. The script verifies the project's own checksums, stages each
+binary beside its target before replacing it, and prints the `export PATH` line when the prefix is
+outside `PATH`.
+
 ## When a gate is red
 
 | Gate | First thing to check |

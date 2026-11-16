@@ -54,8 +54,19 @@ pipeline {
             steps {
                 dir("${REPO_DIR}") {
                     // Checked first so a missing tool names itself instead of
-                    // surfacing as sops or cosign noise inside the run.
-                    sh 'sops --version && python3 --version && docker compose version && cosign version'
+                    // surfacing as sops or cosign noise inside the run. The
+                    // deployment host installs them with the repository script,
+                    // so the failure says where they come from.
+                    sh '''#!/bin/sh
+                        for tool in sops cosign; do
+                            command -v "$tool" >/dev/null || {
+                                echo "$tool is not on PATH; run scripts/install.sh --tool $tool" >&2
+                                exit 1
+                            }
+                        done
+                        sops --version && python3 --version && docker compose version && cosign version \
+                            || { echo "a required build tool is not usable; see docs/ops-runbook.md" >&2; exit 1; }
+                    '''
                 }
             }
         }

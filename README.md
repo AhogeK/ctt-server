@@ -98,6 +98,7 @@ A pull delivers the winning snapshot of each change, including the IDE that prod
 ## Quick start
 
 Requires **Docker**, `sops`, and the repository's age identity; **JDK 25** is needed for source runs.
+`./scripts/install.sh --tool all` installs the pinned `sops` and `cosign` with their published checksums.
 
 ```bash
 git clone https://github.com/AhogeK/ctt-server.git
@@ -178,6 +179,7 @@ the [Developer Handbook](docs/developer-handbook.md).
 | [Audit Payload Boundary](docs/decisions/ADR-0001-audit-payload-boundary.md) | why request bodies stay out of the audit trail |
 | [Audit Retention Policy](docs/decisions/ADR-0002-audit-retention-policy.md) | approved 180-day retention and whole-row deletion |
 | [Redis Source Restriction](docs/decisions/ADR-0003-redis-source-restriction.md) | why Redis has no source allowlist, and when one becomes mandatory |
+| [Tool Installation](docs/decisions/ADR-0004-tool-installation.md) | why `cosign` and `sops` come from a repository script instead of a release page |
 | [Deployment Secrets](docs/deployment-secrets.md) | SOPS/age payload, rendered `0440` group-readable files, rotation and the frp token |
 | [Production Data Isolation](docs/production-data-isolation.md) | production database, role, Redis logical database, data-plane network and verification |
 | [Production Configuration](docs/production-configuration.md) | required production environment, startup guard rules and the API-documentation posture |
