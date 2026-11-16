@@ -36,9 +36,9 @@ between the two documents.
 | `quality` | `./gradlew spotlessCheck` | formatting drifts (a one-line fix, so it fails first) |
 | `quality` | `./gradlew build jacocoTestReport jacocoTestCoverageVerification` | any test fails, or coverage drops below the thresholds in `build.gradle.kts` |
 | `secrets` | `deploy/secrets/render.sh --env dev` with the CI age identity | the payload cannot be decrypted, a mounted secret is missing or not `0440`, or the rendered files are not ignored by git |
-| `supply-chain` | `gitleaks detect` over the full history | a credential-shaped string is committed |
+| `supply-chain` | `gitleaks detect` | a credential-shaped string is committed — on a pull request only the commits under review are scanned, on `develop`/`master` the whole history |
 | `supply-chain` | `trivy fs` over the working tree | a `HIGH`/`CRITICAL` vulnerability or a committed secret appears in a scanned manifest |
-| `supply-chain` | `docker buildx build --provenance=mode=max` | the Dockerfile does not build |
+| `supply-chain` | `docker buildx build --provenance=mode=max` with a layer cache | the Dockerfile does not build |
 | `supply-chain` | provenance extraction and pairing | the built image carries no SLSA v1 attestation, or the attestation names a digest this layout does not contain |
 | `supply-chain` | `trivy image` | the image ships a `HIGH`/`CRITICAL` vulnerability |
 | `supply-chain` | CycloneDX SBOM | the image cannot be inventoried |
@@ -48,6 +48,34 @@ between the two documents.
 provenance, metadata, SBOM, image scan) with `if: always()`, so a red build still
 explains itself. Each scan writes its report before its exit code is decided;
 the exit code never stands in for evidence.
+
+## Documentation-only pull requests
+
+A pull request that touches nothing but prose does not run the suite. A
+`changes` job classifies the diff first and the two expensive jobs read its
+answer; on a documentation-only pull request they check out nothing, run no
+Gradle task, scan nothing and finish in seconds. Measured on run `43792194309`,
+the suite job took 6m13s of wall time, which is the wait this removes.
+
+The allowlist is deliberately narrow — a path counts as documentation only when
+every changed file matches `*.md`, `docs/`, `.plans/` or `memory-bank/`.
+Everything else is code for this purpose: a workflow edit, a compose change or a
+dependency bump looks harmless in a diff and none of them are, so a generous
+classifier costs a few minutes while a permissive one would ship untested
+changes.
+
+Two details keep this from becoming a way to merge without being tested:
+
+- **It fails closed.** The gate jobs always run (`if: always()`), and a step
+  that fails the job runs whenever the classifier did not finish. A skipped
+  required check counts as passing on GitHub, so a gate that could be skipped by
+  breaking the classifier would be worse than no gate.
+- **The `secrets` job is not gated.** It renders the payloads and checks that
+  the output is git-ignored, which costs a few seconds and would catch a
+  documentation pull request that also committed a rendered secret.
+
+Pushes to `develop` and `master` never take the short path: the classifier
+answers `code=true` for every event that is not a pull request.
 
 ## The image is built once
 
@@ -216,7 +244,9 @@ mkdir -p build
 # formatting and the full suite with coverage
 ./gradlew spotlessCheck build jacocoTestReport jacocoTestCoverageVerification
 
-# committed secrets (full history)
+# committed secrets. On a pull request CI scans only the commits under review;
+# `--log-opts=origin/develop..HEAD` reproduces that locally, and dropping the
+# flag is what the branch builds do.
 docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.30.1 \
   detect --source . --redact --verbose --no-banner \
   --report-format json --report-path /repo/build/gitleaks.json --exit-code 1

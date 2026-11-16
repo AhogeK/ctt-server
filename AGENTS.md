@@ -200,7 +200,8 @@
 
 ### R9: 代码规范
 
-- **语言**：代码/注释/日志强制英文，仅 `.md` 可中文
+- **语言**：按读者定，不要套清单。**只给你看的**写中文；**开源面向的**写英文——代码、注释、日志、`docs/`、README、提交信息、PR/issue/release notes；**给 AI 看的**（`.plans/`、`memory-bank/`、`AGENTS.md` 等）中英都行，因为这些文件你也会读、有的本身就开源，要给外部看时就用英文。i18n 的测试数据、引用的原文照原样。旧条文「仅 `.md` 可中文」把许可读成了文件类型规则，导致 PR #19 正文写成中文被指出。
+
 - **注释（Clean Code）**：✅ 公共API Javadoc/复杂算法Why/警示信息；❌ 解释代码做了什么/冗余注释/注释掉的代码/TODO/FIXME
 - **OpenAPI Schema（强制）**：所有DTO/Response加 `@Schema(description)`，每个字段加 `@Schema(description, example)`，校验注解不可遗漏，禁止硬编码版本号（用 `@Value("${info.app.version}")`），@ApiResponse必须带content，错误响应必须有独立示例
 - **可空键的序列化契约（强制）**：某个键**必须始终存在**而值可为 null 时，须在该组件上加 `@JsonInclude(Include.ALWAYS)` 覆盖全局 `non_null` 策略——否则键会被**静默丢弃**，"没有基线"与"客户端不认识该字段"无法区分。断言必须**按键**做（`asMap().containsEntry(k, null)`），`extractingPath(...).isNull()` 对**缺失键同样通过** ✗ 抓不到
@@ -311,6 +312,8 @@
 **子任务只读**：审查/检查/调查类子任务（code-review、explore、scout 等）严格只读——禁止 `--fix` 类命令（`spotlessApply`、格式化写盘）与任何文件写入；需要验证仅允许只读检查（不带 `--fix` 的检查、不写盘的定位分析）。
 
 **红线**：子 agent 写盘会全项目污染工作区；越权跨仓库改动须回退并记录。
+
+**附件图片先走视觉工具**：消息里附带的图片，本模型通道**不携带像素**——直接"看"、用 `read` 读、或 `acp_read_original_image` 取原图，都只会拿到路径与尺寸。正确做法是把路径交给 `mcp__magpie_vision_analyze_image`（`image` + `prompt`），由它转成文字再判断。禁止在没试过视觉工具前宣称"看不到图"，也禁止凭文件名或上下文猜测图里是什么；读不出内容时说明收到的到底是什么（元数据/路径），不要编造。2026-11-16 连试四张图才定位到这一点，白耗了多个回合。
 
 ### R25: 领域知识库（强制）
 
