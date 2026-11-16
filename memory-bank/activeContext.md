@@ -1,5 +1,11 @@
 # Active Context
 
+- [2026-11-16] - CI 失败会找到人，等待改判据（v0.113.0）
+    - 背景：master 上一次 CI 红（run `43803384086`，Maven Central 429）当时被判成「CI 全绿」，暴露两个问题——`gh run watch --exit-status | tail -6` 的退出码属于 `tail`，以及合并会在基线分支上起一条**新的 push run**（PR 的绿不覆盖它）。
+    - 变更：新增 `.github/workflows/ci-notify.yml`（`workflow_run` 监听 `CI` 与 `Publish` 的 `completed`，只在 `conclusion == failure` 时把仓库/分支/提交短号/第几次尝试/失败 job/链接发到 Telegram）与 `.github/scripts/wait-for-run.sh`（阻塞式 `gh run watch` + 断言 `status=completed` 且 `conclusion=success`，退出码即结论）；仓库 secret `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` 从 SOPS 写入，未回显。
+    - 验证：`getMe` → `@ahogek_ctt_pager_bot`；实发一条测试消息到「方木工作群」（`message_id 7`）；`wait-for-run.sh 43803384086` → `completed/success`、`VERDICT: green`、exit 0；`bash -n` 与 YAML 解析（注意 YAML 1.1 把 `on:` 解析成布尔键 `true`）通过。
+    - 边界与关闭条件：`workflow_run` 只对**已存在于默认分支**的 workflow 触发 ⇒ 端到端那条自动失败消息尚未被真实失败证明，计划行记为 P3.3b 🚧；合并后在一个临时分支制造一次格式失败、收到消息即关闭，失败分支随即删除。缺 secret（fork）时打印一行退出 0，不把 fork 永久打红。
+    - 同批规则：`AGENTS.md` R235 补 `wait-for-run.sh` 与「禁止 `for … sleep` 轮询」；`docs/ci.md` 增 `## When a gate fails, someone hears it`。
 - [2026-11-16] - CI 提速：文档类 PR 不再等测试（v0.112.0）
     - 背景：每次合并要等 6 分 13 秒（run `43792194309` 的 `quality`：格式化 52s + 构建测试 321s），而最近几个 PR 只改文档。
     - 变更：`ci.yml` 新增 `changes` job 先分类 diff，`quality` 与 `supply-chain` 读它的输出——文档类 PR 的检出/构建/扫描全部跳过（数秒完成）；`secrets` 不设门（几秒钟，且能抓到「顺手提交了渲染出的密钥」）；两个门 job 一律 `if: always()` 且带一个「分类器没跑完就失败」的兜底步骤，因为 GitHub 会把 skipped 的必需检查算作通过。

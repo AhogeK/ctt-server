@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2、P3.3 已交付；P3.4–P3.8 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.111.0 边缘两跳头契约 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2、P3.3 已交付；P3.3b 待真实失败消息复验；P3.4–P3.8 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.113.0 CI 失败通知与等待判据 |
 
 ## 🗺️ 计划总览
 
@@ -75,7 +75,7 @@ left side
 *** 账号注销（硬删除 + 级联清理，v0.77.0）
 *** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
 *** 通行密钥（v0.91.0：独立登录 + 作为第二步）
-** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.3 已交付，P3.4–P3.8 未开工
+** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.3 已交付，P3.3b 待复验，P3.4–P3.8 未开工
 *** 基础设施与收口 ✅（P0.0–P0.17：本地全栈、隧道、端口、SSH 与日志、prod 脱敏、密钥通道、审计最小化与保留）
 *** 指标、追踪与日志维度 ✅（P1.1–P1.5）
 *** 告警、面板与值班 ✅（P2.1–P2.3）
@@ -2428,6 +2428,7 @@ sequenceDiagram
 | P3.1 ✅ | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明；**CI 节点持有 age 身份**，流水线内 `render.sh` 成功；Jenkins 去明文 `.env` | 首版三处会必红：sops 落仓库根、缺 setup-buildx、证明未与镜像配对；trivy 必须扫解包目录而不是 tar 本身；gitleaks 47 条历史命中用指纹允许，新增命中仍然失败。 | 中 |
 | P3.2 ✅ | 镜像发布：GHCR 按 digest 部署、cosign keyless 签名与验证 | 三次发布失败逐层定位：镜像引用大小写、`--yes` 误用在验证、buildx 内联证明注册表不暴露给 cosign → 改 `cosign attest` 重发证明。`latest` 语义校正为只跟 tag，分支构建不再移动它；0.109.0 与 0.110.0 均在部署机 `verify-image.sh` 通过并按 digest 拉取。 | 中 |
 | P3.3 ✅ | 边缘转发的两跳配置落地。**接入机 nginx**：新建 `deploy/edge/nginx/ctt-server.conf`（仓库首个 nginx 配置）——80 端口只放 ACME 挑战并 301；443 设 `X-Forwarded-For $proxy_add_x_forwarded_for`、`X-Forwarded-Proto https`、`X-Real-IP`、`client_max_body_size 4194304`（4 MiB，与 Caddy 同值）、`limit_req 50r/s burst=100`（超限 429）、5s/30s/30s 超时、`TLSv1.2/1.3`、`server_tokens off`、`error_page 502 504 = @maintenance` 收敛为 503。**Caddy edge**：全局 `servers { trusted_proxies static 127.0.0.1 }`、`header_up X-Forwarded-Proto https`、`request_body { max_size 4MiB }`、`transport http` 超时、`handle_errors 502 503 504`（不写状态匹配会把 413 改写成 503）。配套 `deploy/edge/README.md` 与 runbook「Edge headers and limits」 | 探针实测（共享 netns + 真实 `caddy:latest` + 回显后端）：修前 `xff=127.0.0.1`（真实客户端全丢）、3 MB 请求体返回 503；修后 `xfp=https`、`xff=203.0.113.9, 127.0.0.1`，请求体边界实测 4194304 → 200 / 4200000 → 413，上游停 → 503。两侧限额原本是 `2m`(2,097,152 B) 与 `2MB`(2,000,000 B) 两个数、文档却称同步，且 1000 会话最坏字段约 1.7 MB 已逼近上限 ⇒ 统一为 4 MiB 并写明依据。`caddy validate` = Valid configuration；`nginx -t` = syntax ok（现代镜像仅 `listen ... http2` 弃用警告，文件头说明可换 `http2 on`）；`IpUtilsTest` 7 例覆盖 `getRealIp`/`isSecureRequest`（既有实现，本批未改）。`limit_req` 从 20r/s 提到 50r/s 并写出依据：单客户端限 10 r/s、同一 NAT 地址共享配额，约 5 个并发用户才应视为洪水 | 中 |
+| P3.3b 🚧 | **CI 失败会找到人**。`ci.yml` 变红时我这边不会主动知道，只有下次打开页面才看得见——而红的那条往往是**合并自己在基线分支上起的 `push` run**，与绿过的 PR 检查不是同一条。新增 `.github/workflows/ci-notify.yml`：`workflow_run` 监听 `CI` 与 `Publish` 的 `completed`，`conclusion == failure` 才发；消息含仓库、workflow、分支、提交短号、第几次尝试、失败 job 名与链接；凭证用仓库 secret（`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`，值来自 SOPS，未进仓库），缺 secret 时打印一行退出 0（fork 不应被永久打红）。新增 `.github/scripts/wait-for-run.sh`：阻塞式 `gh run watch --exit-status` + 断言 `status=completed` 且 `conclusion=success`，退出码等于结论——堵住「`--exit-status \| tail` 的退出码属于 `tail`」「按日志最后几步的 ✓ 下结论」这两个真实误判 | 已证：`wait-for-run.sh 43803384086` → `completed/success`、`VERDICT: green`、exit 0；`getMe` 返回 `@ahogek_ctt_pager_bot`，实发一条测试消息到「方木工作群」（`message_id 7`）；两个 secret 已写入仓库；`bash -n` 与 YAML 解析通过。**未证**：真实失败触发的那条自动消息——`workflow_run` 只对本工作流存在于默认分支之后的运行触发。关闭条件：合并后在一个临时分支制造一次格式失败，收到消息即关闭（失败分支随即删除） | 低 |
 | P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察窗口 + 一键回滚；**首次发布与回滚走 Jenkins 的 `Verify image` → `--no-build` 路径**（`IMAGE_REF` 传 digest） | 一次正常流量下的发布与一次回滚：切换后 5 分钟内 `probe_success` 保持 1、应用 5xx = 0、p95 无尖峰；回滚到上一个 digest 后同样成立。**压测并发期间的同类验证属 P5.2**，本行只证明机制本身 | 高 |
 | P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
 | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
