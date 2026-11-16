@@ -178,6 +178,78 @@ signing identity as suspect before touching the host: re-run
 with `.github/workflows/publish.yml`, and check the Rekor entry's timestamp
 against the publish run.
 
+## Edge headers and limits
+
+Two hops sit in front of the application, and each has one job in the header
+conversation:
+
+| Hop | Its job |
+| --- | --- |
+| nginx on the access host (`deploy/edge/nginx/ctt-server.conf`) | terminates TLS, appends the real client to `X-Forwarded-For`, states `X-Forwarded-Proto: https` |
+| Caddy edge (`deploy/local/Caddyfile`) | trusts the tunnel peer so the chain survives, keeps stating `https`, bounds body size and timeouts |
+
+The application reads the chain right-to-left and skips only the peers listed in
+`ctt.security.trusted-proxy-addresses`. That is why order matters: the value our
+own hop appends must be the rightmost one, and a value a caller prepends stays
+harmlessly to the left.
+
+Two settings are easy to get wrong, and both fail silently:
+
+- **Caddy must trust the tunnel peer.** By default it replaces `X-Forwarded-For`
+  with the immediate peer, so every visitor looks like `127.0.0.1` and the
+  address-based rate limit sees one client. `servers { trusted_proxies static
+  127.0.0.1 }` makes it append instead.
+- **A catch-all `handle_errors` rewrites every status.** Without a status
+  matcher it turns the body limit's `413` into `503`, which reports the service
+  as down when the request was simply too large. The block is scoped to
+  `502 503 504`.
+
+Both hops cap the body at the same number of bytes — `4194304` (4 MiB) — because
+whichever answers `413` first makes the other look innocent. The ceiling comes
+from the largest legitimate body: a sync push of 1000 sessions with free-text
+fields at their documented limits, about 1.7 MiB before the JSON envelope.
+
+### What the Caddy hop received
+
+The proof is what the next hop sees, so watch the application's own request log
+while sending one request. The application masks addresses before logging, so a
+probe address of `203.0.113.9` appears as `203.0.113.***`:
+
+```bash
+docker run --rm --network container:ctt-edge curlimages/curl:8.11.1 -sS \
+  -H 'X-Forwarded-For: 203.0.113.9' \
+  -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18080/ctt-server/api/v1/config/public
+docker logs --tail=20 "$(docker ps --filter name=app-blue --format '{{.Names}}' | head -1)" \
+  | grep 'clientIp=203.0.113.\*\*\*'
+```
+
+The body limit needs a body over it, not a special route — every path answers
+`413` before the proxy forwards anything:
+
+```bash
+head -c 4200000 /dev/zero | docker run --rm -i --network container:ctt-edge \
+  curlimages/curl:8.11.1 -sS -o /dev/null -w '%{http_code}\n' --data-binary @- \
+  http://127.0.0.1:18080/ctt-server/api/v1/sync/push      # expect 413
+
+docker stop "$(docker ps --filter name=app-blue --format '{{.Names}}' | head -1)"
+docker run --rm --network container:ctt-edge curlimages/curl:8.11.1 -sS -o /dev/null \
+  -w '%{http_code}\n' http://127.0.0.1:18080/check        # expect 503
+docker start "$(docker ps --filter name=app-blue --format '{{.Names}}' | head -1)" 2>/dev/null || true
+```
+
+### What the nginx hop did
+
+Only a request that traverses the access host proves its half, and only that
+host's access log holds the unmasked client address:
+
+```bash
+curl -skI --resolve ctt.example.com:443:127.0.0.1 https://ctt.example.com/ctt-server/api/v1/config/public | head -1
+tail -n 3 /var/log/nginx/ctt-access.log     # $remote_addr is the real client
+```
+
+Both stacks keep their limits in step, so after changing either one re-run the
+two probes above rather than reading the files.
+
 ## Related
 
 - [Observability](observability.md) — metrics, dashboards, alert rules and the paging path
