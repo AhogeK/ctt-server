@@ -14,10 +14,11 @@
 | 通行密钥 | `webauthn-server-core` 2.10.1（Yubico WebAuthn；Jackson 2；Java 11+ bytecode） |
 | API文档 | springdoc-openapi 3.2.0 |
 | 可观测性 | Spring Boot Actuator + `micrometer-registry-prometheus`（版本由 Boot BOM 管）；管理端点独立回环服务器 `127.0.0.1:8081`；业务指标由 `common/metrics/BusinessMetrics` 统一注册（`cttserver.business.*`，业务标签 ≤3）；追踪用 Micrometer Tracing 1.7.2 + `micrometer-tracing-bridge-otel` + `opentelemetry-exporter-otlp`（OTel 1.62.0，均随 Boot BOM），入站只认 W3C `traceparent`，生产 10% 采样；部署侧观测栈在 `deploy/observability/`（Prometheus、Alertmanager、Grafana 13.3、Loki、Tempo 3、Alloy 与 node/postgres/redis/blackbox exporter，全回环、30 天保留，镜像 `latest`） |
+| 本机发布 | Caddy `latest`（`deploy/local/Caddyfile`：`auto_https off`、admin `127.0.0.1:2019`、4 MiB 请求体上限、`import /etc/caddy-upstream/active.caddy`）+ `deploy/local/{release,switch-colour,stage-jar,on-engine}.sh`；两色 `app-blue`(18081/8081) 与 `app-green`(18082/8082)，切换靠 reload 而非重启（ADR-0005） |
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-16 / v0.114.0（本版只加仓库内运维脚本，不动任何 Java/Gradle 依赖）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-16 / v0.116.0（本版只加本机发布脚本与 Caddy 上游文件，不动任何 Java/Gradle 依赖）。
 
 ## 架构
 
