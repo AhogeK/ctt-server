@@ -286,6 +286,52 @@ cannot reproduce on a laptop.
 | provenance | the build ran without `--provenance=mode=max`, or the attestation names a digest missing from the layout |
 | image scan | `build/trivy-image.json` names the package and the fixed version; bump the base image or the dependency |
 
+A red check that the commit cannot explain is usually the runner, not the tree.
+Two failures have actually happened: `Received status code 429 from server: Too
+Many Requests` while resolving the Spring Boot Gradle plugin (Maven Central
+rate-limits the shared runner addresses), and `Could not connect to Ryuk` when
+Testcontainers reached Docker before it was ready. Both are retried once by
+`.github/scripts/gradle-retry.sh`, which matches only those external signatures
+— a failing test, a coverage gap or a formatting violation is not retried,
+because a rerun would report the same failure and a green tick would hide it.
+
+Re-running a job is therefore the right response to a 429 and the wrong
+response to a red test. Before concluding that a merge is fine, check the run
+the merge itself started: a pull request's green checks do not cover the `push`
+run on the base branch, which is a different run on a different commit.
+
+| Symptom | Read as |
+| --- | --- |
+| `status code 429`, then the retry passes | registry throttling; nothing to fix |
+| `status code 429` on both attempts | wait a few minutes and re-run the job |
+| the `push` run is red while the pull request was green | the merge commit is untested — look at this run, not the pull request |
+
+## When a gate fails, someone hears it
+
+`.github/workflows/ci-notify.yml` turns a red run into a Telegram message. It
+listens for `CI` and `Publish` finishing through `workflow_run` and sends only
+when the conclusion is `failure`; a recovery message would repeat what the next
+green run already says, on a channel one person reads.
+
+The message carries the repository, workflow, branch, short commit, run attempt,
+the names of the jobs that failed, and a link. The credentials are repository
+secrets — `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, whose values live in the
+SOPS payload, never in the workflow. When the secrets are absent (any fork) the
+step prints a line and exits zero: a fork has no operator to page, and failing
+there would red every fork run forever.
+
+Two limits are worth knowing. `workflow_run` only fires for a workflow that
+already exists on the default branch, so a change to this file announces nothing
+until it has been merged. And the trigger is the *workflow*, not a schedule: a
+failure that happens while the notification job itself is broken is silent, which
+is why the job is small and has no dependencies beyond `gh` and `curl`.
+
+For a verdict on one run from a shell, `.github/scripts/wait-for-run.sh <id>`
+blocks with `gh run watch` and prints `VERDICT: green` or `VERDICT: RED` from the
+API's `status` and `conclusion`, exiting with the same answer. Piping `gh run
+watch --exit-status` into `tail` does not work: the exit status belongs to
+`tail`, and the lines you see are the last steps rather than the conclusion.
+
 ## Related
 
 - [Deployment and Secrets](deployment-secrets.md) — how the payloads are rendered outside CI.
