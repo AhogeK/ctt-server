@@ -178,6 +178,59 @@ signing identity as suspect before touching the host: re-run
 with `.github/workflows/publish.yml`, and check the Rekor entry's timestamp
 against the publish run.
 
+### Installing the verification tools
+
+Two binaries do the verification work: `cosign` checks the image signature and
+the provenance attestation, and `sops` decrypts the secret payloads during a
+render. Install both from the repository rather than from a release page:
+
+```bash
+scripts/install.sh                      # both, into ~/.local/bin
+scripts/install.sh --tool cosign        # one of them
+scripts/install.sh --verify-only        # what is installed, download nothing
+```
+
+The script pins a version per tool (`v2.6.0` for cosign, `v3.13.3` for sops),
+resolves the release asset name from a table — both projects publish a bare
+binary, but cosign's name carries no version and sops' repeats it — verifies the
+digest against the checksums file the project publishes, stages the file beside
+the destination and renames it over the old one (a rename is atomic, so a failed
+download or an interrupted copy cannot replace a working binary with a broken
+one), and then runs the binary's own version command to prove it. It never uses
+`sudo`, and a second run reports the current version instead of downloading
+again. Exit codes: `0` success, `1` usage/platform/download failure, `2` a
+binary that is installed but does not report the pinned version.
+
+The default prefix `~/.local/bin` is not on `PATH` on a stock machine, and
+`deploy/secrets/render.sh` calls `sops` by name. Add it once:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"    # or --prefix somewhere already on PATH
+```
+
+The pinned cosign is deliberate: `v3` changed flags that `verify-image.sh` uses,
+and the deployment host verified `v2.6.0` against a real digest. Moving the pin
+is a change with a verification run behind it.
+
+What the checksum proves and what it does not: it proves the file that arrived
+over TLS is the file the project published for that release — a truncated
+download, a cached proxy body, or an HTML error page saved under the asset name
+is caught. It does not prove the release itself is authentic. Both projects
+publish signatures over their checksums files, and verifying those needs
+`cosign`, which is the thing being installed; the script leaves that to whoever
+has a working `cosign` afterwards rather than pretending the digest is a
+signature.
+
+`scripts/tests/install-functions-test.sh` covers the mapping tables without a
+network, and `scripts/test-install-matrix.sh` runs `scripts/tests/install-probe.sh`
+— the same end-to-end sequence — on this host plus Debian, Ubuntu and Alpine
+containers, installing **both** tools in each so the libc-specific parts are
+exercised on the shapes that matter — that is the evidence behind the claims on
+this page. `.github/workflows/installer-test.yml` repeats the probe on
+stock `ubuntu-24.04` and `macos-15` runners, but it is manual
+(`workflow_dispatch`) and **has not been run yet**: it is there so a release can
+ask a clean runner the same question, not because it has been heard to pass.
+
 ## Edge headers and limits
 
 Two hops sit in front of the application, and each has one job in the header

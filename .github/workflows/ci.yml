@@ -143,15 +143,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Downloaded outside the work tree: anything written into it would show up
-      # in the `git status` check below and fail this job for its own tooling.
+      # The repository's own installer, not a hand-copied release URL: it holds
+      # the asset-name table and the checksums check, so this job cannot drift
+      # from what the runbook tells an operator to run. The prefix is outside
+      # the work tree — anything written into it would show up in the
+      # `git status` check below and fail the job for its own tooling.
       - name: Install sops
         run: |
           set -euo pipefail
-          curl -fsSLo "$RUNNER_TEMP/sops" "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64"
-          chmod +x "$RUNNER_TEMP/sops"
-          sudo install -m 0755 "$RUNNER_TEMP/sops" /usr/local/bin/sops
-          sops --version
+          scripts/install.sh --tool sops --version "${SOPS_VERSION}" --prefix "${RUNNER_TEMP}/bin"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
 
       # The identity is the one thing the runner must hold. It arrives as a
       # secret and is written to the path render.sh already understands, so the

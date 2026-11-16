@@ -58,6 +58,7 @@ __pycache__/
 # AI plan files (internal, not for public docs)
 .sisyphus/
 .omp/
+.alma-snapshots
 
 # Rendered compose secrets (P0.5); only the SOPS payload is committed
 # `run/` is the live set; any `run-*` is a temporary render (for example when
