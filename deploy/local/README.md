@@ -1,6 +1,6 @@
 # Local stack
 
-Three scripts, one rule: changing the live colour is never done by rebuilding it.
+The scripts here share one rule: changing the live colour is never done by rebuilding it.
 
 ```bash
 ./deploy/local/up.sh                                # blue on 18080, data plane, edge
