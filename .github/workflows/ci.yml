@@ -104,7 +104,7 @@ jobs:
       # instead of after a four-minute suite.
       - name: Check formatting
         if: needs.changes.outputs.code == 'true'
-        run: ./gradlew spotlessCheck
+        run: .github/scripts/gradle-retry.sh spotlessCheck
 
       # `check` does not cover the coverage thresholds: the verification task is
       # declared but nothing depends on it (P3.7 wires it). Naming it here keeps
@@ -112,27 +112,11 @@ jobs:
       - name: Build and test
         if: needs.changes.outputs.code == 'true'
         run: |
-          # No --no-daemon: the second Gradle invocation in this job reuses the
-          # daemon and the configuration cache the first one warmed.
-          set -o pipefail
-          # The suite starts real PostgreSQL and Redis. Pulling them first keeps a
-          # registry hiccup from surfacing as a test failure.
+          # The suite starts real PostgreSQL and Redis. Pulling them first keeps
+          # a registry hiccup from surfacing as a test failure.
           docker pull postgres:latest
           docker pull redis:latest
-          mkdir -p build
-          if ./gradlew build jacocoTestReport jacocoTestCoverageVerification 2>&1 | tee build/gradle.log; then
-            exit 0
-          fi
-          # One retry, and only for the one failure a rerun actually fixes: the
-          # container runtime not being reachable yet. Retrying a red test or a
-          # coverage gap would hide a deterministic failure behind a green tick.
-          if grep -q 'Could not connect to Ryuk' build/gradle.log; then
-            echo "Docker was not reachable for Testcontainers; retrying once" >&2
-            ./gradlew build jacocoTestReport jacocoTestCoverageVerification
-            exit 0
-          fi
-          echo "the suite failed for a reason a rerun would not change" >&2
-          exit 1
+          .github/scripts/gradle-retry.sh build jacocoTestReport jacocoTestCoverageVerification
 
       - name: Publish test and coverage reports
         if: always() && needs.changes.outputs.code == 'true'
