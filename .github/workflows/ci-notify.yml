@@ -1,0 +1,71 @@
+# Tells the person who merges when a gate goes red.
+#
+# This exists because a red run is easy to miss: the pull request's checks can be
+# green while the `push` run the merge itself started is red — a different run, on
+# a different commit. Reading the run afterwards requires someone to remember to
+# look; a message does not.
+#
+# Only failures are announced. A recovery message would double the traffic to say
+# something the next green run already says, and this channel is one operator's.
+#
+# The message is plain text and English: the repository is public, and the same
+# text lands in a chat the operator reads on a phone.
+name: CI failure notification
+
+on:
+  workflow_run:
+    # Both workflows that gate work: `CI` gates merges, `Publish` gates releases.
+    # A workflow_run trigger only fires for workflows that exist on the default
+    # branch, so this file has to reach `master` before it announces anything.
+    workflows: ["CI", "Publish"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  notify:
+    name: Tell the operator
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send the failure to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          EVENT: ${{ github.event.workflow_run.event }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          COMMIT: ${{ github.event.workflow_run.head_sha }}
+          URL: ${{ github.event.workflow_run.html_url }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${TELEGRAM_CHAT_ID}" ]; then
+            # Forks inherit neither secret. Saying so and stopping is correct here:
+            # there is no operator to page, and failing would red the fork forever.
+            echo "Telegram credentials are not configured; no message sent."
+            exit 0
+          fi
+
+          failed=$(gh api "repos/${REPOSITORY}/actions/runs/${RUN_ID}/jobs" \
+            --jq '[.jobs[] | select(.conclusion == "failure") | .name] | join(", ")')
+
+          text=$(printf '%s failed\n\nworkflow: %s\nbranch: %s\ncommit: %s\nattempt: %s\nfailed: %s\n\n%s' \
+            "${REPOSITORY}" "${WORKFLOW}" "${BRANCH}" "${COMMIT:0:7}" "${ATTEMPT}" \
+            "${failed:-unknown}" "${URL}")
+
+          curl --fail --silent --show-error \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${text}" \
+            --data-urlencode "disable_web_page_preview=true" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            > /dev/null
+
+          echo "Notified about ${WORKFLOW} on ${BRANCH} (${EVENT})."
