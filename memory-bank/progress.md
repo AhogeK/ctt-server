@@ -7,13 +7,14 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.115.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.116.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流（含 180 天保留策略，ADR-0002）、liveness/readiness health 探针、Prometheus 指标出口（回环管理端口）、六个业务指标（同步、限流、邮件、排行榜、审计）、W3C 追踪与 OTLP 导出、部署机观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy + 四类 exporter，30 天保留）、日志用户维度（`userId` 进 MDC，请求结束清理）、告警规则（12 条：p95 300ms/5xx 0.5%/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计掉行/公网单点/隧道中断/证书 14 天/Telegram 投递失败）、Grafana 面板 as code（请求/后台/边缘与宿主机三份，随栈自动出现，每块画告警阈值的契约线）、值班路径（规则按 blast radius 定级，critical/warning 经 Alertmanager 原生 Telegram 集成投递到操作者的私聊与工作群，文件凭证、零新增依赖、已在生产通道实测送达，info 只看面板；两条抑制；投递失败本身有告警；runbook 首章 `Alerts and on-call`）、CI 质量门与供应链证据（GitHub Actions 三 job 九门：格式、全量测试与覆盖率、SOPS 渲染与 0440 断言、gitleaks 全历史按指纹允许、Trivy 文件系统、单次构建的 OCI 镜像 + SLSA v1 来源证明 + 镜像扫描 + CycloneDX SBOM；Jenkins 改为文件凭证 + `render.sh`，不再落明文 `.env`） |
 | 镜像发布与签名 | `publish.yml` 在 master 与 `v*` 上单次构建推 GHCR，用 keyless OIDC 证书签 **digest**，并把 BuildKit 的证明从 build metadata 取出、用 `cosign attest` 重新绑到被签的 digest（注册表不把 buildx 的内联证明暴露给 cosign）；`deploy/verify-image.sh` 钉 workflow 身份与 issuer、拒绝 tag 引用；**首次发布与部署机验证均已通过**；Jenkins 以 `--no-build` 按 digest 部署，部署前先登录注册表（缺凭证时提示包需可公开拉取）；镜像 tag 语义按注册表实测校正——`latest` 只跟发布走（分支构建不动它）、`sha-<short>` 会被后续构建覆盖、镜像 tag 名是 `X.Y.Z`（无 `v`），部署与回滚一律用 digest |
 | 边缘转发 | 两跳头契约：`deploy/edge/nginx/ctt-server.conf`（80 只放 ACME 并 301；443 追加 `X-Forwarded-For`、声明 `X-Forwarded-Proto https`、`client_max_body_size 4194304`（4 MiB）、`limit_req 50r/s burst=100`、上游故障收敛为 503）与 `deploy/local/Caddyfile`（`trusted_proxies`、`request_body max_size 4MiB`、`handle_errors` 只接 502/503/504）。探针实测钉住三件事：真实客户端进链条、超限 413、上游停 503。**配置尚未上机**——接入机 sshd 无 banner，公网 443 未验证 |
 | 运维工具安装 | `scripts/install.sh`（+ `scripts/lib/install-functions.sh` 的工具表：仓库/钉版本/资产名/checksums 名/版本命令）按表解析 release 资产、用项目发布的 checksums 校验、**同目录暂存后 `mv` 覆盖**（`install`/`cp` 就地截断，中断会留坏二进制）、再用二进制自己的版本命令复验；钉 cosign `v2.6.0`（部署机实盘验证过这一版、v3 改了 `verify-image.sh` 用的旗标）与 sops `v3.13.3`；从不 `sudo`，二次运行为 no-op，`--verify-only` 只查不下载，退出码 `0/1/2`（2 = 装好了但版本不符）。单测 41 项无网络（`scripts/tests/install-functions-test.sh`，`assert_fails` 把 127 判为失败以防用例空过），端到端序列抽成 `scripts/tests/install-probe.sh` 供本机与容器共用，`scripts/test-install-matrix.sh` 在本机 + Debian/Ubuntu/Alpine 容器**各装两个工具**全部通过；`.github/workflows/installer-test.yml` 为 `workflow_dispatch` 探针，其步骤就是这同一份 probe（v0.115.0 删掉手抄副本——它已漂移掉 exit-2 断言）。决策见 ADR-0004 |
 | CI 失败通知与等待判据 | `.github/workflows/ci-notify.yml`：`workflow_run` 监听 `CI` 与 `Publish` 的完成，只在 `failure` 时把仓库/分支/提交短号/第几次尝试/失败 job/链接发到 Telegram（仓库 secret，值来自 SOPS；fork 缺 secret 时打印并退出 0）；`.github/scripts/wait-for-run.sh`：阻塞式 `gh run watch` + 断言 `status=completed` 且 `conclusion=success`，退出码即结论。**端到端已证**：`ci-notify.yml` 进 `master` 后，探针分支上一次故意未格式化的提交让 `Check formatting` 变红，通知 run `43826795430` 成功、消息在手机上收到（`workflow_run` 只对本工作流已在默认分支之后生效） |
+| 蓝绿发布与回滚 | edge 的上游是 `deploy/local/edge-upstream/{blue,green}.caddy` 两个手写变体，运行时 symlink `active.caddy` 指向当前色；切换 = 原子换链接 → `caddy reload`（admin `127.0.0.1:2019`）→ 读**运行中配置**断言 dial → 用应用端点复核流量；`deploy/local/release.sh` 负责准备目标色、切上游、按窗口每 10 s 断言 `probe_success=1`、5xx `=0`、p95 ≤ 300 ms，任一破损立即切回，`--rollback` 一键回退。本机实测一次发布（90 s）一次回滚（60 s）样本全健康（决策见 ADR-0005） |
 
 ## 版本里程碑
 
@@ -22,6 +23,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.116.0` | 2026-11-16 | feat(deploy): cut the edge upstream between two colours, watch the window and roll back |
 | `0.115.0` | 2026-11-16 | fix(ci): run the same probe sequence as the local matrix |
 | `0.114.0` | 2026-11-16 | chore(tooling): install cosign and sops from the repository, with the asset table under test |
 | `0.113.0` | 2026-11-16 | feat(ci): announce a failed run on Telegram and make the wait read the API's conclusion |

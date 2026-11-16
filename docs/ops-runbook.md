@@ -178,6 +178,12 @@ signing identity as suspect before touching the host: re-run
 with `.github/workflows/publish.yml`, and check the Rekor entry's timestamp
 against the publish run.
 
+Replacing the single container restarts the only instance, so every release
+still costs the connections in flight. The cutover that avoids this — replace
+the idle colour, switch the edge, hold a five-minute window, roll back by
+switching — is rehearsed in [`deploy/local/README.md`](../deploy/local/README.md);
+it applies to this host once it runs two slots.
+
 ### Installing the verification tools
 
 Two binaries do the verification work: `cosign` checks the image signature and

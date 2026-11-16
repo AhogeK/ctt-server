@@ -70,6 +70,12 @@ deploy/secrets/run*/
 # committed .example shows only the shape.
 deploy/observability/prometheus/targets/*.json
 
+# Edge upstream choice (P3.4): a runtime symlink `switch-colour.sh` repoints.
+# The two variants it points at are committed; which one serves is state, not
+# content, and a checkout that carried it would silently pin one colour.
+deploy/local/edge-upstream/active.caddy
+deploy/local/edge-upstream/active.caddy.new
+
 ### macOS ###
 .DS_Store
 ._*

@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2、P3.3 已交付（P2.3 同时承运流水线失败通知）；P3.4–P3.8 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.4 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚）；P3.5–P3.9 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通、v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
 
 ## 🗺️ 计划总览
 
@@ -75,12 +75,13 @@ left side
 *** 账号注销（硬删除 + 级联清理，v0.77.0）
 *** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
 *** 通行密钥（v0.91.0：独立登录 + 作为第二步）
-** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.3b 已交付，P3.4–P3.8 未开工
+** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.4 已交付，P3.5–P3.9 未开工
 *** 基础设施与收口 ✅（P0.0–P0.17：本地全栈、隧道、端口、SSH 与日志、prod 脱敏、密钥通道、审计最小化与保留）
 *** 指标、追踪与日志维度 ✅（P1.1–P1.5）
 *** 告警、面板与值班 ✅（P2.1–P2.3）
 *** CI 与签名发布 ✅（P3.1 九道门、P3.2 keyless 签 digest）
-*** 发布链余项 ⬜（P3.4 蓝绿 / P3.5 迁移兼容 / P3.6 staging / P3.7 质量门接线 / P3.8 审计实测）
+*** 蓝绿切换与回滚 ✅（P3.4：上游文件 + reload + 观察窗 + 一键回滚）
+*** 发布链余项 ⬜（P3.5 迁移兼容 / P3.6 staging / P3.7 质量门接线 / P3.8 首次生产发布 / P3.9 审计实测）
 *** 备份、恢复演练与密钥轮换 ⬜（P4.1–P4.5）
 *** 压测与故障演练 ⬜（P5.1–P5.3）
 *** Runbook 与对外接入 ⬜（P6–P7）
@@ -2386,7 +2387,7 @@ sequenceDiagram
 | P0.5 ✅ | 密钥改 Compose secrets：仓库只存 SOPS 密文（`deploy/secrets/secrets.enc.yaml` + `.sops.yaml` 的 age 公钥），`render.sh` 先解密到临时目录再替换成 `0440` 组可读文件（`SECRET_GID`），`up.sh` / `Jenkinsfile` 起栈前调用；应用走 configtree、PostgreSQL 走 `POSTGRES_PASSWORD_FILE`、Redis 由 wrapper 写 tmpfs 配置并 `setpriv` 降权、Grafana 走 `GF_SECURITY_ADMIN_PASSWORD__FILE`；frp token 由 `frp-token.sh` 在接入机渲染成 600 文件（`docs/deployment-secrets.md`）。 | 六个运行中容器 `.Config.Env` 无任何秘密；缺身份、缺文件、空 JWT 键都在启动前失败，渲染失败也不会清掉上一份可用文件。真正跑起来才发现应用的 `appuser` 读不了宿主 `0400` 的文件，默认改成 `0440` 加 `group_add` 组读；token 值与 Linux 实测由 P0.17 收尾。 | 中 |
 | P0.6 ✅ | **评估后删除未接线的审计载荷开关**：`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方（仅绑定测试）；多维度评估（引入意图、实现代价、账号删除冲突、体积、脱敏可靠性、OWASP/GDPR/ASVS）结论是**不引入请求体审计**，理由与替代方案见 `docs/decisions/ADR-0001-audit-payload-boundary.md`；base/prod 两份受版本控制的 YAML 与 `SecurityProperties` 删除该块，审计 `details` 仍只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext。 | `git log -S` 证明该键无生产消费者，因此删除而不是留一个假开关（ADR-0001），重访触发一并记入。评估时实测出脱敏的可靠性边界：正则可掩码普通字符串但不是 JSON 感知——`pwd` / `otp` / `apiKey` 漏掉，空值与对象值会把整行弄坏；这正是拒绝请求体审计的理由之一。 | 低 |
 | P0.6b ✅ | **审计内容最小化（代码完成）**：`details` / `resource_id` 不再写姓名、邮箱、passkey 标签、原始 SMTP 错误；`TokenRefresh` 去掉重复的 IP / UA；`PasswordResetService` 与 `RateLimitAspect` 的 `resource_id` 也不再写邮箱；只保留 action、资源 id、布尔、枚举、计数。保留清理机制已交付（`AuditRetentionJob` + `ctt.audit.retention.days`，默认 0=保留；启用后删除整行而非只擦 IP/UA）；开发库 `ctt_server` 只读实测 29,801 行 / 11 MB（参考） | `details` 与 `resource_id` 不再写姓名、邮箱、passkey 名；定向与全量都过，脱敏断言改为断言渲染输出而不是断言正则函数。 | 中 |
-| P0.6c ✅ | **审计保留策略确认**：生产保留 **180 天**（`AUDIT_RETENTION_DAYS=180`）；启用后按整行删除、不保留 IP/UA。决定、替代方案、部署验证与签核记录见 `docs/decisions/ADR-0002-audit-retention-policy.md`；应用基础默认仍为 0，生产 profile 已默认启用 180 天（P0.16c 落地）；首次部署后的量级实测归 P3.8，不属于本条验收 | 发现文档要求保留 180 天、而配置根本没给默认值（等于永久保留）；补 prod 默认 180，并把启动与每次清扫的记录（`cutoff`/`deleted`/`duration`）做成可读日志。量级实测依赖真实数据，拆成 P3.8 单独做。 | 中 |
+| P0.6c ✅ | **审计保留策略确认**：生产保留 **180 天**（`AUDIT_RETENTION_DAYS=180`）；启用后按整行删除、不保留 IP/UA。决定、替代方案、部署验证与签核记录见 `docs/decisions/ADR-0002-audit-retention-policy.md`；应用基础默认仍为 0，生产 profile 已默认启用 180 天（P0.16c 落地）；首次部署后的量级实测归 P3.9，不属于本条验收 | 发现文档要求保留 180 天、而配置根本没给默认值（等于永久保留）；补 prod 默认 180，并把启动与每次清扫的记录（`cutoff`/`deleted`/`duration`）做成可读日志。量级实测依赖真实数据，拆成 P3.9 单独做。 | 中 |
 | P0.7 ✅ | **health 分组**：liveness 只含 `livenessState`；readiness 含 `readinessState`、`db`、`redis`，依赖失败由 readiness 专用聚合器映射为 `OUT_OF_SERVICE`；`/actuator/health/liveness` 与 `/actuator/health/readiness` 公开；compose 与 blackbox 改打 readiness | 停库演练下 liveness 200、readiness 503；探针因此从业务端口移到管理端口，依赖 DOWN 时 readiness 报 OUT_OF_SERVICE。 | 中 |
 | P0.8 ✅ | **frps 改 systemd**（接入机）：已完成（2026-11-07）；2026-11-09 已切到 stable `current` + 稳定配置，unit 重启后 `enabled`/`active`，旧 unit/config 已备份 | 重启接入机后隧道自动恢复；stable 版本与配置、`transport.tls.force`、`allowPorts` 白名单一并核对，不只看进程在跑。 | 中 |
 | P0.9 ✅ | **frpc 改 systemd**（部署机）：stable unit 已安装为 `enabled`/`active`，`WantedBy=multi-user.target`、`After=network-online.target`、`Restart=always`，使用 stable `current`/配置；旧 tmux 与 crontab 已移除，只剩一个 stable frpc 进程；unit、升级与回滚说明存于各主机 frp 目录，不进入项目仓库；重启抽检按用户要求暂缓（不阻塞交付） | unit `enabled`/`active`、`WantedBy=multi-user.target`、配置与二进制版本一致。整机重启抽检按你的决定不做，判定只认已观察到的状态。 | 中 |
@@ -2421,18 +2422,19 @@ sequenceDiagram
 | P2.2 ✅ | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康）：面板 JSON 与 provisioning 进仓库，`deploy/observability/grafana/` 整目录挂载；每个面板读的指标与 P2.1 规则同源（RED 三率、Hikari 池、outbox 年龄与分状态积压、排行榜深度、审计 WRITTEN/DROPPED、`probe_success` 与证书剩余天数、宿主磁盘与内存），并在图上画出契约线（p95 300ms、5xx 0.5%、outbox 60s） | 面板与规则用同一条表达式，同刻取值逐项一致；Grafana 旧卷与新 datasource 规格冲突会崩溃，处置是删卷；host 网络下验证只能走 `docker exec`。 | 中 |
 | P2.3 ✅ | 值班路径：Alertmanager 接收方与分组/抑制规则落地；按 P2.1 的规则逐条定级，静默流程与升级路径写进 `docs/observability.md` 与 runbook（P6.1）。**通道用 Telegram，走 Alertmanager 原生 `telegram_configs`**（原计划的邮件 + webhook）：邮件额度小、投递失败等于静默丢页，而操作者重度使用 Telegram；自己写转发器曾被判定为必须，深研后推翻——原生的 `<telegram_config>` 自 v0.24.0 起存在（部署机 0.35.0 已在用），支持 `send_resolved`、`bot_token_file`/`chat_id_file`、`message_thread_id`、`parse_mode` 与自动重试，第三方镜像则全部弃维护。因此不引入任何新增依赖，并新增 `TelegramDeliveryFailing` 让「页没送到」本身成为告警。**同一条通道也承运流水线失败**：`.github/workflows/ci-notify.yml` 以 `workflow_run` 监听 `CI` 与 `Publish` 的 `completed`，只在 `conclusion == failure` 时发（消息含仓库、workflow、分支、提交短号、第几次尝试、失败 job 名与链接），凭证取仓库 secret `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`（值来自 SOPS，不进仓库），缺 secret 时打印一行退出 0，免得 fork 被永久打红；配套 `.github/scripts/wait-for-run.sh` 用 `gh run watch --exit-status` 阻塞到结束，并断言 `status=completed`、`conclusion=success`，把结论编码成一个退出码 | 先按任务做了邮件 + webhook，深研后确认 Alertmanager 自 v0.24.0 起内置 Telegram 支持，遂改原生 `telegram_configs` 并删掉自写 relay。抑制按 alertname 收窄——`host` 只有一个取值，按 severity 压会在整个事故期静音容量告警。真实通道 firing 40 秒到达，resolved 亦收到；流水线通知端到端已证（2026-11-16：`ci-notify.yml` 随 release/v0.113.0 进 `master`，探针分支 `test/ci-notification` 上故意未格式化的提交让 `Check formatting` 失败 ⇒ 通知运行 `43826795430` `completed/success`，日志末行 `Notified about CI on test/ci-notification (workflow_dispatch).`，消息到达手机；`CI`/`Publish` 成功时该 workflow 为 `skipped`，不刷屏）；`wait-for-run.sh 43803384086` → `completed/success`、`VERDICT: green`、exit 0，堵住「`--exit-status \| tail` 的退出码属于 `tail`」与「按日志最后几步的 ✓ 下结论」这两个真实误判 | 低 |
 
-##### P3 发布链（P3.1–P3.8）
+##### P3 发布链（P3.1–P3.9）
 
 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- |
 | P3.1 ✅ | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明；**CI 节点持有 age 身份**，流水线内 `render.sh` 成功；Jenkins 去明文 `.env` | 首版三处会必红：sops 落仓库根、缺 setup-buildx、证明未与镜像配对；trivy 必须扫解包目录而不是 tar 本身；gitleaks 47 条历史命中用指纹允许，新增命中仍然失败。 | 中 |
 | P3.2 ✅ | 镜像发布：GHCR 按 digest 部署、cosign keyless 签名与验证 | 三次发布失败逐层定位：镜像引用大小写、`--yes` 误用在验证、buildx 内联证明注册表不暴露给 cosign → 改 `cosign attest` 重发证明。`latest` 语义校正为只跟 tag，分支构建不再移动它；0.109.0 与 0.110.0 均在部署机 `verify-image.sh` 通过并按 digest 拉取。 | 中 |
 | P3.3 ✅ | 边缘转发的两跳配置落地。**接入机 nginx**：新建 `deploy/edge/nginx/ctt-server.conf`（仓库首个 nginx 配置）——80 端口只放 ACME 挑战并 301；443 设 `X-Forwarded-For $proxy_add_x_forwarded_for`、`X-Forwarded-Proto https`、`X-Real-IP`、`client_max_body_size 4194304`（4 MiB，与 Caddy 同值）、`limit_req 50r/s burst=100`（超限 429）、5s/30s/30s 超时、`TLSv1.2/1.3`、`server_tokens off`、`error_page 502 504 = @maintenance` 收敛为 503。**Caddy edge**：全局 `servers { trusted_proxies static 127.0.0.1 }`、`header_up X-Forwarded-Proto https`、`request_body { max_size 4MiB }`、`transport http` 超时、`handle_errors 502 503 504`（不写状态匹配会把 413 改写成 503）。配套 `deploy/edge/README.md` 与 runbook「Edge headers and limits」 | 探针实测（共享 netns + 真实 `caddy:latest` + 回显后端）：修前 `xff=127.0.0.1`（真实客户端全丢）、3 MB 请求体返回 503；修后 `xfp=https`、`xff=203.0.113.9, 127.0.0.1`，请求体边界实测 4194304 → 200 / 4200000 → 413，上游停 → 503。两侧限额原本是 `2m`(2,097,152 B) 与 `2MB`(2,000,000 B) 两个数、文档却称同步，且 1000 会话最坏字段约 1.7 MB 已逼近上限 ⇒ 统一为 4 MiB 并写明依据。`caddy validate` = Valid configuration；`nginx -t` = syntax ok（现代镜像仅 `listen ... http2` 弃用警告，文件头说明可换 `http2 on`）；`IpUtilsTest` 7 例覆盖 `getRealIp`/`isSecureRequest`（既有实现，本批未改）。`limit_req` 从 20r/s 提到 50r/s 并写出依据：单客户端限 10 r/s、同一 NAT 地址共享配额，约 5 个并发用户才应视为洪水 | 中 |
-| P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察窗口 + 一键回滚；**首次发布与回滚走 Jenkins 的 `Verify image` → `--no-build` 路径**（`IMAGE_REF` 传 digest） | 一次正常流量下的发布与一次回滚：切换后 5 分钟内 `probe_success` 保持 1、应用 5xx = 0、p95 无尖峰；回滚到上一个 digest 后同样成立。**压测并发期间的同类验证属 P5.2**，本行只证明机制本身 | 高 |
+| P3.4 ✅ | 蓝绿切换与回滚的**机制**（已交付）：上游放进 `deploy/local/edge-upstream/{blue,green}.caddy` 两个手写变体，站点块改成 `handle { import /etc/caddy-upstream/active.caddy }`，`active.caddy` 是 gitignore 的运行时 symlink（`up.sh` 首次生成）；edge 的 admin 从 `off` 改为 `127.0.0.1:2019`，切上游只做一件事——`caddy reload`（坏配置不改现状）；`switch-colour.sh` 用 `ln -sfn` 建新链接再 `mv -f` 原子替换、reload 成功后**读运行中配置**断言 dial、最后用 `/ctt-server/api/v1/config/public` 复核流量；`release.sh` 负责准备目标色、切上游、按窗口每 10 s 断言 `probe_success=1`、5xx 速率 `=0`、p95 ≤ 300 ms，任一破损立即切回。取舍见 `docs/decisions/ADR-0005-blue-green-cutover.md`，用法见 `deploy/local/README.md` | 本机实测一次发布一次回滚：`release.sh blue --no-build --observe 90` → `edge → blue (127.0.0.1:18081) · reload accepted · /ctt-server/api/v1/config/public answered · previous: green`，90 s 内每个 10 s 样本 `probe_success=1 5xx=0/s p95≈0.0054–0.0067s http=200`；`release.sh --rollback --observe 60` → 切回 green，60 s 样本同样健康，两次 `EXIT=0`。演练暴露并修掉两处静默缺陷：切换复核曾用应用端口**不提供**的 `/actuator/health`（404 → 被判定失败并回退），窗口采样曾因锚点写错恒为空、被当成健康。**压测并发期间的同签验证属 P5.2；生产环境上的首次发布与回滚属 P3.8** | 高 |
 | P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
 | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
 | P3.7 | **质量门接线与供应链**：`jacocoTestCoverageVerification` 已定义（指令 80% / 分支 70%）却**没有挂到 `check`**，等于从未执行；`test` 只有 `useJUnitPlatform()`（无超时、无并行）；仓库无依赖校验元数据、无依赖锁定；依赖与基础镜像的自动升级未接（`renovate.json` 已在仓库，缺 App 安装）。把校验挂进 `check`、给测试加超时、生成 `gradle/verification-metadata.xml`、装上 Renovate App | 人为把覆盖率降到阈值以下时 `./gradlew check` 失败；离线加校验元数据后构建仍通过；Renovate 开出第一张升级 PR | 中 |
-| P3.8 | **首次生产部署后的审计保留实测**：生产表由首次 prod 启动（Flyway）建立并产生真实审计后，确认 `AUDIT_RETENTION_DAYS` 生效（默认 180 天），用 P0.16b 同一查询集复测行数/表与索引体积/保留扫描与删除计划，核对启动日志与每轮清理汇总日志（cutoff、删除行数、耗时，零删除轮次也有记录）；若删除的顺序扫描成为瓶颈再评估索引或分批策略（结构变更须新迁移） | prod `audit_logs` 存在且 180 天策略生效；复测快照与开发参考分开记录；180 天稳态规模有生产实测值；清理汇总日志可核对（含零删除轮次） | 中 |
+| P3.8 | **首次生产发布：按 digest 的蓝绿发布与回滚**：部署机起两色（`app-blue`/`app-green`）与 edge，Jenkins 把新镜像部署到**空闲色**（`CONTAINER_NAME` 选色 + `IMAGE_REF` 传 digest），切上游、跑观察窗、保留回滚命令；回滚即切回旧色。机制本身已在 P3.4 证明，本行只证明它在生产环境、由流水线驱动时成立 | 生产环境一次发布一次回滚：`docker inspect` 里运行中容器的镜像 digest 等于 Jenkins 传入值；切换后窗口内 `probe_success` 保持 1、应用 5xx = 0、p95 ≤ 300 ms；回滚后同样成立且旧色仍在服务。**首发会写入真实用户数据与生产库，执行前需用户明确授权** | 高 |
+| P3.9 | **首次生产部署后的审计保留实测**（原 P3.8，依赖 P3.8 的首次部署）：生产表由首次 prod 启动（Flyway）建立并产生真实审计后，确认 `AUDIT_RETENTION_DAYS` 生效（默认 180 天），用 P0.16b 同一查询集复测行数/表与索引体积/保留扫描与删除计划，核对启动日志与每轮清理汇总日志（cutoff、删除行数、耗时，零删除轮次也有记录）；若删除的顺序扫描成为瓶颈再评估索引或分批策略（结构变更须新迁移） | prod `audit_logs` 存在且 180 天策略生效；复测快照与开发参考分开记录；180 天稳态规模有生产实测值；清理汇总日志可核对（含零删除轮次） | 中 |
 
 ##### P4 备份与恢复（P4.1–P4.5）
 
@@ -2494,7 +2496,7 @@ sequenceDiagram
 - [ ] 两机时钟偏差 < 1 s；prod 含 `password=` 的日志在 JSON 输出里已打码
 - [ ] 全量测试不回归（当前基线 1784 tests / 0 failures / 1 skipped，2026-11-15；发布提交时按最新数字复判）
 - [x] 本地一条命令起全栈：`./deploy/local/up.sh` 后 `http://127.0.0.1:18080/ctt-server/actuator/health` = 200；`--profile obs` 起 Prometheus/Grafana/blackbox，两条探针 target 全 up；Grafana 预置面板 `CTT local stack` 可查到 `probe_success = 1`（首启约 3 分钟：Grafana 13 先逐个安装 app-platform API 才绑定 3000）
-- [ ] 本地蓝绿切换一次无 5xx（依赖 P3.4 的 edge 上游切换，未做）
+- [x] 本地蓝绿切换一次无 5xx（P3.4：2026-11-16 `release.sh blue --no-build --observe 90` + `--rollback --observe 60`，每个 10 s 样本 `probe_success=1`、5xx `=0`、p95 ≤ 0.008 s，两次 `EXIT=0`）
 - [ ] `dig ctt.ahogek.com` 指向接入机公网地址；`curl -I https://ctt.ahogek.com` 返回 200/301，证书由 Let's Encrypt 签发且剩余 > 14 天
 - [ ] 生产 GitHub 登录回调命中 `https://ctt.ahogek.com/ctt-server/api/v1/auth/oauth/github/callback`；本地 dev App 登录不回归
 - [ ] Resend 真实投递 20 封：SPF/DKIM/DMARC 全通过；坏地址只尝试 1 次；outbox 无卡死
@@ -2586,6 +2588,18 @@ sequenceDiagram
 ## 📦 交付记录：一次性需求与修复（2026-09 → 2026-11）
 
 > 按主题追加的交付记录，标题带来源、日期与版本；不保证严格排序，查找用上面的能力索引。
+
+### 蓝绿切换与回滚（发布链，2026-11-16，v0.116.0）
+
+> 来源：单机发布要么停机、要么新旧混跑；`docker compose up -d` 重建容器会断掉在途连接，而「上游切换」必须能在**不重启 edge** 的前提下完成——Caddy reload 原子换配置，旧配置继续服务到新配置生效。
+
+| 项 | 结论 |
+|---|---|
+| 入口 | `./deploy/local/release.sh blue\|green [--observe N] [--no-build] [--rollback]`；只切上游用 `./deploy/local/switch-colour.sh <colour>`；本机（Docker Desktop 的 host 网络是 VM 回环）用 `./deploy/local/on-engine.sh <cmd>` 在引擎侧执行 |
+| 机制 | 上游是 `deploy/local/edge-upstream/{blue,green}.caddy` 两个手写变体，`active.caddy` 是 gitignore 的运行时 symlink；切换 = 建新链接 → `mv -f` 原子替换 → `caddy reload --address 127.0.0.1:2019` → **读运行中配置**断言 dial → 用应用端点复核流量。观察窗每 10 s 断言 `probe_success=1`、5xx 速率 `=0`、p95 ≤ 300 ms，任一破损立即切回 |
+| 关键取舍 | 上游**手写**而非模板生成：每个上游的 header 与超时本就可能不同，模板会把差异藏进循环；`admin` 从 `off` 改为 `127.0.0.1:2019` 换来 reload 能力，暴露面只在内网回环 |
+| 验证 | 2026-11-16 本机：`release.sh blue --no-build --observe 90` → `edge → blue (127.0.0.1:18081) · reload accepted · /ctt-server/api/v1/config/public answered`，90 s 内每个样本 `probe_success=1 5xx=0/s p95≈0.0054–0.0067s http=200`；`--rollback --observe 60` 切回 green，60 s 同样健康，两次 `EXIT=0`。演练中暴露两处静默缺陷并修掉：切换复核曾打应用端口**不提供**的 `/actuator/health`（404 被判失败）；窗口采样曾因正则锚点恒空而被当成健康 |
+| 相关文档 | `docs/decisions/ADR-0005-blue-green-cutover.md`（取舍）、`deploy/local/README.md`（用法）、`docs/ops-runbook.md`（值班视角） |
 
 ### 运维工具安装脚本（工程支撑，2026-11-16，v0.114.0）
 

@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-16] - 蓝绿切换与回滚：上游文件 + reload + 观察窗（v0.116.0）
+   - 背景：单机发布要么停机、要么新旧混跑；`docker compose up -d` 重建容器会断掉在途连接，而切上游必须**不重启 edge**——Caddy reload 原子换配置，旧配置继续服务到新配置生效。
+   - 变更：`deploy/local/edge-upstream/{blue,green}.caddy` 两个手写上游变体 + gitignore 的运行时 symlink `active.caddy`；`deploy/local/Caddyfile` 改成 `handle { import /etc/caddy-upstream/active.caddy }`、admin 从 `off` 改为 `127.0.0.1:2019`；新增 `deploy/local/switch-colour.sh`（原子换链接 → reload → 读**运行中配置**断言 dial → 用应用端点复核流量）、`deploy/local/release.sh`（准备目标色 → 切上游 → 观察窗每 10 s 断言 `probe_success=1`、5xx 速率 `=0`、p95 ≤ 300 ms，任一破损立即切回）、`deploy/local/stage-jar.sh`、`deploy/local/on-engine.sh`（本机 Docker Desktop 的 host 网络是 VM 回环，演练必须在引擎侧跑）；`docker-compose.local.yaml` 改挂**目录**并删掉 `UPSTREAM`/`EDGE_UPSTREAM` 环境变量（单文件挂载钉死 inode，改 symlink 到不了容器）。
+   - 取舍：上游**手写**而非模板生成——每个上游的 header 与超时本就可能不同，模板会把差异藏进循环；admin 的暴露面只在内网回环。决策记录 `docs/decisions/ADR-0005-blue-green-cutover.md`，用法 `deploy/local/README.md`，值班视角 `docs/ops-runbook.md`。
+   - 验证：2026-11-16 本机 `--profile bluegreen --profile obs` 起栈后，`release.sh blue --no-build --observe 90` → `edge → blue (127.0.0.1:18081) · reload accepted · /ctt-server/api/v1/config/public answered · previous: green`，90 s 内每个 10 s 样本 `probe_success=1 5xx=0/s p95≈0.0054–0.0067s http=200`；`--rollback --observe 60` 切回 green，60 s 样本同样健康，两次 `EXIT=0`。
+   - 演练暴露的两处静默缺陷（已修）：切换复核曾打应用端口**不提供**的 `/actuator/health`（404 被判失败并自动回退）；窗口采样曾因正则行尾锚点恒空而被当成健康——`sum(rate(…status=~"5.."))` 在没有 5xx 序列时返回**空向量**，那是健康态而非缺数据，须写 `or vector(0)` 才区分得开。
+   - 边界：生产环境上的首次发布与回滚属 P3.8（会写入真实数据，需用户明确授权）；压测并发下的同类验证属 P5.2；空闲色不是备份，`active.caddy` 是运行时状态、不入库。
 - [2026-11-16] - Actions 探针改调共享序列（v0.115.0）；同日纠正一轮"未发生"的修复记录
     - 变更：`.github/workflows/installer-test.yml` 的 6 个手抄内联步骤（-90 行）替换为单步 `./scripts/tests/install-probe.sh`，与本机、三个容器共用同一序列；副本漂移的证据是它缺 exit-2 断言而 probe 里有。提交 `e95a9a6`（fix）+ `9c436e5`（bump 0.115.0），分支 `feature/installer-workflow-shares-probe`。
     - 验证：本机 `bash scripts/tests/install-probe.sh` → `41 checks, 0 failure(s)`、exit 0（冷装两个工具 → no-op → `--verify-only` → 不存在的版本被拒 → 版本不符 exit 2 → 替换提示 → 单测）；改动合并后派发 `installer-test.yml` 实跑 run `43857002941`——`macos-15` 与 `ubuntu-24.04` 各 6 步（改前 12 步）全 success，日志 `41 checks, 0 failure(s)` + `PASS: probe (all)`，即 Actions 与本机跑的是同一份脚本、同一组断言。
