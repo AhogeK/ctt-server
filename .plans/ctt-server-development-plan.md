@@ -2599,6 +2599,7 @@ sequenceDiagram
 | 机制 | 上游是 `deploy/local/edge-upstream/{blue,green}.caddy` 两个手写变体，`active.caddy` 是 gitignore 的运行时 symlink；切换 = 建新链接 → `mv -f` 原子替换 → `caddy reload --address 127.0.0.1:2019` → **读运行中配置**断言 dial → 用应用端点复核流量。观察窗每 10 s 断言 `probe_success=1`、5xx 速率 `=0`、p95 ≤ 300 ms，任一破损立即切回 |
 | 关键取舍 | 上游**手写**而非模板生成：每个上游的 header 与超时本就可能不同，模板会把差异藏进循环；`admin` 从 `off` 改为 `127.0.0.1:2019` 换来 reload 能力，暴露面只在内网回环 |
 | 验证 | 2026-11-16 本机：`release.sh blue --no-build --observe 90` → `edge → blue (127.0.0.1:18081) · reload accepted · /ctt-server/api/v1/config/public answered`，90 s 内每个样本 `probe_success=1 5xx=0/s p95≈0.0054–0.0067s http=200`；`--rollback --observe 60` 切回 green，60 s 同样健康，两次 `EXIT=0`。演练中暴露两处静默缺陷并修掉：切换复核曾打应用端口**不提供**的 `/actuator/health`（404 被判失败）；窗口采样曾因正则锚点恒空而被当成健康 |
+| 判据修正（v0.116.1） | 自审后按「看运行中的状态」重写窗口判据：5xx 与 p95 都按 `slot="$target"` 过滤——两色都在被抓取，空闲色的样本描述的是上一分钟的构建，会把刚发布的那一色判成破损；p95 为 `NaN` 或空时打印 `n/a` 且不算作健康测量，窗口结束若一次都测不到则 exit 1 而不报绿；切上游前先等目标色在 Prometheus 出现可算 rate 的序列（新容器只有一次抓取，首个样本必然为空，原先会被读成破损）。复验：`docker restart` 目标色后 `release.sh green --no-build --observe 30` → `10s: p95=n/a`、`20s`/`30s` 测得数值、`green is serving: 30s with 2 p95 samples`、`EXIT=0`；`--rollback --observe 30` → 3 个样本、提示 `release forward with: ./deploy/local/release.sh green`、`EXIT=0` |
 | 相关文档 | `docs/decisions/ADR-0005-blue-green-cutover.md`（取舍）、`deploy/local/README.md`（用法）、`docs/ops-runbook.md`（值班视角） |
 
 ### 运维工具安装脚本（工程支撑，2026-11-16，v0.114.0）

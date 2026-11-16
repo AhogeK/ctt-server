@@ -67,10 +67,13 @@ fi
 query() {
   # `sed -n ... p` prints nothing and still exits 0 when the series has no
   # sample; a pipeline ending in grep would fail the script under `pipefail`
-  # and turn "no data yet" into a crash.
+  # and turn "no data yet" into a crash. `|| true` keeps a Prometheus that
+  # stopped answering from aborting the window: an empty answer is read as
+  # "no data", which ends the release the way a breach does.
   curl -sf -G "$prometheus/api/v1/query" --data-urlencode "query=$1" 2>/dev/null \
     | sed -n 's/.*"value":\[[0-9.]*,"\([^"]*\)"\].*/\1/p' \
-    | head -1
+    | head -1 \
+    || true
 }
 
 if ! curl -sf "$prometheus/-/ready" >/dev/null; then
@@ -110,10 +113,24 @@ if [ "$rollback" -eq 0 ]; then
   done
 fi
 
+# The window computes rates from the target slot, and a rate needs two scrapes:
+# a container that started seconds ago has one sample, so the first window
+# sample would read as "no data" and fail a release that is in fact fine. Wait
+# for the series here instead of relaxing the emptiness check inside the window.
+series_deadline=$((SECONDS + 120))
+until [ -n "$(query "$(printf 'count(rate(http_server_requests_seconds_count{job="ctt-server",slot="%s"}[1m]))' "$target")")" ]; do
+  if [ "$SECONDS" -ge "$series_deadline" ]; then
+    echo "$target has no rateable metrics in Prometheus; the window cannot judge it" >&2
+    exit 1
+  fi
+  sleep 5
+done
+
 echo "[4/4] switching and watching for ${observe}s"
 ./deploy/local/switch-colour.sh "$target"
 
 breach=""
+measured=0
 elapsed=0
 while [ "$elapsed" -lt "$observe" ]; do
   sleep 10
@@ -137,28 +154,58 @@ while [ "$elapsed" -lt "$observe" ]; do
   # `or vector(0)`: summing a counter with no 5xx series yet yields an empty
   # vector, which is the healthy case, not missing data. With this default an
   # empty answer really does mean the query did not run.
-  fivexx="$(query 'sum(rate(http_server_requests_seconds_count{job="ctt-server",status=~"5.."}[1m])) or vector(0)')"
+  #
+  # The slot filter is what makes the window judge the colour that serves:
+  # both slots are scraped, so the idle one keeps contributing samples, and
+  # the 5xx it was serving before the switch would judge the new colour.
+  fivexx="$(query "$(printf 'sum(rate(http_server_requests_seconds_count{job="ctt-server",slot="%s",status=~"5.."}[1m])) or vector(0)' "$target")")"
   if [ -z "$fivexx" ]; then
     breach="the 5xx rate has no data: the application series are missing"
   elif [ "$(awk -v v="$fivexx" 'BEGIN { print (v > 0) }')" = 1 ]; then
     breach="the application is answering 5xx at ${fivexx}/s"
   fi
 
-  p95="$(query 'histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job="ctt-server"}[1m])))')"
-  if [ -z "$p95" ]; then
-    breach="p95 has no data: the histogram has no samples in the window"
-  elif [ "$(awk -v v="$p95" 'BEGIN { print (v > 0.3) }')" = 1 ]; then
-    breach="p95 is ${p95}s, above the 300 ms contract"
+  # A quantile over too few observations is NaN or missing entirely; neither
+  # proves anything about latency, and treating NaN as zero is how a gate goes
+  # quietly green. Count what was actually measured, and refuse to call the
+  # window clean when the contract was never measured.
+  p95="$(query "$(printf 'histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job="ctt-server",slot="%s"}[1m])))' "$target")")"
+  if [ -z "$p95" ] || [ "$p95" = NaN ]; then
+    p95_label=n/a
+  else
+    measured=$((measured + 1))
+    p95_label="${p95}s"
+    if [ "$(awk -v v="$p95" 'BEGIN { print (v > 0.3) }')" = 1 ]; then
+      breach="p95 is ${p95}s, above the 300 ms contract"
+    fi
   fi
 
   if [ -n "$breach" ]; then
     echo "  ${elapsed}s: $breach" >&2
-    echo "  returning traffic to $current" >&2
-    ./deploy/local/switch-colour.sh "$current" >&2 || true
+    if [ "$rollback" -eq 1 ]; then
+      # Both colours fail the contract now. The colour we rolled back to runs
+      # the older image, and putting traffic back on the build we rolled away
+      # from would undo the rollback, so traffic stays where it is.
+      echo "  traffic stays on $target: rolling back to it did not make it healthy" >&2
+      echo "  fix forward: both colours breach the window" >&2
+    else
+      echo "  returning traffic to $current" >&2
+      ./deploy/local/switch-colour.sh "$current" >&2 || true
+    fi
     exit 1
   fi
-  echo "  ${elapsed}s: probe_success=$probe 5xx=$fivexx/s p95=${p95}s http=$status"
+  echo "  ${elapsed}s: probe_success=$probe 5xx=$fivexx/s p95=$p95_label http=$status"
 done
 
-echo "$target is serving: ${observe}s without a probe failure, a 5xx or a p95 above 300 ms"
-echo "roll back with: ./deploy/local/release.sh --rollback"
+if [ "$measured" -eq 0 ]; then
+  echo "$target is serving, but the window never measured p95: only the probe and the 5xx rate were judged" >&2
+  echo "observe longer, or check the release by hand before trusting it" >&2
+  exit 1
+fi
+
+echo "$target is serving: ${observe}s with ${measured} p95 samples, no probe failure and no 5xx"
+if [ "$rollback" -eq 1 ]; then
+  echo "release forward with: ./deploy/local/release.sh $current"
+else
+  echo "roll back with: ./deploy/local/release.sh --rollback"
+fi
