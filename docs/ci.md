@@ -323,6 +323,13 @@ Testcontainers reached Docker before it was ready. Both are retried once by
 — a failing test, a coverage gap or a formatting violation is not retried,
 because a rerun would report the same failure and a green tick would hide it.
 
+The image build runs the same wrapper, not its own copy: `Dockerfile` copies
+`.github/scripts/gradle-retry.sh` and calls it for `bootJar`, because the build
+stage downloads the same dependencies and a `429` there turned a merge red on
+the `push` run while the pull request had passed. `.dockerignore` excludes
+`.github/*` and re-includes exactly that one file, so the classifier stays a
+single source; a change to the signatures applies to both paths.
+
 Re-running a job is therefore the right response to a 429 and the wrong
 response to a red test. Before concluding that a merge is fine, check the run
 the merge itself started: a pull request's green checks do not cover the `push`

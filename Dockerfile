@@ -3,11 +3,16 @@ FROM eclipse-temurin:25-jdk AS builder
 WORKDIR /app
 
 COPY gradle/ gradle/
+# Same classifier as the host build: Maven Central answers 429 to shared runner
+# IPs often enough that an image build failed on it while the host build, which
+# already retries, passed the same commit.
+COPY .github/scripts/gradle-retry.sh .github/scripts/gradle-retry.sh
 COPY gradlew build.gradle.kts settings.gradle.kts gradle.properties* ./
 COPY src/ src/
 
 RUN --mount=type=cache,target=/root/.gradle \
-    chmod +x gradlew && ./gradlew bootJar -x test --no-daemon -q
+    chmod +x gradlew .github/scripts/gradle-retry.sh && \
+    GRADLE_RETRY_LOG=/tmp/gradle.log .github/scripts/gradle-retry.sh bootJar -x test --no-daemon -q --console=plain
 
 # ---- Runtime Stage ----
 FROM eclipse-temurin:25-jre-noble
