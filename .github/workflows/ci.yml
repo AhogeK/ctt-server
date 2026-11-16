@@ -30,14 +30,71 @@ env:
   IMAGE_TAG: ctt-server:ci
 
 jobs:
+  # Docs-only pull requests do not need a five-minute suite: nothing they touch
+  # can change behaviour. The classifier runs first and every gate below reads
+  # its answer, so the decision lives in one place instead of three.
+  changes:
+    name: Classify the change
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      # Only a pull request needs the diff; a push answers `code=true` before
+      # touching git, so cloning the history there would be pure cost.
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether the gates are needed
+        id: classify
+        run: |
+          set -euo pipefail
+          # Everything that is not documentation is code for this purpose. Being
+          # generous here only costs time; being generous in the other direction
+          # would let a workflow or dependency change merge untested.
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "not a pull request: every gate runs"
+            exit 0
+          fi
+          base="${{ github.event.pull_request.base.sha }}"
+          git fetch --no-tags --depth=1 origin "$base"
+          docs_only=true
+          while IFS= read -r file; do
+            case "$file" in
+              *.md|docs/*|.plans/*|memory-bank/*) ;;
+              *) docs_only=false; break ;;
+            esac
+          done < <(git diff --name-only "$base" HEAD)
+          if [ "$docs_only" = true ]; then
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "documentation only: the suite, the scans and the image build are skipped"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+
   quality:
     name: Format, tests and coverage
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    needs: changes
+    # The job always runs even when the classifier fails, because a skipped
+    # required check counts as passing and this gate must never pass by accident.
+    if: always()
     steps:
+      - name: Fail closed when the classifier did not finish
+        if: needs.changes.result != 'success'
+        run: |
+          echo "the change classifier did not finish, so this gate cannot be skipped" >&2
+          exit 1
+
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.code == 'true'
 
       - uses: actions/setup-java@v6
+        if: needs.changes.outputs.code == 'true'
         with:
           distribution: temurin
           java-version: '25'
@@ -46,20 +103,24 @@ jobs:
       # A formatting failure is a one-line fix, so it fails first and fast
       # instead of after a four-minute suite.
       - name: Check formatting
-        run: ./gradlew spotlessCheck --no-daemon
+        if: needs.changes.outputs.code == 'true'
+        run: ./gradlew spotlessCheck
 
       # `check` does not cover the coverage thresholds: the verification task is
       # declared but nothing depends on it (P3.7 wires it). Naming it here keeps
       # the threshold a gate in the meantime.
       - name: Build and test
+        if: needs.changes.outputs.code == 'true'
         run: |
+          # No --no-daemon: the second Gradle invocation in this job reuses the
+          # daemon and the configuration cache the first one warmed.
           set -o pipefail
           # The suite starts real PostgreSQL and Redis. Pulling them first keeps a
           # registry hiccup from surfacing as a test failure.
           docker pull postgres:latest
           docker pull redis:latest
           mkdir -p build
-          if ./gradlew build jacocoTestReport jacocoTestCoverageVerification --no-daemon 2>&1 | tee build/gradle.log; then
+          if ./gradlew build jacocoTestReport jacocoTestCoverageVerification 2>&1 | tee build/gradle.log; then
             exit 0
           fi
           # One retry, and only for the one failure a rerun actually fixes: the
@@ -67,14 +128,14 @@ jobs:
           # coverage gap would hide a deterministic failure behind a green tick.
           if grep -q 'Could not connect to Ryuk' build/gradle.log; then
             echo "Docker was not reachable for Testcontainers; retrying once" >&2
-            ./gradlew build jacocoTestReport jacocoTestCoverageVerification --no-daemon
+            ./gradlew build jacocoTestReport jacocoTestCoverageVerification
             exit 0
           fi
           echo "the suite failed for a reason a rerun would not change" >&2
           exit 1
 
       - name: Publish test and coverage reports
-        if: always()
+        if: always() && needs.changes.outputs.code == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: reports-${{ github.sha }}
@@ -160,18 +221,40 @@ jobs:
     name: Secrets, vulnerabilities, SBOM and provenance
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    needs: changes
+    # Same fail-closed rule as the quality job: breaking the classifier must not
+    # turn the gate off.
+    if: always()
     steps:
+      - name: Fail closed when the classifier did not finish
+        if: needs.changes.result != 'success'
+        run: |
+          echo "the change classifier did not finish, so this gate cannot be skipped" >&2
+          exit 1
+
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.code == 'true'
         with:
           fetch-depth: 0
 
       # The report lands before the exit code is decided: a red scan still has
       # to leave the evidence that explains it.
+      # On a pull request only the commits under review can introduce a secret;
+      # scanning the whole history there cost about a minute per run for nothing.
+      # The branches still scan everything, because that is where a secret would
+      # actually ship.
       - name: Scan the repository for committed secrets
+        if: needs.changes.outputs.code == 'true'
         run: |
+          set -euo pipefail
           mkdir -p build
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            log_opts=(--log-opts="${{ github.event.pull_request.base.sha }}..HEAD")
+          else
+            log_opts=()
+          fi
           docker run --rm -v "$PWD:/repo" -w /repo "${GITLEAKS_IMAGE}" \
-            detect --source . --redact --verbose --no-banner \
+            detect --source . --redact --verbose --no-banner "${log_opts[@]}" \
             --report-format json --report-path /repo/build/gitleaks.json \
             --exit-code 1
 
@@ -181,6 +264,7 @@ jobs:
       # shipped. Gating a merge on a scanner tool's lockfile would be noise, so
       # it is skipped explicitly rather than silently.
       - name: Scan the filesystem
+        if: needs.changes.outputs.code == 'true'
         run: |
           docker run --rm -v "$PWD:/repo" "${TRIVY_IMAGE}" \
             fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL \
@@ -196,12 +280,19 @@ jobs:
       # the pipeline unpacks one into the other. Both the scan and the
       # attestation then describe the same build.
       - uses: docker/setup-buildx-action@v4
+        if: needs.changes.outputs.code == 'true'
 
       - name: Build the image with provenance
+        if: needs.changes.outputs.code == 'true'
         run: |
           set -euo pipefail
           mkdir -p build
+          # The cache carries the base image layers between runs, which is most
+          # of this build's wall time. `mode=min` keeps the entry small: the
+          # repository shares one 10 GB pool with Gradle's dependency cache.
           docker buildx build --provenance=mode=max \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=min \
             --output "type=oci,dest=build/image.tar" \
             --metadata-file build/build-metadata.json \
             -t "${IMAGE_TAG}" .
@@ -209,12 +300,14 @@ jobs:
           tar -xf build/image.tar -C build/oci
 
       - name: Extract the provenance attestation
+        if: needs.changes.outputs.code == 'true'
         run: python3 .github/scripts/extract-provenance.py build/oci build/provenance.json
 
       # Severity filtering stays in one place: Trivy decides what counts, and
       # its exit code decides the job. Re-listing severities here would be a
       # second, silently diverging definition of "bad enough to block".
       - name: Scan the image
+        if: needs.changes.outputs.code == 'true'
         run: |
           docker run --rm -v "$PWD:/repo" "${TRIVY_IMAGE}" \
             image "--input=/repo/build/oci" --scanners vuln \
@@ -223,13 +316,14 @@ jobs:
             --exit-code 1 --no-progress
 
       - name: Generate the SBOM
+        if: needs.changes.outputs.code == 'true'
         run: |
           docker run --rm -v "$PWD:/repo" "${TRIVY_IMAGE}" \
             image "--input=/repo/build/oci" \
             --format cyclonedx --output /repo/build/sbom.cdx.json --no-progress
 
       - name: Upload supply-chain evidence
-        if: always()
+        if: always() && needs.changes.outputs.code == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: supply-chain-${{ github.sha }}
