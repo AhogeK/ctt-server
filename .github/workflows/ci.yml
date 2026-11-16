@@ -106,9 +106,6 @@ jobs:
         if: needs.changes.outputs.code == 'true'
         run: .github/scripts/gradle-retry.sh spotlessCheck
 
-      # `check` does not cover the coverage thresholds: the verification task is
-      # declared but nothing depends on it (P3.7 wires it). Naming it here keeps
-      # the threshold a gate in the meantime.
       - name: Build and test
         if: needs.changes.outputs.code == 'true'
         run: |
@@ -116,7 +113,8 @@ jobs:
           # a registry hiccup from surfacing as a test failure.
           docker pull postgres:latest
           docker pull redis:latest
-          .github/scripts/gradle-retry.sh build jacocoTestReport jacocoTestCoverageVerification
+          # `build` runs `check`, which now depends on the coverage verification.
+          .github/scripts/gradle-retry.sh build jacocoTestReport
 
       - name: Publish test and coverage reports
         if: always() && needs.changes.outputs.code == 'true'

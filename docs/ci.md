@@ -280,6 +280,27 @@ cannot reproduce on a laptop.
 binary beside its target before replacing it, and prints the `export PATH` line when the prefix is
 outside `PATH`.
 
+### What `check` enforces without a runner
+
+`./gradlew check` is the same judgement the `Format, tests and coverage` job makes: formatting,
+the suite, and the coverage thresholds (instruction 80%, branch 70%). The coverage verification
+is a dependency of `check` — before that it was declared with thresholds and nothing depended on
+it, so only the workflow's explicit task name ever ran it.
+
+Two things make a local run match the runner:
+
+- **Dependency checksums.** `gradle/verification-metadata.xml` pins the sha256 of every resolved
+  artifact, so a swap in a repository fails the build rather than entering it.
+  `--write-verification-metadata` regenerates it after a deliberate dependency change;
+  `./gradlew check --offline` proves the recorded set is complete without touching the network.
+- **Timeouts.** The `test` task stops after 20 minutes and JUnit fails any single test after 5, so a
+  hung test reports itself instead of consuming the runner's whole budget.
+
+Dependency locking is deliberately absent: versions are centralized in `gradle/libs.versions.toml`
+with no dynamic versions, so a lockfile would only add churn to every bump while the checksums
+already cover "the package changed". `test` also does not fork in parallel — the suite starts real
+PostgreSQL and Redis containers, and parallel forks would multiply them.
+
 ## When a gate is red
 
 | Gate | First thing to check |
