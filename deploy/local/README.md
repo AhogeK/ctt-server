@@ -17,11 +17,24 @@ The scripts here share one rule: changing the live colour is never done by rebui
 
 `up.sh` starts the stack; it does not move traffic. `release.sh` replaces the
 colour that is **not** serving, waits for it to answer its readiness endpoint,
-switches, and then holds the window: probe success, 5xx rate and p95 every ten
-seconds, with one synthetic request per cycle so those series have samples. The
-first breach repoints the edge to the previous colour and fails the release.
-`--rollback` is that switch, without a build — the other colour never stopped
-running its previous image.
+and waits until Prometheus has rateable series for that colour — a container
+that started seconds ago has one sample, and an empty window sample would fail
+a release that is fine.
+
+Then it switches and holds the window: one synthetic request per ten seconds,
+and on each cycle the edge's answer, `probe_success` of the public probe, the
+5xx rate and the p95 of **the serving colour**. Both slots are scraped, so the
+idle colour's samples are filtered out by their `slot` label: they describe the
+build that was serving a minute ago, not the one being judged. The first breach
+repoints the edge to the previous colour and fails the release.
+
+A p95 that comes back `NaN` or empty is not a healthy measurement — with too
+few observations a quantile proves nothing, so the sample is printed as `n/a`
+and is not counted. The window fails if no sample could be measured at all,
+rather than reporting a clean run it never verified. `--rollback` is the switch
+without a build — the other colour never stopped running its previous image —
+and if the colour rolled back *to* breaches, traffic stays on it instead of
+returning to the build the rollback just removed.
 
 On this machine the stack lives inside the Docker Desktop VM, so probes from the
 macOS shell reach this host and not the edge. `on-engine.sh` runs the same script
