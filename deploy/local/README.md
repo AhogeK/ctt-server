@@ -1,0 +1,45 @@
+# Local stack
+
+The scripts here share one rule: changing the live colour is never done by rebuilding it.
+
+```bash
+./deploy/local/up.sh                                # blue on 18080, data plane, edge
+./deploy/local/up.sh --profile bluegreen --profile obs   # + green, Prometheus, Grafana, blackbox
+
+./deploy/local/release.sh green                     # build, replace green, switch, watch 5 min
+./deploy/local/release.sh green --no-build          # same, with the image already in the stack
+./deploy/local/release.sh green --observe 60        # shorter window, for a rehearsal
+./deploy/local/release.sh --rollback                # back to the other colour, same window
+
+./deploy/local/switch-colour.sh                     # which colour serves, per the edge
+./deploy/local/switch-colour.sh green               # move traffic, no build, no restart
+```
+
+`up.sh` starts the stack; it does not move traffic. `release.sh` replaces the
+colour that is **not** serving, waits for it to answer its readiness endpoint,
+switches, and then holds the window: probe success, 5xx rate and p95 every ten
+seconds, with one synthetic request per cycle so those series have samples. The
+first breach repoints the edge to the previous colour and fails the release.
+`--rollback` is that switch, without a build — the other colour never stopped
+running its previous image.
+
+On this machine the stack lives inside the Docker Desktop VM, so probes from the
+macOS shell reach this host and not the edge. `on-engine.sh` runs the same script
+on the engine's side of that boundary:
+
+```bash
+./deploy/local/on-engine.sh ./deploy/local/release.sh green --no-build --observe 120
+./deploy/local/on-engine.sh ./deploy/local/switch-colour.sh
+```
+
+It mounts the repository at the same absolute path — a compose file resolves its
+bind sources relative to itself, so a different mount point would bind the wrong
+directories — and adds `bash` and `curl` to `docker:cli`, which carries neither.
+On a Linux host the stack is already on the machine the engine runs on, and this
+wrapper is unnecessary.
+
+The edge keeps an admin endpoint on `127.0.0.1:2019` for one operation:
+`caddy reload`. The running process keeps serving its configuration until the
+replacement is accepted, so a switch costs no connection and a broken
+configuration leaves the previous colour serving. Why the mechanism looks like
+this, and what it costs, is in [ADR-0005](../../docs/decisions/ADR-0005-blue-green-cutover.md).

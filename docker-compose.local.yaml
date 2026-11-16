@@ -102,10 +102,13 @@ services:
     cpus: 0.5
     tmpfs:
       - /tmp
-    environment:
-      UPSTREAM: ${EDGE_UPSTREAM:-127.0.0.1:18081}
     volumes:
+      # The site block imports `active.caddy` from this directory. A directory
+      # mount, not a file mount: a file bind pins the inode, so repointing the
+      # symlink on the host would never reach the container and every switch
+      # would look applied while traffic stayed where it was.
       - ./deploy/local/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/local/edge-upstream:/etc/caddy-upstream:ro
       - caddy_data:/data
       - caddy_config:/config
 
