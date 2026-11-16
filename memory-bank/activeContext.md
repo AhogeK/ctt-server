@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-16] - 蓝绿窗口的判据改为「只看正在服务的那一色」（v0.116.1）
+   - 背景：v0.116.0 合并后自审发现窗口的 5xx/p95 查询是 `{job="ctt-server"}` **跨两色聚合**——空闲色在切换前服务的 5xx 会在随后一分钟继续计进来，于是可能出现「为修 5xx 而发布、却被上一分钟的 5xx 判成破损」。
+   - 变更：`deploy/local/release.sh` 的 5xx 与 p95 都按 `slot="$target"` 过滤；p95 为 `NaN` 或空时打印 `n/a` 且**不计为健康测量**，窗口结束若一次都测不到则 exit 1；切上游前先等目标色在 Prometheus 出现可算 rate 的序列（新容器只有一次抓取，首个样本必然为空——`docker restart` 目标色即复现）；`query()` 末尾 `|| true`，免得 Prometheus 中途失联时 `set -e` 直接中止而不切回；回滚模式窗口破损时不再切回刚被回滚掉的 `$current`，改为留在 `$target` 并说明 forward 修复。
+   - 验证：`docker restart` 目标色后 `release.sh green --no-build --observe 30` → `10s: probe_success=1 5xx=0/s p95=n/a http=200`、`20s`/`30s` 测得数值、`green is serving: 30s with 2 p95 samples`、`EXIT=0`；`--rollback --observe 30` → 3 个样本、末尾提示 `release forward with: ./deploy/local/release.sh green`、`EXIT=0`；`bash -n` 与 `shellcheck -S info` 干净。
+   - 教训：「空结果」与「健康」必须能区分——5xx 用 `or vector(0)`（无 5xx 序列就是健康），而 quantile 的 `NaN` 相反（观测不足，什么也证明不了），所以前者补默认值、后者单独计数并在一次都测不到时判失败。
 - [2026-11-16] - 蓝绿切换与回滚：上游文件 + reload + 观察窗（v0.116.0）
    - 背景：单机发布要么停机、要么新旧混跑；`docker compose up -d` 重建容器会断掉在途连接，而切上游必须**不重启 edge**——Caddy reload 原子换配置，旧配置继续服务到新配置生效。
    - 变更：`deploy/local/edge-upstream/{blue,green}.caddy` 两个手写上游变体 + gitignore 的运行时 symlink `active.caddy`；`deploy/local/Caddyfile` 改成 `handle { import /etc/caddy-upstream/active.caddy }`、admin 从 `off` 改为 `127.0.0.1:2019`；新增 `deploy/local/switch-colour.sh`（原子换链接 → reload → 读**运行中配置**断言 dial → 用应用端点复核流量）、`deploy/local/release.sh`（准备目标色 → 切上游 → 观察窗每 10 s 断言 `probe_success=1`、5xx 速率 `=0`、p95 ≤ 300 ms，任一破损立即切回）、`deploy/local/stage-jar.sh`、`deploy/local/on-engine.sh`（本机 Docker Desktop 的 host 网络是 VM 回环，演练必须在引擎侧跑）；`docker-compose.local.yaml` 改挂**目录**并删掉 `UPSTREAM`/`EDGE_UPSTREAM` 环境变量（单文件挂载钉死 inode，改 symlink 到不了容器）。

@@ -18,7 +18,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-16 / v0.116.0（本版只加本机发布脚本与 Caddy 上游文件，不动任何 Java/Gradle 依赖）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-16 / v0.116.1（本版只改本机发布脚本的窗口判据与 `deploy/local/README.md`，不动任何 Java/Gradle 依赖）。
 
 ## 架构
 
