@@ -2596,11 +2596,12 @@ sequenceDiagram
 
 | 项 | 结论 |
 |---|---|
-| 入口 | `./gradlew check` 现在自己执行覆盖率校验；离线构建用 `./gradlew check --offline`（校验和已随仓库提交） |
-| 机制 | `tasks.jacocoTestCoverageVerification { dependsOn(tasks.test) }` + `tasks.check { dependsOn(tasks.jacocoTestCoverageVerification) }`；`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时；`gradle/verification-metadata.xml`（578 组件 sha256）由 `--write-verification-metadata` 生成，解析依赖时即校验 |
-| 验证 | 阈值临时提到 0.99 → `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99`、`BUILD FAILED`、exit 1；恢复 0.80 后转绿。实测指令 94.78%（32345/34126）、分支 83.41%（1880/2254）、行 94.65%、类 98.57%；`check --offline` 3m28s 通过 |
+| 入口 | `./gradlew check` 现在自己执行覆盖率校验；离线构建用 `./gradlew check --offline`（校验和已随仓库提交）。判据的完整性不靠它——见下方「冷缓存」一行 |
+| 机制 | `tasks.jacocoTestCoverageVerification { dependsOn(tasks.test) }` + `tasks.check { dependsOn(tasks.jacocoTestCoverageVerification) }`；`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时；`gradle/verification-metadata.xml` 由 `--write-verification-metadata` 生成，解析依赖时即校验 |
+| 验证 | 阈值临时提到 0.99 → `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99`、`BUILD FAILED`、exit 1；恢复 0.80 后转绿。实测指令 94.78%（32345/34126）、分支 83.41%（1880/2254）、行 94.65%、类 98.57% |
 | 没有做 | **依赖锁定**：版本集中在 `libs.versions.toml`、没有动态版本，lockfile 只会在每次 bump 时增加噪声，而校验和已经覆盖「换了包」。**`maxParallelForks`**：套件是 Testcontainers 绑定，并行 fork 会成倍起 Postgres 容器，收益不抵风险 |
 | 相关文档 | `docs/ci.md`（离线构建、校验和、超时的位置与为什么） |
+| 冷缓存（v0.117.1） | PR #38 首跑双红：`Format, tests and coverage` 与 `Secrets, vulnerabilities, SBOM and provenance` 同时报 `One artifact failed verification: junit-bom-5.14.4.module (org.junit:junit-bom:5.14.4)`——暖 Gradle home 取用已缓存的模块描述符时不经校验，`--write-verification-metadata` 因此漏记，本地 `check --offline` 一直是绿的。修法：`--refresh-dependencies --write-verification-metadata sha256` 补入 `.module`/`.pom` 并覆盖 `testRuntimeClasspath`、`compileTestJava`；判据改为 `GRADLE_USER_HOME=$(mktemp -d) ./gradlew bootJar -x test`（冷下载 exit 0）。重跑 run `43930290671` 397 s 绿 → PR #38 `e2bf72d` → 同步 master `849855c`（`cfdd78e`，剔除非 master 的 `AGENTS.md`） |
 
 ### 蓝绿切换与回滚（发布链，2026-11-16，v0.116.0）
 

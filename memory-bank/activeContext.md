@@ -1,9 +1,14 @@
 # Active Context
 
+- [2026-11-17] - 校验和必须用冷缓存证明（v0.117.1）
+   - 背景：PR #38 首跑双红，`Build and test` 与 `Build the image with provenance` 同一句 `> Dependency verification failed for configuration ':compileClasspath'` / `One artifact failed verification: junit-bom-5.14.4.module`。本地 `check --offline` 是绿的——暖 Gradle home 取用已缓存的模块描述符时不经校验，`--write-verification-metadata` 因此漏记，只有冷缓存 runner 下载时才暴露。
+   - 变更：用 `--refresh-dependencies --write-verification-metadata sha256` 补入 `junit-bom-5.14.4.module/.pom`，并把测试侧（`testRuntimeClasspath`、`compileTestJava`）也过一遍；判据从「离线可用」换成「空 `GRADLE_USER_HOME` 能重放 `bootJar -x test`」；`docs/ci.md` 与 `AGENTS.md` 同批改写，PR #38 补评论说明红灯。
+   - 验证：`GRADLE_USER_HOME=$(mktemp -d) ./gradlew bootJar -x test` 冷下载后 exit 0，同环境 `dependencies --configuration testRuntimeClasspath`、`compileTestJava` 均 0；重跑 run `43930290671` 397 s 绿 → PR #38 合并 develop `e2bf72d`（push run `43931571758` 418 s 绿）→ 同步 master `cfdd78e`/PR #39 → master `849855c`。
+   - 教训：**暖缓存会掩护缺口**——凡是「集合是否完整」的证明，必须在与 runner 同形的空缓存下做；`--offline` 只证明「本机够用」。另：`AGENTS.md` 的那条规则混进了 code 提交（R6.5 要求 AI 内容独立），master 同步时已按「非 AI 内容」剔除，历史不重写。
 - [2026-11-16] - 覆盖率阈值第一次真正挂进 `check`（v0.117.0）
    - 背景：`jacocoTestCoverageVerification` 写了 80% / 70%，却没有任何任务依赖它——本地 `./gradlew check` 从不执行，只有 CI 在命令行里点名才跑，于是「阈值」只存在于流水线一侧（P3.7 才发现）。
    - 变更：`dependsOn(tasks.test)` 并挂进 `check`；`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时；`gradle/verification-metadata.xml`（578 组件 sha256）随仓库提交，离线解析即校验；`ci.yml` 删掉手工点名。没有做依赖锁定（版本集中在 `libs.versions.toml`、无动态版本，lockfile 只增噪声，校验和已覆盖换包）与 `maxParallelForks`（套件绑 Testcontainers，并行 fork 会成倍起容器）。
-   - 验证：阈值临时提到 0.99 → `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99`、`BUILD FAILED`、exit 1，恢复 0.80 后转绿；实测指令 94.78%（32345/34126）、分支 83.41%（1880/2254）、行 94.65%、类 98.57%；`check --offline` 3m28s 通过且校验和全部命中。
+   - 验证：阈值临时提到 0.99 → `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99`、`BUILD FAILED`、exit 1，恢复 0.80 后转绿；实测指令 94.78%（32345/34126）、分支 83.41%（1880/2254）、行 94.65%、类 98.57%；`check --offline` 3m28s 通过（**该判据不足，见 v0.117.1 条目**）。
    - 教训：**注册不等于强制**——门必须被聚合任务依赖，并用一次故意失败证明它会红；Renovate 的 `renovate.json` 同样只有配置没有 App，已作为 P3.10 记账而不是当成已接入。
 - [2026-11-16] - 蓝绿窗口的判据改为「只看正在服务的那一色」（v0.116.1）
    - 背景：v0.116.0 合并后自审发现窗口的 5xx/p95 查询是 `{job="ctt-server"}` **跨两色聚合**——空闲色在切换前服务的 5xx 会在随后一分钟继续计进来，于是可能出现「为修 5xx 而发布、却被上一分钟的 5xx 判成破损」。
