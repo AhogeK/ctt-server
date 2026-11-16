@@ -7,7 +7,12 @@
 
 # Version control, editor and OS state
 .git
-.github
+# The image build runs the same retry classifier as CI, so that one file travels
+# while the rest of `.github` stays out.
+.github/*
+!.github/scripts/
+.github/scripts/*
+!.github/scripts/gradle-retry.sh
 .gitignore
 .gitattributes
 .idea
