@@ -18,7 +18,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16；`jacocoTestCoverageVerification`（指令 80% / 分支 70%）由 `check` 依赖，`Test` 有 20 分钟任务级与 5 分钟单用例超时；`gradle/verification-metadata.xml` 钉依赖 sha256 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-17 / v0.117.1（本版只补校验和与文档、规则，不动任何 Java/Gradle 依赖版本）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-17 / v0.117.2（本版只改 `Dockerfile`、`.dockerignore` 与文档，不动任何 Java/Gradle 依赖版本）。
 
 ## 架构
 

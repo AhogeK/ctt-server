@@ -1,5 +1,11 @@
 # Active Context
 
+- [2026-11-17] - 镜像构建复用同一个重试分类器（v0.117.2）
+   - 背景：`develop` 的 push run `43935708842` 红在 `Build the image with provenance`，原因是 `Dockerfile` 的 `RUN ./gradlew bootJar` 直连 Maven Central 拿到 `429`——宿主侧早有 `.github/scripts/gradle-retry.sh`，镜像构建没有，同一次限流只打掉一条路径。PR #41 的同一 job 反而绿（2m30s），说明是间歇性外部限流。
+   - 变更：`Dockerfile` 不再自己写重试，改为 `COPY .github/scripts/gradle-retry.sh` 后调用它（`GRADLE_RETRY_LOG=/tmp/gradle.log`）；`.dockerignore` 用 `.github/*` + `!.github/scripts/` + `!.github/scripts/gradle-retry.sh` 只放行这一个文件——分类器保持单一来源，改签名两条路径同时生效。`docs/ci.md` 的「When a gate is red」补了一段说明。
+   - 验证：`docker build --target builder` 通过（`COPY .github/scripts/gradle-retry.sh` DONE，`bootJar` 在容器内 13.3 s 完成）——证明 `.dockerignore` 的例外真的生效；容器内用桩 `gradlew` 双向验证：429 输出 → 试两次并打印 `The failure looks external …`，`FAILED: 3 tests completed, 1 failed` → 只试一次并打印 `not retrying`，两次都 exit 1。
+   - 教训：**同一条外部故障打到几条路径就要修几条**——「宿主已经会重试」不等于「构建链会重试」，镜像构建是另一条独立的下载路径。
+   - 收尾：PR #40 合并后 `develop` 的 push run 因上述 429 变红，重跑同一 run 后绿；master 同步 PR #41 合并为 `ba7df25`，本地 `master` 随之快进，tag 仍为 0。
 - [2026-11-17] - 校验和必须用冷缓存证明（v0.117.1）
    - 背景：PR #38 首跑双红，`Build and test` 与 `Build the image with provenance` 同一句 `> Dependency verification failed for configuration ':compileClasspath'` / `One artifact failed verification: junit-bom-5.14.4.module`。本地 `check --offline` 是绿的——暖 Gradle home 取用已缓存的模块描述符时不经校验，`--write-verification-metadata` 因此漏记，只有冷缓存 runner 下载时才暴露。
    - 变更：用 `--refresh-dependencies --write-verification-metadata sha256` 补入 `junit-bom-5.14.4.module/.pom`，并把测试侧（`testRuntimeClasspath`、`compileTestJava`）也过一遍；判据从「离线可用」换成「空 `GRADLE_USER_HOME` 能重放 `bootJar -x test`」；`docs/ci.md` 与 `AGENTS.md` 同批改写，PR #38 补评论说明红灯。
