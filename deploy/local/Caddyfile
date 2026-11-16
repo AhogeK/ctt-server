@@ -5,7 +5,12 @@
 # consequence of that one fact.
 {
 	auto_https off
-	admin off
+	# The admin endpoint exists for one operation: `caddy reload`, which swaps
+	# the configuration atomically while the process keeps serving the old one.
+	# Without it, changing an upstream means recreating the container and losing
+	# the connections that make the switch invisible. Loopback only: nothing
+	# outside this host may reconfigure the edge.
+	admin 127.0.0.1:2019
 
 	# How this edge decides who the client is.
 	#
@@ -47,24 +52,11 @@
 		max_size 4MiB
 	}
 
+	# The upstream lives in a file rather than in this block: `active.caddy` is
+	# a symlink to one colour's variant, and moving traffic is a reload instead
+	# of an edit here. See deploy/local/edge-upstream/.
 	handle {
-		reverse_proxy {$UPSTREAM:127.0.0.1:18081} {
-			# TLS terminated at the access host, so this request is plain HTTP
-			# even though the caller used HTTPS. Caddy would otherwise set the
-			# header to its own scheme (http) and the application would treat an
-			# HTTPS request as insecure — non-Secure cookies, http-only links.
-			# This assumes nothing but the edge can reach :18080; to exercise the
-			# insecure branch on purpose, call :18081 directly.
-			header_up X-Forwarded-Proto https
-
-			# Keep the client address chain honest: Caddy appends the immediate
-			# peer to X-Forwarded-For, and the application reads the chain
-			# right-to-left while skipping the proxies it trusts.
-			transport http {
-				dial_timeout 5s
-				response_header_timeout 30s
-			}
-		}
+		import /etc/caddy-upstream/active.caddy
 	}
 
 	# Only upstream failures become the maintenance page. A blanket handler
