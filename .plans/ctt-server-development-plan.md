@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2、P3.3 已交付；P3.3b 待真实失败消息复验；P3.4–P3.8 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.113.0 CI 失败通知与等待判据 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2、P3.3、P3.3b 已交付；P3.4–P3.8 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.113.0 CI 失败通知端到端跑通 |
 
 ## 🗺️ 计划总览
 
@@ -75,7 +75,7 @@ left side
 *** 账号注销（硬删除 + 级联清理，v0.77.0）
 *** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
 *** 通行密钥（v0.91.0：独立登录 + 作为第二步）
-** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.3 已交付，P3.3b 待复验，P3.4–P3.8 未开工
+** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.3b 已交付，P3.4–P3.8 未开工
 *** 基础设施与收口 ✅（P0.0–P0.17：本地全栈、隧道、端口、SSH 与日志、prod 脱敏、密钥通道、审计最小化与保留）
 *** 指标、追踪与日志维度 ✅（P1.1–P1.5）
 *** 告警、面板与值班 ✅（P2.1–P2.3）
@@ -2419,7 +2419,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | P2.1 ✅ | 8 条规则：5xx 比例、p95 延迟、429 比例、DB 池占用、磁盘、outbox 最老待发、排行榜陈旧度、审计掉行；另加隧道中断与证书 14 天到期（P2.3 又加 `TelegramDeliveryFailing`，并按 blast radius 分成 critical/warning/info 三级） | 阈值按契约取值（p95 300 ms、5xx 0.5%、outbox 60 s），5xx 加流量守卫，避免空闲实例上一个 500 变成 100%；PromQL 没有 `isnan()`，用 `m != m` 选中 NaN，并用规则单测钉住「NaN 必触发、正常值安静」。 | 中 |
 | P2.2 ✅ | Grafana 面板 as code（同步、限流、依赖、派生数据、隧道健康）：面板 JSON 与 provisioning 进仓库，`deploy/observability/grafana/` 整目录挂载；每个面板读的指标与 P2.1 规则同源（RED 三率、Hikari 池、outbox 年龄与分状态积压、排行榜深度、审计 WRITTEN/DROPPED、`probe_success` 与证书剩余天数、宿主磁盘与内存），并在图上画出契约线（p95 300ms、5xx 0.5%、outbox 60s） | 面板与规则用同一条表达式，同刻取值逐项一致；Grafana 旧卷与新 datasource 规格冲突会崩溃，处置是删卷；host 网络下验证只能走 `docker exec`。 | 中 |
-| P2.3 ✅ | 值班路径：Alertmanager 接收方与分组/抑制规则落地；按 P2.1 的规则逐条定级，静默流程与升级路径写进 `docs/observability.md` 与 runbook（P6.1）。**通道用 Telegram，走 Alertmanager 原生 `telegram_configs`**（原计划的邮件 + webhook）：邮件额度小、投递失败等于静默丢页，而操作者重度使用 Telegram；自己写转发器曾被判定为必须，深研后推翻——原生的 `<telegram_config>` 自 v0.24.0 起存在（部署机 0.35.0 已在用），支持 `send_resolved`、`bot_token_file`/`chat_id_file`、`message_thread_id`、`parse_mode` 与自动重试，第三方镜像则全部弃维护。因此不引入任何新增依赖，并新增 `TelegramDeliveryFailing` 让「页没送到」本身成为告警 | 先按任务做了邮件 + webhook，深研后确认 Alertmanager 自 v0.24.0 起内置 Telegram 支持，遂改原生 `telegram_configs` 并删掉自写 relay。抑制按 alertname 收窄——`host` 只有一个取值，按 severity 压会在整个事故期静音容量告警。真实通道 firing 40 秒到达，resolved 亦收到。 | 低 |
+| P2.3 ✅ | 值班路径：Alertmanager 接收方与分组/抑制规则落地；按 P2.1 的规则逐条定级，静默流程与升级路径写进 `docs/observability.md` 与 runbook（P6.1）。**通道用 Telegram，走 Alertmanager 原生 `telegram_configs`**（原计划的邮件 + webhook）：邮件额度小、投递失败等于静默丢页，而操作者重度使用 Telegram；自己写转发器曾被判定为必须，深研后推翻——原生的 `<telegram_config>` 自 v0.24.0 起存在（部署机 0.35.0 已在用），支持 `send_resolved`、`bot_token_file`/`chat_id_file`、`message_thread_id`、`parse_mode` 与自动重试，第三方镜像则全部弃维护。因此不引入任何新增依赖，并新增 `TelegramDeliveryFailing` 让「页没送到」本身成为告警。**同一条通道也承运流水线失败**：`.github/workflows/ci-notify.yml` 以 `workflow_run` 监听 `CI` 与 `Publish` 的 `completed`，只在 `conclusion == failure` 时发（消息含仓库、workflow、分支、提交短号、第几次尝试、失败 job 名与链接），凭证取仓库 secret `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`（值来自 SOPS，不进仓库），缺 secret 时打印一行退出 0，免得 fork 被永久打红；配套 `.github/scripts/wait-for-run.sh` 用 `gh run watch --exit-status` 阻塞到结束，并断言 `status=completed`、`conclusion=success`，把结论编码成一个退出码 | 先按任务做了邮件 + webhook，深研后确认 Alertmanager 自 v0.24.0 起内置 Telegram 支持，遂改原生 `telegram_configs` 并删掉自写 relay。抑制按 alertname 收窄——`host` 只有一个取值，按 severity 压会在整个事故期静音容量告警。真实通道 firing 40 秒到达，resolved 亦收到；流水线通知端到端已证（2026-11-16：`ci-notify.yml` 随 release/v0.113.0 进 `master`，探针分支 `test/ci-notification` 上故意未格式化的提交让 `Check formatting` 失败 ⇒ 通知运行 `43826795430` `completed/success`，日志末行 `Notified about CI on test/ci-notification (workflow_dispatch).`，消息到达手机；`CI`/`Publish` 成功时该 workflow 为 `skipped`，不刷屏）；`wait-for-run.sh 43803384086` → `completed/success`、`VERDICT: green`、exit 0，堵住「`--exit-status \| tail` 的退出码属于 `tail`」与「按日志最后几步的 ✓ 下结论」这两个真实误判 | 低 |
 
 ##### P3 发布链（P3.1–P3.8）
 
@@ -2428,7 +2428,6 @@ sequenceDiagram
 | P3.1 ✅ | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明；**CI 节点持有 age 身份**，流水线内 `render.sh` 成功；Jenkins 去明文 `.env` | 首版三处会必红：sops 落仓库根、缺 setup-buildx、证明未与镜像配对；trivy 必须扫解包目录而不是 tar 本身；gitleaks 47 条历史命中用指纹允许，新增命中仍然失败。 | 中 |
 | P3.2 ✅ | 镜像发布：GHCR 按 digest 部署、cosign keyless 签名与验证 | 三次发布失败逐层定位：镜像引用大小写、`--yes` 误用在验证、buildx 内联证明注册表不暴露给 cosign → 改 `cosign attest` 重发证明。`latest` 语义校正为只跟 tag，分支构建不再移动它；0.109.0 与 0.110.0 均在部署机 `verify-image.sh` 通过并按 digest 拉取。 | 中 |
 | P3.3 ✅ | 边缘转发的两跳配置落地。**接入机 nginx**：新建 `deploy/edge/nginx/ctt-server.conf`（仓库首个 nginx 配置）——80 端口只放 ACME 挑战并 301；443 设 `X-Forwarded-For $proxy_add_x_forwarded_for`、`X-Forwarded-Proto https`、`X-Real-IP`、`client_max_body_size 4194304`（4 MiB，与 Caddy 同值）、`limit_req 50r/s burst=100`（超限 429）、5s/30s/30s 超时、`TLSv1.2/1.3`、`server_tokens off`、`error_page 502 504 = @maintenance` 收敛为 503。**Caddy edge**：全局 `servers { trusted_proxies static 127.0.0.1 }`、`header_up X-Forwarded-Proto https`、`request_body { max_size 4MiB }`、`transport http` 超时、`handle_errors 502 503 504`（不写状态匹配会把 413 改写成 503）。配套 `deploy/edge/README.md` 与 runbook「Edge headers and limits」 | 探针实测（共享 netns + 真实 `caddy:latest` + 回显后端）：修前 `xff=127.0.0.1`（真实客户端全丢）、3 MB 请求体返回 503；修后 `xfp=https`、`xff=203.0.113.9, 127.0.0.1`，请求体边界实测 4194304 → 200 / 4200000 → 413，上游停 → 503。两侧限额原本是 `2m`(2,097,152 B) 与 `2MB`(2,000,000 B) 两个数、文档却称同步，且 1000 会话最坏字段约 1.7 MB 已逼近上限 ⇒ 统一为 4 MiB 并写明依据。`caddy validate` = Valid configuration；`nginx -t` = syntax ok（现代镜像仅 `listen ... http2` 弃用警告，文件头说明可换 `http2 on`）；`IpUtilsTest` 7 例覆盖 `getRealIp`/`isSecureRequest`（既有实现，本批未改）。`limit_req` 从 20r/s 提到 50r/s 并写出依据：单客户端限 10 r/s、同一 NAT 地址共享配额，约 5 个并发用户才应视为洪水 | 中 |
-| P3.3b 🚧 | **CI 失败会找到人**。`ci.yml` 变红时我这边不会主动知道，只有下次打开页面才看得见——而红的那条往往是**合并自己在基线分支上起的 `push` run**，与绿过的 PR 检查不是同一条。新增 `.github/workflows/ci-notify.yml`：`workflow_run` 监听 `CI` 与 `Publish` 的 `completed`，`conclusion == failure` 才发；消息含仓库、workflow、分支、提交短号、第几次尝试、失败 job 名与链接；凭证用仓库 secret（`TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`，值来自 SOPS，未进仓库），缺 secret 时打印一行退出 0（fork 不应被永久打红）。新增 `.github/scripts/wait-for-run.sh`：阻塞式 `gh run watch --exit-status` + 断言 `status=completed` 且 `conclusion=success`，退出码等于结论——堵住「`--exit-status \| tail` 的退出码属于 `tail`」「按日志最后几步的 ✓ 下结论」这两个真实误判 | 已证：`wait-for-run.sh 43803384086` → `completed/success`、`VERDICT: green`、exit 0；`getMe` 返回 `@ahogek_ctt_pager_bot`，实发一条测试消息到「方木工作群」（`message_id 7`）；两个 secret 已写入仓库；`bash -n` 与 YAML 解析通过。**未证**：真实失败触发的那条自动消息——`workflow_run` 只对本工作流存在于默认分支之后的运行触发。关闭条件：合并后在一个临时分支制造一次格式失败，收到消息即关闭（失败分支随即删除） | 低 |
 | P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察窗口 + 一键回滚；**首次发布与回滚走 Jenkins 的 `Verify image` → `--no-build` 路径**（`IMAGE_REF` 传 digest） | 一次正常流量下的发布与一次回滚：切换后 5 分钟内 `probe_success` 保持 1、应用 5xx = 0、p95 无尖峰；回滚到上一个 digest 后同样成立。**压测并发期间的同类验证属 P5.2**，本行只证明机制本身 | 高 |
 | P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
 | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
@@ -2587,6 +2586,21 @@ sequenceDiagram
 ## 📦 交付记录：一次性需求与修复（2026-09 → 2026-11）
 
 > 按主题追加的交付记录，标题带来源、日期与版本；不保证严格排序，查找用上面的能力索引。
+
+### 运维工具安装脚本（工程支撑，2026-11-16，v0.114.0）
+
+> 来源：`cosign` / `sops` 长期靠手抄 release 页安装，装错版本或漏校验时是**安静失败**（版本不符、架构错、校验没做）；`docs/ops-runbook.md` 与 CI 又各自维护一份安装步骤。目标是把「装哪个版本、从哪装、怎么验」收进仓库一个脚本。
+
+| 项 | 结论 |
+|---|---|
+| 入口 | `scripts/install.sh --tool cosign\|sops\|all [--version …] [--prefix …] [--verify-only]`；默认前缀 `~/.local/bin`，不在 `PATH` 时打印可粘贴的 `export PATH=…` |
+| 机制 | 版本、资产名与版本命令钉在 `scripts/lib/install-functions.sh` 的表里（两个项目这三样都不一致，猜错会安静地装错）；用项目自己发布的 `checksums.txt` 校验；**先在同目录暂存再 `mv`**（`install`/`cp` 是就地截断，中断会留坏二进制）；最后用二进制自己的版本命令复验 |
+| 退出码 | `0` 成功（含已是该版本）、`1` 失败、`2` 装完但与请求的版本不一致 |
+| 落地 | CI 的 `Install sops`、`deploy/verify-image.sh` 的缺件提示、`Jenkinsfile` 的 `Tooling` 预检全部指向脚本；新增消费点必须同样如此 |
+| 测试 | `scripts/tests/install-functions-test.sh` 41 项无网络用例（含「版本复验失败」与 127 空过防护）；`scripts/tests/install-probe.sh` 跑端到端序列：冷装 → 二次 no-op → `--verify-only` → 不存在的版本被拒且不留临时目录 → 版本不符 exit 2 → 替换提示；`scripts/test-install-matrix.sh` 在 host / `debian:12-slim` / `ubuntu:24.04` / `alpine:3.20` 上跑同一序列 |
+| 验证 | 四目标全绿（每个目标两个工具都装，113 s）；`shellcheck -S info` 五个脚本零告警；rename 以 inode 变化为证（旧 1059013155 → 新 1059013188，无 `.new.` 残留）；exit 2 用伪造的同名二进制打印 `1.0.0` 实测 |
+| 决策 | `docs/decisions/ADR-0004-tool-installation.md`：对照 aqua / mise / asdf / eget / `sigstore/cosign-installer` 的排除理由与重访触发 |
+| 不采用 | 不引入版本管理器，不加 `sudo`，不改用户的 shell profile，不做离线镜像 |
 
 ### 会话批量撤销（前端需求，2026-10-29，v0.88.0）
 
