@@ -5,6 +5,7 @@
    - 变更：用 `--refresh-dependencies --write-verification-metadata sha256` 补入 `junit-bom-5.14.4.module/.pom`，并把测试侧（`testRuntimeClasspath`、`compileTestJava`）也过一遍；判据从「离线可用」换成「空 `GRADLE_USER_HOME` 能重放 `bootJar -x test`」；`docs/ci.md` 与 `AGENTS.md` 同批改写，PR #38 补评论说明红灯。
    - 验证：`GRADLE_USER_HOME=$(mktemp -d) ./gradlew bootJar -x test` 冷下载后 exit 0，同环境 `dependencies --configuration testRuntimeClasspath`、`compileTestJava` 均 0；重跑 run `43930290671` 397 s 绿 → PR #38 合并 develop `e2bf72d`（push run `43931571758` 418 s 绿）→ 同步 master `cfdd78e`/PR #39 → master `849855c`。
    - 教训：**暖缓存会掩护缺口**——凡是「集合是否完整」的证明，必须在与 runner 同形的空缓存下做；`--offline` 只证明「本机够用」。另：`AGENTS.md` 的那条规则混进了 code 提交（R6.5 要求 AI 内容独立），master 同步时已按「非 AI 内容」剔除，历史不重写。
+   - 规则变更（用户 2026-11-17）：R6.5 的「AI 独立」改成 **AI 内容单独成提交、但必须落在承载该变更的同一个 PR 里**——事后单开 PR 补记让一次变更跑两遍 CI、看两遍审查。本轮 #40 就是那次多余的拆分，规则已写进 `AGENTS.md:145`。
 - [2026-11-16] - 覆盖率阈值第一次真正挂进 `check`（v0.117.0）
    - 背景：`jacocoTestCoverageVerification` 写了 80% / 70%，却没有任何任务依赖它——本地 `./gradlew check` 从不执行，只有 CI 在命令行里点名才跑，于是「阈值」只存在于流水线一侧（P3.7 才发现）。
    - 变更：`dependsOn(tasks.test)` 并挂进 `check`；`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时；`gradle/verification-metadata.xml`（578 组件 sha256）随仓库提交，离线解析即校验；`ci.yml` 删掉手工点名。没有做依赖锁定（版本集中在 `libs.versions.toml`、无动态版本，lockfile 只增噪声，校验和已覆盖换包）与 `maxParallelForks`（套件绑 Testcontainers，并行 fork 会成倍起容器）。
