@@ -5,10 +5,10 @@
 # without leaking a temp directory, and the notice printed when the prefix
 # already holds a different version.
 #
-# It lives in a file rather than a string so the host and the matrix containers
-# run the same sequence. They used to carry two copies, and the container copy
-# installed one tool while the host installed both — the probe that mattered for
-# "does this work on another libc" was quietly the weaker one.
+# It lives in a file rather than a string so the host, the matrix containers and
+# the Actions runners execute one sequence — three copies of the same steps
+# drifted twice already: the container copy installed one tool while the host
+# installed both, and the workflow copy lost the exit-2 assertion.
 #
 # Usage: scripts/tests/install-probe.sh [all|cosign|sops]   (default: all)
 
