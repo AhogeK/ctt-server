@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2、P3.3 已交付（P2.3 同时承运流水线失败通知）；P3.4–P3.8 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2、P3.3 已交付（P2.3 同时承运流水线失败通知）；P3.4–P3.8 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
 
 ## 🗺️ 计划总览
 
@@ -2597,7 +2597,7 @@ sequenceDiagram
 | 机制 | 版本、资产名与版本命令钉在 `scripts/lib/install-functions.sh` 的表里（两个项目这三样都不一致，猜错会安静地装错）；用项目自己发布的 `checksums.txt` 校验；**先在同目录暂存再 `mv`**（`install`/`cp` 是就地截断，中断会留坏二进制）；最后用二进制自己的版本命令复验 |
 | 退出码 | `0` 成功（含已是该版本）、`1` 失败、`2` 装完但与请求的版本不一致 |
 | 落地 | CI 的 `Install sops`、`deploy/verify-image.sh` 的缺件提示、`Jenkinsfile` 的 `Tooling` 预检全部指向脚本；新增消费点必须同样如此 |
-| 测试 | `scripts/tests/install-functions-test.sh` 41 项无网络用例（含「版本复验失败」与 127 空过防护）；`scripts/tests/install-probe.sh` 跑端到端序列：冷装 → 二次 no-op → `--verify-only` → 不存在的版本被拒且不留临时目录 → 版本不符 exit 2 → 替换提示；`scripts/test-install-matrix.sh` 在 host / `debian:12-slim` / `ubuntu:24.04` / `alpine:3.20` 上跑同一序列 |
+| 测试 | `scripts/tests/install-functions-test.sh` 41 项无网络用例（含「版本复验失败」与 127 空过防护）；`scripts/tests/install-probe.sh` 跑端到端序列：冷装 → 二次 no-op → `--verify-only` → 不存在的版本被拒且不留临时目录 → 版本不符 exit 2 → 替换提示；`scripts/test-install-matrix.sh` 在 host / `debian:12-slim` / `ubuntu:24.04` / `alpine:3.20` 上跑同一序列；`.github/workflows/installer-test.yml` 的 job 也调这一份 probe（v0.115.0 删掉手抄副本，它漂移掉了 exit-2 断言），本机实跑 `41 checks, 0 failure(s)`、exit 0 |
 | 验证 | 四目标全绿（每个目标两个工具都装，113 s）；`shellcheck -S info` 五个脚本零告警；rename 以 inode 变化为证（旧 1059013155 → 新 1059013188，无 `.new.` 残留）；exit 2 用伪造的同名二进制打印 `1.0.0` 实测 |
 | 决策 | `docs/decisions/ADR-0004-tool-installation.md`：对照 aqua / mise / asdf / eget / `sigstore/cosign-installer` 的排除理由与重访触发 |
 | 不采用 | 不引入版本管理器，不加 `sudo`，不改用户的 shell profile，不做离线镜像 |

@@ -1,5 +1,10 @@
 # Active Context
 
+- [2026-11-16] - Actions 探针改调共享序列（v0.115.0）；同日纠正一轮"未发生"的修复记录
+    - 变更：`.github/workflows/installer-test.yml` 的 6 个手抄内联步骤（-90 行）替换为单步 `./scripts/tests/install-probe.sh`，与本机、三个容器共用同一序列；副本漂移的证据是它缺 exit-2 断言而 probe 里有。提交 `e95a9a6`（fix）+ `9c436e5`（bump 0.115.0），分支 `feature/installer-workflow-shares-probe`。
+    - 验证：本机 `bash scripts/tests/install-probe.sh` → `41 checks, 0 failure(s)`、exit 0（冷装两个工具 → no-op → `--verify-only` → 不存在的版本被拒 → 版本不符 exit 2 → 替换提示 → 单测）；workflow 尚未在 GitHub 实跑（分支未推送）。
+    - 纠正：压缩摘要曾把一轮「CI 交付链判据修复（0.115.0）」记成已交付——提交 `a4037b9`/`a4720d9`/`fa5fd1c`、run `43873543010`、PR #31、`pending-run.sh`、`wait-for-notifications.sh`、`scripts/test-ci-notification.sh`、`schemaCheck` 转正——**逐项回源都不存在**（`git cat-file -t` 无对象、`gh run view` 404、`gh pr view 31` 404、`git log -S` 全库无痕、`ci.yml` 没有 `schemaCheck`），`ci-notify.yml` 与 `wait-for-run.sh` 在盘上从未被改。已把写进计划、规则与本文件的相应文字回退（`git checkout --`），未推送、未合并任何相关内容。
+    - 同批规则：`AGENTS.md` R9 增「记忆里的 SHA / run ID / PR 号与『已修』结论，引用前必须回源核对」。
 - [2026-11-16] - 分支与 tag 清理：首发前不留发布痕迹
     - 背景：本地 8 条、远端 8 条分支里，6 条 feature 早已并入 `develop`，`release/v0.112.0` 与 `hotfix/20261115-registry-tag-docs` 早已并入 `master`，只剩分支本身；另有 3 个 tag（`v0.109.0`/`v0.110.0`/`v0.112.0`）是 P3.2 练签名链路时打的，指向 `master` 上的旧提交，名字却像"已发布"。
     - 处置：删除 6 条 feature、`release/v0.112.0`、`hotfix/20261115-registry-tag-docs`（本地 + 远端）与三个 tag（本地 + 远端）。现在本地与远端都只剩 `develop`、`master`，tag 数为 0，工作区停在 `develop` 的 `73814bd`（PR #25 合并点）。

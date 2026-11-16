@@ -37,88 +37,9 @@ jobs:
           command -v sha256sum || echo "sha256sum absent (expected on macOS)"
           command -v shasum || echo "shasum absent (expected on Linux)"
 
-      - name: Unit tests for the mapping tables
-        run: ./scripts/tests/install-functions-test.sh
-
-      - name: Install both tools from scratch
-        env:
-          # installed under the runner's home, never /usr/local: the script must
-          # work without sudo, and a system directory would hide that.
-          PREFIX: ${{ runner.temp }}/bin
-        run: |
-          ./scripts/install.sh --prefix "$PREFIX" --tool all
-          ./scripts/install.sh --prefix "$PREFIX" --tool all --verify-only
-
-      - name: A second run must not download anything
-        env:
-          PREFIX: ${{ runner.temp }}/bin
-        run: |
-          set -o pipefail
-          output=$(./scripts/install.sh --prefix "$PREFIX" --tool all)
-          printf '%s\n' "$output"
-          case "$output" in
-            *"already at"*) ;;
-            *)
-              echo "::error::the second run re-installed instead of reporting the current version"
-              exit 1
-              ;;
-          esac
-
-      - name: A release that does not exist must fail
-        env:
-          PREFIX: ${{ runner.temp }}/bin
-        run: |
-          if ./scripts/install.sh --prefix "$PREFIX" --tool cosign --version v0.0.0-nope; then
-            echo "::error::a missing release was accepted"
-            exit 1
-          fi
-          echo "the missing release was refused, as intended"
-
-      - name: A refused install must leave nothing behind
-        env:
-          PREFIX: ${{ runner.temp }}/bin
-        run: |
-          set -o pipefail
-          # mktemp honours TMPDIR; pointing it at an empty directory turns the
-          # "does a failed run leak its work directory" question into a count.
-          scratch="${RUNNER_TEMP}/leakcheck"
-          rm -rf "$scratch"
-          mkdir -p "$scratch"
-          TMPDIR="$scratch" ./scripts/install.sh --prefix "$PREFIX" --tool cosign --version v0.0.0-nope >/dev/null 2>&1 || true
-          left=$(ls -A "$scratch" | wc -l | tr -d ' ')
-          if [ "$left" != "0" ]; then
-            echo "::error::the failed install left ${left} entries in TMPDIR"
-            ls -la "$scratch"
-            exit 1
-          fi
-          echo "the failed install cleaned up after itself"
-
-      - name: A single version cannot be applied to both tools
-        env:
-          PREFIX: ${{ runner.temp }}/bin
-        run: |
-          if ./scripts/install.sh --prefix "$PREFIX" --tool all --version v2.6.0 2>/dev/null; then
-            echo "::error::--version was accepted for both tools at once"
-            exit 1
-          fi
-          echo "--version with --tool all was refused, as intended"
-
-      - name: An older binary in the prefix is announced
-        run: |
-          set -o pipefail
-          d="${RUNNER_TEMP}/notice"
-          rm -rf "$d"
-          mkdir -p "$d"
-          printf '#!/bin/sh\necho "cosign: v1.0.0"\n' >"$d/cosign"
-          chmod +x "$d/cosign"
-          # A bogus pin stops after the notice, so this asserts the message
-          # without spending a second real download.
-          notice=$(./scripts/install.sh --prefix "$d" --tool cosign --version v0.0.0-nope 2>&1 || true)
-          case "$notice" in
-            *"replacing 1.0.0 with the pinned v0.0.0-nope"*) ;;
-            *)
-              echo "::error::the replacement was not announced: $notice"
-              exit 1
-              ;;
-          esac
-          echo "the replacement was announced before downloading"
+      # One sequence for every runner: the same scripts/tests/install-probe.sh
+      # the host and the matrix containers execute, unit tests included. The
+      # steps this replaces were a hand-kept copy of it — the copy had already
+      # drifted (no exit-2 assertion) while the containers carried the real one.
+      - name: The sequence the local matrix runs
+        run: ./scripts/tests/install-probe.sh
