@@ -1,5 +1,12 @@
 # Active Context
 
+- [2026-11-16] - P3.3 边缘转发：两跳头契约与探针实测（v0.111.0）
+    - 背景：公网入口由接入机 nginx 终止 TLS 后经 frp 隧道到 Caddy edge，再到应用。应用只在 socket peer 属于 `ctt.security.trusted-proxy-addresses` 时采信 `X-Forwarded-For`/`X-Forwarded-Proto`，因此每一跳必须既追加真实客户端、又声明 `https`，任一环漏掉都会让 IP 限流与 Secure Cookie 静默退化。
+    - 变更：新增 `deploy/edge/nginx/ctt-server.conf`（仓库首个 nginx vhost：80 只放 ACME 并 301；443 设 `X-Forwarded-For $proxy_add_x_forwarded_for`、`X-Forwarded-Proto https`、`X-Real-IP`、`client_max_body_size 4194304`（4 MiB）、`limit_req 50r/s burst=100`、连接与读写超时 5s/30s/30s、`error_page 502 504` 收敛为 503）；`deploy/local/Caddyfile` 补 `servers { trusted_proxies static 127.0.0.1 }`、`request_body { max_size 4MiB }`、`transport http` 超时，并把 `handle_errors` 限定到 `502 503 504`。
+    - 两个静默缺陷（探针实测，不是读配置得出）：① Caddy 默认不信任入站 `X-Forwarded-For`，会把链**替换**成立即 peer —— 修前后端收到 `xff=127.0.0.1`，等于所有访客共用一个来源，按 IP 的限流退化为单客户端；② `handle_errors` 未限状态会把**所有**错误改写成 503 —— 3 MB 请求体本该 413，实测返回 503，把「请求太大」谎报成「服务不可用」。
+    - 验证：共享 netns + 真实 `caddy:latest` + 探针后端，修后 `xfp=https`、`xff=203.0.113.9, 127.0.0.1`、超限 **413**、上游停 **503**；伪造的最左 hop 未被采信（应用右到左扫描取真实客户端）；`nginx -t`（容器 + 临时自签证书）`syntax is ok` / `test is successful`；应用侧 `IpUtils` 原有 7 例单测覆盖受信判定与 XFF 取舍，无需改动代码。
+    - 评审修正（双轴）：把两侧限额从 `2m`/`2MB`（两个不同数值）统一为 4 MiB 并以「1000 会话最坏字段约 1.7 MB」定依据；新增 `docs/production-configuration.md` 的「Client addresses behind the edge」（`TRUSTED_PROXY_ADDRESSES` 为空时限流/审计/`isSecureRequest` 的静默退化，以及生产落点在 compose overlay 而非 `.env`）；公网验收（vhost 上机、443-only、真实客户端）落到真正发生的 P7.1（那时才有 DNS 与证书），P3.3 只保留仓库侧可证的证据；同批把规则写进 `AGENTS.md` R10 与 `memory-bank/systemPatterns.md`，并把这条判据补进全局 `write-plan` 技能（新增「Execution order is a dependency claim」小节 + 自检第 6 条 + 两条反模式）；按「计划自上而下执行」复查整张表，删掉 P3.4 判定里「压测下零 5xx」（那是 P5.2 的事，属下方依赖），索引行、mindmap、风险行同步；runbook 探针改为可复制的 `ctt-edge`/`ctt-app-blue` 命令并断言 `clientIp=203.0.113.***`；`limit_req` 由 20r/s 提到 50r/s 并写依据。
+    - 边界：接入机 sshd 无 banner（`nc` 通、`ssh` 立即被关，本机与部署机两侧都失败）⇒ 配置未上机、公网 443 与真实链路未实测；`ctt.ahogek.com` 无 A 记录属 P7.1。关闭条件：sshd 恢复后 `nginx -t` + reload，从公网访问一次并核对访问日志的 `clientIp` 与 Secure Cookie。规则：`AGENTS.md` R9 增「边缘转发要用探针证明」，`docs/ops-runbook.md` 增「Edge headers and limits」。
 - [2026-11-15] - 计划可读性重构：运维小节按「任务行自带结论」重写（纯文档，不 bump 版本）
     - 触发与三次订正：先指出 P3.1/P3.2 打成 ✅ 却把「Jenkins 新路径未跑过、Renovate 未安装」写在判定列长句末尾——只看状态列就以为没有欠账；第一版补「未完成事项总表」+ O-xx 指针被否掉（那是大号 TODO）；第二版把 43 个历史块抽进 `ctt-observability-delivery-log.md` 并加「交付记录/决策记录」两张索引表，仍被否掉——「后续的记录都能进判定里，而不是单独起，这样在表格里看起来阅读也方便知道这一步干了什么遇到了什么解决了什么」。
     - 变更：`AGENTS.md` R10 增加两条——「一段任务只做一段事，状态列不许藏条件」（需后续活动才完结 ⇒ 任务划错了，把那段写成真正所属阶段的任务：Jenkins 首次发布归 P3.4、Renovate App 归 P3.7）与「任务的过程记录就地落在行里」（交付物写做了什么、判定写结果与遇到的问题，禁止另起索引表或记录文件）。据此重写 `.plans/` 运维小节的阶段任务表：P0–P7 八张表连续排布，35 行已完成任务恢复详细交付物、判定列承载验收证据与踩坑处置；删除两张索引表与 `.plans/ctt-observability-delivery-log.md`，清掉三处指向它的链接。
@@ -125,57 +132,6 @@
     - P0.6b 改为 ✅：代码/测试/机制验收收口；生产量级实测拆到 P0.16b（P0.12/P0.16 后），保留策略确认拆到 P0.6c（无后续技术依赖）
     - P0.16 去除对 P7.4 验证码的绑定；P7.3 去除对 P7.4/P7.5 的联合验收；待办前向依赖扫描 0 个
     - 计划摘要、实现状态、风险表与 `progress`/`systemPatterns` 同步
-- [2026-11-08] - P0.6b 审计内容最小化(v0.93.9, retention v0.94.0)
- - 交付:显示名只写 `field`;passkey 注册/改名/删除 details 置空;邮件幂等跳过 `resource_id` 改 `bizId` 并移除 `recipientMasked`;邮件与 SMTP `lastError` 移除;`TokenRefresh` 去掉重复 IP/UA 并收敛签名;`PasswordReset` / `RateLimit` 的 `resource_id` 不再写邮箱;保留清理由 `AuditRetentionJob` 按 `ctt.audit.retention.days` 执行(默认 0=保留,每批独立事务);fixtures 与 Audit 契约注释同步
- - 验证:定向测试通过;全量 1694 tests / 0 failures / 1 skipped;grep 审计写入点无姓名/邮箱/passkey 标签/`recipientMasked`/`lastError`;保留任务单测 + 真库仓库测试(含 LIMIT 与逐批事务)通过
-- 未闭环:P0.6b 已完成(代码/测试/机制);保留策略已确认 180 天(ADR-0002);生产库量级实测移至 P0.16b(依赖 P0.12/P0.16;`ctt_server_prod` 不存在);开发库 29,801 行 / 11 MB 仅参考
-- [2026-11-08] - P0.6 审计载荷开关：评估后删除(v0.93.7)
- - 核查:`ctt.security.audit.log-payloads` / `masked-fields` 自 2026-03-18 引入后无生产读取方(仅绑定测试);`AuditDetails` 只有 reason / errorCode / attemptCount / stateBefore / stateAfter / ext
- - 决策:不是「无消费者就删」,而是先问「要不要这个能力」→ **不引入请求体审计**。依据:审计行 `ON DELETE SET NULL` 会永久保留用户内容,与注销承诺冲突;生产脱敏是文本正则,不是 JSON 掩码(`pwd` / `otp` / `apiKey` 不匹配,空值/对象值会被破坏);`SyncPushRequest` 单次最多 1000 会话;ASVS 16.3.2 要求访问审计不记录敏感数据,GDPR 5(1)(c)(e)/17(1)(a) 要求最小化与可删除。完整分析见 `docs/decisions/ADR-0001-audit-payload-boundary.md`
- - 交付:删除 `AuditProperties` 与 base/prod 两份受版本控制的 YAML 的 audit 块(`application-local.yaml` 被 gitignore,仅本地改动),修正 5 处测试构造器与 `SecurityPropertiesTest`;`security-architecture` 增 Audit Storage Boundary;`audit-boundary-spec` 增「不存请求体」规则;AGENTS R9 改为「先追溯意图再决定接线或删除」
- - 验证:compile + 定向测试全绿;实跑 local profile 的 `POST /auth/login`(body 含 `password`),审计行只有 `{"reason":"Invalid email or password","errorCode":"AUTH_001"}`,全库检索该密码串 = 0;全量 1691 tests / 0 failures(P0.6 批次;v0.93.8 删除 `MaskSerializerTest` 后为 1687 tests / 0 failures / 1 skipped)
- - 后续(P0.6b):边界尚未完全落地——`PROFILE_UPDATED` 写旧/新显示名,passkey 写标签,`MAIL_IDEMPOTENT_SKIP` 的 resource_id 是原始邮箱,邮件审计写 `recipientMasked` 与可能含地址的 `lastError`,`TokenRefresh` 重复写 IP/UA;这些会随审计行在注销后保留。计划改为只写 action/资源 id/布尔/枚举/计数,并另定 IP/UA 的保留期
- - 复审(双轴):ADR 证据曾用 `Matcher.replaceAll` 冒充 `MaskingMessageConverter.mask()`——已修正为真实行为(`newPassword` 正确掩码;空值/对象值才破坏文本);无生产使用的 `MaskSerializer` 已在 v0.93.8 删除,文档改为两层;计划 P0.6b 的状态、顺序与生产量级验收已补齐
-- [2026-11-08] - P0.5 密钥改 Compose secrets（v0.93.6）
-    - 交付：`.sops.yaml`（只放 age 公钥）+ `deploy/secrets/secrets.enc.yaml`（6 个键，仅密文）+ `render.sh`（当时写出 0400 文件，后改 0440 组可读，`--mode` 可改，输出目录有护栏，重跑会先清旧文件）+ `frp-token.sh`（接入机渲染 600 文件）+ `run/` 加入 gitignore；`up.sh` 与 `Jenkinsfile` 起栈前调用渲染
-    - compose：应用走 `SPRING_CONFIG_IMPORT=optional:configtree:/run/secrets/`（配置里的 `${...}` 引用不变），PostgreSQL 用 `POSTGRES_PASSWORD_FILE`，Redis 写 tmpfs 配置后 `setpriv` 降到 redis（口令不进进程表），Grafana 用 `GF_SECURITY_ADMIN_PASSWORD__FILE`；环境变量里的密钥全部移除
-    - 验证：运行中的 6 个容器 `.Config.Env` 逐值比对无密钥；当时 `/run/secrets` 文件 0400 且容器用户可读，后改 0440 + `group_add`；缺渲染文件时 Compose 报 bind source 不存在并拒绝创建；缺 age 身份时 `render.sh` 退出 1；redis `/proc/1/cmdline` 只有 `redis-server *:6379`
-    - 文档与规则：新增 `docs/deployment-secrets.md`（初始化/日常/轮换/frp token/Linux 可读性/验证），README 快速开始与配置段、文档索引、`.env.example` 抬头同步；`AGENTS.md` R9 增「容器密钥只走 Compose secrets」
-    - 复审修复（双轴）：`.dockerignore` 补 `deploy/secrets`（此前解密文件会进构建上下文）；`render.sh` 重跑不再因旧的只读文件写入失败、并清理已移除的键；README 快速开始补渲染步骤；Jenkinsfile 补渲染；Redis 口令改为配置文件 + `setpriv`；Grafana 口令 secret 化
-    - 复审二期修复（Standards 轴）：`render.sh` 改为**先解密到临时目录、成功后才替换**（旧版先删后解密，密钥错误会清掉上一份可用文件），并把解密结果写到独立目录避免把合并明文带进 `run/`；新机器文档不再教 `age-keygen` 后直接 `updatekeys`（没有已授权身份无法解开数据密钥）；计划/AGENTS 的 Redis 描述改为 wrapper + `setpriv`、补 Grafana 消费者
-    - 未闭环项**不再单设清单**，按阶段归入阶段表：P0.17（`FRP_TOKEN` 值写入 SOPS 并在接入机渲染；Linux 上 0440/组可读性已于 2026-11-09 实测）、P3.1（CI 节点须持有 age 身份）；`docs/deployment-secrets.md` 同步指向这些条目。教训：待办只能有一处真相，散落的「滚动清单」会让状态无法快速聚焦
-- [2026-11-08] - P0.4 compose 加固（v0.93.5）
-    - 交付：两份 compose 共用 `x-hardening` 锚点（`restart: unless-stopped`、`stop_grace_period: 45s`、`read_only`、`cap_drop: [ALL]`、`no-new-privileges`、json-file 10m×3），逐服务补 `mem_limit` / `cpus` / tmpfs；postgres 加回 CHOWN/DAC_OVERRIDE/FOWNER/SETGID/SETUID，redis 再加 SETPCAP
-    - 实测：9 个容器 `docker inspect` 逐项命中；edge / blue / green / Prometheus / Grafana / Mailpit 六处 200，两条外部探测结果为 1；演练后停掉其余容器，只保留 Mailpit
-    - 坑：`read_only` 下 `redis:latest` 没有声明卷、工作目录在根文件系统，entrypoint 的 chown 直接报只读；`cap_drop: ALL` 又让 setpriv 无法收窄 bounding set（缺 CAP_SETPCAP）⇒ 给 redis 加 tmpfs `/data` 并补 SETPCAP
-    - 双轴复审后修正：三处能力清单文档（AGENTS / 计划 / systemPatterns）改为精确列表（redis 无 FOWNER）；README 的「tmpfs 即卷」与漏 `restart` 改准；生产 `Dockerfile` 的 ENTRYPOINT 补 `-XX:MaxRAMPercentage=45 -XX:InitialRAMPercentage=20`（原先只有本地镜像带，900m 上限下堆只有约 225 MB）；blue/green 的重复 `mem_limit` 删除，统一继承 base `app`；inspect 记录落在 `.omp/notes/2026-11-08/compose-hardening.md`
-- [2026-11-08] - P0.3 构建上下文收口（v0.93.4）
-    - 交付：新增 `.dockerignore`，排除 `.git` / `build` / `.env*` / `.plans` / `memory-bank` / `docs` / `dev-docs` 与 AI 工作区、编辑器状态；保留生产构建所需的 `gradle/`、`gradlew`、构建脚本、`src/`，以及本地镜像暂存的 `build/local-image/app.jar`
-    - 实测：复制进镜像的上下文 **249.44 MB → 4.06 MB**（不含暂存 jar）、92.16 MB（含 88 MB jar）；生产前置文件校验通过；本地镜像 `deploy/local/Dockerfile` 构建成功
-    - 坑：BuildKit 的 `transferring context` 受内容寻址缓存影响（第二次读数只剩 71 KB），不能当体积证据；改用 `COPY . /ctx` + `du -sb`，已写入 `AGENTS.md` R17
-- [2026-11-08] - 误关用户常驻 Mailpit（已恢复，待授权提交）
-    - 事故：P0.2 演练收尾用 `docker compose … down`，把用户长期使用的 `ctt-mailpit`（:8025）一起删除；`mailpit_data` 卷未受影响，历史邮件（`mailpit.db`）完好
-    - 恢复：`docker compose -f docker-compose.yaml up -d mailpit` → 容器 healthy、UI 200、SMTP `220 … ready`，数据卷复用
-    - 防复发：mailpit 加 `restart: unless-stopped`；README 写明 `down` 会带走它并给出恢复命令；`AGENTS.md` R19 增边界「用户常驻服务不得被清理波及」；`.plans` 的踩坑表补一行（演练收尾不得带走别人的常驻服务）
-    - 版本：PATCH 0.93.3（compose 变更）
-- [2026-11-08] - P0.2 镜像可追溯与升级演练（v0.93.2）
-    - 交付：`deploy/local/digests.sh` 从两份 compose 解析 7 个镜像、输出 Markdown 表，`--out` 追加到部署记录；`ctt-server-app` 主机构建，按镜像 id 记录；README 补用法与演练四步
-    - 演练：记录 → `up.sh --profile obs`（edge / blue / Prometheus / Grafana 各 200，两条外部探测结果均为 1）→ `clean build --rerun-tasks`（**1695 tests / 0 failures / 1 skipped**）→ 再记录：7 个镜像摘要完全一致，只有 app 镜像 id 随重建变化（预期）
-    - 注意：首次 `clean build` 1 秒完成是任务缓存命中（`:check UP-TO-DATE`），按 R12 用 `--rerun-tasks` 重跑才是真验证
-    - 部署记录：`.omp/notes/2026-11-08/image-digests.md`（已 gitignore，含两次带时间戳的表）；演练后 `docker compose … down`，18080/9090/3000 均已释放
-- [2026-11-08] - 收口：README 纠错、规则与记忆维护（随本批提交）
-    - README：修正「no dashboard is provisioned yet」与上文「已有预置面板」的自相矛盾（改为「面板展示的是外部探测结果，应用自身指标随 P1.1 到来」）；安全段补「prod JSON 日志掩码文本与结构化字段」
-    - `AGENTS.md` R9 新增「日志脱敏必须覆盖输出通道」；`techContext` 包结构改为实际目录（补 user/device/mail/audit/language，删不存在的 apikey/）、核对基线刷到 v0.93.1；`progress` 补 0.93.1 里程碑并修正 0.92.x 与 0.93.0 的排序
-    - R13：10-18/10-19 六条（R1–R3 与阶段六计划，70 行）完整移入 `archive/activeContext-2026-10.md`，热文件降到 136 行、只留结论
-    - 死链修复：README 与 `docs/security-architecture.md` 都链到 `docs/terms-acceptance-frontend-guide.md`，而该文件按内容判定属对接方指南、master 上不存在（`0be68a1` 曾刻意移除）⇒ 生产分支两个死链。已删两处引用，指南保留在 develop
-- [2026-11-08] - 计划文件完成总结与纠偏（纯文档，不 bump 版本）
-    - 补：顶部加「怎么读」与能力索引（11 个能力面 → 节 → 状态 → 最近变更）；思维导图补「账号安全」与 P0.1；统计与排行新增 S6（v0.58–v0.79 演进：7 维 × 6 周期 = 41 组合 / 35 带 TTL、词表 v2 842/489/76、排行 `ZCOUNT` 语义）；文末补「prod 日志脱敏（v0.93.1）」与「账号注销（v0.77.0）」两条交付记录
-    - 纠偏（以代码为准）：锁定 / OAuth / API Key 三处的枚举别名与 HTTP 码（`AUTH_004/013/015/016/017/018`；`AUTH_012` 是 403）、OAuth 账号端点 `/auth/oauth/accounts`、导出契约（单 JSON + `ctt-export-<yyyy-MM-dd>.json` + `exportVersion 1.0` + `serverExport` 分块）、JUnit 5 → 6、H 章「需创建」→ 已交付、章节标题状态标记、中英混排条目
-    - 校验：表格列数一致、代码围栏配平、无重复 H2、无 TODO/占位、两个子计划链接可达；未改代码与版本号
-- [2026-11-08] - P0.1 prod 日志脱敏生效（v0.93.1，已提交 `7749ac7`；版本 `709b098`）
-    - 根因（两处，评审核实）：① prod 用 `JsonEncoder`，而 `MaskingMessageConverter` 只挂在 console 的 `%maskedMsg` 上 ⇒ 生产 JSON 绕过 pattern 级脱敏；② JSON 把 `arguments` 与 `kvpList` 当**独立字段**输出——`RequestLoggingFilter` 用 `addKeyValue("query_string", …)` 记整条查询串，`/verify-email?token=…` 的凭据在正常流程上就进了日志
-    - 交付：`MaskingMessageConverter.mask()` 抽成静态共享（用 `(?!\{\})` 前置断言保住模板里的 `{}`，而不是把 `{` 排除出值字符类——那会让 `cookie={sessionId=…}` 完全不再匹配）；新增 `MaskingJsonEncoder`——掩码 formatted 文本并将其作为 `message` 输出、掩码 `kvpList` 字符串值、一旦文本命中就丢弃 `arguments`，未命中则原样交给 `JsonEncoder`；`logback-spring.xml` 的 prod encoder 切换
-    - 验证与文档：`MaskingJsonEncoderTest` 4 例（含 kvp/query_string 与占位符两例）+ `MaskingMessageConverterTest` 11 例全绿；`clean build` 通过；prod profile 实跑——请求 `/api/v1/auth/verify-email?token=leakcheck123` 后访问日志是 `"query_string":"token=******"`、全行无 token 原文；`docs/security-architecture.md` 三层防线表改准（命中事件的 `arguments` 会被省略、MDC 与 throwable 未覆盖），`systemPatterns` 补 `arguments`/`kvpList` 两条独立通道
 - [2026-11-06] - 同步容量研究与修复（v0.92.0 → v0.92.1；实测表见 `domains/sync-protocol/references.md`，研究全文 `.omp/research/2026-11-05/`）
     - 插件 0.22.0：每轮 pull 用本机游标作 `replayFromChangeId`、每页应用后持久化游标；老服务端 400 时回退为普通请求并按小时重探；所有请求发 `Accept-Encoding: gzip` 并自行解压
     - 服务端修真实缺陷：`nextCursor` 曾被抬到 watermark，会让落后超过一页的客户端跳过未收到的变更；改为「实际下发页尾」，单调性交给 upsert 的 `GREATEST`

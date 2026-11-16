@@ -67,6 +67,44 @@ defaults `MANAGEMENT_ADDRESS` to `0.0.0.0` and publishes the port on host loopba
 deployment runs host-networked with the loopback default. Its `depends_on` entries name the
 development companions, so a production start uses `docker compose up -d --no-deps app`.
 
+## Client addresses behind the edge
+
+Two hops sit in front of the application in the deployed topology: nginx on the
+access host terminates TLS, and the Caddy edge accepts the tunnel connection. Both
+may append `X-Forwarded-For` and both state `X-Forwarded-Proto: https`, but the
+application only reads them from peers it is told to trust.
+
+```text
+client → nginx (access host, 443) → frps → frpc → Caddy edge (127.0.0.1:18080) → app (127.0.0.1:8080)
+```
+
+`ctt.security.trusted-proxy-addresses` (`TRUSTED_PROXY_ADDRESSES`) must list the
+address the application sees as its peer — the edge hop, normally `127.0.0.1`.
+With it set, `IpUtils.getRealIp` walks `X-Forwarded-For` right to left and skips
+those peers, so the entry our own hop appended becomes the client address; it
+also accepts `X-Forwarded-Proto: https` as proof of a secure request, which is
+what makes session cookies `Secure` behind a termination point.
+
+With it empty — the default — both headers are ignored. The consequences are
+quiet rather than loud:
+
+- every request looks like `127.0.0.1`, so the per-IP rate limit applies to the
+  whole internet as one client, and `Http429RatioHigh` fires for everyone at once;
+- audit rows and the `clientIp` log field record the tunnel address instead of
+  the caller, which removes the address from incident response;
+- `isSecureRequest` stays false, so anything keyed on it behaves as if the
+  request arrived over plain HTTP.
+
+The variable is not read from `.env` in the container path: set it in the compose
+overlay or the deploy job that starts the application, next to `MANAGEMENT_ADDRESS`.
+`docker-compose.local.yaml` already sets it to `127.0.0.1` because its edge shares
+the host network with the application.
+
+Verification is in `docs/ops-runbook.md` under "Edge headers and limits": send one
+request through the edge and read `clientIp` in the application log, then repeat
+after any change to the edge, the tunnel or the firewall.
+
+
 ## Guard rules
 
 | Check | Rejected when |
