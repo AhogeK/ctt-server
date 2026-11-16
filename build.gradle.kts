@@ -1,4 +1,5 @@
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
+import java.time.Duration
 
 plugins {
     java
@@ -85,6 +86,10 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // A hung test must fail the build instead of holding the runner until its six-hour limit.
+    timeout = Duration.ofMinutes(20)
+    // Testcontainers startup is class-scoped, so a single test method should never need this long.
+    systemProperty("junit.jupiter.execution.timeout.default", "5 m")
 }
 
 // Code formatting with Spotless
@@ -121,6 +126,7 @@ tasks.jacocoTestReport {
 }
 
 tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.test)
     violationRules {
         rule {
             element = "BUNDLE"
@@ -136,6 +142,11 @@ tasks.jacocoTestCoverageVerification {
             }
         }
     }
+}
+
+// The threshold was defined but never attached, so registration alone enforced nothing.
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
 fun String.isNonStable(): Boolean {
