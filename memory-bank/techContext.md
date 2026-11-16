@@ -17,7 +17,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表，核对基线：2026-11-15 / v0.110.0（P3.2 修订：镜像 tag 语义按注册表实测校正（`latest` 只跟发布、`sha-` 会被覆盖、镜像 tag 无 `v`），七处 GitHub Action 升到 Node 24 运行时版本（cosign-installer 是 composite action，保持 v3），**零新增 Gradle 依赖**——action 与 cosign 都跑在 workflow 与部署机上；P3.2 首次发布与部署机验证：证明改为从 build metadata 取出后发布为 cosign attestation，发布构建用 `provenance: mode=min`，**零新增 Gradle 依赖**——cosign v2.6.0 与 buildx 只跑在 workflow 与部署机；P3.1 加 CI 流水线与脚本，**零新增依赖**——gitleaks v8.30.1、Trivy v0.76.2、sops v3.13.3 及 buildx/imagetools 都跑在流水线的容器或 runner 上，不进 Gradle；P2.3 只改 Alertmanager 路由/抑制与原生 `telegram_configs`、`rules/alerts.yml` 的 severity 并新增一条投递告警、一个抓取 job，零新增依赖——先前自写的 Python relay 在确认上游原生能力后已删除；P2.2 加 Grafana 面板 JSON 与 provisioning 目录挂载；P2.1 加告警规则与一个 gauge/查询；P1.5 加日志用户维度；P1.4 加观测栈编排与渲染脚本；P1.3 引入 `spring-boot-micrometer-tracing-opentelemetry`、`micrometer-tracing-bridge-otel`、`opentelemetry-exporter-otlp` 与测试用 `micrometer-tracing-test`，全部由 Boot BOM 管版本；P1.2 …
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：**2026-11-16 / v0.111.0**。P3.3 零新增依赖（nginx、Caddy 都是既有镜像）；P3.2 修订后镜像 tag 语义为 `X.Y.Z`（来自 `vX.Y.Z`）与 `latest`（只跟发布），分支构建不再移动 `latest`。
 
 ## 架构
 

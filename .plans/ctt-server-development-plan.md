@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2 已交付，P3.3–P3.8 未开工；P4–P7 未开工 | v0.110.0 镜像 tag 语义与 action 运行时 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1、P3.2、P3.3 已交付；P3.4–P3.8 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.111.0 边缘两跳头契约 |
 
 ## 🗺️ 计划总览
 
@@ -75,12 +75,12 @@ left side
 *** 账号注销（硬删除 + 级联清理，v0.77.0）
 *** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
 *** 通行密钥（v0.91.0：独立登录 + 作为第二步）
-** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.2 已交付
+** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.3 已交付，P3.4–P3.8 未开工
 *** 基础设施与收口 ✅（P0.0–P0.17：本地全栈、隧道、端口、SSH 与日志、prod 脱敏、密钥通道、审计最小化与保留）
 *** 指标、追踪与日志维度 ✅（P1.1–P1.5）
 *** 告警、面板与值班 ✅（P2.1–P2.3）
 *** CI 与签名发布 ✅（P3.1 九道门、P3.2 keyless 签 digest）
-*** 发布链余项 ⬜（P3.3 边缘头 / P3.4 蓝绿 / P3.5 迁移兼容 / P3.6 staging / P3.7 质量门接线 / P3.8 审计实测）
+*** 发布链余项 ⬜（P3.4 蓝绿 / P3.5 迁移兼容 / P3.6 staging / P3.7 质量门接线 / P3.8 审计实测）
 *** 备份、恢复演练与密钥轮换 ⬜（P4.1–P4.5）
 *** 压测与故障演练 ⬜（P5.1–P5.3）
 *** Runbook 与对外接入 ⬜（P6–P7）
@@ -2427,8 +2427,8 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | P3.1 ✅ | CI：格式 + 全量测试 + 覆盖率 + Trivy（镜像与文件系统）+ gitleaks + SBOM + 构建来源证明；**CI 节点持有 age 身份**，流水线内 `render.sh` 成功；Jenkins 去明文 `.env` | 首版三处会必红：sops 落仓库根、缺 setup-buildx、证明未与镜像配对；trivy 必须扫解包目录而不是 tar 本身；gitleaks 47 条历史命中用指纹允许，新增命中仍然失败。 | 中 |
 | P3.2 ✅ | 镜像发布：GHCR 按 digest 部署、cosign keyless 签名与验证 | 三次发布失败逐层定位：镜像引用大小写、`--yes` 误用在验证、buildx 内联证明注册表不暴露给 cosign → 改 `cosign attest` 重发证明。`latest` 语义校正为只跟 tag，分支构建不再移动它；0.109.0 与 0.110.0 均在部署机 `verify-image.sh` 通过并按 digest 拉取。 | 中 |
-| P3.3 | 边缘转发：nginx 设 `X-Forwarded-For` **与 `X-Forwarded-Proto: https`**；edge 侧显式 `header_up X-Forwarded-Proto https`（不写会被改写成 http）；请求体与超时限制、`limit_req`、`return 503` | 外部只走 443；`getRealIp` 与 `isSecureRequest` 都返回真实值 | 高 |
-| P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察 + 一键回滚；压测下验证零 5xx；**首次发布与回滚走 Jenkins 的 `Verify image` → `--no-build` 路径**（`IMAGE_REF` 传 digest） | 压测中经 Jenkins 发布一轮并回滚一次，5xx = 0 | 高 |
+| P3.3 ✅ | 边缘转发的两跳配置落地。**接入机 nginx**：新建 `deploy/edge/nginx/ctt-server.conf`（仓库首个 nginx 配置）——80 端口只放 ACME 挑战并 301；443 设 `X-Forwarded-For $proxy_add_x_forwarded_for`、`X-Forwarded-Proto https`、`X-Real-IP`、`client_max_body_size 4194304`（4 MiB，与 Caddy 同值）、`limit_req 50r/s burst=100`（超限 429）、5s/30s/30s 超时、`TLSv1.2/1.3`、`server_tokens off`、`error_page 502 504 = @maintenance` 收敛为 503。**Caddy edge**：全局 `servers { trusted_proxies static 127.0.0.1 }`、`header_up X-Forwarded-Proto https`、`request_body { max_size 4MiB }`、`transport http` 超时、`handle_errors 502 503 504`（不写状态匹配会把 413 改写成 503）。配套 `deploy/edge/README.md` 与 runbook「Edge headers and limits」 | 探针实测（共享 netns + 真实 `caddy:latest` + 回显后端）：修前 `xff=127.0.0.1`（真实客户端全丢）、3 MB 请求体返回 503；修后 `xfp=https`、`xff=203.0.113.9, 127.0.0.1`，请求体边界实测 4194304 → 200 / 4200000 → 413，上游停 → 503。两侧限额原本是 `2m`(2,097,152 B) 与 `2MB`(2,000,000 B) 两个数、文档却称同步，且 1000 会话最坏字段约 1.7 MB 已逼近上限 ⇒ 统一为 4 MiB 并写明依据。`caddy validate` = Valid configuration；`nginx -t` = syntax ok（现代镜像仅 `listen ... http2` 弃用警告，文件头说明可换 `http2 on`）；`IpUtilsTest` 7 例覆盖 `getRealIp`/`isSecureRequest`（既有实现，本批未改）。`limit_req` 从 20r/s 提到 50r/s 并写出依据：单客户端限 10 r/s、同一 NAT 地址共享配额，约 5 个并发用户才应视为洪水 | 中 |
+| P3.4 | 蓝绿：`edge` 上游切换 + 5 分钟观察窗口 + 一键回滚；**首次发布与回滚走 Jenkins 的 `Verify image` → `--no-build` 路径**（`IMAGE_REF` 传 digest） | 一次正常流量下的发布与一次回滚：切换后 5 分钟内 `probe_success` 保持 1、应用 5xx = 0、p95 无尖峰；回滚到上一个 digest 后同样成立。**压测并发期间的同类验证属 P5.2**，本行只证明机制本身 | 高 |
 | P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
 | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
 | P3.7 | **质量门接线与供应链**：`jacocoTestCoverageVerification` 已定义（指令 80% / 分支 70%）却**没有挂到 `check`**，等于从未执行；`test` 只有 `useJUnitPlatform()`（无超时、无并行）；仓库无依赖校验元数据、无依赖锁定；依赖与基础镜像的自动升级未接（`renovate.json` 已在仓库，缺 App 安装）。把校验挂进 `check`、给测试加超时、生成 `gradle/verification-metadata.xml`、装上 Renovate App | 人为把覆盖率降到阈值以下时 `./gradlew check` 失败；离线加校验元数据后构建仍通过；Renovate 开出第一张升级 PR | 中 |
@@ -2465,7 +2465,7 @@ sequenceDiagram
 
 | # | 交付物（独立可验收） | 判定 | 复杂度 |
 | --- | --- | --- | --- |
-| P7.1 | 阿里云 DNS 加 `ctt` A 记录指向接入机公网地址（值见私密运维记录）；接入机 `certbot --nginx -d ctt.ahogek.com`；server block 上线 | `dig` 指向正确；`curl -I https://ctt.ahogek.com` 正常 | 中 |
+| P7.1 | 阿里云 DNS 加 `ctt` A 记录指向接入机公网地址（值见私密运维记录）；接入机 `certbot --nginx -d ctt.ahogek.com`；装上仓库里的 `deploy/edge/nginx/ctt-server.conf`（80 只放 ACME 并 301、443 转发到 frps 的 18080、两枚转发头、4 MiB 体限、两侧限额同值）并 reload | `dig` 指向正确；`curl -I https://ctt.ahogek.com` 走通；`http://` 返回 301；响应带应用下发的 HSTS；接入机 `ctt-access.log` 出现真实客户端地址；应用日志 `clientIp` 不再是隧道地址而是该客户端；`18080` 从公网不可达 | 中 |
 | P7.2 | GitHub OAuth：dev App（loopback 回调，优先 `http://127.0.0.1:8080/...`）+ prod App（`https://ctt.ahogek.com/ctt-server/...`）；若改代码显式传 `redirect_uri`，可合并为单 App | 生产登录成功；本地登录不回归 | 中 |
 | P7.3 | 前端与 Cookie：`FRONTEND_BASE_URL`、CORS 只放行真实 origin、Cookie `Secure` / `SameSite` 核对 | 生产跨域请求通过；Cookie 带 `Secure`；响应头不含占位 origin | 中 |
 | P7.4 | **hCaptcha 切正式**：生产域名新建 site key，填 `HCAPTCHA_SITE_KEY` / `HCAPTCHA_SECRET_KEY`（校验地址 `https://api.hcaptcha.com/siteverify`）。**注意当前实现是 fail-open**：`site-key` 为空时 `CaptchaService` 只记一条 warn 就跳过校验，且 prod 配置没有覆盖它 ⇒ 生产可能悄悄没有验证码。本条要求补一条启动校验（缺 key 直接失败，或至少让告警能发现），再谈“已接入” | 无 token 的注册/重置请求返回 `SECURITY_006`；带真实 token 通过 | 中 |
@@ -2543,7 +2543,7 @@ sequenceDiagram
 | 场景 | 归属 |
 | --- | --- |
 | 隧道断链时全站不可用，且 nginx 默认回 502 | P0.8–P0.10：systemd 自启 + 503 维护页 + 隧道中断告警 |
-| 经 nginx→frps→frpc 之后客户端 IP 变成隧道地址 | P3.3：建立信任链，演练一次真实 IP |
+| 经 nginx→frps→frpc 之后客户端 IP 变成隧道地址 | P3.3 已建立信任链（配置 + 探针钉住两跳头契约）；公网链路的实测证据随 P7.1 的 vhost 上线取得（`dig`、301、HSTS、access log 真实地址、应用 `clientIp` 非隧道地址） |
 | 数据库短暂抖动时 readiness 摘掉实例，反而放大故障 | P0.7：数据库检查加超时，写明「连续 N 次失败才判定不健康」 |
 | 指标标签塞 user id / device id 导致基数爆炸 | P1.2：每个 meter 的标签集合在测试里断言上限 |
 | prod JSON 日志绕过脱敏 | P0.1：先修，再谈指标 |
