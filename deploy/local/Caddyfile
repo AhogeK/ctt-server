@@ -1,20 +1,78 @@
-# Local edge in front of the two colours.
-# Plain HTTP on purpose: TLS termination is the access host's job (P7.1).
+# Edge in front of the two colours.
+#
+# Plain HTTP on purpose: TLS terminates at the access host's nginx (P3.3/P7.1),
+# so this hop arrives over the frp tunnel as HTTP. Everything below is the
+# consequence of that one fact.
 {
 	auto_https off
 	admin off
+
+	# How this edge decides who the client is.
+	#
+	# The tunnel delivers every request from loopback, so Caddy's default — give
+	# the peer credit and drop whatever arrived in X-Forwarded-For — would hand
+	# the application 127.0.0.1 for every visitor. Trusting the tunnel peer makes
+	# Caddy append the peer to the chain instead, which is what the application's
+	# right-to-left scan expects.
+	#
+	# The address below is the peer this file assumes: host networking, with the
+	# tunnel's local end on loopback. Moving the edge onto a bridge network makes
+	# the bridge gateway the trusted peer, and this line has to be updated with
+	# it — otherwise every visitor collapses to that one address.
+	#
+	# The second half of this block bounds the edge itself: a stalled client or
+	# a slow body must not hold a connection open here.
+	servers {
+		trusted_proxies static 127.0.0.1
+		timeouts {
+			read_body 30s
+			read_header 10s
+			write 60s
+			idle 120s
+		}
+	}
 }
 
 :18080 {
 	bind 127.0.0.1
 	encode zstd gzip
 
-	handle {
-		reverse_proxy {$UPSTREAM:127.0.0.1:18081}
+	# 4 MiB, in the same bytes nginx enforces (client_max_body_size in
+	# deploy/edge/nginx/ctt-server.conf). The largest legitimate body is a sync
+	# push of 1000 sessions whose free-text fields are at their documented
+	# limits, about 1.7 MiB before the JSON envelope — so a 2 MB ceiling would
+	# reject a batch the API accepts. Both hops must state the same number
+	# because either one answering 413 first makes the other look innocent.
+	request_body {
+		max_size 4MiB
 	}
 
-	# Local maintenance page shape, mirrors the production 503 intent.
-	handle_errors {
-		respond "upstream unavailable: {$UPSTREAM}" 503
+	handle {
+		reverse_proxy {$UPSTREAM:127.0.0.1:18081} {
+			# TLS terminated at the access host, so this request is plain HTTP
+			# even though the caller used HTTPS. Caddy would otherwise set the
+			# header to its own scheme (http) and the application would treat an
+			# HTTPS request as insecure — non-Secure cookies, http-only links.
+			# This assumes nothing but the edge can reach :18080; to exercise the
+			# insecure branch on purpose, call :18081 directly.
+			header_up X-Forwarded-Proto https
+
+			# Keep the client address chain honest: Caddy appends the immediate
+			# peer to X-Forwarded-For, and the application reads the chain
+			# right-to-left while skipping the proxies it trusts.
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+			}
+		}
+	}
+
+	# Only upstream failures become the maintenance page. A blanket handler
+	# would also rewrite the 413 from the body limit above, hiding a rejection
+	# behind a 503 that says the opposite (the service is up, the request was too
+	# large). The body is fixed text: whatever sits upstream is our business, not
+	# the caller's.
+	handle_errors 502 503 504 {
+		respond "service temporarily unavailable" 503
 	}
 }
