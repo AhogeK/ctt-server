@@ -27,6 +27,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.118.2` | 2026-11-17 | fix(ci): retry a lost `gh run list` reply and give the waiter its own red verdict instead of a silent exit |
 | `0.118.1` | 2026-11-17 | fix(build): resolve the plugin classpath from the mirror too, pin the two version ranges, gate pushes on a cold resolve, and wait for every run of a commit |
 | `0.118.0` | 2026-11-17 | feat(build): resolve artifacts from a mirror, split the dependency layer and gate pushes locally |
 | `0.117.2` | 2026-11-17 | fix(build): retry the image build through the same classifier as CI |

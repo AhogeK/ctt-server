@@ -1,4 +1,9 @@
 # Active Context
+- [2026-11-17] - 等待器对 `gh` 自身的失败有韧性（v0.118.2）
+   - 背景：一次 `wait-for-head.sh` 在 5316 s 后死于 `failed to get runs: … EOF`——`gh` 的传输失败被 `set -e` 直接当成结论，既没有重试也没有判定行，读起来像「还在跑」。
+   - 变更：`.github/scripts/wait-for-head.sh` 把列表调用拆成 `list_runs`（原始调用）与 `runs_for_sha`（重试 3 次、每次间隔 5 s、用 `jq -e 'type == "array"'` 校验响应），持久失败打印 `VERDICT: RED (cannot list runs)` 并 `exit 3`；`docs/ci.md` 同批说明。
+   - 验证：假 `gh`（`echo EOF; exit 1`）走 PATH 前置 → 三次重试后 `VERDICT: RED (cannot list runs)`、`exit=3`；真实 `develop` 走通 → `runs for 4bb2968 … 44018806715 CI [push] completed/success` + `VERDICT: green`。
+   - 教训：**自证机制自己也会坏**——它的失败必须有自己的判定行，不能把工具错误当成沉默的进行中。
 - [2026-11-17] - 插件类路径也走镜像，等待器改等全部 run（v0.118.1）
    - 背景：0.118.0 合并到 master 后 `Publish` 红了而 `CI` 绿——`master` `6419ece` 的 `Publish` `44003677904` failed。日志显示 `Could not resolve all artifacts for configuration 'classpath'` → `plugins.gradle.org/m2/…/spring-boot-loader-tools-4.1.2.pom` → 重定向到 `repo.maven.apache.org` → `429 Too Many Requests`。`dependencyResolutionManagement` 的镜像只覆盖项目依赖，**插件/构建脚本自己的类路径走 `pluginManagement`**，而 Plugin Portal 只是把请求转给被限流的 Central。`CI` 那次绿是因为依赖层缓存命中、根本没下载。
    - 变更：`settings.gradle.kts` 增加 `pluginManagement { repositories { maven(artifactMirrorUrl); gradlePluginPortal() } }`（镜像先行，门户兜底镜像没有的插件）；`gradle/verification-metadata.xml` 为四个 marker POM 各补一条来自 Central 的 sha256（门户会重写 marker，两边字节不同，Gradle 支持同一 artifact 多个可接受校验和）；`.github/scripts/wait-for-head.sh` 改为等该提交上**所有** run（含后出现的 `workflow_run`），全部收敛且静止 `settle` 秒才给判定，任一失败即 `VERDICT: RED`；`docs/ci.md` 两处更正（插件也走镜像的原因、等全部 run 的原因）；`AGENTS.md` 增「一个提交会有多个 run，等的是全部」。
@@ -221,9 +226,6 @@
     - 新增发现型登录 `POST /auth/passkey/options|assert`（不进入 TOTP）与 `/users/me/passkey/*` 注册/列表/重命名/删除；注册与删除要求近期认证，API key 一律拒绝
     - 依赖 Yubico `webauthn-server-core` 2.10.1；Redis 操作绑定挑战（5 分钟、`GETDEL`）、RP ID/origin、UV/UP、计数器 0 语义、备份标志展示、无 attestation、邮件通知（`REQUIRES_NEW`）；密码/TOTP/恢复码/OAuth 全保留；删除最后凭据仅在有密码或 OAuth 时允许（`AUTH_018`）；新增 `AUTH_032`–`AUTH_035`
     - 测试/文档: 密码 2FA + passkey 成功、错误签名后 TOTP 仍可用、无 passkey 账号 `passkeyCount=0`、跨账号凭据拒绝；全量 **1645 tests / 0 failures / 1 skipped**，`build` 与 `jacocoTestCoverageVerification` 通过；README、`docs/api-reference.md` / `api-governance.md` / `security-architecture.md` / `developer-handbook.md`、`auth-lifecycle` 与 `api-contract` 领域、前端报告 `.omp/reports/2026-11-03/passkey-second-factor-frontend-report.md` 已同步；RestClient 429 自动重试导致假卡死的排障见 `JdkClientHttpRequestFactory` 修复
-- [2026-10-15 → 10-30] - 已归档条目（结论摘要）
-    - v0.79.0 hourly-days：分母改为「有编码的天数」，逐日与平均由同一累加器派生，31 天上限只在边缘；v0.80–0.83.1 个人设置 R1–R3：改名 / 会话身份与列表吊销 / 可被插件导入的导出；v0.84.0 季度与半年榜；v0.85.0/0.85.1 窗口化 STREAK 启用与回填失效（标记加矩阵指纹）；v0.86.0 排行排除 0 分成员；v0.86.1 设备心跳刷新；v0.87.x IDE 归属与依赖升级；v0.88.0 会话批量撤销；v0.89.0/0.89.1 TOTP 2FA 与单次 Base32 密钥
-    - 结论与教训：`.omp` 按类别+日期归档、对接报告每轮新建；「数据库连不上」= macOS 本地网络权限（判断见 AGENTS R8）；枚举清单式断言改为从枚举推导；完整过程、验收与提交记录见 `archive/activeContext-2026-10.md` 同月条目
 
 ---
 
