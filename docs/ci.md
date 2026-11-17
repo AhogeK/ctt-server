@@ -328,7 +328,10 @@ commit reports a verdict — on `master` that means `CI` *and* `Publish`, not th
 first one to finish. Resolving by SHA matters (for the first seconds after a
 push, `gh run list --limit 1` still answers with the previous run), and waiting
 for all of them matters more: a green `CI` beside a red `Publish` is not a
-delivery.
+delivery. Reading the list itself is retried: `gh` has transport failures of
+its own (one wait died on a bare `EOF` after 88 minutes), so a lost reply is
+retried three times instead of ending the wait, and a list that cannot be read
+at all prints `VERDICT: RED (cannot list runs)` rather than exiting quietly.
 
 ## Reproducing a gate locally
 
