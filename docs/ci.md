@@ -233,6 +233,70 @@ agent workspace: develop only, never on `master`, never shipped. Gating a merge
 on the lockfile of a tool nobody deploys would be noise, and a silent skip is
 worse than an explicit one, so the exclusion is spelled out in the workflow.
 
+## Where artifacts come from
+
+Maven Central throttles shared addresses with `429 Too Many Requests`, and a
+GitHub-hosted runner is one of the most shared addresses there is. Resolution
+therefore goes through a byte-identical mirror declared first in
+`settings.gradle.kts` — `artifactMirrorUrl` in `gradle.properties`, Google's
+unauthenticated copy of Central — with Central kept behind it for artifacts
+newer than the mirror's replication. `FAIL_ON_PROJECT_REPOS` keeps a project
+from quietly adding a source of its own.
+
+The mirror does not have to be trusted: `gradle/verification-metadata.xml` pins
+the sha256 of every artifact, so a mirror serving different bytes fails the
+build. That is also why plugin resolution is *not* mirrored — the Plugin Portal
+rewrites a marker's POM, so the same coordinate has different bytes there than
+on Central, and pointing the plugin repositories at the mirror would either
+break verification or widen it to two acceptable copies of one artifact.
+
+Two layers keep the download from recurring:
+
+- `downloadDependencies` resolves every configuration without compiling, and the
+  image build runs it in a layer that only depends on the build scripts and the
+  version catalogue. An unchanged dependency set is a cache hit, and the image
+  build never reaches a repository.
+- The workflow exports the build cache with `mode=max`. `mode=min` exports only
+  layers of the final image, and the builder stage is not one of them — with
+  `min`, every run downloaded the whole graph again.
+
+The dependency layer is a plain layer, not a `--mount=type=cache`: Docker does
+not export cache mounts to `--cache-to`, and a fresh runner starts them empty, so
+a mount over `/root/.gradle` would download the graph again on every run and
+shadow the copy the layer already holds. The cost of that choice is cache size —
+a dependency change adds the Gradle home (~410 MB) to the image cache, where it
+stays until evicted.
+
+Retrying is the last line, not the first: `.github/scripts/gradle-retry.sh`
+repeats a command once when the failure names a registry or container runtime,
+and never when it names a test, a coverage gap or a formatting violation.
+
+Container images fail the same way: Docker Hub counts anonymous pulls per
+source address, and one runner hosts many builds. `postgres:latest` and
+`redis:latest` are therefore pulled through Google's hub mirror —
+`TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX` in the workflow covers every image
+Testcontainers pulls, its Ryuk sidecar included — and the builder carries the
+same mirror as its first choice for base images, falling back to Docker Hub for
+anything the mirror does not carry.
+
+## Before the change leaves the machine
+
+`scripts/preflight.sh` runs what CI runs, scoped to what changed: formatting
+always, the full suite when code changed, the image when a build input changed,
+and — with `--master` — a refusal to carry AI-only paths into a branch bound for
+master. It prints one verdict, `PREFLIGHT: green` or `PREFLIGHT: RED`, and the
+repository installs it as the push gate:
+
+```bash
+git config core.hooksPath .githooks   # pre-commit: formatting, pre-push: preflight
+```
+
+A green pipeline is a claim, and the person who pushed owns it: after a push,
+`.github/scripts/wait-for-head.sh` blocks until the run *for the pushed commit*
+reports a verdict. Resolving by SHA matters — for the first seconds after a
+push, `gh run list --limit 1` still answers with the previous run, whose green
+says nothing about the new commit.
+
 ## Reproducing a gate locally
 
 The scanners run as containers, so the exact versions from the workflow are the
@@ -322,6 +386,13 @@ Testcontainers reached Docker before it was ready. Both are retried once by
 `.github/scripts/gradle-retry.sh`, which matches only those external signatures
 — a failing test, a coverage gap or a formatting violation is not retried,
 because a rerun would report the same failure and a green tick would hide it.
+
+The image build runs the same wrapper, not its own copy: `Dockerfile` copies
+`.github/scripts/gradle-retry.sh` and calls it for `bootJar`, because the build
+stage downloads the same dependencies and a `429` there turned a merge red on
+the `push` run while the pull request had passed. `.dockerignore` excludes
+`.github/*` and re-includes exactly that one file, so the classifier stays a
+single source; a change to the signatures applies to both paths.
 
 Re-running a job is therefore the right response to a 429 and the wrong
 response to a red test. Before concluding that a merge is fine, check the run
