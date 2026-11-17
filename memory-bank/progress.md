@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.118.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.118.1`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流（含 180 天保留策略，ADR-0002）、liveness/readiness health 探针、Prometheus 指标出口（回环管理端口）、六个业务指标（同步、限流、邮件、排行榜、审计）、W3C 追踪与 OTLP 导出、部署机观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy + 四类 exporter，30 天保留）、日志用户维度（`userId` 进 MDC，请求结束清理）、告警规则（12 条：p95 300ms/5xx 0.5%/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计掉行/公网单点/隧道中断/证书 14 天/Telegram 投递失败）、Grafana 面板 as code（请求/后台/边缘与宿主机三份，随栈自动出现，每块画告警阈值的契约线）、值班路径（规则按 blast radius 定级，critical/warning 经 Alertmanager 原生 Telegram 集成投递到操作者的私聊与工作群，文件凭证、零新增依赖、已在生产通道实测送达，info 只看面板；两条抑制；投递失败本身有告警；runbook 首章 `Alerts and on-call`）、CI 质量门与供应链证据（GitHub Actions 三 job 九门：格式、全量测试与覆盖率、SOPS 渲染与 0440 断言、gitleaks 全历史按指纹允许、Trivy 文件系统、单次构建的 OCI 镜像 + SLSA v1 来源证明 + 镜像扫描 + CycloneDX SBOM；Jenkins 改为文件凭证 + `render.sh`，不再落明文 `.env`） |
 | 镜像发布与签名 | `publish.yml` 在 master 与 `v*` 上单次构建推 GHCR，用 keyless OIDC 证书签 **digest**，并把 BuildKit 的证明从 build metadata 取出、用 `cosign attest` 重新绑到被签的 digest（注册表不把 buildx 的内联证明暴露给 cosign）；`deploy/verify-image.sh` 钉 workflow 身份与 issuer、拒绝 tag 引用；**首次发布与部署机验证均已通过**；Jenkins 以 `--no-build` 按 digest 部署，部署前先登录注册表（缺凭证时提示包需可公开拉取）；镜像 tag 语义按注册表实测校正——`latest` 只跟发布走（分支构建不动它）、`sha-<short>` 会被后续构建覆盖、镜像 tag 名是 `X.Y.Z`（无 `v`），部署与回滚一律用 digest |
@@ -27,6 +27,7 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.118.1` | 2026-11-17 | fix(build): resolve the plugin classpath from the mirror too, pin the two version ranges, gate pushes on a cold resolve, and wait for every run of a commit |
 | `0.118.0` | 2026-11-17 | feat(build): resolve artifacts from a mirror, split the dependency layer and gate pushes locally |
 | `0.117.2` | 2026-11-17 | fix(build): retry the image build through the same classifier as CI |
 | `0.117.1` | 2026-11-17 | fix(build): record the checksums a cold cache verifies |

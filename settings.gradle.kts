@@ -15,13 +15,22 @@ import org.gradle.api.initialization.resolve.RepositoriesMode
 // after it for the one case the mirror does not cover — an artifact newer than
 // the mirror's replication.
 //
-// Plugin resolution deliberately keeps Gradle's default (the Plugin Portal):
-// the portal rewrites a plugin marker's POM, so the same coordinate has
-// different bytes there than on Central (`org.springframework.boot.gradle.plugin`
-// is 0f7de85e… from the portal, 221abccf… from Central) and pointing it at the
-// mirror would either break verification or widen it to two acceptable copies
-// of one artifact. Four markers are not what rate-limits; the dependency graph
-// is.
+// Plugin and buildscript resolution uses the same mirror, first. The Plugin
+// Portal is not a source of bytes for most plugins: it redirects to Maven
+// Central (`plugins.gradle.org/m2/…` → `repo.maven.apache.org`), which is the
+// very host that rate-limits. Leaving this block out is what killed a Publish
+// run on 429 while the CI run, whose cache was warm, stayed green.
+//
+// The portal does rewrite a plugin marker's POM — `org.springframework.boot.gradle.plugin`
+// is 0f7de85e… from the portal and 221abccf… from Central — so
+// gradle/verification-metadata.xml lists both hashes for the four markers: a
+// copy from either source verifies, and a third one cannot.
+pluginManagement {
+    repositories {
+        maven(url = providers.gradleProperty("artifactMirrorUrl").get())
+        gradlePluginPortal()
+    }
+}
 dependencyResolutionManagement {
     repositoriesMode = RepositoriesMode.FAIL_ON_PROJECT_REPOS
     repositories {

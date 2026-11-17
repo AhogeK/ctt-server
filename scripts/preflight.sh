@@ -2,18 +2,21 @@
 #
 # Runs locally what CI runs, before the change leaves the machine.
 #
-# Two red pull requests were avoidable: a formatting violation and an image
-# build whose context lacked a file. Both fail in seconds on the machine that
-# wrote them, and both cost a full pipeline, a rerun and a round of reading
-# logs. CI is the backstop for the change, not the first reader of it.
+# Red pull requests that were avoidable: a formatting violation, an image build
+# whose context lacked a file, a checksum set that only a warm Gradle home hid,
+# and a dependency range that needs every repository to answer. All four fail on
+# the machine that wrote them; CI is the backstop for the change, not the first
+# reader of it.
 #
-# Scope follows the change, so a documentation commit does not wait four
-# minutes:
-#   always          spotlessCheck — cheapest gate, most common red
-#   code changed    ./gradlew build — tests, coverage thresholds, check
-#   build inputs    docker build — Dockerfile, context, Gradle wiring
-#   --tree          run every step regardless of what the range touches
-#   --master        also: the range must carry no AI-only paths
+# Scope follows the change, so a documentation commit does not wait minutes:
+#   always           spotlessCheck — cheapest gate, most common red
+#   code changed     ./gradlew build — tests, coverage thresholds, check
+#   resolution       ./gradlew bootJar with an empty GRADLE_USER_HOME — proves
+#                    the change resolves from nothing, which is what a runner
+#                    does; a warm home hides missing checksums and metadata
+#   build inputs     docker build — Dockerfile, context, Gradle wiring
+#   --tree           run every step regardless of what the range touches
+#   --master         also: the range must carry no AI-only paths
 #
 # Usage: scripts/preflight.sh [--tree] [--master]
 # Prints PREFLIGHT: green | PREFLIGHT: RED; exits non-zero on red.
@@ -60,13 +63,18 @@ matches() {
 }
 
 code_changed=0
+resolve_changed=0
 build_changed=0
 if [ "$all_tree" -eq 1 ]; then
   code_changed=1
+  resolve_changed=1
   build_changed=1
 else
   # Anything the compiler, the formatter or the test suite reads.
   matches '^(src/|gradle/|gradle\.properties$|build\.gradle\.kts$|settings\.gradle\.kts$)' && code_changed=1
+  # Anything that decides which artifacts are fetched, from where, and whether
+  # their bytes are the ones we signed off on.
+  matches '^(gradle/|gradle\.properties$|build\.gradle\.kts$|settings\.gradle\.kts$)' && resolve_changed=1
   # Anything the image build copies or executes. `gradle-retry.sh` is in the
   # build stage, so a change to it changes the image.
   matches '^(src/|gradle/|gradle\.properties$|build\.gradle\.kts$|settings\.gradle\.kts$|Dockerfile$|\.dockerignore$|\.github/scripts/gradle-retry\.sh$)' &&
@@ -107,6 +115,24 @@ if [ "$code_changed" -eq 1 ]; then
 else
   echo ""
   echo "== build and test: skipped, no code in the range"
+fi
+
+cold_resolve() {
+  local home
+  home=$(mktemp -d "${TMPDIR:-/tmp}/preflight-gradle.XXXXXX")
+  # The point of the empty home is to resolve like a fresh runner; keeping it
+  # afterwards would only leak a few hundred megabytes.
+  GRADLE_USER_HOME="$home" ./gradlew bootJar -x test --no-daemon -q
+  local status=$?
+  rm -rf "$home"
+  return $status
+}
+
+if [ "$resolve_changed" -eq 1 ]; then
+  run "cold resolve" cold_resolve
+else
+  echo ""
+  echo "== cold resolve: skipped, no resolution wiring in the range"
 fi
 
 if [ "$build_changed" -eq 1 ]; then

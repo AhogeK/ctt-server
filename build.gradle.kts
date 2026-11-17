@@ -54,6 +54,14 @@ dependencies {
     implementation(libs.otp.java)
     implementation(libs.commons.codec)
     implementation(libs.webauthn.server.core)
+    // `com.yubico:webauthn-server-parent` asks for closed ranges — cbor `[4.5.1,5)`, guava
+    // `[24.1.1,34)`. Gradle answers a range by listing versions in *every* repository, so one
+    // throttled repository (a 429 disables it) makes the highest version unknowable and fails the
+    // build even though another repository answered. Pinning the versions we ship keeps that
+    // listing off the resolve path. Guava's pin mirrors the Boot BOM constraint that already
+    // selects it: when the BOM moves, this literal must move with it, and the conflict is loud.
+    implementation("com.upokecenter:cbor") { version { strictly("4.5.6") } }
+    implementation("com.google.guava:guava") { version { strictly("33.8.0-jre") } }
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     // Metrics exit: the Prometheus registry is version-managed by the Boot BOM, so no literal here.
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
