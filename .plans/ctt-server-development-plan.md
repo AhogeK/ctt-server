@@ -2610,6 +2610,16 @@ sequenceDiagram
 | 判断 | 「兼容」与「锁」是两件事：门只答「旧版还能不能读这份 schema」，锁与耗时写在 runbook 的 expand/contract 表里，避免两类问题混成一张让人机械关掉的门 |
 | 后续动作 | `Migration compatibility` 需先在 PR 上跑绿一次，再写进 `master-protection` ruleset 并回读——GitHub 只接受已经成功跑过的检查；在此之前它在 PR 上报结论但不挡合并，`docs/ci.md` 与 `AGENTS.md` 的 job 清单都按此表述 |
 
+### 等待器按参数解析提交（发布链，2026-11-17，v0.119.1）
+
+| 项 | 内容 |
+|---|---|
+| 入口 | `.github/scripts/wait-for-head.sh [branch-or-commit] [settle] [deadline]` |
+| 机制 | 提交由参数解析：分支名 → 该分支的提交（优先 `origin/<branch>`）并按分支列举；提交 SHA → `--commit`（`gh run list --commit` 只认完整 sha）；两者都不是 → 立即报 `neither a branch nor a commit` 并退出 2 |
+| 验证 | HEAD 在 develop 时等 master：四条 run 全绿、3.66 s；完整 sha 入参绿；`not-a-branch-or-commit` 退出 2。改前同一调用等满 6 分钟后报 `VERDICT: RED (no run)` |
+| 教训 | 判定工具的参数契约要能被误用暴露：「查不到就报红」把「我传错了」伪装成流水线故障，两次假红各花约 6 分钟 |
+| 相关文档 | `docs/ci.md` 的「Before the change leaves the machine」末段 |
+
 ### 质量门接线与测试可终止性（发布链，2026-11-16，v0.117.0）
 
 > 来源：`jacocoTestCoverageVerification` 写了 80% / 70% 的阈值，却没有任何任务依赖它——**注册不等于强制**。CI 靠命令行点名让它跑，本地 `./gradlew check` 从不执行，于是「阈值」只在流水线里存在；`test` 也没有超时，一个挂住的用例会耗到 runner 上限才失败。

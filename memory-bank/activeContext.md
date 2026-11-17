@@ -1,4 +1,9 @@
 # Active Context
+- [2026-11-17] - 等待器按参数解析提交，不再空等六分钟后报假红（v0.119.1）
+    - 背景：交付 P3.5 时两次把 `.github/scripts/wait-for-head.sh` 的首参用错——一次传提交 SHA（被当成分支名）、一次传 `master` 而检出的分支是 `develop`。脚本从 `HEAD` 取提交、只用分支过滤列表，于是零命中、等满 6 分钟、打印 `VERDICT: RED (no run)`：run 一直是绿的，假红却像真结论。
+    - 变更：提交改由参数解析——分支名解析成该分支的提交（优先 `origin/<branch>`）并按分支列举；提交 SHA 按 `--commit` 列举（`gh run list --commit` 只认完整 sha）；两者都不是则立刻报 `neither a branch nor a commit` 并退出 2，不再空等。`docs/ci.md` 同批说明该契约。
+    - 验证：HEAD 在 develop 时 `wait-for-head.sh master 5 120` → `runs for 7bd2b0f on master:` 四条 run、`VERDICT: green`、3.66 s；传完整 SHA → 绿；传 `not-a-branch-or-commit` → 退出 2。
+    - 教训：判定工具的参数契约必须能被误用暴露出来。「查不到就报红」把「我传错了」伪装成「流水线坏了」，比没有门更费时间。
 - [2026-11-17] - P3.5 迁移兼容：静态门 + 双版本共存演练（v0.119.0）
     - 背景：蓝绿发布让同一份库被两个版本同时读，而 Flyway 只保证迁移按序应用，不保证**正在服务的那一版**还认得改完的表；破坏性迁移会在旧色排空期间让每个请求 500，那时迁移已提交、回滚只能切回一个读不动库的容器。用户给的边界（m21407）：expand/contract 写进 runbook、CI 禁止改已发布迁移、双版本共存演练，并要求「有自己的判断」「不要从简思维」。
     - 变更：`scripts/check-migrations.sh`（命名 `V<ts>__<name>.sql`、与 `origin/master` 同名逐字节比对、破坏性语句需 `-- contract:` 注记——先剥 `--` 注释再匹配，`ADD COLUMN … NOT NULL` 无 `DEFAULT` 也拦）；`scripts/migration-coexistence-drill.sh`（worktree 构建 `--old-ref` 的 jar 与当前树 jar，临时 postgres/redis/mailpit，旧版注册→置 ACTIVE→登录→读 `/users/me`，新版同库迁移，迁移后两版都要能服务）；`scripts/preflight.sh` 的 `migrations_changed` 接线；`.github/workflows/ci.yml` 新增 `changes.outputs.migrations` 与 job `migrations`（`fetch-depth: 0`）；`docs/ops-runbook.md` 增 `## Schema changes during a blue-green cutover`（expand/contract 表、生产顺序、三条演练断言）；`docs/ci.md` job 表、分类说明与 ruleset 顺序同步。
