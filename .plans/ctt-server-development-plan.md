@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.4、P3.7 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚，P3.7 为质量门接线）；P3.5、P3.6、P3.8–P3.10 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.117.0 `check` 自带覆盖率阈值并以一次失败证明会红、v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通、v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.5、P3.7 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚，P3.5 为迁移兼容与共存演练，P3.7 为质量门接线）；P3.6、P3.8–P3.10 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.119.0 破坏性迁移被静态门与共存演练同时拦下、v0.117.0 `check` 自带覆盖率阈值并以一次失败证明会红、v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通、v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
 
 ## 🗺️ 计划总览
 
@@ -75,13 +75,13 @@ left side
 *** 账号注销（硬删除 + 级联清理，v0.77.0）
 *** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
 *** 通行密钥（v0.91.0：独立登录 + 作为第二步）
-** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.4 已交付，P3.5–P3.9 未开工
+** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.5 已交付，P3.6–P3.9 未开工
 *** 基础设施与收口 ✅（P0.0–P0.17：本地全栈、隧道、端口、SSH 与日志、prod 脱敏、密钥通道、审计最小化与保留）
 *** 指标、追踪与日志维度 ✅（P1.1–P1.5）
 *** 告警、面板与值班 ✅（P2.1–P2.3）
 *** CI 与签名发布 ✅（P3.1 九道门、P3.2 keyless 签 digest）
 *** 蓝绿切换与回滚 ✅（P3.4：上游文件 + reload + 观察窗 + 一键回滚）
-*** 发布链余项 ⬜（P3.5 迁移兼容 / P3.6 staging / P3.8 首次生产发布 / P3.9 审计实测 / P3.10 依赖自动升级）
+*** 发布链余项 ⬜（P3.6 staging / P3.8 首次生产发布 / P3.9 审计实测 / P3.10 依赖自动升级）
 *** 备份、恢复演练与密钥轮换 ⬜（P4.1–P4.5）
 *** 压测与故障演练 ⬜（P5.1–P5.3）
 *** Runbook 与对外接入 ⬜（P6–P7）
@@ -2430,7 +2430,7 @@ sequenceDiagram
 | P3.2 ✅ | 镜像发布：GHCR 按 digest 部署、cosign keyless 签名与验证 | 三次发布失败逐层定位：镜像引用大小写、`--yes` 误用在验证、buildx 内联证明注册表不暴露给 cosign → 改 `cosign attest` 重发证明。`latest` 语义校正为只跟 tag，分支构建不再移动它；0.109.0 与 0.110.0 均在部署机 `verify-image.sh` 通过并按 digest 拉取。 | 中 |
 | P3.3 ✅ | 边缘转发的两跳配置落地。**接入机 nginx**：新建 `deploy/edge/nginx/ctt-server.conf`（仓库首个 nginx 配置）——80 端口只放 ACME 挑战并 301；443 设 `X-Forwarded-For $proxy_add_x_forwarded_for`、`X-Forwarded-Proto https`、`X-Real-IP`、`client_max_body_size 4194304`（4 MiB，与 Caddy 同值）、`limit_req 50r/s burst=100`（超限 429）、5s/30s/30s 超时、`TLSv1.2/1.3`、`server_tokens off`、`error_page 502 504 = @maintenance` 收敛为 503。**Caddy edge**：全局 `servers { trusted_proxies static 127.0.0.1 }`、`header_up X-Forwarded-Proto https`、`request_body { max_size 4MiB }`、`transport http` 超时、`handle_errors 502 503 504`（不写状态匹配会把 413 改写成 503）。配套 `deploy/edge/README.md` 与 runbook「Edge headers and limits」 | 探针实测（共享 netns + 真实 `caddy:latest` + 回显后端）：修前 `xff=127.0.0.1`（真实客户端全丢）、3 MB 请求体返回 503；修后 `xfp=https`、`xff=203.0.113.9, 127.0.0.1`，请求体边界实测 4194304 → 200 / 4200000 → 413，上游停 → 503。两侧限额原本是 `2m`(2,097,152 B) 与 `2MB`(2,000,000 B) 两个数、文档却称同步，且 1000 会话最坏字段约 1.7 MB 已逼近上限 ⇒ 统一为 4 MiB 并写明依据。`caddy validate` = Valid configuration；`nginx -t` = syntax ok（现代镜像仅 `listen ... http2` 弃用警告，文件头说明可换 `http2 on`）；`IpUtilsTest` 7 例覆盖 `getRealIp`/`isSecureRequest`（既有实现，本批未改）。`limit_req` 从 20r/s 提到 50r/s 并写出依据：单客户端限 10 r/s、同一 NAT 地址共享配额，约 5 个并发用户才应视为洪水 | 中 |
 | P3.4 ✅ | 蓝绿切换与回滚的**机制**（已交付）：上游放进 `deploy/local/edge-upstream/{blue,green}.caddy` 两个手写变体，站点块改成 `handle { import /etc/caddy-upstream/active.caddy }`，`active.caddy` 是 gitignore 的运行时 symlink（`up.sh` 首次生成）；edge 的 admin 从 `off` 改为 `127.0.0.1:2019`，切上游只做一件事——`caddy reload`（坏配置不改现状）；`switch-colour.sh` 用 `ln -sfn` 建新链接再 `mv -f` 原子替换、reload 成功后**读运行中配置**断言 dial、最后用 `/ctt-server/api/v1/config/public` 复核流量；`release.sh` 负责准备目标色、切上游、按窗口每 10 s 断言 `probe_success=1`、5xx 速率 `=0`、p95 ≤ 300 ms，任一破损立即切回。取舍见 `docs/decisions/ADR-0005-blue-green-cutover.md`，用法见 `deploy/local/README.md` | 本机实测一次发布一次回滚：`release.sh blue --no-build --observe 90` → `edge → blue (127.0.0.1:18081) · reload accepted · /ctt-server/api/v1/config/public answered · previous: green`，90 s 内每个 10 s 样本 `probe_success=1 5xx=0/s p95≈0.0054–0.0067s http=200`；`release.sh --rollback --observe 60` → 切回 green，60 s 样本同样健康，两次 `EXIT=0`。演练暴露并修掉两处静默缺陷：切换复核曾用应用端口**不提供**的 `/actuator/health`（404 → 被判定失败并回退），窗口采样曾因锚点写错恒为空、被当成健康。**压测并发期间的同签验证属 P5.2；生产环境上的首次发布与回滚属 P3.8** | 高 |
-| P3.5 | 迁移兼容：expand/contract 写进 runbook；CI 禁止修改已发布迁移 | 双版本共存演练不报错 | 中 |
+| P3.5 ✅ | 迁移兼容（已交付）：expand/contract 写进 `docs/ops-runbook.md`；`scripts/check-migrations.sh` 静态门（命名、已发布迁移不可变、破坏性语句需 `-- contract:` 注记）；`scripts/migration-coexistence-drill.sh` 共存演练（旧版与新版的 jar 各自构建，同库迁移后两版都要能服务）；`preflight.sh` 按 `migrations_changed` 接线，CI 新 job `migrations`，`docs/ci.md` 同步 | 静态门四用例（正常 ok / `DROP COLUMN` RED / 加 `-- contract:` 放行 / 改已发布迁移 RED）；演练连续两次 `DRILL: green (… 14 migration(s))`，插入 `V20990101000000__drill_drop.sql` 后 `DRILL: RED (new version exited during startup)` 且静态门同红，移除重建后复绿。细节见下方「迁移兼容与共存演练」 | 中 |
 | P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
 | P3.7 ✅ | **质量门接线与测试可终止性**：`jacocoTestCoverageVerification`（指令 80% / 分支 70%）此前只被声明、无人依赖——CI 靠命令行点名才生效，本地 `./gradlew check` 从不执行它；现 `dependsOn(tasks.test)` 并挂进 `check`，本地与流水线同一判据。`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时，悬停用例自己失败而不是耗满 runner；`gradle/verification-metadata.xml`（578 组件 sha256）由 `--write-verification-metadata` 生成，离线解析即校验 | 阈值临时提到 0.99 时 `jacocoTestCoverageVerification` 报 `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99` 并 `BUILD FAILED`（exit 1），恢复 0.80 后转绿；实测指令 94.78% / 分支 83.41%；`./gradlew check --offline` 3m28s 通过且校验和全部命中；`ci.yml` 删掉手工点名的注释与参数 | 中 |
 | P3.8 | **首次生产发布：按 digest 的蓝绿发布与回滚**：部署机起两色（`app-blue`/`app-green`）与 edge，Jenkins 把新镜像部署到**空闲色**（`CONTAINER_NAME` 选色 + `IMAGE_REF` 传 digest），切上游、跑观察窗、保留回滚命令；回滚即切回旧色。机制本身已在 P3.4 证明，本行只证明它在生产环境、由流水线驱动时成立 | 生产环境一次发布一次回滚：`docker inspect` 里运行中容器的镜像 digest 等于 Jenkins 传入值；切换后窗口内 `probe_success` 保持 1、应用 5xx = 0、p95 ≤ 300 ms；回滚后同样成立且旧色仍在服务。**首发会写入真实用户数据与生产库，执行前需用户明确授权** | 高 |
@@ -2589,6 +2589,26 @@ sequenceDiagram
 ## 📦 交付记录：一次性需求与修复（2026-09 → 2026-11）
 
 > 按主题追加的交付记录，标题带来源、日期与版本；不保证严格排序，查找用上面的能力索引。
+
+
+### 迁移兼容与共存演练（发布链，2026-11-17，v0.119.0）
+
+> 来源：蓝绿发布让「同一份数据库被两个版本同时读」成为常态，而 Flyway 只保证迁移按序应用，不保证**正在服务的那一版**还认得改完的表。破坏性迁移（删列、改名、收紧类型）在新色起好、旧色还在排空时，会让排空侧每个请求 500 —— 到那时迁移已提交，回滚只能切回一个读不动库的旧容器。
+
+| 项 | 结论 |
+|---|---|
+| 入口 | `./scripts/check-migrations.sh`（静态门，preflight 与 CI 都跑）；`./scripts/migration-coexistence-drill.sh [--old-ref origin/master] [--keep]`（共存演练） |
+| 静态门 | 命名必须是唯一的 `V<timestamp>__<name>.sql`；与 `origin/master` 同名的迁移逐字节比对，改过的直接红（否则 Flyway 要到一个部署周期之后才拒绝，且以启动失败的形式）；先把 `--` 与块注释剥掉、压成一行再匹配，破坏性语句（`DROP TABLE\|VIEW\|FUNCTION`、`ALTER TABLE … DROP`、`ALTER … TYPE`——PostgreSQL 的 `COLUMN` 可省，两种写法都算、`RENAME *`、`SET NOT NULL`、`TRUNCATE`、`DELETE FROM`、无默认值的 `ADD COLUMN … NOT NULL`）需**文件级** `-- contract:` 注记；`CREATE [UNIQUE] INDEX` **不进**静态门——它挡写入属锁的问题（runbook 要求 `CONCURRENTLY`），但旧版照常工作，拦下只会训练人闭眼写注记；目录缺失、目录为空、`--base` 解析不出、CI 里找不到基线，都直接红而不是报 ok |
+| 演练 | worktree 构建 `--old-ref` 的 jar、当前树构建新 jar；临时 postgres/redis/mailpit（镜像前缀跟 `TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX`，CI 用同一镜像源）；旧版注册→置 ACTIVE→登录→读 `/users/me`；新版在同库上迁移；迁移后两版都要能服务（readiness、读用户、开会话、登录）。实测 14 条迁移、3 个容器、约 20 s（暖 Gradle 缓存）。**检测面受请求边界约束**：只覆盖这些调用读写的表，`TRUNCATE` 一张没人读的表仍会绿——runbook 已按此改写，不再夸大 |
+| 验证 | 绿两次：`DRILL: green (ctt-server-0.118.3.jar and the working tree both served on 14 migration(s))`；插入 `V20990101000000__drill_drop.sql`（`ALTER TABLE users DROP COLUMN display_name`）后静态门 `MIGRATIONS: RED (1 problem(s) across 15 file(s))`、演练 `DRILL: RED (new version exited during startup)`；移除重建后复绿，`unzip -l` 里 `drill_drop` 条目数 0；`./scripts/preflight.sh` 全门绿（239 s，冷解析首轮 `Remote host terminated the handshake`，被判定为外部故障后重试成功——这正是 0.118.3 想要的行为） |
+| 踩坑 | ① 演练起初从仓库根启动 jar，`.env` 里的真实 hCaptcha key 让注册要求验证码 ⇒ jar 改从临时目录启动；② 该目录没有 `.env`，`${OAUTH_TOKEN_ENCRYPTION_KEY}` 未解析时以**字面量**进入 `AesGcmTokenEncryptor`，报 `Illegal base64 character 24`（十六进制的 `$`），演练因此显式传两把 32 字节 key；③ `build/libs` 堆着历史版本 jar，`find | head -1` 曾取到 0.117.0，改为按 `appVersion` 精确取；④ 应用端口带 context path `/ctt-server`，管理端口不带 |
+| 接线 | `scripts/preflight.sh` 的 `migrations_changed` 覆盖迁移目录、两个门脚本、门的测试、`preflight.sh` 自身与 `ci.yml`（改门等于把问问题的东西改掉）→ 门、门的测试、演练三步；`.github/workflows/ci.yml` 新增 `changes.outputs.migrations` 与 job `migrations`（`fetch-depth: 0`，静态门每次代码改动都跑，门的回归测试随之，演练只在范围触及迁移或门时跑，省下 Java-only PR 的两分钟）；顺序钉死为「开 PR → 绿 → 写进 ruleset → 回读」 |
+| 没有做 | 不改 Flyway 校验配置（`validate` 已够）；不做迁移耗时预算（留给 P5 压测）；静态门只报错，不自动改写迁移——schema 语义归人 |
+| 文档与同步约束 | `docs/ops-runbook.md` 的 `## Schema changes during a blue-green cutover`（expand/contract 表、生产顺序、演练断言与**检测面边界**）、`docs/ci.md`（job 表、触发口径、ruleset 顺序）、`README.md` 的「Gates, not judgement」描述同一套机制，`AGENTS.md` R22 把判定口径指向前者——**改门的判定必须同批改这几处**，否则文档会比门更严或更松（本轮就出现过：runbook 声称能抓 `TRUNCATE`，而演练只覆盖它发出的请求读到的表） |
+| 审查 | 两轴独立审查各报 5 条与 8 条，采纳 12 条：`ALTER TABLE … DROP` / `ALTER … TYPE` 的短格式漏检（PostgreSQL 可省 `COLUMN`）、目录为空报 ok、`--base` 拼写错静默跳过不可变性检查、跨行语句绕过行式匹配（改为去注释压平）、`declare -A` 在 macOS 自带 bash 3.2 上崩、演练绕过镜像配置、`--keep` 描述与实现不符、`latest` 说法不成立、三门触发口径不一致、`preflight.sh` 不在自身触发集、runbook 夸大演练检测面与「语句级」注记、`Widen a type` 与门的能力矛盾、`fresh` 不存在。驳回一条（称头部新旧版本写反——实为旧色先跑已发布迁移，`drill-run-5` 打印 `== old version applied 14 migration(s)`）。`docs/ci.md` 原先谎称 job 名即 ruleset 必需检查，已改为如实描述 |
+| 新增的回归测试 | `scripts/tests/check-migrations-test.sh`（12 例：增量绿、`DROP COLUMN` 红、短格式 `DROP` 红、跨行 `NOT NULL` 红、块注释内关键字绿、`-- contract:` 绿、版本重复红、文件名不合形红、短格式 `ALTER … TYPE` 红、目录为空红、目录缺失红、`--base` 解析不出红）；先例是 `scripts/tests/install-functions-test.sh`，由 CI 与 preflight 同一条命令跑 |
+| 判断 | 「兼容」与「锁」是两件事：门只答「旧版还能不能读这份 schema」，锁与耗时写在 runbook 的 expand/contract 表里，避免两类问题混成一张让人机械关掉的门 |
+| 后续动作 | `Migration compatibility` 需先在 PR 上跑绿一次，再写进 `master-protection` ruleset 并回读——GitHub 只接受已经成功跑过的检查；在此之前它在 PR 上报结论但不挡合并，`docs/ci.md` 与 `AGENTS.md` 的 job 清单都按此表述 |
 
 ### 质量门接线与测试可终止性（发布链，2026-11-16，v0.117.0）
 
