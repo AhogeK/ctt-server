@@ -21,16 +21,38 @@ sha=$(git rev-parse HEAD)
 short=${sha:0:7}
 started=$(date +%s)
 
-runs_for_sha() {
+list_runs() {
   gh run list --branch "$branch" --limit 40 \
     --json databaseId,name,event,status,conclusion,updatedAt,headSha \
     --jq "[.[] | select(.headSha == \"$sha\")]"
 }
 
+# `gh` has transport failures of its own — one wait died on a bare `EOF` after
+# 88 minutes — so a single failure must not end a wait that is otherwise fine.
+# When the list really cannot be read, say so instead of exiting with the
+# tool's own message: silence reads as "still running".
+cannot_list() {
+  echo "VERDICT: RED (cannot list runs)"
+  exit 3
+}
+
+runs_for_sha() {
+  local attempt out
+  for attempt in 1 2 3; do
+    if out=$(list_runs) && jq -e 'type == "array"' <<<"$out" >/dev/null 2>&1; then
+      printf '%s\n' "$out"
+      return 0
+    fi
+    echo "gh run list failed (attempt $attempt/3), retrying" >&2
+    [ "$attempt" -lt 3 ] && sleep 5
+  done
+  return 1
+}
+
 # Runs show up a few seconds after the push; give up if the commit never starts one.
 first=""
 for _ in $(seq 1 36); do
-  first=$(runs_for_sha)
+  first=$(runs_for_sha) || cannot_list
   [ "$(jq 'length' <<<"$first")" -gt 0 ] && break
   sleep 10
 done
@@ -42,7 +64,7 @@ fi
 
 seen='[]'
 while :; do
-  runs=$(runs_for_sha)
+  runs=$(runs_for_sha) || cannot_list
   # Keep the *latest* snapshot of each run: a run first seen as `in_progress`
   # would otherwise stay `in_progress` here forever, and the loop would wait
   # on a run that had already failed.
