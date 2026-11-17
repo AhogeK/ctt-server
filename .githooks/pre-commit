@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Formatting is the cheapest gate and the most common red: check it before the
-# commit exists, instead of after a pipeline spends four minutes finding it.
+# Nothing that changes code gets committed unverified: the same scoped gate CI
+# runs (`scripts/preflight.sh`) runs here, so a red commit cannot be created and
+# a red push cannot follow from it. A documentation-only commit still pays the
+# cheap formatting check and nothing else — the gate reads the staged range, so
+# it stays scoped on its own.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 staged=$(git diff --cached --name-only --diff-filter=ACMR)
-printf '%s\n' "$staged" | grep -Eq '(^src/.*\.(java|xml)$|\.kts$|^gradle/|^gradle\.properties$)' || exit 0
-exec ./gradlew -q spotlessCheck
+printf '%s\n' "$staged" | grep -Eq '(^src/|\.kts$|^gradle/|^gradle\.properties$|^Dockerfile$|^\.dockerignore$|^\.github/scripts/)' ||
+  exec ./gradlew -q spotlessCheck
+exec ./scripts/preflight.sh

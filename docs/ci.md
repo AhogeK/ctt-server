@@ -245,10 +245,29 @@ from quietly adding a source of its own.
 
 The mirror does not have to be trusted: `gradle/verification-metadata.xml` pins
 the sha256 of every artifact, so a mirror serving different bytes fails the
-build. That is also why plugin resolution is *not* mirrored — the Plugin Portal
-rewrites a marker's POM, so the same coordinate has different bytes there than
-on Central, and pointing the plugin repositories at the mirror would either
-break verification or widen it to two acceptable copies of one artifact.
+build.
+
+Plugins resolve through the same mirror, and leaving them out is a known way to
+ship a broken `master`: the Plugin Portal *redirects* `plugins.gradle.org/m2/…`
+to `repo.maven.apache.org`, so the plugin classpath still came from the
+throttled host. Only a cold build noticed — `Publish` on a fresh `master` died
+on `429` while the `CI` run for the same commit was green because its dependency
+layer was a cache hit. `pluginManagement` therefore declares the mirror first
+and the portal second, for plugins the mirror does not carry.
+
+The portal does rewrite a marker's POM: `org.springframework.boot.gradle.plugin`
+is `0f7de85e…` from the portal and `221abccf…` from Central. The verification
+metadata lists **both** hashes for the four markers, which is Gradle's
+documented way to accept either source — a copy from anywhere else still fails.
+
+A version *range* is a third way the throttling reaches the build. Gradle answers
+`[4.5.1,5)` by listing versions in **every** repository, and a repository that
+fails is disabled for the rest of the build — so one `429` on a repository that
+holds nothing the answer needs still fails the resolve, because Gradle cannot
+know which version is highest. `com.yubico:webauthn-server-parent` ships two such
+ranges (cbor, guava); `build.gradle.kts` pins both with `strictly`, which
+replaces the request instead of consulting listings. The proof that the listing
+is gone is a cold resolve under `--info`: no `maven-metadata.xml` request appears.
 
 Two layers keep the download from recurring:
 
@@ -282,20 +301,28 @@ anything the mirror does not carry.
 ## Before the change leaves the machine
 
 `scripts/preflight.sh` runs what CI runs, scoped to what changed: formatting
-always, the full suite when code changed, the image when a build input changed,
-and — with `--master` — a refusal to carry AI-only paths into a branch bound for
-master. It prints one verdict, `PREFLIGHT: green` or `PREFLIGHT: RED`, and the
-repository installs it as the push gate:
+always, the full suite when code changed, a cold resolve when the resolution
+wiring changed, the image when a build input changed, and — with `--master` — a
+refusal to carry AI-only paths into a branch bound for master. It prints one
+verdict, `PREFLIGHT: green` or `PREFLIGHT: RED`, and the repository installs it
+as the push gate:
+
+The cold resolve exists because a warm `GRADLE_USER_HOME` answers from cached
+metadata: it cannot show a missing checksum entry or an unreachable source, and
+both shipped a red pipeline while every local command was green.
+
 
 ```bash
-git config core.hooksPath .githooks   # pre-commit: formatting, pre-push: preflight
+git config core.hooksPath .githooks   # pre-commit: preflight for code, formatting for docs; pre-push: preflight
 ```
 
-A green pipeline is a claim, and the person who pushed owns it: after a push,
-`.github/scripts/wait-for-head.sh` blocks until the run *for the pushed commit*
-reports a verdict. Resolving by SHA matters — for the first seconds after a
-push, `gh run list --limit 1` still answers with the previous run, whose green
-says nothing about the new commit.
+A green pipeline is a claim, and the person who pushed owns it:
+`.github/scripts/wait-for-head.sh` blocks until **every** run for the pushed
+commit reports a verdict — on `master` that means `CI` *and* `Publish`, not the
+first one to finish. Resolving by SHA matters (for the first seconds after a
+push, `gh run list --limit 1` still answers with the previous run), and waiting
+for all of them matters more: a green `CI` beside a red `Publish` is not a
+delivery.
 
 ## Reproducing a gate locally
 
