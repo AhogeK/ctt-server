@@ -245,10 +245,20 @@ from quietly adding a source of its own.
 
 The mirror does not have to be trusted: `gradle/verification-metadata.xml` pins
 the sha256 of every artifact, so a mirror serving different bytes fails the
-build. That is also why plugin resolution is *not* mirrored — the Plugin Portal
-rewrites a marker's POM, so the same coordinate has different bytes there than
-on Central, and pointing the plugin repositories at the mirror would either
-break verification or widen it to two acceptable copies of one artifact.
+build.
+
+Plugins resolve through the same mirror, and leaving them out is a known way to
+ship a broken `master`: the Plugin Portal *redirects* `plugins.gradle.org/m2/…`
+to `repo.maven.apache.org`, so the plugin classpath still came from the
+throttled host. Only a cold build noticed — `Publish` on a fresh `master` died
+on `429` while the `CI` run for the same commit was green because its dependency
+layer was a cache hit. `pluginManagement` therefore declares the mirror first
+and the portal second, for plugins the mirror does not carry.
+
+The portal does rewrite a marker's POM: `org.springframework.boot.gradle.plugin`
+is `0f7de85e…` from the portal and `221abccf…` from Central. The verification
+metadata lists **both** hashes for the four markers, which is Gradle's
+documented way to accept either source — a copy from anywhere else still fails.
 
 Two layers keep the download from recurring:
 
@@ -291,11 +301,13 @@ repository installs it as the push gate:
 git config core.hooksPath .githooks   # pre-commit: formatting, pre-push: preflight
 ```
 
-A green pipeline is a claim, and the person who pushed owns it: after a push,
-`.github/scripts/wait-for-head.sh` blocks until the run *for the pushed commit*
-reports a verdict. Resolving by SHA matters — for the first seconds after a
-push, `gh run list --limit 1` still answers with the previous run, whose green
-says nothing about the new commit.
+A green pipeline is a claim, and the person who pushed owns it:
+`.github/scripts/wait-for-head.sh` blocks until **every** run for the pushed
+commit reports a verdict — on `master` that means `CI` *and* `Publish`, not the
+first one to finish. Resolving by SHA matters (for the first seconds after a
+push, `gh run list --limit 1` still answers with the previous run), and waiting
+for all of them matters more: a green `CI` beside a red `Publish` is not a
+delivery.
 
 ## Reproducing a gate locally
 
