@@ -2615,6 +2615,10 @@ sequenceDiagram
 | 教训 | **PR 的绿只证明 PR 准入**：合并让 `CI` 与 `Publish` 同时起跑，只等一个就是把另一个的红当空气；而 `CI` 这次恰好命中依赖层缓存、根本没下载，**冷启动的 `Publish` 才是唯一真正走到仓库的路径**。写「把 X 排除在外」的决定前，先确认 X 到底把请求发给谁 |
 | 相关文档 | `docs/ci.md` 的 `Where artifacts come from`、`Before the change leaves the machine`；`AGENTS.md` 的「一个提交会有多个 run，等的是全部」 |
 
+> 追加（同日，PR #45 首跑 `44007408737` 红）：`Configuration cache state could not be cached` 只是表象，真正的原因是 `Could not resolve com.upokecenter:cbor:[4.5.1,5)` 与 `com.google.guava:guava:[24.1.1,34)`——`com.yubico:webauthn-server-parent` 把依赖声明成**闭区间**，Gradle 回答区间要向**每个**仓库列版本，而任一仓库被限流即被禁用（`Repository MavenRepo is disabled due to earlier error`），最高版本不可知 → 整个 resolve 硬失败，哪怕另一仓库已经给出答案。`build.gradle.kts` 用 `strictly("4.5.6")` / `strictly("33.8.0-jre")` 把请求替换成固定版本，据此**不再查询任何清单**：空 `GRADLE_USER_HOME` + `--info` 的 `bootJar` 里 `maven-metadata.xml` 请求数为 0、exit 0（110 s）。
+>
+> 同批加固：`.github/scripts/wait-for-head.sh` 的去重由 `map(.[0])` 改为 `map(.[-1])`（保留首见快照会让 run 永远停在 `in_progress`，等待器自己卡死）并加 `deadline`（默认 3600 s）与每轮进度行；`scripts/preflight.sh` 增冷解析门——解析接线（`gradle/`、`gradle.properties`、`build.gradle.kts`、`settings.gradle.kts`）变更时用 `mktemp -d` 作 `GRADLE_USER_HOME` 跑一次 `bootJar -x test`，跑完删除；`.githooks/pre-commit` 对代码类改动改调同一个脚本，落实用户新红线「本地成功前不要提交推送推PR」。相关文档同批更新（`docs/ci.md` 的区间段与冷解析说明、`AGENTS.md:244`）。
+
 ### 依赖来源与本地门禁（发布链，2026-11-17，v0.118.0）
 
 > 来源：`Build the image with provenance` 一轮之内两次红在 Maven Central `429 Too Many Requests`（`spring-boot-buildpack-platform` / `spring-boot-loader-tools`），同一提交的宿主构建是绿的——同一条外部故障打到的路径不止一条，而「换一个源」比「多试几次」更靠前。
