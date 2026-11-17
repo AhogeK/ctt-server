@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Formatting is the cheapest gate and the most common red: check it before the
+# commit exists, instead of after a pipeline spends four minutes finding it.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+printf '%s\n' "$staged" | grep -Eq '(^src/.*\.(java|xml)$|\.kts$|^gradle/|^gradle\.properties$)' || exit 0
+exec ./gradlew -q spotlessCheck

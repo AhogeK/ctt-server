@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# The change does not leave the machine before it has passed what CI will run.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+exec scripts/preflight.sh

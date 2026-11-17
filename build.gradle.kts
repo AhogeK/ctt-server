@@ -32,10 +32,6 @@ tasks.processResources {
     }
 }
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -147,6 +143,32 @@ tasks.jacocoTestCoverageVerification {
 // The threshold was defined but never attached, so registration alone enforced nothing.
 tasks.check {
     dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
+// Downloads every artifact the build needs without compiling anything.
+//
+// The Docker build runs this in its own layer before `src/` travels, so an
+// unchanged dependency set is a layer cache hit and the image build never
+// reaches a remote repository at all — the download is both the slowest part of
+// a cold image build and the part a throttled registry breaks. The
+// configurations are declared as inputs instead of being resolved in `doLast`,
+// because a task that touches `configurations` while it runs cannot use the
+// configuration cache — and the configurations are passed as themselves, never
+// through an `artifactView {}` whose spec is a script closure the cache cannot
+// serialize.
+val downloadableDependencies = files(configurations.filter { it.isCanBeResolved })
+val dependenciesResolved = layout.buildDirectory.file("downloadDependencies.ok")
+
+tasks.register("downloadDependencies") {
+    description = "Resolves and downloads every dependency without compiling."
+    group = "build"
+    inputs.files(downloadableDependencies)
+    // Bound to a local: a `doLast` that reads a script property keeps the whole
+    // script instance alive in the action, which the configuration cache refuses
+    // to serialize ("cannot serialize Gradle script object references").
+    val marker = dependenciesResolved.get().asFile
+    outputs.file(marker)
+    doLast { marker.apply { parentFile.mkdirs() }.writeText("resolved\n") }
 }
 
 fun String.isNonStable(): Boolean {

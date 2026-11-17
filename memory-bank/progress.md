@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.117.1`（`gradle/libs.versions.toml` 的 `appVersion`） |
+| 版本 | `0.118.0`（`gradle/libs.versions.toml` 的 `appVersion`） |
 | 领域知识 | 见 [`domains/README.md`](domains/README.md)：`stats-aggregation` / `leaderboard` / `sync-protocol` / `api-contract` / `auth-lifecycle` |
 | 已交付能力 | 同步引擎（LWW + 游标 + 分页）、统计聚合、排行榜、成就系统、认证（JWT/API Key/OAuth/两步验证/通行密钥）、审计与限流（含 180 天保留策略，ADR-0002）、liveness/readiness health 探针、Prometheus 指标出口（回环管理端口）、六个业务指标（同步、限流、邮件、排行榜、审计）、W3C 追踪与 OTLP 导出、部署机观测栈（Prometheus/Alertmanager/Grafana/Loki/Tempo/Alloy + 四类 exporter，30 天保留）、日志用户维度（`userId` 进 MDC，请求结束清理）、告警规则（12 条：p95 300ms/5xx 0.5%/429/DB 池/磁盘/outbox 最老待发/排行榜陈旧/审计掉行/公网单点/隧道中断/证书 14 天/Telegram 投递失败）、Grafana 面板 as code（请求/后台/边缘与宿主机三份，随栈自动出现，每块画告警阈值的契约线）、值班路径（规则按 blast radius 定级，critical/warning 经 Alertmanager 原生 Telegram 集成投递到操作者的私聊与工作群，文件凭证、零新增依赖、已在生产通道实测送达，info 只看面板；两条抑制；投递失败本身有告警；runbook 首章 `Alerts and on-call`）、CI 质量门与供应链证据（GitHub Actions 三 job 九门：格式、全量测试与覆盖率、SOPS 渲染与 0440 断言、gitleaks 全历史按指纹允许、Trivy 文件系统、单次构建的 OCI 镜像 + SLSA v1 来源证明 + 镜像扫描 + CycloneDX SBOM；Jenkins 改为文件凭证 + `render.sh`，不再落明文 `.env`） |
 | 镜像发布与签名 | `publish.yml` 在 master 与 `v*` 上单次构建推 GHCR，用 keyless OIDC 证书签 **digest**，并把 BuildKit 的证明从 build metadata 取出、用 `cosign attest` 重新绑到被签的 digest（注册表不把 buildx 的内联证明暴露给 cosign）；`deploy/verify-image.sh` 钉 workflow 身份与 issuer、拒绝 tag 引用；**首次发布与部署机验证均已通过**；Jenkins 以 `--no-build` 按 digest 部署，部署前先登录注册表（缺凭证时提示包需可公开拉取）；镜像 tag 语义按注册表实测校正——`latest` 只跟发布走（分支构建不动它）、`sha-<short>` 会被后续构建覆盖、镜像 tag 名是 `X.Y.Z`（无 `v`），部署与回滚一律用 digest |
@@ -16,6 +16,9 @@
 | CI 失败通知与等待判据 | `.github/workflows/ci-notify.yml`：`workflow_run` 监听 `CI` 与 `Publish` 的完成，只在 `failure` 时把仓库/分支/提交短号/第几次尝试/失败 job/链接发到 Telegram（仓库 secret，值来自 SOPS；fork 缺 secret 时打印并退出 0）；`.github/scripts/wait-for-run.sh`：阻塞式 `gh run watch` + 断言 `status=completed` 且 `conclusion=success`，退出码即结论。**端到端已证**：`ci-notify.yml` 进 `master` 后，探针分支上一次故意未格式化的提交让 `Check formatting` 变红，通知 run `43826795430` 成功、消息在手机上收到（`workflow_run` 只对本工作流已在默认分支之后生效） |
 | 蓝绿发布与回滚 | edge 的上游是 `deploy/local/edge-upstream/{blue,green}.caddy` 两个手写变体，运行时 symlink `active.caddy` 指向当前色；切换 = 原子换链接 → `caddy reload`（admin `127.0.0.1:2019`）→ 读**运行中配置**断言 dial → 用应用端点复核流量；`deploy/local/release.sh` 负责准备目标色、切上游、按窗口每 10 s 断言 `probe_success=1`、5xx `=0`、p95 ≤ 300 ms，任一破损立即切回，`--rollback` 一键回退。本机实测一次发布（90 s）一次回滚（60 s）样本全健康（决策见 ADR-0005）。v0.116.1 起判据只取**正在服务的那一色**：5xx 与 p95 按 `slot` 过滤（两色都在被抓取，空闲色描述的是上一分钟的构建），p95 为 `NaN` 或空记作 `n/a` 不计为健康、窗口结束若一次都测不到则失败，切上游前先等目标色在 Prometheus 出现可算 rate 的序列（新容器首个样本必然为空） |
 | 质量门与依赖校验 | `jacocoTestCoverageVerification`（指令 80% / 分支 70%）现在被 `check` 依赖，本地与流水线同一条命令（此前只有 workflow 显式点名才跑，本地 `check` 从不执行）；`Test` 有任务级 20 分钟与 JUnit 每用例 5 分钟默认超时；`gradle/verification-metadata.xml` 钉住全部已解析组件的 sha256，判据是**空 `GRADLE_USER_HOME` 能重放 `bootJar -x test`**（暖缓存的 `check --offline` 会掩护缺口，PR #38 首跑即因此双红：`One artifact failed verification: junit-bom-5.14.4.module`）。实测指令 94.78%（32345/34126）、分支 83.41%（1880/2254）；阈值临时提到 0.99 时任务报 `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99` 并失败。依赖锁定与并行 fork 明确不做（理由见 `docs/ci.md`）。Renovate 只有配置、App 未装（P3.10） |
+| 外部故障重试 | `.github/scripts/gradle-retry.sh` 是全仓唯一的分类器：只重试 `429 / Too Many Requests`、`Could not resolve / Could not GET`、`Read timed out / Connection reset`、`Could not connect to Ryuk`，一次；测试红、覆盖率不足、格式错误不重试。宿主构建（`ci.yml`）与**镜像构建**（`Dockerfile` 的 `bootJar`，经 `.dockerignore` 单项放行后 `COPY`）共用它——镜像构建是独立的下载路径，同一次 Maven Central 限流曾只打掉它。容器内双向验证：429 桩 → 两次尝试，测试失败桩 → 一次 |
+| 依赖来源与本地门禁 | 依赖从 Google 的 Maven Central 镜像解析（`gradle.properties` 的 `artifactMirrorUrl` + `settings.gradle.kts` 的 `dependencyResolutionManagement`，`FAIL_ON_PROJECT_REPOS` 禁止项目级仓库）；插件**不**镜像——Plugin Portal 重写 marker POM，同一坐标两份不同 sha256 会让校验和验证失败或放宽。镜像构建拆成「依赖层（`downloadDependencies`）+ 编译层」两个**普通层**（cache mount 不随 `--cache-to` 导出、fresh runner 为空且遮住层内缓存），流水线 `--cache-to mode=max`；实测冷构建 2m56s → 二次 13.7s、`--network none` 12.1s，依赖层 412 MB。本地门禁 `scripts/preflight.sh`（按变更范围跑格式化/全套件/镜像构建，`--master` 拒绝 AI 路径）+ `.githooks/{pre-commit,pre-push}` + `.github/scripts/wait-for-head.sh`（按 `headSha` 认领自己那一轮并断言结论） |
+| 容器镜像来源 | 测试容器与构建基础镜像都改走 Google 的 Docker Hub 镜像：工作流级 `TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX: mirror.gcr.io/`（Testcontainers 改写它拉的每个镜像，Ryuk 旁车也算），builder 用 `buildkitd-config-inline` 把 `docker.io` 的首选指向同一库、取不到回落到 Docker Hub。两个基础镜像的 manifest digest 与 Docker Hub 完全一致（`eclipse-temurin:25-jdk` `sha256:884a2f86…`、`25-jre-noble` `sha256:e3b6f788…`） |
 
 ## 版本里程碑
 
@@ -24,6 +27,8 @@
 
 | 版本 | 日期 | 主线交付 |
 | --- | --- | --- |
+| `0.118.0` | 2026-11-17 | feat(build): resolve artifacts from a mirror, split the dependency layer and gate pushes locally |
+| `0.117.2` | 2026-11-17 | fix(build): retry the image build through the same classifier as CI |
 | `0.117.1` | 2026-11-17 | fix(build): record the checksums a cold cache verifies |
 | `0.117.0` | 2026-11-16 | feat(build): enforce the coverage thresholds from `check` and bound the tests |
 | `0.116.1` | 2026-11-16 | fix(deploy): judge the window on the serving colour and refuse an unmeasurable p95 |
