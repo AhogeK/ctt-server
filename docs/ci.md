@@ -233,6 +233,62 @@ agent workspace: develop only, never on `master`, never shipped. Gating a merge
 on the lockfile of a tool nobody deploys would be noise, and a silent skip is
 worse than an explicit one, so the exclusion is spelled out in the workflow.
 
+## Where artifacts come from
+
+Maven Central throttles shared addresses with `429 Too Many Requests`, and a
+GitHub-hosted runner is one of the most shared addresses there is. Resolution
+therefore goes through a byte-identical mirror declared first in
+`settings.gradle.kts` — `artifactMirrorUrl` in `gradle.properties`, Google's
+unauthenticated copy of Central — with Central kept behind it for artifacts
+newer than the mirror's replication. `FAIL_ON_PROJECT_REPOS` keeps a project
+from quietly adding a source of its own.
+
+The mirror does not have to be trusted: `gradle/verification-metadata.xml` pins
+the sha256 of every artifact, so a mirror serving different bytes fails the
+build. That is also why plugin resolution is *not* mirrored — the Plugin Portal
+rewrites a marker's POM, so the same coordinate has different bytes there than
+on Central, and pointing the plugin repositories at the mirror would either
+break verification or widen it to two acceptable copies of one artifact.
+
+Two layers keep the download from recurring:
+
+- `downloadDependencies` resolves every configuration without compiling, and the
+  image build runs it in a layer that only depends on the build scripts and the
+  version catalogue. An unchanged dependency set is a cache hit, and the image
+  build never reaches a repository.
+- The workflow exports the build cache with `mode=max`. `mode=min` exports only
+  layers of the final image, and the builder stage is not one of them — with
+  `min`, every run downloaded the whole graph again.
+
+The dependency layer is a plain layer, not a `--mount=type=cache`: Docker does
+not export cache mounts to `--cache-to`, and a fresh runner starts them empty, so
+a mount over `/root/.gradle` would download the graph again on every run and
+shadow the copy the layer already holds. The cost of that choice is cache size —
+a dependency change adds the Gradle home (~410 MB) to the image cache, where it
+stays until evicted.
+
+Retrying is the last line, not the first: `.github/scripts/gradle-retry.sh`
+repeats a command once when the failure names a registry or container runtime,
+and never when it names a test, a coverage gap or a formatting violation.
+
+## Before the change leaves the machine
+
+`scripts/preflight.sh` runs what CI runs, scoped to what changed: formatting
+always, the full suite when code changed, the image when a build input changed,
+and — with `--master` — a refusal to carry AI-only paths into a branch bound for
+master. It prints one verdict, `PREFLIGHT: green` or `PREFLIGHT: RED`, and the
+repository installs it as the push gate:
+
+```bash
+git config core.hooksPath .githooks   # pre-commit: formatting, pre-push: preflight
+```
+
+A green pipeline is a claim, and the person who pushed owns it: after a push,
+`.github/scripts/wait-for-head.sh` blocks until the run *for the pushed commit*
+reports a verdict. Resolving by SHA matters — for the first seconds after a
+push, `gh run list --limit 1` still answers with the previous run, whose green
+says nothing about the new commit.
+
 ## Reproducing a gate locally
 
 The scanners run as containers, so the exact versions from the workflow are the
