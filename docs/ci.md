@@ -371,6 +371,12 @@ its own (one wait died on a bare `EOF` after 88 minutes), so a lost reply is
 retried three times instead of ending the wait, and a list that cannot be read
 at all prints `VERDICT: RED (cannot list runs)` rather than exiting quietly.
 
+It takes the branch or the commit to wait for and resolves the commit from
+that argument, so `wait-for-head.sh master` waits for master's runs even when
+the checkout sits on `develop`, and an argument that is neither a branch nor a
+commit fails immediately instead of waiting six minutes for a run that cannot
+appear.
+
 ## Reproducing a gate locally
 
 The scanners run as containers, so the exact versions from the workflow are the
