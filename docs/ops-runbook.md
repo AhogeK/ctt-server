@@ -309,6 +309,110 @@ tail -n 3 /var/log/nginx/ctt-access.log     # $remote_addr is the real client
 Both stacks keep their limits in step, so after changing either one re-run the
 two probes above rather than reading the files.
 
+## Schema changes during a blue-green cutover
+
+Flyway runs when a container starts, and during a cutover the previous colour
+is still serving traffic when the new one migrates the schema both of them
+share. A migration is therefore not "a change to the database": it is a change
+the running version has to survive. Nothing in the Java diff shows that, which
+is why this is a procedure rather than a review habit.
+
+### Expand, then contract one release later
+
+Within a release, a migration may only **add** things the old version ignores:
+
+| Change | Same release | Next release |
+|---|---|---|
+| New table | yes | |
+| New column, nullable or with a default | yes | |
+| New index (`CREATE INDEX CONCURRENTLY`) | yes | |
+| Widen a type, add an enum value | yes, with a `-- contract:` note — the gate cannot tell widening from narrowing | |
+| Drop a column, table or enum value | | yes |
+| Rename anything | add the new name now, dual-write, drop the old one later | |
+| `SET NOT NULL`, add `UNIQUE`/FK to existing rows | backfill and validate it here | enforce it later |
+
+The reason a rename or a `SET NOT NULL` waits is the same as for a drop: the
+old colour still writes and reads the old shape. `SET NOT NULL` rejects the old
+version's inserts unless it always supplies the column; a rename makes the old
+version's statements fail outright.
+
+### The gate that holds this mechanically
+
+```bash
+./scripts/check-migrations.sh          # compare against origin/master
+./scripts/check-migrations.sh --base origin/develop
+```
+
+It rejects, with the file and the statement:
+
+- a released migration edited in place (Flyway would fail `validate` on the next
+  start, and the two colours would disagree about the schema's history);
+- a version that is not a unique `V<yyyyMMddHHmmss>__name.sql`; the gate sees
+  the files on disk, not Flyway's history, so a version older than the latest
+  applied one passes here and is then skipped at startup (`outOfOrder` is off);
+- `DROP TABLE|VIEW|FUNCTION`, a column `DROP` or `ALTER … TYPE` (PostgreSQL
+  makes `COLUMN` optional, so both spellings count), `RENAME TO|COLUMN`,
+  `SET NOT NULL`, `TRUNCATE`, `DELETE FROM`, or an `ADD COLUMN … NOT NULL`
+  without a default — unless the **file** carries a `-- contract:` note naming
+  the release that can perform it.
+
+Index creation is deliberately absent: it blocks writes while it builds, which
+is a locking problem for the cutover (use `CONCURRENTLY`) but leaves the running
+version working. A gate that flags safe statements teaches authors to write the
+note without thinking, which is worse than not having the note.
+
+The note is the point of the gate, not a loophole: writing "after v0.119 clients
+stop reading `avatar_url`" forces the author to name what makes it safe.
+`scripts/preflight.sh` runs both whenever the range touches `db/migration` or
+one of the gates. In CI the static gate runs on every code change, while the
+`Migration compatibility` job runs the drill for the set the classifier flags:
+`db/migration`, either gate script, the gate's regression test,
+`scripts/preflight.sh`, or the workflow itself.
+
+### The proof: both versions on one database
+
+```bash
+./scripts/migration-coexistence-drill.sh --old-ref origin/master
+```
+
+Runs in throwaway containers. It builds the released revision's jar, migrates a
+fresh PostgreSQL with it, registers and activates a user through the old API,
+then starts the working tree's jar on the same database and asserts that
+
+- Flyway applied its migrations with no failure row,
+- the new version logs the user in and reads `/users/me` and its sessions,
+- the old version — never stopped while the new one migrated — still answers
+  readiness, `/users/me` and its sessions with the token it issued, and can
+  still log the user in.
+
+`DRILL: green` is the only acceptable ending; on red it prints the failing step
+and the last lines of the app log. It runs before merge, whenever the range
+touches the migration directory or either script, so a schema change the
+previous release cannot serve fails there rather than during a cutover. What it
+detects is bounded by the requests it makes: only the tables those calls read
+and write are exercised, so a `TRUNCATE`, a `SET NOT NULL` or a narrowed type on
+a table no request touches passes the drill and shows up as a 500 once traffic
+reaches the new colour.
+
+A column-level change the entities disagree with does not even reach the
+old-colour assertions: `spring.jpa.hibernate.ddl-auto: validate` stops the new
+version at startup first, which is the usual shape of a drill failure. The
+old-colour assertions then cover what `validate` cannot see on the tables the
+requests touch — that the previous release still reads the schema it was built
+against.
+
+### Order of operations in production
+
+1. Migrate behind the old colour only if the migration is additive (§ above).
+2. Start the new colour; wait for readiness on the management port.
+3. Switch the edge to the new colour.
+4. Drain and stop the old colour.
+5. In the **next** release, perform the contract step and its `-- contract:` note.
+
+At step 2 both colours write. That is safe only because the schema is a superset
+of what either version needs — which is exactly what the two checks above
+enforce.
+
 ## Related
 
 - [Observability](observability.md) — metrics, dashboards, alert rules and the paging path
