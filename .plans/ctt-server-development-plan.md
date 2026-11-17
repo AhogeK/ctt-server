@@ -2618,6 +2618,8 @@ sequenceDiagram
 > 追加（同日，PR #45 首跑 `44007408737` 红）：`Configuration cache state could not be cached` 只是表象，真正的原因是 `Could not resolve com.upokecenter:cbor:[4.5.1,5)` 与 `com.google.guava:guava:[24.1.1,34)`——`com.yubico:webauthn-server-parent` 把依赖声明成**闭区间**，Gradle 回答区间要向**每个**仓库列版本，而任一仓库被限流即被禁用（`Repository MavenRepo is disabled due to earlier error`），最高版本不可知 → 整个 resolve 硬失败，哪怕另一仓库已经给出答案。`build.gradle.kts` 用 `strictly("4.5.6")` / `strictly("33.8.0-jre")` 把请求替换成固定版本，据此**不再查询任何清单**：空 `GRADLE_USER_HOME` + `--info` 的 `bootJar` 里 `maven-metadata.xml` 请求数为 0、exit 0（110 s）。
 >
 > 同批加固：`.github/scripts/wait-for-head.sh` 的去重由 `map(.[0])` 改为 `map(.[-1])`（保留首见快照会让 run 永远停在 `in_progress`，等待器自己卡死）并加 `deadline`（默认 3600 s）与每轮进度行；`scripts/preflight.sh` 增冷解析门——解析接线（`gradle/`、`gradle.properties`、`build.gradle.kts`、`settings.gradle.kts`）变更时用 `mktemp -d` 作 `GRADLE_USER_HOME` 跑一次 `bootJar -x test`，跑完删除；`.githooks/pre-commit` 对代码类改动改调同一个脚本，落实用户新红线「本地成功前不要提交推送推PR」。相关文档同批更新（`docs/ci.md` 的区间段与冷解析说明、`AGENTS.md:244`）。
+>
+> 追加（同日，v0.118.3）：冷解析门刚落地就把一次 `master` 同步推送挡在门外——`PREFLIGHT: RED (cold resolve)`，而同一份内容十分钟前在 `develop` 上过门、单独复跑该步骤 `exit=0`。原因是 `cold_resolve()` 每次都重下 Gradle 发行包：它测的是网络，不是改动。改成只把暖家的 `wrapper` 软链进临时 home（依赖缓存仍全空，冷解析的含义不变），并走 `.github/scripts/gradle-retry.sh`（`429`/`reset` 重试一次，真缺陷第一轮就红）；验证为空 home 下 `exit=0`、204 s、`Downloading https://services.gradle.org` 出现 0 次。教训：门禁的每一步都要能回答「它失败时，红的到底是谁」。
 
 ### 依赖来源与本地门禁（发布链，2026-11-17，v0.118.0）
 
