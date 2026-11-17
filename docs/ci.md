@@ -271,6 +271,14 @@ Retrying is the last line, not the first: `.github/scripts/gradle-retry.sh`
 repeats a command once when the failure names a registry or container runtime,
 and never when it names a test, a coverage gap or a formatting violation.
 
+Container images fail the same way: Docker Hub counts anonymous pulls per
+source address, and one runner hosts many builds. `postgres:latest` and
+`redis:latest` are therefore pulled through Google's hub mirror —
+`TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX` in the workflow covers every image
+Testcontainers pulls, its Ryuk sidecar included — and the builder carries the
+same mirror as its first choice for base images, falling back to Docker Hub for
+anything the mirror does not carry.
+
 ## Before the change leaves the machine
 
 `scripts/preflight.sh` runs what CI runs, scoped to what changed: formatting
