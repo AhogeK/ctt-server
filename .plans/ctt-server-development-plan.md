@@ -2603,6 +2603,18 @@ sequenceDiagram
 | 相关文档 | `docs/ci.md`（离线构建、校验和、超时的位置与为什么） |
 | 冷缓存（v0.117.1） | PR #38 首跑双红：`Format, tests and coverage` 与 `Secrets, vulnerabilities, SBOM and provenance` 同时报 `One artifact failed verification: junit-bom-5.14.4.module (org.junit:junit-bom:5.14.4)`——暖 Gradle home 取用已缓存的模块描述符时不经校验，`--write-verification-metadata` 因此漏记，本地 `check --offline` 一直是绿的。修法：`--refresh-dependencies --write-verification-metadata sha256` 补入 `.module`/`.pom` 并覆盖 `testRuntimeClasspath`、`compileTestJava`；判据改为 `GRADLE_USER_HOME=$(mktemp -d) ./gradlew bootJar -x test`（冷下载 exit 0）。重跑 run `43930290671` 397 s 绿 → PR #38 `e2bf72d` → 同步 master `849855c`（`cfdd78e`，剔除非 master 的 `AGENTS.md`） |
 
+### 依赖来源与本地门禁（发布链，2026-11-17，v0.118.0）
+
+> 来源：`Build the image with provenance` 一轮之内两次红在 Maven Central `429 Too Many Requests`（`spring-boot-buildpack-platform` / `spring-boot-loader-tools`），同一提交的宿主构建是绿的——同一条外部故障打到的路径不止一条，而「换一个源」比「多试几次」更靠前。
+
+| 项 | 结论 |
+|---|---|
+| 入口 | `./gradlew build` 的依赖来自 `gradle.properties` 的 `artifactMirrorUrl`（Google 的 Central 镜像）；本地推送前跑 `./scripts/preflight.sh`，CI 结论由 `./.github/scripts/wait-for-head.sh` 认领后给出 |
+| 机制 | `settings.gradle.kts` 用 `dependencyResolutionManagement` + `FAIL_ON_PROJECT_REPOS` 统一声明仓库（项目级 `repositories` 已删除，加第二个仓库会直接失败）；**插件解析不镜像**——Plugin Portal 会重写 marker POM，`spring-boot.gradle.plugin-4.1.2.pom` 在门户与 Central 是两个 sha256，镜像插件要么让校验和验证失败、要么放宽成两份可接受副本；`downloadDependencies` 只解析不编译，镜像构建据此把「依赖层」与「编译层」分开，两层都是**普通层**（`--mount=type=cache` 不随 `--cache-to` 导出、fresh runner 为空且会遮住层内缓存），流水线 `--cache-to mode=max` |
+| 验证 | `--refresh-dependencies --info` 每条 `Cached resource` 均为镜像域名；构建：冷 2m56s（依赖层 162.8s）→ 二次全 `CACHED` 2.0s、`--network none` 12.1s 成功；依赖层 412 MB（`modules-2` 175 MB + `wrapper` 148 MB）；门禁自身抓到真实违规：`spotlessKotlinGradleCheck` 报 `build.gradle.kts` 多一个空行，`PREFLIGHT: RED (format)` |
+| 没有做 | **第三方 `buildkit-cache-dance`**：为一处缓存引入外部 action 不划算，普通层已让未变的依赖集零下载；**镜像插件解析**：见上，代价是校验和的可信度 |
+| 相关文档 | `docs/ci.md` 的 `Where artifacts come from`、`Before the change leaves the machine`；`AGENTS.md` 的推送前自检与推送后自证 |
+
 ### 蓝绿切换与回滚（发布链，2026-11-16，v0.116.0）
 
 > 来源：单机发布要么停机、要么新旧混跑；`docker compose up -d` 重建容器会断掉在途连接，而「上游切换」必须能在**不重启 edge** 的前提下完成——Caddy reload 原子换配置，旧配置继续服务到新配置生效。

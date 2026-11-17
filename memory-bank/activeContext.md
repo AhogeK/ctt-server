@@ -1,4 +1,9 @@
 # Active Context
+- [2026-11-17] - 依赖来源改镜像与本地门禁（v0.118.0）
+   - 背景：`Build the image with provenance` 连续两轮红在 Maven Central `429 Too Many Requests`（`spring-boot-buildpack-platform` / `spring-boot-loader-tools`），同一提交的宿主构建绿。用户判定这是源选择问题，并要求「所有提交推送 PR 前的内容，本地都要先进行过验证」「绿没绿你要有机制自己验证」。
+   - 变更：`gradle.properties` 增 `artifactMirrorUrl`（Google 的 Central 镜像），`settings.gradle.kts` 用 `dependencyResolutionManagement` + `FAIL_ON_PROJECT_REPOS` 统一声明仓库，**插件解析不镜像**——Plugin Portal 会重写 marker POM（`spring-boot.gradle.plugin-4.1.2.pom` 在门户与 Central 是两份内容、两个 sha256），镜像插件会让校验和验证失败或放宽。新增 `downloadDependencies`（只解析不编译）让镜像构建把依赖下载与编译拆成两层；两层都是**普通层**——`--mount=type=cache` 不随 `--cache-to` 导出、fresh runner 上为空且会遮住层内缓存。流水线 `--cache-to mode=max`。本地门禁：`scripts/preflight.sh` 按变更范围跑格式化/全套件/镜像构建，`--master` 拒绝 AI 路径；`.githooks/{pre-commit,pre-push}` 安装为 `core.hooksPath`；`.github/scripts/wait-for-head.sh` 按 `headSha` 认领自己那一轮再断言结论。
+   - 验证：`--refresh-dependencies --info` 的每条 `Cached resource` 都是镜像域名；冷构建 2m56s（依赖层 162.8s）→ 二次构建 13.7s、`--network none` 12.1s 成功（预热层确实不再联网）；依赖层体积 412 MB（`modules-2` 175 MB + `wrapper` 148 MB），作为 `mode=max` 缓存条目的成本已写进 `docs/ci.md`。
+   - 教训：**缓存要按它的导出语义判断，而不是按本地快慢判断**——mount 在本地快得像是「已缓存」，在 runner 上却是每次空；`mode=min` 只导出最终镜像层，builder 层从来不在其中。
 
 - [2026-11-17] - 镜像构建复用同一个重试分类器（v0.117.2）
    - 背景：`develop` 的 push run `43935708842` 红在 `Build the image with provenance`，原因是 `Dockerfile` 的 `RUN ./gradlew bootJar` 直连 Maven Central 拿到 `429`——宿主侧早有 `.github/scripts/gradle-retry.sh`，镜像构建没有，同一次限流只打掉一条路径。PR #41 的同一 job 反而绿（2m30s），说明是间歇性外部限流。
