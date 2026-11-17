@@ -10,19 +10,41 @@
 # The deadline is a guard: a run stuck in `queued` (or a workflow that will
 # never be created) must not leave the caller waiting forever.
 #
-# Usage: wait-for-head.sh [branch] [settle-seconds] [deadline-seconds]
-#   branch defaults to the current branch, settle to 120 s, deadline to 1 hour.
+# Usage: wait-for-head.sh [branch-or-commit] [settle-seconds] [deadline-seconds]
+#   the argument defaults to the current branch, settle to 120 s, deadline to 1 hour.
 set -euo pipefail
 
-branch=${1:-$(git rev-parse --abbrev-ref HEAD)}
+arg=${1:-}
 settle=${2:-120}
 deadline=${3:-3600}
-sha=$(git rev-parse HEAD)
+
+# The runs belong to a commit and the branch only narrows the listing, so the
+# commit has to come from the same place as the argument: asking for master's
+# runs while the checkout sits on develop has to resolve master's commit, and
+# a commit sha has to be listed by commit. A listing that filters on a
+# different commit finds nothing and reports a red that never happened.
+if [ -z "$arg" ]; then
+  branch=$(git rev-parse --abbrev-ref HEAD)
+  sha=$(git rev-parse HEAD)
+  listing=(--branch "$branch")
+elif git show-ref --verify --quiet "refs/heads/$arg" \
+  || git show-ref --verify --quiet "refs/remotes/origin/$arg"; then
+  branch=$arg
+  sha=$(git rev-parse --verify --quiet "refs/remotes/origin/$arg^{commit}" \
+    || git rev-parse --verify --quiet "refs/heads/$arg^{commit}")
+  listing=(--branch "$branch")
+elif sha=$(git rev-parse --verify --quiet "$arg^{commit}"); then
+  branch=$arg
+  listing=(--commit "$sha")
+else
+  echo "wait-for-head: '$arg' is neither a branch nor a commit" >&2
+  exit 2
+fi
 short=${sha:0:7}
 started=$(date +%s)
 
 list_runs() {
-  gh run list --branch "$branch" --limit 40 \
+  gh run list "${listing[@]}" --limit 40 \
     --json databaseId,name,event,status,conclusion,updatedAt,headSha \
     --jq "[.[] | select(.headSha == \"$sha\")]"
 }
