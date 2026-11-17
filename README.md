@@ -42,7 +42,9 @@
   so a log search and a trace view describe the same request. Every authenticated request also puts the user's id
   (a UUID, never the email) into the log context, so per-user troubleshooting does not require reading the audit trail.
 - **Gates, not judgement.** One workflow runs the formatting check, the full suite and the coverage
-  thresholds, scans the whole history for committed credentials, scans manifests and the built image with
+  thresholds, checks that a schema change leaves the running release able to serve (a static gate plus a
+  drill that runs the previous release and the new one against one database), scans the whole history for
+  committed credentials, scans manifests and the built image with
   Trivy, and publishes a CycloneDX SBOM beside a SLSA v1 provenance attestation — the scanned image and the
   attested image are the same build. A second workflow builds the image that can be deployed, signs its
   digest with a keyless OIDC certificate and re-verifies the provenance it carries. The deploy job ships only
