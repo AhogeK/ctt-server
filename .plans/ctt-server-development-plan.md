@@ -2603,6 +2603,18 @@ sequenceDiagram
 | 相关文档 | `docs/ci.md`（离线构建、校验和、超时的位置与为什么） |
 | 冷缓存（v0.117.1） | PR #38 首跑双红：`Format, tests and coverage` 与 `Secrets, vulnerabilities, SBOM and provenance` 同时报 `One artifact failed verification: junit-bom-5.14.4.module (org.junit:junit-bom:5.14.4)`——暖 Gradle home 取用已缓存的模块描述符时不经校验，`--write-verification-metadata` 因此漏记，本地 `check --offline` 一直是绿的。修法：`--refresh-dependencies --write-verification-metadata sha256` 补入 `.module`/`.pom` 并覆盖 `testRuntimeClasspath`、`compileTestJava`；判据改为 `GRADLE_USER_HOME=$(mktemp -d) ./gradlew bootJar -x test`（冷下载 exit 0）。重跑 run `43930290671` 397 s 绿 → PR #38 `e2bf72d` → 同步 master `849855c`（`cfdd78e`，剔除非 master 的 `AGENTS.md`） |
 
+### 插件类路径也走镜像、等待器等全部 run（发布链，2026-11-17，v0.118.1）
+
+> 来源：0.118.0 合并后用户指出 master 的 PR **并没有成功**——`master` `6419ece` 的 `CI` `44003678005` 是绿的，同提交的 `Publish` `44003677904` 却红了，而我只盯着先完成的那一个就宣布交付。追日志找到的真实根因：`Plugin Portal` 并不分发字节，它把 `plugins.gradle.org/m2/…` **重定向**到 `repo.maven.apache.org`，于是被限流的一直是同一个 Central。
+
+| 项 | 结论 |
+|---|---|
+| 入口 | `settings.gradle.kts` 的 `pluginManagement` 与 `dependencyResolutionManagement` 同用 `gradle.properties` 的 `artifactMirrorUrl`，`gradlePluginPortal()` 退居第二；`.github/scripts/wait-for-head.sh [branch] [settle]` 等该提交上**所有** run |
+| 机制 | `dependencyResolutionManagement` 只覆盖项目依赖，构建脚本自己的 classpath 走 `pluginManagement`——两者是两条独立的解析路径，漏掉后者就等于镜像只修了一半；四个 Gradle marker POM 在 `gradle/verification-metadata.xml` 里各有**门户与 Central 两个 sha256**（门户会重写 marker，Gradle 允许同一 artifact 多个可接受校验和，第三个来源仍然失败）；等待器按 `headSha` 过滤、`seen` 去重累加，全部 `completed` 且静止 `settle` 秒才给判定，任一失败即 `VERDICT: RED` |
+| 验证 | 补校验和前 `./gradlew help --refresh-dependencies` 报 `Dependency verification failed … org.springframework.boot.gradle.plugin-4.1.2.pom … from repository maven`，补齐后 `BUILD SUCCESSFUL in 56s`；`wait-for-head.sh develop 5` → `runs for 786659c on develop: 44002876715 CI [push] completed/success` + `VERDICT: green` |
+| 教训 | **PR 的绿只证明 PR 准入**：合并让 `CI` 与 `Publish` 同时起跑，只等一个就是把另一个的红当空气；而 `CI` 这次恰好命中依赖层缓存、根本没下载，**冷启动的 `Publish` 才是唯一真正走到仓库的路径**。写「把 X 排除在外」的决定前，先确认 X 到底把请求发给谁 |
+| 相关文档 | `docs/ci.md` 的 `Where artifacts come from`、`Before the change leaves the machine`；`AGENTS.md` 的「一个提交会有多个 run，等的是全部」 |
+
 ### 依赖来源与本地门禁（发布链，2026-11-17，v0.118.0）
 
 > 来源：`Build the image with provenance` 一轮之内两次红在 Maven Central `429 Too Many Requests`（`spring-boot-buildpack-platform` / `spring-boot-loader-tools`），同一提交的宿主构建是绿的——同一条外部故障打到的路径不止一条，而「换一个源」比「多试几次」更靠前。
@@ -2610,9 +2622,9 @@ sequenceDiagram
 | 项 | 结论 |
 |---|---|
 | 入口 | `./gradlew build` 的依赖来自 `gradle.properties` 的 `artifactMirrorUrl`（Google 的 Central 镜像）；本地推送前跑 `./scripts/preflight.sh`，CI 结论由 `./.github/scripts/wait-for-head.sh` 认领后给出 |
-| 机制 | `settings.gradle.kts` 用 `dependencyResolutionManagement` + `FAIL_ON_PROJECT_REPOS` 统一声明仓库（项目级 `repositories` 已删除，加第二个仓库会直接失败）；**插件解析不镜像**——Plugin Portal 会重写 marker POM，`spring-boot.gradle.plugin-4.1.2.pom` 在门户与 Central 是两个 sha256，镜像插件要么让校验和验证失败、要么放宽成两份可接受副本；`downloadDependencies` 只解析不编译，镜像构建据此把「依赖层」与「编译层」分开，两层都是**普通层**（`--mount=type=cache` 不随 `--cache-to` 导出、fresh runner 为空且会遮住层内缓存），流水线 `--cache-to mode=max` |
+| 机制 | `settings.gradle.kts` 用 `dependencyResolutionManagement` + `FAIL_ON_PROJECT_REPOS` 统一声明仓库（项目级 `repositories` 已删除，加第二个仓库会直接失败）；插件解析当时**未**镜像（v0.118.1 推翻：Plugin Portal 只是把请求**重定向**到 `repo.maven.apache.org`，插件类路径同样被限流，见上一节）；`downloadDependencies` 只解析不编译，镜像构建据此把「依赖层」与「编译层」分开，两层都是**普通层**（`--mount=type=cache` 不随 `--cache-to` 导出、fresh runner 为空且会遮住层内缓存），流水线 `--cache-to mode=max` |
 | 验证 | `--refresh-dependencies --info` 每条 `Cached resource` 均为镜像域名；构建：冷 2m56s（依赖层 162.8s）→ 二次全 `CACHED` 2.0s、`--network none` 12.1s 成功；依赖层 412 MB（`modules-2` 175 MB + `wrapper` 148 MB）；门禁自身抓到真实违规：`spotlessKotlinGradleCheck` 报 `build.gradle.kts` 多一个空行，`PREFLIGHT: RED (format)` |
-| 没有做 | **第三方 `buildkit-cache-dance`**：为一处缓存引入外部 action 不划算，普通层已让未变的依赖集零下载；**镜像插件解析**：见上，代价是校验和的可信度 |
+| 没有做 | **第三方 `buildkit-cache-dance`**：为一处缓存引入外部 action 不划算，普通层已让未变的依赖集零下载；**镜像插件解析**：当时以「门户会重写 marker POM」为由排除，次日由 master 上 `Publish` 的 429 证伪——两个 sha256 并存即可，见上一节 |
 | 相关文档 | `docs/ci.md` 的 `Where artifacts come from`、`Before the change leaves the machine`；`AGENTS.md` 的推送前自检与推送后自证 |
 
 ### 蓝绿切换与回滚（发布链，2026-11-16，v0.116.0）

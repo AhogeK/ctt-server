@@ -18,7 +18,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16；`jacocoTestCoverageVerification`（指令 80% / 分支 70%）由 `check` 依赖，`Test` 有 20 分钟任务级与 5 分钟单用例超时；`gradle/verification-metadata.xml` 钉依赖 sha256 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-17 / v0.118.0（依赖改从 Google 的 Maven Central 镜像解析——`gradle.properties` 的 `artifactMirrorUrl` + `settings.gradle.kts` 的 `dependencyResolutionManagement`；插件仍走 Gradle Plugin Portal，因为门户会重写 marker POM，镜像会破坏校验和验证。依赖版本本身未变）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-17 / v0.118.1（依赖与**插件**类路径都从 Google 的 Maven Central 镜像解析——`gradle.properties` 的 `artifactMirrorUrl`，`settings.gradle.kts` 的 `dependencyResolutionManagement` 覆盖项目依赖、`pluginManagement` 覆盖构建脚本类路径，`gradlePluginPortal()` 退居第二；四个 Gradle marker POM 在 `gradle/verification-metadata.xml` 里各有门户与 Central 两个 sha256。依赖版本本身未变）。
 
 ## 架构
 
