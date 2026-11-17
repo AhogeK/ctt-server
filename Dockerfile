@@ -8,11 +8,29 @@ COPY gradle/ gradle/
 # already retries, passed the same commit.
 COPY .github/scripts/gradle-retry.sh .github/scripts/gradle-retry.sh
 COPY gradlew build.gradle.kts settings.gradle.kts gradle.properties* ./
+
+# The dependency download depends on nothing but those paths, so this layer is a
+# cache hit until a version or a build script changes — and a cache hit means the
+# image build does not talk to a repository at all. That is the point: the
+# download is both the slowest part of a cold build and the part a throttled
+# registry breaks. Splitting it from the compile is also what keeps the cache
+# useful, because `--cache-to type=gha,mode=min` only carries layers of the final
+# image and the builder stage is not one of them.
+#
+# No `--mount=type=cache` on purpose: Docker does not export cache mounts to
+# `--cache-to` and a fresh runner starts them empty, so a mount over
+# `/root/.gradle` would download the graph again on every run — and shadow the
+# copy this layer already holds. A plain layer is what turns the download into a
+# cache hit; a dependency change grows the image cache by the Gradle home
+# (~410 MB) and it stays until evicted.
+RUN chmod +x gradlew .github/scripts/gradle-retry.sh && \
+    GRADLE_RETRY_LOG=/tmp/gradle-dependencies.log \
+      .github/scripts/gradle-retry.sh downloadDependencies --no-daemon -q --console=plain
+
 COPY src/ src/
 
-RUN --mount=type=cache,target=/root/.gradle \
-    chmod +x gradlew .github/scripts/gradle-retry.sh && \
-    GRADLE_RETRY_LOG=/tmp/gradle.log .github/scripts/gradle-retry.sh bootJar -x test --no-daemon -q --console=plain
+RUN GRADLE_RETRY_LOG=/tmp/gradle-build.log \
+      .github/scripts/gradle-retry.sh bootJar -x test --no-daemon -q --console=plain
 
 # ---- Runtime Stage ----
 FROM eclipse-temurin:25-jre-noble

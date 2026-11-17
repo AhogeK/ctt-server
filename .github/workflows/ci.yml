@@ -270,12 +270,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          # The cache carries the base image layers between runs, which is most
-          # of this build's wall time. `mode=min` keeps the entry small: the
-          # repository shares one 10 GB pool with Gradle's dependency cache.
+          # `mode=max` is required, not a preference: `mode=min` exports only
+          # layers of the final image, and the builder stage — where the dependency
+          # download and the compile live — is not one of them, so every run
+          # downloaded the whole graph again. The entry is larger; the repository
+          # shares one 10 GB pool with Gradle's dependency cache.
           docker buildx build --provenance=mode=max \
             --cache-from type=gha \
-            --cache-to type=gha,mode=min \
+            --cache-to type=gha,mode=max \
             --output "type=oci,dest=build/image.tar" \
             --metadata-file build/build-metadata.json \
             -t "${IMAGE_TAG}" .
