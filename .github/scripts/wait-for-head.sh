@@ -7,15 +7,19 @@
 # `Publish` was once read as a green delivery — `CI` was green, `Publish` had
 # already died on a 429. So this waits for all of them, and keeps looking for
 # late arrivals until nothing new has appeared or changed for a settle window.
+# The deadline is a guard: a run stuck in `queued` (or a workflow that will
+# never be created) must not leave the caller waiting forever.
 #
-# Usage: wait-for-head.sh [branch] [settle-seconds]
-#   branch defaults to the current branch, settle to 120 seconds.
+# Usage: wait-for-head.sh [branch] [settle-seconds] [deadline-seconds]
+#   branch defaults to the current branch, settle to 120 s, deadline to 1 hour.
 set -euo pipefail
 
 branch=${1:-$(git rev-parse --abbrev-ref HEAD)}
 settle=${2:-120}
+deadline=${3:-3600}
 sha=$(git rev-parse HEAD)
 short=${sha:0:7}
+started=$(date +%s)
 
 runs_for_sha() {
   gh run list --branch "$branch" --limit 40 \
@@ -39,12 +43,23 @@ fi
 seen='[]'
 while :; do
   runs=$(runs_for_sha)
-  seen=$(jq -s '.[0] + .[1] | group_by(.databaseId) | map(.[0])' <<<"$seen"$'\n'"$runs")
-  pending=$(jq '[.[] | select(.status != "completed")] | length' <<<"$seen")
-  if [ "$pending" = 0 ]; then
-    age=$(jq -r --argjson now "$(date -u +%s)" \
+  # Keep the *latest* snapshot of each run: a run first seen as `in_progress`
+  # would otherwise stay `in_progress` here forever, and the loop would wait
+  # on a run that had already failed.
+  seen=$(jq -s '.[0] + .[1] | group_by(.databaseId) | map(.[-1])' <<<"$seen"$'\n'"$runs")
+  pending=$(jq -r '[.[] | select(.status != "completed") | "\(.name)[\(.event)]:\(.status)"] | join(", ")' <<<"$seen")
+  now=$(date +%s)
+  echo "[$((now - started))s] $(jq 'length' <<<"$seen") run(s)${pending:+, pending: $pending}"
+  if [ -z "$pending" ]; then
+    age=$(jq -r --argjson now "$now" \
       '(([.[].updatedAt | fromdateiso8601] | max) | ($now - .) | floor)' <<<"$seen")
     [ "$age" -ge "$settle" ] && break
+  fi
+  if [ $((now - started)) -ge "$deadline" ]; then
+    echo "runs for $short on $branch did not settle within ${deadline}s:" >&2
+    jq -r '.[] | "  \(.databaseId) \(.name) [\(.event)] \(.status)/\(.conclusion // "-")"' <<<"$seen" >&2
+    echo "VERDICT: RED (deadline)"
+    exit 2
   fi
   sleep 10
 done
