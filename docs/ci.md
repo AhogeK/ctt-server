@@ -310,6 +310,12 @@ as the push gate:
 The cold resolve exists because a warm `GRADLE_USER_HOME` answers from cached
 metadata: it cannot show a missing checksum entry or an unreachable source, and
 both shipped a red pipeline while every local command was green.
+The empty home covers dependency metadata, not the Gradle distribution: the step
+links the warm home's `wrapper/dists` into the temporary one, because re-fetching
+the same bytes tests the network rather than the change, and a transient failure
+there once blocked a push whose content was already green. Resolution failures
+are read by `gradle-retry.sh`, so a `429` or a reset is retried once and a real
+defect still fails on the first attempt.
 
 
 ```bash
