@@ -44,6 +44,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.classify.outputs.code }}
+      migrations: ${{ steps.classify.outputs.migrations }}
     steps:
       # Only a pull request needs the diff; a push answers `code=true` before
       # touching git, so cloning the history there would be pure cost.
@@ -61,18 +62,30 @@ jobs:
           # would let a workflow or dependency change merge untested.
           if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "migrations=true" >> "$GITHUB_OUTPUT"
             echo "not a pull request: every gate runs"
             exit 0
           fi
           base="${{ github.event.pull_request.base.sha }}"
           git fetch --no-tags --depth=1 origin "$base"
           docs_only=true
+          migrations=false
           while IFS= read -r file; do
+            # The schema a running version must survive, plus the gates and the
+            # wiring that decide whether anything checks it.
+            case "$file" in
+              src/main/resources/db/migration/* | scripts/check-migrations.sh | \
+                scripts/migration-coexistence-drill.sh | scripts/tests/check-migrations-test.sh | \
+                scripts/preflight.sh | .github/workflows/ci.yml)
+                migrations=true
+                ;;
+            esac
             case "$file" in
               *.md|docs/*|.plans/*|memory-bank/*) ;;
-              *) docs_only=false; break ;;
+              *) docs_only=false ;;
             esac
           done < <(git diff --name-only "$base" HEAD)
+          echo "migrations=$migrations" >> "$GITHUB_OUTPUT"
           if [ "$docs_only" = true ]; then
             echo "code=false" >> "$GITHUB_OUTPUT"
             echo "documentation only: the suite, the scans and the image build are skipped"
@@ -132,6 +145,57 @@ jobs:
             build/reports/jacoco/
             build/gradle.log
           retention-days: 14
+
+  # A migration is the only change that can break the version already serving
+  # traffic without touching a line of Java. Two gates, because they catch
+  # different mistakes: the files that have shipped are immutable, and the
+  # previous release keeps working after the new one migrates the same database.
+  migrations:
+    name: Migration compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: changes
+    # Same reason as the quality job: a skipped required check counts as
+    # passing, and this gate must never pass by accident.
+    if: always()
+    steps:
+      - name: Fail closed when the classifier did not finish
+        if: needs.changes.result != 'success'
+        run: |
+          echo "the change classifier did not finish, so this gate cannot be skipped" >&2
+          exit 1
+
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.code == 'true'
+        with:
+          # The immutability check compares against the released branch, which
+          # only exists locally when the full history is present.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v6
+        if: needs.changes.outputs.code == 'true'
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      # Seconds, and it names the offending file and statement.
+      - name: Migrations are immutable and the running version survives them
+        if: needs.changes.outputs.code == 'true'
+        run: ./scripts/check-migrations.sh
+
+      # The gate's failure mode is a green verdict, so its own cases run here:
+      # a wrapped statement or a block comment must not slip past it.
+      - name: The static check still catches what it claims to
+        if: needs.changes.outputs.code == 'true'
+        run: ./scripts/tests/check-migrations-test.sh
+
+      # Minutes, and it is the only check that proves the old colour survives.
+      # Only a range that touches a migration can break the running colour, so
+      # the drill follows the classifier; the static check above always runs.
+      - name: The previous release still serves on the migrated schema
+        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.migrations == 'true'
+        run: ./scripts/migration-coexistence-drill.sh
 
   secrets:
     name: Render secrets with the CI age identity
