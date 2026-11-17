@@ -17,13 +17,12 @@ or written to directly — everything arrives through a pull request, and no one
 administrators included, is on a bypass list. `develop` is unprotected; the gates
 still run on its pushes, they simply do not block anything there.
 
-The three job names in this workflow are the checks the ruleset requires before a
-merge, and they are in place. GitHub only accepts a required check that has
-already completed successfully in the repository within the last seven days,
-which is why they were written in this order: *open a pull request → let it go
-green → write the checks into the ruleset → read the ruleset back*. A workflow
-that is renamed without updating the ruleset leaves a pending check that blocks
-every merge, so the two move together.
+The gate job names in this workflow are the checks the ruleset requires before a
+merge; deleting or renaming one leaves a pending check that blocks every merge.
+GitHub only accepts a required check that has already completed successfully, so
+a new job is added in this order: *open a pull request → let it go green → write
+it into the ruleset → read the ruleset back*. Until `Migration compatibility` is
+in that list it reports on the pull request but does not block the merge.
 
 Branch naming, where each branch is cut from, and the tag rules live in one
 place — [the branch model in `AGENTS.md`](../AGENTS.md) — so they cannot drift
@@ -35,6 +34,9 @@ between the two documents.
 | --- | --- | --- |
 | `quality` | `./gradlew spotlessCheck` | formatting drifts (a one-line fix, so it fails first) |
 | `quality` | `./gradlew build jacocoTestReport jacocoTestCoverageVerification` | any test fails, or coverage drops below the thresholds in `build.gradle.kts` |
+| `migrations` | `scripts/check-migrations.sh` | a migration renames or drops something the running version still reads, edits a migration `master` already applied, or a file name breaks the `V<timestamp>__<name>.sql` shape |
+| `migrations` | `scripts/tests/check-migrations-test.sh` | the static gate stops catching a shape it claims to: the regression test and the gate disagree |
+| `migrations` | `scripts/migration-coexistence-drill.sh` (when the classifier flags a schema or gate change) | the previous release and the new build cannot both serve one database after the new migrations run |
 | `secrets` | `deploy/secrets/render.sh --env dev` with the CI age identity | the payload cannot be decrypted, a mounted secret is missing or not `0440`, or the rendered files are not ignored by git |
 | `supply-chain` | `gitleaks detect` | a credential-shaped string is committed — on a pull request only the commits under review are scanned, on `develop`/`master` the whole history |
 | `supply-chain` | `trivy fs` over the working tree | a `HIGH`/`CRITICAL` vulnerability or a committed secret appears in a scanned manifest |
@@ -42,6 +44,40 @@ between the two documents.
 | `supply-chain` | provenance extraction and pairing | the built image carries no SLSA v1 attestation, or the attestation names a digest this layout does not contain |
 | `supply-chain` | `trivy image` | the image ships a `HIGH`/`CRITICAL` vulnerability |
 | `supply-chain` | CycloneDX SBOM | the image cannot be inventoried |
+
+`migrations` answers a question the other gates cannot: *can the release that is
+running right now survive the schema change?* A blue-green cutover runs both
+colours against one database, so a migration that drops, renames or constrains
+something the old colour reads turns every request from the draining side into a
+500 — and the damage is already committed by the time the new colour is healthy.
+Two steps enforce it, both runnable locally (`scripts/check-migrations.sh` and
+`scripts/migration-coexistence-drill.sh`):
+
+- the static check rejects editing a migration `master` already applied (Flyway
+  would refuse the file anyway, one deploy later and with the stack down), a
+  file name that breaks the `V<timestamp>__<name>.sql` shape, and the
+  breaking patterns listed in
+  `## Schema changes during a blue-green cutover` in `docs/ops-runbook.md`
+  unless the file carries a `-- contract:` note naming when the old shape
+  disappears;
+- the drill builds the previous release and the working tree, starts both
+  against one scratch database, registers and logs in on the old build, applies
+  the new migrations, then asks *both* to serve — a change that breaks the
+  running colour fails here, before it reaches a deploy.
+
+The static check runs on every code change (seconds). The drill follows the
+classifier: it runs when the range adds or edits a file under
+`src/main/resources/db/migration` — the only way to break the running colour —
+and also when it edits either gate script, the gate's regression test,
+`scripts/preflight.sh`, or this workflow, because then the answer changed rather
+than the schema. That scope
+lives in two places, the classifier and `scripts/preflight.sh`, and both have
+to change together.
+
+The drill needs Docker and a warm Gradle cache: about twenty seconds warm, a
+couple of minutes when the previous release has to be built from scratch. It is
+the reason the gate is worth having rather than a syntax check that a
+`DROP COLUMN` passes.
 
 `quality` publishes the test and coverage reports even when it fails, and
 `supply-chain` uploads all of its evidence (secret scan, filesystem scan,
@@ -52,10 +88,11 @@ the exit code never stands in for evidence.
 ## Documentation-only pull requests
 
 A pull request that touches nothing but prose does not run the suite. A
-`changes` job classifies the diff first and the two expensive jobs read its
-answer; on a documentation-only pull request they check out nothing, run no
-Gradle task, scan nothing and finish in seconds. Measured on run `43792194309`,
-the suite job took 6m13s of wall time, which is the wait this removes.
+`changes` job classifies the diff first and the expensive jobs read its answer —
+`quality`, `migrations` and `supply-chain`. On a documentation-only pull request
+they check out nothing, run no Gradle task, scan nothing and finish in seconds.
+Measured on run `43792194309`, the suite job took 6m13s of wall time, which is
+the wait this removes.
 
 The allowlist is deliberately narrow — a path counts as documentation only when
 every changed file matches `*.md`, `docs/`, `.plans/` or `memory-bank/`.
@@ -302,8 +339,9 @@ anything the mirror does not carry.
 
 `scripts/preflight.sh` runs what CI runs, scoped to what changed: formatting
 always, the full suite when code changed, a cold resolve when the resolution
-wiring changed, the image when a build input changed, and — with `--master` — a
-refusal to carry AI-only paths into a branch bound for master. It prints one
+wiring changed, the image when a build input changed, the migration gates when
+the schema or one of those gates changed, and — with `--master` — a refusal to
+carry AI-only paths into a branch bound for master. It prints one
 verdict, `PREFLIGHT: green` or `PREFLIGHT: RED`, and the repository installs it
 as the push gate:
 

@@ -241,7 +241,7 @@
 - **记忆（含压缩摘要）里的 SHA / run ID / PR 号 / 「已修」结论，引用前必须回源核对（强制）**：2026-11-16 一轮从未发生的「CI 判据修复」被当成已交付写进了计划、记忆与规则——描述细节齐全到足以乱真，但 `git cat-file -t <sha>` 无对象、`gh run view <id>` 404、`gh pr view <n>` 404、`git log -S '<串>'` 全库无痕，相关文件在盘上从未被改。判据：任何要落进文档的哈希、编号或「已改/已修」结论，先跑一次对应命令查它；查不到就不是事实，先删文字、再决定补不补工作，绝不能拿摘要当证据。
 - **声明不等于执行（强制）**：阈值、规则、校验写在构建脚本或配置里，**不等于它会跑**——它要被人或任务依赖才算门。`jacocoTestCoverageVerification` 带着 80% / 70% 的阈值存在了很久，却没有任何任务依赖它：本地 `./gradlew check` 从不执行，只有 CI 在命令行里点名才生效，于是「阈值」只存在于流水线一侧（2026-11-16 P3.7 才发现）。判据两条：① 门必须挂进 `check` 这类聚合任务，本地与流水线同一条命令；② **用一次故意的失败证明它会红**（临时把阈值提到 0.99、喂一个坏输入），并把那条失败原文写进计划行的判定——只见过绿灯不算证明。
 - **暖缓存会掩盖校验和缺口，冷缓存才是判据（强制）**：`gradle/verification-metadata.xml` 补完不等于补全——`--write-verification-metadata` 只记录这一轮**真的走过校验**的字节，本机缓存里早已存在的模块描述符（如 `junit-bom-5.14.4.module`）会被直接取用而漏记，`./gradlew check --offline` 也照样绿；到 CI 的冷缓存上下载时才 `Dependency verification failed for configuration ':compileClasspath'`（2026-11-17 P3.7 实测）。判据：用一个空 Gradle home 重放一次真实解析——`GRADLE_USER_HOME=$(mktemp -d) ./gradlew bootJar -x test`，再把测试侧跑一遍（`dependencies --configuration testRuntimeClasspath`、`compileTestJava`），全部通过才算集合完整。
-- **本地过门才提交、推送后自证结论（强制）**：`scripts/preflight.sh` 按改动范围跑 CI 的同一批门（格式化常在；代码变更跑 `build`（含覆盖率阈值）；解析配置变更跑空 `GRADLE_USER_HOME` 的冷解析；构建输入变更跑 `docker build`；`--master` 拒绝 AI 路径），仓库用 `git config core.hooksPath .githooks` 把它装成 pre-push 门，pre-commit 对代码类改动调**同一个脚本**——0.118.1 起红线是「本地没绿不提交」，纯文档改动才只付 `spotlessCheck`（用户 2026-11-17：「本地成功前不要提交推送推PR」）。判据是脚本自己打印的 `PREFLIGHT: green`，不是「我觉得应该过了」。推送后必须自己拿到判定：`.github/scripts/wait-for-head.sh` 按 `headSha` 精确取本次提交的 run，再阻塞到 `conclusion`——推出去的头几秒里 `gh run list --limit 1` 返回的仍是上一次的 run，它的绿与本次提交无关。「还在跑」不是交付状态；红灯要么修，要么把外部原因与证据（`429 Too Many Requests` 的原文、重跑结论）写进报告。
+- **本地过门才提交、推送后自证结论（强制）**：`scripts/preflight.sh` 按改动范围跑 CI 的同一批门（格式化常在；代码变更跑 `build`（含覆盖率阈值）；解析配置变更跑空 `GRADLE_USER_HOME` 的冷解析；构建输入变更跑 `docker build`；迁移变更跑 `scripts/check-migrations.sh` 与双版本共存演练；`--master` 拒绝 AI 路径），仓库用 `git config core.hooksPath .githooks` 把它装成 pre-push 门，pre-commit 对代码类改动调**同一个脚本**——0.118.1 起红线是「本地没绿不提交」，纯文档改动才只付 `spotlessCheck`（用户 2026-11-17：「本地成功前不要提交推送推PR」）。判据是脚本自己打印的 `PREFLIGHT: green`，不是「我觉得应该过了」。推送后必须自己拿到判定：`.github/scripts/wait-for-head.sh` 按 `headSha` 精确取本次提交的 run，再阻塞到 `conclusion`——推出去的头几秒里 `gh run list --limit 1` 返回的仍是上一次的 run，它的绿与本次提交无关。「还在跑」不是交付状态；红灯要么修，要么把外部原因与证据（`429 Too Many Requests` 的原文、重跑结论）写进报告。
 - **一个提交会有多个 run，等的是全部（强制）**：`master` 上合并会让 `CI` 与 `Publish` 同时起跑，`workflow_run` 通知还会再添几个。只拿到先完成那个的绿就宣布完成，等于把另一个的红藏起来——2026-11-17 就是这样漏掉 `Publish` 的 429（`CI` 绿是因为依赖层缓存命中，`Publish` 冷启动才真的去下载）。`wait-for-head.sh <branch>` 现在会在该提交上等**所有** run 收敛（含新出现的），任一失败即 `VERDICT: RED`。PR 的 CI 绿只说明 PR 准入，合并后必须对 master 上那个 merge commit 再跑一次。
 
 - **编辑前验证（强制）**：先读完整文件（片段读取不足时直接整文件读取，不反复片段读同一文件）→ 编辑后LSP diagnostics → 编译验证 → 运行相关测试
@@ -422,6 +422,7 @@
 ### R17: 分支管理（强制 - 防止生产事故）
 
 **核心原则：master 是生产分支，永远保持干净（无 AI 文件、无开发内容）。**
+**先起分支，再动手（强制，2026-11-17）**：任何实施的第一步是 `git switch -c feature/<kebab> develop`，**不是**先在 `develop` 上改完再把改动挪到新分支。理由：未提交改动停在 `develop` 上时，任何一次 `git pull`／`switch`／`stash` 实验都可能把它搅进无关上下文，而事后再 `git switch -c` 只搬得走工作树、搬不走已经跑过的构建与已经形成的判断——「当时在哪条分支上验证的」也就无从追溯。例外只有两类：只读调查（`git log`/`grep`/读文件）与纯 `git status` 类检查；一旦要落盘或跑门，先建分支。
 
 | 分支 | 用途 | 允许 | 禁止 |
 |---|---|---|---|
@@ -446,7 +447,7 @@
 
 **发布分支与同步分支都从 master 切，不从 develop 切**：develop 含 AI 文件与开发内容，从它切出来的分支一合并就会把 `AGENTS.md`、`memory-bank/`、`.plans/` 带进生产。两种分支的构造相同——`git switch -c <name> origin/master`，只带**非 AI** 改动，PR 到 master，合并后删除分支。
 
-**PR 的准入条件**：CI 三个 job（`Format, tests and coverage`、`Render secrets with the CI age identity`、`Secrets, vulnerabilities, SBOM and provenance`）全绿。这三项**尚未**写进 ruleset 的 required status checks——GitHub 只允许把近 7 天在本仓库成功跑过的检查设为必需，所以顺序是「先让 PR 跑绿 → 再用 API 写入规则集 → 回读确认」，在此之前红灯 PR 仍可合并。单人仓库设 0 approvals——PR 作者不能批准自己的 PR，要求 1 会让唯一的作者永远合并不进去。
+**PR 的准入条件**：四个门 job（`Format, tests and coverage`、`Migration compatibility`、`Render secrets with the CI age identity`、`Secrets, vulnerabilities, SBOM and provenance`）全绿。ruleset 目前只强制其中三个——`Migration compatibility` 是新增的，GitHub 只允许把近 7 天在本仓库成功跑过的检查设为必需，所以顺序是「先让 PR 跑绿 → 再用 API 写入规则集 → 回读确认」；在写入之前它在 PR 上报出结论、但不挡合并。单人仓库设 0 approvals——PR 作者不能批准自己的 PR，要求 1 会让唯一的作者永远合并不进去。
 
 **master 同步规则（PR 版，2026-11-16 修订）**：develop 每交付一批就把非 AI 内容同步到 master，分支名 `sync/master-<yyyymmdd>`；它不是发布——不打 tag，也不额外改版本号（版本已随 develop bump，同步只是把它带过去）。**按内容同步，不按提交 cherry-pick**：两边历史早已分叉（`origin/master..origin/develop` 实测 967 条，多数是 cherry-pick 造成的重影而非内容差），逐条重放只会制造冲突与噪声。做法是 `git diff --name-only origin/master origin/develop -- . ':(exclude)AGENTS.md' ':(exclude).plans' ':(exclude)memory-bank' ':(exclude).agents' ':(exclude).claude' ':(exclude).omp' ':(exclude)docs/plans' ':(exclude)dev-docs'` 列出真实缺口 → `git checkout origin/develop -- <列出的路径>` → 一个提交写清补齐了什么 → push → `gh pr create --base master` → CI 全绿 → `gh pr merge --merge` → 删同步分支。每步用 `git show --name-only` 核对没有 AI 路径混入（`.claude/skills/*` 是指向 `.agents/skills/` 的符号链接，同属 AI 内容）。
 
@@ -497,6 +498,8 @@
 | 依赖 init 的测试 | 约束/结构断言需读取独立迁移（如 ResourceTypeTest 读 `ADD CONSTRAINT` 所在文件），不得假设在 init 内 |
 
 触发条件：任何对 `db/migration/` 下已提交文件的修改，先确认该文件是否已被应用（提交过 = 已应用）；已应用 → 绝不直接改，另起迁移。
+
+**迁移必须让正在服务的版本活下来（强制）**：蓝绿发布下新旧两色共享一个库，迁移在旧色仍在接流量时执行，因此「删列 / 改名 / 收紧类型 / `SET NOT NULL` / 删约束」都属**下一版**才能做的事（expand 现在、contract 下一版）。机制由两道门兜底：`scripts/check-migrations.sh`（命名、已发布迁移逐字节不可变、破坏性语句需 `-- contract:` 注记说明何时安全）与 `scripts/migration-coexistence-drill.sh`（旧版 jar 与新版 jar 同库，迁移后两版都要能服务）。规矩：① 这两个脚本的**判定口径**以 `docs/ops-runbook.md` 的 `## Schema changes during a blue-green cutover` 为准，改脚本必须同批改该节与 `docs/ci.md`；② 属于锁/耗时但**不影响旧版兼容**的语句（如 `CREATE INDEX`）不进静态门，只写进 runbook——把安全的语句也拦下，只会训练人闭眼写注记；③ 范围触及 `db/migration`、任一门脚本或它们的接线（本规则、`scripts/preflight.sh`、`.github/workflows/ci.yml`）时，`scripts/preflight.sh` 会依次跑这两步，绿了才提交；单独跑时顺序相同：先 `./scripts/check-migrations.sh`，再 `./scripts/migration-coexistence-drill.sh`（2026-11-17 P3.5）。
 
 ## 执行流程
 
