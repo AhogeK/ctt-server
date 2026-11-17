@@ -260,6 +260,15 @@ is `0f7de85e…` from the portal and `221abccf…` from Central. The verificatio
 metadata lists **both** hashes for the four markers, which is Gradle's
 documented way to accept either source — a copy from anywhere else still fails.
 
+A version *range* is a third way the throttling reaches the build. Gradle answers
+`[4.5.1,5)` by listing versions in **every** repository, and a repository that
+fails is disabled for the rest of the build — so one `429` on a repository that
+holds nothing the answer needs still fails the resolve, because Gradle cannot
+know which version is highest. `com.yubico:webauthn-server-parent` ships two such
+ranges (cbor, guava); `build.gradle.kts` pins both with `strictly`, which
+replaces the request instead of consulting listings. The proof that the listing
+is gone is a cold resolve under `--info`: no `maven-metadata.xml` request appears.
+
 Two layers keep the download from recurring:
 
 - `downloadDependencies` resolves every configuration without compiling, and the
@@ -292,13 +301,19 @@ anything the mirror does not carry.
 ## Before the change leaves the machine
 
 `scripts/preflight.sh` runs what CI runs, scoped to what changed: formatting
-always, the full suite when code changed, the image when a build input changed,
-and — with `--master` — a refusal to carry AI-only paths into a branch bound for
-master. It prints one verdict, `PREFLIGHT: green` or `PREFLIGHT: RED`, and the
-repository installs it as the push gate:
+always, the full suite when code changed, a cold resolve when the resolution
+wiring changed, the image when a build input changed, and — with `--master` — a
+refusal to carry AI-only paths into a branch bound for master. It prints one
+verdict, `PREFLIGHT: green` or `PREFLIGHT: RED`, and the repository installs it
+as the push gate:
+
+The cold resolve exists because a warm `GRADLE_USER_HOME` answers from cached
+metadata: it cannot show a missing checksum entry or an unreachable source, and
+both shipped a red pipeline while every local command was green.
+
 
 ```bash
-git config core.hooksPath .githooks   # pre-commit: formatting, pre-push: preflight
+git config core.hooksPath .githooks   # pre-commit: preflight for code, formatting for docs; pre-push: preflight
 ```
 
 A green pipeline is a claim, and the person who pushed owns it:
