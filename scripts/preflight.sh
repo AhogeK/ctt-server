@@ -13,7 +13,10 @@
 #   code changed     ./gradlew build — tests, coverage thresholds, check
 #   resolution       ./gradlew bootJar with an empty GRADLE_USER_HOME — proves
 #                    the change resolves from nothing, which is what a runner
-#                    does; a warm home hides missing checksums and metadata
+#                    does; a warm home hides missing checksums and metadata.
+#                    Only the Gradle distribution is shared: fetching it again
+#                    would test the network, not the change, and its failures
+#                    were the ones that blocked a push for no reason.
 #   build inputs     docker build — Dockerfile, context, Gradle wiring
 #   --tree           run every step regardless of what the range touches
 #   --master         also: the range must carry no AI-only paths
@@ -25,6 +28,10 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 root=$(git rev-parse --show-toplevel)
 cd "$root"
+
+# Where the warm build keeps its caches; the cold step borrows only its Gradle
+# distribution from here.
+warm_home="${GRADLE_USER_HOME:-$HOME/.gradle}"
 
 all_tree=0
 master=0
@@ -118,12 +125,19 @@ else
 fi
 
 cold_resolve() {
-  local home
+  local home status
   home=$(mktemp -d "${TMPDIR:-/tmp}/preflight-gradle.XXXXXX")
-  # The point of the empty home is to resolve like a fresh runner; keeping it
-  # afterwards would only leak a few hundred megabytes.
-  GRADLE_USER_HOME="$home" ./gradlew bootJar -x test --no-daemon -q
-  local status=$?
+  # Every other part of the home stays empty, which is the whole point; the
+  # distribution is the same bytes the warm build already runs, so reusing it
+  # keeps a download out of a step that is about resolution.
+  if [ -d "$warm_home/wrapper" ]; then
+    ln -s "$warm_home/wrapper" "$home/wrapper"
+  fi
+  # Resolution fails on a 429 or a reset as readily as on a real defect; the
+  # retry script separates the two, so the gate does not cry wolf.
+  GRADLE_USER_HOME="$home" GRADLE_RETRY_LOG="$home/resolve.log" \
+    .github/scripts/gradle-retry.sh bootJar -x test --no-daemon -q
+  status=$?
   rm -rf "$home"
   return $status
 }

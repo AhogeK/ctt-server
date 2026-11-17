@@ -1,4 +1,9 @@
 # Active Context
+- [2026-11-17] - 冷解析门不再下载发行包，也不再被传输噪声拦下（v0.118.3）
+   - 背景：`master` 同步分支的推送被自己的 pre-push 门拦下（`PREFLIGHT: RED (cold resolve)`），而同一份内容 10 分钟前在 `develop` 上过门；单独复跑冷解析 `exit=0`。根因是这一步每次都在新的 `GRADLE_USER_HOME` 里重下 Gradle 发行包——它测的是网络，不是改动，而网络抖动会直接变成对提交的否决。
+   - 变更：`scripts/preflight.sh` 的 `cold_resolve()` 只把暖家的 `wrapper` 软链进临时 home（依赖缓存 `caches/`、`metadata` 仍全空，冷解析的含义不变），并通过 `.github/scripts/gradle-retry.sh` 执行，`GRADLE_RETRY_LOG` 指向临时 home 内的 `resolve.log`。
+   - 验证：`ln -s ~/.gradle/wrapper` + 空 home 跑 `gradle-retry.sh bootJar -x test --no-daemon -q` → `exit=0`、耗时 204 s、日志里 `Downloading https://services.gradle.org` 出现 **0** 次；临时目录内容只剩 `caches/daemon/native/resolve.log/wrapper`。
+   - 教训：门禁里每一步都要问「它失败时，红的到底是谁」——把外部世界的抖动算进提交的失败里，等于训练人绕过门禁。
 - [2026-11-17] - 等待器对 `gh` 自身的失败有韧性（v0.118.2）
    - 背景：一次 `wait-for-head.sh` 在 5316 s 后死于 `failed to get runs: … EOF`——`gh` 的传输失败被 `set -e` 直接当成结论，既没有重试也没有判定行，读起来像「还在跑」。
    - 变更：`.github/scripts/wait-for-head.sh` 把列表调用拆成 `list_runs`（原始调用）与 `runs_for_sha`（重试 3 次、每次间隔 5 s、用 `jq -e 'type == "array"'` 校验响应），持久失败打印 `VERDICT: RED (cannot list runs)` 并 `exit 3`；`docs/ci.md` 同批说明。
