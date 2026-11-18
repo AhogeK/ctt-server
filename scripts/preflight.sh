@@ -170,7 +170,15 @@ else
 fi
 
 if [ "$build_changed" -eq 1 ]; then
-  run "image build" docker build --quiet -t ctt-preflight:local .
+  # The container build resolves from the same mirror gradle.properties names;
+  # a machine whose network cannot reach it can point both at another copy.
+  # The array is expanded behind `+` because bash 3.2 treats an empty one as
+  # unset, and macOS still ships that version.
+  build_args=()
+  if [ -n "${ORG_GRADLE_PROJECT_artifactMirrorUrl:-}" ]; then
+    build_args+=(--build-arg "ARTIFACT_MIRROR_URL=$ORG_GRADLE_PROJECT_artifactMirrorUrl")
+  fi
+  run "image build" docker build --quiet ${build_args[@]+"${build_args[@]}"} -t ctt-preflight:local .
   # The image is a means to an end; leaving it behind would be a leak of its own.
   docker image rm -f ctt-preflight:local >/dev/null 2>&1 || true
 else
