@@ -59,7 +59,7 @@ tail -n 5 /var/log/nginx/ctt-access.log
 
 ## Keeping the two hops in step
 
-This vhost and the Caddy edge (`deploy/local/Caddyfile`) both cap the body at the
-same number of bytes — 4 MiB, stated as `4194304` here and `4MiB` there. Change
-one and the other, then re-run the probes in `docs/ops-runbook.md`
-("Edge headers and limits").
+This vhost and the Caddy edge (`deploy/edge/Caddyfile`, shared by the local and
+staging stacks) both cap the body at the same number of bytes — 4 MiB, stated as
+`4194304` here and `4MiB` there. Change one and the other, then re-run the probes
+in `docs/ops-runbook.md` ("Edge headers and limits").

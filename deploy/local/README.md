@@ -15,11 +15,20 @@ The scripts here share one rule: changing the live colour is never done by rebui
 ./deploy/local/switch-colour.sh green               # move traffic, no build, no restart
 ```
 
+The scripts behind these wrappers live in `deploy/lib/` and read every
+stack-specific value — container names, ports, the Prometheus URL, the probe
+job — from a stack file. This stack's file is `deploy/local/stack.env`; the
+wrappers in this directory only name it and call the shared script. The second
+stack, staging, is the same scripts with `deploy/staging/stack.env`; see
+[`deploy/staging/README.md`](../staging/README.md).
+
 `up.sh` starts the stack; it does not move traffic. `release.sh` replaces the
 colour that is **not** serving, waits for it to answer its readiness endpoint,
-and waits until Prometheus has rateable series for that colour — a container
-that started seconds ago has one sample, and an empty window sample would fail
-a release that is fine.
+sends it one request so its timer series exists at all (Micrometer registers
+`http_server_requests` on the first request, and the idle colour receives none),
+and only then waits until Prometheus has rateable series for that colour — a
+container that started seconds ago has one sample, and an empty window sample
+would fail a release that is fine.
 
 Then it switches and holds the window: one synthetic request per ten seconds,
 and on each cycle the edge's answer, `probe_success` of the public probe, the

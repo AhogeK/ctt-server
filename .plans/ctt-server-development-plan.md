@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.5、P3.7 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚，P3.5 为迁移兼容与共存演练，P3.7 为质量门接线）；P3.6、P3.8–P3.10 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.119.0 破坏性迁移被静态门与共存演练同时拦下、v0.117.0 `check` 自带覆盖率阈值并以一次失败证明会红、v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通、v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.7 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚，P3.5 为迁移兼容与共存演练，P3.6 为 staging 预演栈，P3.7 为质量门接线）；P3.8–P3.10 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.120.1 staging 上一次跑通「发布 → 回滚 → 恢复」、v0.119.1 等待器按参数解析提交、v0.119.0 破坏性迁移被静态门与共存演练同时拦下、v0.117.0 `check` 自带覆盖率阈值并以一次失败证明会红、v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通、v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
 
 ## 🗺️ 计划总览
 
@@ -75,13 +75,14 @@ left side
 *** 账号注销（硬删除 + 级联清理，v0.77.0）
 *** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
 *** 通行密钥（v0.91.0：独立登录 + 作为第二步）
-** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.5 已交付，P3.6–P3.9 未开工
+** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.7 已交付，P3.8–P3.9 未开工
 *** 基础设施与收口 ✅（P0.0–P0.17：本地全栈、隧道、端口、SSH 与日志、prod 脱敏、密钥通道、审计最小化与保留）
 *** 指标、追踪与日志维度 ✅（P1.1–P1.5）
 *** 告警、面板与值班 ✅（P2.1–P2.3）
 *** CI 与签名发布 ✅（P3.1 九道门、P3.2 keyless 签 digest）
 *** 蓝绿切换与回滚 ✅（P3.4：上游文件 + reload + 观察窗 + 一键回滚）
-*** 发布链余项 ⬜（P3.6 staging / P3.8 首次生产发布 / P3.9 审计实测 / P3.10 依赖自动升级）
+*** staging 预演栈 ✅（P3.6：一份脚本两套栈，发布 + 回滚 + 恢复在同一次彩排里）
+*** 发布链余项 ⬜（P3.8 首次生产发布 / P3.9 审计实测 / P3.10 依赖自动升级）
 *** 备份、恢复演练与密钥轮换 ⬜（P4.1–P4.5）
 *** 压测与故障演练 ⬜（P5.1–P5.3）
 *** Runbook 与对外接入 ⬜（P6–P7）
@@ -2431,7 +2432,7 @@ sequenceDiagram
 | P3.3 ✅ | 边缘转发的两跳配置落地。**接入机 nginx**：新建 `deploy/edge/nginx/ctt-server.conf`（仓库首个 nginx 配置）——80 端口只放 ACME 挑战并 301；443 设 `X-Forwarded-For $proxy_add_x_forwarded_for`、`X-Forwarded-Proto https`、`X-Real-IP`、`client_max_body_size 4194304`（4 MiB，与 Caddy 同值）、`limit_req 50r/s burst=100`（超限 429）、5s/30s/30s 超时、`TLSv1.2/1.3`、`server_tokens off`、`error_page 502 504 = @maintenance` 收敛为 503。**Caddy edge**：全局 `servers { trusted_proxies static 127.0.0.1 }`、`header_up X-Forwarded-Proto https`、`request_body { max_size 4MiB }`、`transport http` 超时、`handle_errors 502 503 504`（不写状态匹配会把 413 改写成 503）。配套 `deploy/edge/README.md` 与 runbook「Edge headers and limits」 | 探针实测（共享 netns + 真实 `caddy:latest` + 回显后端）：修前 `xff=127.0.0.1`（真实客户端全丢）、3 MB 请求体返回 503；修后 `xfp=https`、`xff=203.0.113.9, 127.0.0.1`，请求体边界实测 4194304 → 200 / 4200000 → 413，上游停 → 503。两侧限额原本是 `2m`(2,097,152 B) 与 `2MB`(2,000,000 B) 两个数、文档却称同步，且 1000 会话最坏字段约 1.7 MB 已逼近上限 ⇒ 统一为 4 MiB 并写明依据。`caddy validate` = Valid configuration；`nginx -t` = syntax ok（现代镜像仅 `listen ... http2` 弃用警告，文件头说明可换 `http2 on`）；`IpUtilsTest` 7 例覆盖 `getRealIp`/`isSecureRequest`（既有实现，本批未改）。`limit_req` 从 20r/s 提到 50r/s 并写出依据：单客户端限 10 r/s、同一 NAT 地址共享配额，约 5 个并发用户才应视为洪水 | 中 |
 | P3.4 ✅ | 蓝绿切换与回滚的**机制**（已交付）：上游放进 `deploy/local/edge-upstream/{blue,green}.caddy` 两个手写变体，站点块改成 `handle { import /etc/caddy-upstream/active.caddy }`，`active.caddy` 是 gitignore 的运行时 symlink（`up.sh` 首次生成）；edge 的 admin 从 `off` 改为 `127.0.0.1:2019`，切上游只做一件事——`caddy reload`（坏配置不改现状）；`switch-colour.sh` 用 `ln -sfn` 建新链接再 `mv -f` 原子替换、reload 成功后**读运行中配置**断言 dial、最后用 `/ctt-server/api/v1/config/public` 复核流量；`release.sh` 负责准备目标色、切上游、按窗口每 10 s 断言 `probe_success=1`、5xx 速率 `=0`、p95 ≤ 300 ms，任一破损立即切回。取舍见 `docs/decisions/ADR-0005-blue-green-cutover.md`，用法见 `deploy/local/README.md` | 本机实测一次发布一次回滚：`release.sh blue --no-build --observe 90` → `edge → blue (127.0.0.1:18081) · reload accepted · /ctt-server/api/v1/config/public answered · previous: green`，90 s 内每个 10 s 样本 `probe_success=1 5xx=0/s p95≈0.0054–0.0067s http=200`；`release.sh --rollback --observe 60` → 切回 green，60 s 样本同样健康，两次 `EXIT=0`。演练暴露并修掉两处静默缺陷：切换复核曾用应用端口**不提供**的 `/actuator/health`（404 → 被判定失败并回退），窗口采样曾因锚点写错恒为空、被当成健康。**压测并发期间的同签验证属 P5.2；生产环境上的首次发布与回滚属 P3.8** | 高 |
 | P3.5 ✅ | 迁移兼容（已交付）：expand/contract 写进 `docs/ops-runbook.md`；`scripts/check-migrations.sh` 静态门（命名、已发布迁移不可变、破坏性语句需 `-- contract:` 注记）；`scripts/migration-coexistence-drill.sh` 共存演练（旧版与新版的 jar 各自构建，同库迁移后两版都要能服务）；`preflight.sh` 按 `migrations_changed` 接线，CI 新 job `migrations`，`docs/ci.md` 同步 | 静态门四用例（正常 ok / `DROP COLUMN` RED / 加 `-- contract:` 放行 / 改已发布迁移 RED）；演练连续两次 `DRILL: green (… 14 migration(s))`，插入 `V20990101000000__drill_drop.sql` 后 `DRILL: RED (new version exited during startup)` 且静态门同红，移除重建后复绿。细节见下方「迁移兼容与共存演练」 | 中 |
-| P3.6 | staging：独立库与端口，用于发布预演与恢复演练 | staging 能完成一次完整发布与回滚 | 中 |
+| P3.6 ✅ | staging 预演（已交付）：脚本与 Caddyfile 上移复用——`deploy/lib/{release,switch-colour,stage-jar}.sh` 栈无关、`deploy/edge/Caddyfile` 参数化（`{$CADDY_ADMIN}` / `{$CADDY_SITE}`），两栈只差一份 `stack.env`；staging 栈 = `docker-compose.staging.yaml`（`name: ctt-staging`、容器 `ctt-stg-*`、库 `ctt_server_staging`、secrets `run-staging/`、`ddl-auto: validate`）+ 独立端口（edge `28080`、两色 `28081`/`8181` 与 `28082`/`8182`、Caddy admin `2029`、Prometheus `9190`、blackbox `9215`、postgres `25432`、redis `26379`、mailpit `2025`/`9025`）+ `{up,down,backup,restore-drill,rehearse}.sh`；`release.sh` 新增 `--no-jar` | `./deploy/local/on-engine.sh ./deploy/staging/rehearse.sh` → `STAGING: green (release blue → green, rollback → blue, restore; no breach in either window)`，145.81 s；恢复演练 `RESTORE: green (20261105120000, marker … survived, blue serving)`，`DROP SCHEMA` 级联 22 个对象后标记行、Flyway 历史与整栈都恢复。踩坑：引擎容器内没有 JDK（故 `--no-jar`）；刚重启、未接流量的颜色在 Prometheus 里**没有 `http_server_requests` 序列**（Micrometer 首次请求才注册计时器），窗口据此拒绝判绿 ⇒ 切换前先给它一次请求 | 中 |
 | P3.7 ✅ | **质量门接线与测试可终止性**：`jacocoTestCoverageVerification`（指令 80% / 分支 70%）此前只被声明、无人依赖——CI 靠命令行点名才生效，本地 `./gradlew check` 从不执行它；现 `dependsOn(tasks.test)` 并挂进 `check`，本地与流水线同一判据。`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时，悬停用例自己失败而不是耗满 runner；`gradle/verification-metadata.xml`（578 组件 sha256）由 `--write-verification-metadata` 生成，离线解析即校验 | 阈值临时提到 0.99 时 `jacocoTestCoverageVerification` 报 `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99` 并 `BUILD FAILED`（exit 1），恢复 0.80 后转绿；实测指令 94.78% / 分支 83.41%；`./gradlew check --offline` 3m28s 通过且校验和全部命中；`ci.yml` 删掉手工点名的注释与参数 | 中 |
 | P3.8 | **首次生产发布：按 digest 的蓝绿发布与回滚**：部署机起两色（`app-blue`/`app-green`）与 edge，Jenkins 把新镜像部署到**空闲色**（`CONTAINER_NAME` 选色 + `IMAGE_REF` 传 digest），切上游、跑观察窗、保留回滚命令；回滚即切回旧色。机制本身已在 P3.4 证明，本行只证明它在生产环境、由流水线驱动时成立 | 生产环境一次发布一次回滚：`docker inspect` 里运行中容器的镜像 digest 等于 Jenkins 传入值；切换后窗口内 `probe_success` 保持 1、应用 5xx = 0、p95 ≤ 300 ms；回滚后同样成立且旧色仍在服务。**首发会写入真实用户数据与生产库，执行前需用户明确授权** | 高 |
 | P3.9 | **首次生产部署后的审计保留实测**（原 P3.8，依赖 P3.8 的首次部署）：生产表由首次 prod 启动（Flyway）建立并产生真实审计后，确认 `AUDIT_RETENTION_DAYS` 生效（默认 180 天），用 P0.16b 同一查询集复测行数/表与索引体积/保留扫描与删除计划，核对启动日志与每轮清理汇总日志（cutoff、删除行数、耗时，零删除轮次也有记录）；若删除的顺序扫描成为瓶颈再评估索引或分批策略（结构变更须新迁移） | prod `audit_logs` 存在且 180 天策略生效；复测快照与开发参考分开记录；180 天稳态规模有生产实测值；清理汇总日志可核对（含零删除轮次） | 中 |
@@ -2609,6 +2610,20 @@ sequenceDiagram
 | 新增的回归测试 | `scripts/tests/check-migrations-test.sh`（12 例：增量绿、`DROP COLUMN` 红、短格式 `DROP` 红、跨行 `NOT NULL` 红、块注释内关键字绿、`-- contract:` 绿、版本重复红、文件名不合形红、短格式 `ALTER … TYPE` 红、目录为空红、目录缺失红、`--base` 解析不出红）；先例是 `scripts/tests/install-functions-test.sh`，由 CI 与 preflight 同一条命令跑 |
 | 判断 | 「兼容」与「锁」是两件事：门只答「旧版还能不能读这份 schema」，锁与耗时写在 runbook 的 expand/contract 表里，避免两类问题混成一张让人机械关掉的门 |
 | 后续动作 | `Migration compatibility` 需先在 PR 上跑绿一次，再写进 `master-protection` ruleset 并回读——GitHub 只接受已经成功跑过的检查；在此之前它在 PR 上报结论但不挡合并，`docs/ci.md` 与 `AGENTS.md` 的 job 清单都按此表述 |
+
+### staging 预演栈（发布链，2026-11-18，v0.120.1）
+
+| | |
+| --- | --- |
+| 入口 | `./deploy/staging/up.sh`（宿主：渲染 `run-staging`、建 jar、起栈）→ `./deploy/local/on-engine.sh ./deploy/staging/rehearse.sh`（引擎侧：发布 + 回滚 + 恢复）→ `./deploy/staging/down.sh`（停栈、留卷） |
+| 机制 | `deploy/lib/{release,switch-colour,stage-jar}.sh` 读 `CTT_*`，由 `deploy/local/stack.env` 或 `deploy/staging/stack.env` 注入；`deploy/edge/Caddyfile` 的参数 `{$CADDY_ADMIN}` / `{$CADDY_SITE}` 让同一个 edge 跑在两个端口上；staging 的 compose overlay 只改项目名、容器名、库名、端口、secrets 目录与探针 URL |
+| 验证 | `STAGING: green (release blue → green, rollback → blue, restore; no breach in either window)`，最终一轮 187.34 s（`--force-recreate` 与表清单断言落地后；此前 145.81 s / 157.37 s 的两轮分别缺这两项）；两个 60 s 窗口各有 5 个 p95 样本、0 次 5xx、0 次 `probe_success` 失败；`RESTORE: green (20261105120000, marker drill-20261118T121933Z-488 survived, blue serving)`，`DROP SCHEMA` 级联 22 个对象后 `== 20 public tables restored`；本地 `release.sh green --observe 60` 与 `--rollback` 也 `LOCAL: green`（0 5xx、p95 0.002 s、30 次边缘 2xx） |
+| 踩坑 | 引擎容器里没有 JDK ⇒ `release.sh --no-jar` 把「建 jar」（宿主）与「建镜像」（引擎）分开；刚重启、未接流量的颜色没有 `http_server_requests` 序列（Micrometer 首次请求才注册计时器）⇒ 切换前先给它一次请求，再等可求率的序列 |
+| 审查修正 | 两轴审查（Standards 8 条 / Spec 3 条）：发布腿改 `--force-recreate --no-deps`（同一 jar 起两色后 `--build` 得到同一镜像、compose 不重建，窗口测到的是旧容器）；恢复后补边缘公开路径探针与 `pg_restore --list` 表清单对 `pg_tables`（readiness 只 `SELECT 1`、配置公开端点不查库，丢表也会绿）；颜色→端口映射集中到 `load-stack.sh`；`down.sh` 的空数组在 macOS `/bin/bash 3.2` 下 `unbound variable`；`up.sh` 改为读 `stack.env`，否则栈文件对本地栈是死的 |
+| 判断 | 复制脚本必然漂移（P3.3 的探针、P3.5 的门都因此返工），所以 staging 复用同一份实现、验收也包含「本地栈仍绿」；staging 证明「这份代码在这台机器上能发布、能回滚、能恢复」，**不证明**回滚到更旧的版本（那要按 digest 拉 registry 镜像，归 P3.8） |
+| 边界 | 全回环、不对公网暴露；`restore-drill.sh` 破坏性（删 `public` schema）且必须显式 `--yes`，并拒绝任何数据库容器名不是 `ctt-stg-*` 的调用（只按容器名守卫，不碰卷）；staging 数据不替代生产库 |
+| 相关文档 | `docs/ops-runbook.md` 的 `## Rehearsing a release on staging`；`deploy/staging/README.md`（端口对照、隔离四件、能证明/不能证明）；`deploy/local/README.md`（`stack.env` 与 `deploy/lib/` 的分工） |
+
 
 ### 等待器按参数解析提交（发布链，2026-11-17，v0.119.1）
 

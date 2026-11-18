@@ -245,7 +245,7 @@ conversation:
 | Hop | Its job |
 | --- | --- |
 | nginx on the access host (`deploy/edge/nginx/ctt-server.conf`) | terminates TLS, appends the real client to `X-Forwarded-For`, states `X-Forwarded-Proto: https` |
-| Caddy edge (`deploy/local/Caddyfile`) | trusts the tunnel peer so the chain survives, keeps stating `https`, bounds body size and timeouts |
+| Caddy edge (`deploy/edge/Caddyfile`) | trusts the tunnel peer so the chain survives, keeps stating `https`, bounds body size and timeouts |
 
 The application reads the chain right-to-left and skips only the peers listed in
 `ctt.security.trusted-proxy-addresses`. That is why order matters: the value our
@@ -412,6 +412,50 @@ against.
 At step 2 both colours write. That is safe only because the schema is a superset
 of what either version needs — which is exactly what the two checks above
 enforce.
+
+## Rehearsing a release on staging
+
+Staging is a second full stack on the same machine — own Compose project, own
+containers (`ctt-stg-*`), own database and ports, own rendered secrets — used for
+two things: rehearsing a release and restoring a database. It is not a second
+production: every port is loopback and nothing is exposed.
+
+```sh
+./deploy/staging/up.sh                                     # on the host: secrets, jar, stack
+./deploy/local/on-engine.sh ./deploy/staging/rehearse.sh    # publish, roll back, restore
+./deploy/staging/down.sh                                   # stop, keep the volumes
+```
+
+The rehearsal runs through `on-engine.sh` for the same reason a local release
+does: on Docker Desktop the colours, the edge and Prometheus listen on the
+engine's loopback, so a probe started from this shell reaches nothing. `up.sh`
+stays on the host because rendering secrets needs the SOPS age key and building
+the jar needs the toolchain.
+
+`rehearse.sh` prints `STAGING: green` only after all of:
+
+1. **a release** of the colour that was not serving — the image is rebuilt from
+   the staged jar, traffic moves by reload, and a 60 s window applies the same
+   assertions as production (no probe failure, no 5xx, p95 ≤ 300 ms);
+2. **a rollback** to the previous colour with the image it already runs
+   (`--no-build`) — the traffic path and the window, not an older version;
+3. **a restore** — `restore-drill.sh` drops the `public` schema, restores a dump
+   over the empty database, and asserts the marker row, the Flyway history and
+   that the stack answers readiness and the public path afterwards.
+
+What it does not prove: rolling back to an older *version*. Staging builds from
+the working tree, so a replaced version would be rebuilt from the current tree;
+the digest-pinned release in Deploying a signed image is what closes that gap in
+production.
+
+The scripts are shared with the local stack: `deploy/lib/switch-colour.sh` and
+`deploy/lib/release.sh` read every stack-specific value from a stack file
+(`deploy/local/stack.env`, `deploy/staging/stack.env`), and the wrappers in each
+directory only name the stack. A third stack is a new `stack.env` plus a Compose
+overlay, not a copy of either script.
+
+The restore drill is destructive by design and refuses to run without `--yes`;
+it only ever reaches volumes whose names carry `ctt-staging`.
 
 ## Related
 
