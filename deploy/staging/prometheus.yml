@@ -1,0 +1,61 @@
+# Staging Prometheus. Same jobs as the local stack, on staging's ports: the
+# application exposes its metrics on the management port of each colour (8181
+# blue, 8182 green), and blackbox probes the public path through staging's edge
+# and the readiness endpoint of each colour.
+#
+# The job names are the contract: `release.sh` addresses the public probe by the
+# name in `CTT_PROBE_JOB`, and the deployment host uses the same two names, so a
+# panel written against one stack reads the other.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    stack: staging
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9190"]
+
+  - job_name: ctt-server
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["127.0.0.1:8181"]
+        labels:
+          slot: blue
+      - targets: ["127.0.0.1:8182"]
+        labels:
+          slot: green
+
+  - job_name: blackbox-staging
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      # Public path through the edge: proves the proxy forwards to the application.
+      - targets: ["http://127.0.0.1:28080/ctt-server/api/v1/config/public"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9215
+
+  # Readiness is probed with a plain module so a 200 is the only success: the
+  # endpoint answers 503 while a colour drains, and a redirect must not count.
+  - job_name: blackbox-readiness
+    metrics_path: /probe
+    params:
+      module: [http_2xx_plain]
+    static_configs:
+      - targets: ["http://127.0.0.1:8181/actuator/health/readiness"]
+      - targets: ["http://127.0.0.1:8182/actuator/health/readiness"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9215

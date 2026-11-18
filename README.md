@@ -51,6 +51,9 @@
   that digest: it checks the signature against the publishing workflow's own identity, then starts the
   container with `--no-build`, so an unverified image cannot reach the host. It holds no plaintext
   credentials, and renders them from the encrypted payload with a file-based identity.
+- **Rehearsed before it ships.** A staging stack (`deploy/staging/`) runs the same release
+  implementation on its own ports, containers and database, so a release, a rollback and a
+  database restore are proven on one machine before the cutover reaches the host that serves users.
 
 ## How it works
 

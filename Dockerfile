@@ -1,5 +1,10 @@
 # ---- Build Stage ----
 FROM eclipse-temurin:25-jdk AS builder
+# A build on a network that cannot reach the mirror can point the download
+# elsewhere: --build-arg ARTIFACT_MIRROR_URL=https://repo.maven.apache.org/maven2/
+# The host gate takes the same override as ORG_GRADLE_PROJECT_artifactMirrorUrl.
+ARG ARTIFACT_MIRROR_URL=
+
 WORKDIR /app
 
 COPY gradle/ gradle/
@@ -23,7 +28,8 @@ COPY gradlew build.gradle.kts settings.gradle.kts gradle.properties* ./
 # copy this layer already holds. A plain layer is what turns the download into a
 # cache hit; a dependency change grows the image cache by the Gradle home
 # (~410 MB) and it stays until evicted.
-RUN chmod +x gradlew .github/scripts/gradle-retry.sh && \
+RUN if [ -n "$ARTIFACT_MIRROR_URL" ]; then export ORG_GRADLE_PROJECT_artifactMirrorUrl="$ARTIFACT_MIRROR_URL"; fi && \
+    chmod +x gradlew .github/scripts/gradle-retry.sh && \
     GRADLE_RETRY_LOG=/tmp/gradle-dependencies.log \
       .github/scripts/gradle-retry.sh downloadDependencies --no-daemon -q --console=plain
 

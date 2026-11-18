@@ -94,6 +94,12 @@ services:
     image: caddy:latest
     container_name: ctt-edge
     network_mode: host
+    # The site block reads these two (`deploy/edge/Caddyfile`). The defaults are
+    # this stack's values; the staging overlay sets its own, which is what lets
+    # both stacks run side by side on one host.
+    environment:
+      CADDY_ADMIN: ${CADDY_ADMIN:-127.0.0.1:2019}
+      CADDY_SITE: ${CADDY_SITE:-:18080}
     ports: !reset []
     depends_on:
       app-blue:
@@ -107,7 +113,7 @@ services:
       # mount, not a file mount: a file bind pins the inode, so repointing the
       # symlink on the host would never reach the container and every switch
       # would look applied while traffic stayed where it was.
-      - ./deploy/local/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/edge/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./deploy/local/edge-upstream:/etc/caddy-upstream:ro
       - caddy_data:/data
       - caddy_config:/config
