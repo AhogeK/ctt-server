@@ -48,6 +48,9 @@ src/main/resources/application-local.properties
 .env.*
 !.env.example
 *.env
+# Stack files hold ports and container names, not secrets — `*.env` above would
+# otherwise swallow them and a fresh clone could not start either stack.
+!deploy/*/stack.env
 .gstack/
 
 # Python bytecode from the CI helper scripts
@@ -75,6 +78,12 @@ deploy/observability/prometheus/targets/*.json
 # content, and a checkout that carried it would silently pin one colour.
 deploy/local/edge-upstream/active.caddy
 deploy/local/edge-upstream/active.caddy.new
+# The staging stack keeps its own choice (P3.6), for the same reason.
+deploy/staging/edge-upstream/active.caddy
+deploy/staging/edge-upstream/active.caddy.new
+# Dumps exist for the seconds a restore drill needs them; a committed dump would
+# be a copy of real user rows in the repository.
+deploy/staging/backups/
 
 ### macOS ###
 .DS_Store

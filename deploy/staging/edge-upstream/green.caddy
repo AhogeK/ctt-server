@@ -1,0 +1,9 @@
+# Edge upstream: the green colour of the staging stack. See `blue.caddy`.
+reverse_proxy 127.0.0.1:28082 {
+	header_up X-Forwarded-Proto https
+
+	transport http {
+		dial_timeout 5s
+		response_header_timeout 30s
+	}
+}

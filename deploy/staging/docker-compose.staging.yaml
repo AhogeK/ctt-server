@@ -1,0 +1,126 @@
+# The staging stack: a second full stack on the same host (P3.6).
+#
+# Why a whole stack and not a namespace inside the local one: a rehearsal has to
+# exercise what breaks in production — two colours against one database, an edge
+# that reloads, a migration applied while an older release is still serving. A
+# stack that shares containers shares the state being tested.
+#
+# This file is merged on top of `docker-compose.yaml` and
+# `docker-compose.local.yaml`. Everything it renames is renamed because Compose
+# requires it: container names are global on the host, host ports are global on
+# the host. Volumes are not — they carry the project name from `name:` below, so
+# the same `postgres_data` key here and in the local stack are different volumes.
+name: ${COMPOSE_PROJECT_NAME:-ctt-staging}
+# The rendered payload is per stack. Sharing the local stack's files would make
+# staging's `postgres` and its application read one password while a rehearsal
+# runs `initdb` for a second cluster: the container starts, the application
+# cannot connect, and the failure reads like a code defect.
+secrets:
+  postgres_password:
+    file: deploy/secrets/run-staging/POSTGRES_PASSWORD
+  redis_password:
+    file: deploy/secrets/run-staging/REDIS_PASSWORD
+  db_password:
+    file: deploy/secrets/run-staging/DB_PASSWORD
+  jwt_secret_key:
+    file: deploy/secrets/run-staging/JWT_SECRET_KEY
+  oauth_token_encryption_key:
+    file: deploy/secrets/run-staging/OAUTH_TOKEN_ENCRYPTION_KEY
+  grafana_admin_password:
+    file: deploy/secrets/run-staging/GRAFANA_ADMIN_PASSWORD
+  resend_api_key:
+    file: deploy/secrets/run-staging/RESEND_API_KEY
+
+
+x-app-staging-env: &app-staging-env
+  SERVER_ADDRESS: 127.0.0.1
+  MANAGEMENT_ADDRESS: 127.0.0.1
+  TRUSTED_PROXY_ADDRESSES: 127.0.0.1
+  SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:${POSTGRES_EXTERNAL_PORT:-25432}/${POSTGRES_DB:-ctt_server_staging}
+  SPRING_DATA_REDIS_HOST: 127.0.0.1
+  SPRING_DATA_REDIS_PORT: ${REDIS_EXTERNAL_PORT:-26379}
+  SPRING_MAIL_HOST: 127.0.0.1
+  SPRING_MAIL_PORT: ${MAIL_SMTP_EXTERNAL_PORT:-2025}
+  # A rehearsal runs the schema rules production runs. The local stack leaves
+  # Hibernate free to create what a migration forgot, which is exactly the
+  # failure this stack exists to catch.
+  SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+
+services:
+  # The standalone `app` exists only for the local stack's single-container
+  # mode; staging always runs two colours. Renamed anyway, so a stray start
+  # cannot take the local stack's name.
+  app:
+    container_name: ctt-stg-app
+
+  # --- data plane -------------------------------------------------------
+  # Same service keys, staging names and ports. Separate volumes follow from the
+  # project name, so `down -v` here cannot reach the local database.
+  postgres:
+    container_name: ctt-stg-postgres
+
+  redis:
+    container_name: ctt-stg-redis
+
+  mailpit:
+    container_name: ctt-stg-mailpit
+
+  # --- the two colours --------------------------------------------------
+  # The ports are staging's own because the local colours are still serving on
+  # theirs: an overlay that inherited 18081/18082 would bind a port that is in
+  # use, and Compose would fail to start the rehearsal for a reason unrelated to
+  # what it is rehearsing.
+  app-blue:
+    container_name: ctt-stg-app-blue
+    environment:
+      <<: *app-staging-env
+      SERVER_PORT: "28081"
+      APP_PORT: "28081"
+      MANAGEMENT_PORT: "8181"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8181/actuator/health/readiness || exit 1"]
+
+  app-green:
+    container_name: ctt-stg-app-green
+    environment:
+      <<: *app-staging-env
+      SERVER_PORT: "28082"
+      APP_PORT: "28082"
+      MANAGEMENT_PORT: "8182"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8182/actuator/health/readiness || exit 1"]
+
+  # --- the edge ---------------------------------------------------------
+  # Its site block, admin port and public port come from
+  # `deploy/staging/stack.env` through `CADDY_ADMIN`/`CADDY_SITE`; the upstream
+  # directory is staging's own, so a switch here cannot move local traffic.
+  edge:
+    container_name: ctt-stg-edge
+    volumes:
+      - ./deploy/edge/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/staging/edge-upstream:/etc/caddy-upstream:ro
+
+  # --- observability ----------------------------------------------------
+  # Prometheus and blackbox keep the same job names as the local stack, and
+  # `release.sh` addresses this stack's probe through `CTT_PROBE_JOB` in its
+  # stack file. Grafana is not part of a rehearsal: it renders dashboards, and a
+  # second copy would need its own admin password for no additional evidence.
+  prometheus:
+    container_name: ctt-stg-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --web.listen-address=127.0.0.1:9190
+    volumes:
+      - ./deploy/staging/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  blackbox:
+    container_name: ctt-stg-blackbox
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+      - --web.listen-address=127.0.0.1:9215
+
+
+  grafana:
+    profiles: !override ["grafana-only"]
