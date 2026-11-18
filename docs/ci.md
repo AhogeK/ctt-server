@@ -355,6 +355,13 @@ there once blocked a push whose content was already green. Resolution failures
 are read by `gradle-retry.sh`, so a `429` or a reset is retried once and a real
 defect still fails on the first attempt.
 
+Neither step has to fail with the machine's network: the cold resolve honours
+`ORG_GRADLE_PROJECT_artifactMirrorUrl`, and the image build takes the same
+override as `--build-arg ARTIFACT_MIRROR_URL=…`, so a host that cannot reach
+the mirror can point both at another copy of Central instead of switching the
+gate off. What the gate proves is that the change resolves and builds; which
+byte-identical copy answered is not part of that claim.
+
 
 ```bash
 git config core.hooksPath .githooks   # pre-commit: preflight for code, formatting for docs; pre-push: preflight
