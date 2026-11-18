@@ -101,7 +101,11 @@ else
     echo "[1/4] keeping the jar staged on the host"
   fi
   echo "[2/4] replacing $target"
-  "${compose[@]}" --profile bluegreen up -d --build --no-deps "app-$target"
+  # --force-recreate: with one jar and two colours, the image this build produces
+  # is the one both containers already run, so Compose would leave them alone and
+  # the window would watch the container the stack started with. A rehearsal has
+  # to replace it to prove anything.
+  "${compose[@]}" --profile bluegreen up -d --build --force-recreate --no-deps "app-$target"
   echo "[3/4] waiting for $target to be ready"
 fi
 

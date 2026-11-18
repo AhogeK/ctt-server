@@ -95,6 +95,18 @@ if [ "$after_version" != "$before_version" ]; then
 fi
 echo "== flyway history after the drill: $after_version"
 
+echo "== compare the table list"
+# The dump's table list is what the restore was supposed to bring back; the live
+# catalogue is what came back. Comparing them catches a restore that only
+# replaced the two tables the marker and the history checks look at.
+dumped_tables="$(docker exec -i "$CTT_DB_CONTAINER" pg_restore --list <"$dump" | grep -c ' TABLE public ' || true)"
+live_tables="$(printf "select count(*) from pg_tables where schemaname = 'public';\n" | psql_staging)"
+if [ "$dumped_tables" != "$live_tables" ]; then
+  echo "the dump carries $dumped_tables public tables, the restored database has $live_tables" >&2
+  exit 1
+fi
+echo "== $live_tables public tables restored"
+
 colour="$(./deploy/staging/switch-colour.sh | awk '{print $1}')"
 management="$(management_of "$colour")" ||
   { echo "cannot tell which colour serves now: $colour" >&2; exit 1; }
