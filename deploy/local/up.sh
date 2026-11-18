@@ -18,17 +18,22 @@ cd "$(dirname "$0")/../.."
 # the launcher is not the usual 1000-gid account.
 export SECRET_GID="${SECRET_GID:-$(id -g)}"
 
-echo "[1/4] rendering compose secrets"
+export CTT_STACK_FILE="${CTT_STACK_FILE:-deploy/local/stack.env}"
+# shellcheck source=deploy/lib/load-stack.sh
+. ./deploy/lib/load-stack.sh
+
+echo "[1/3] rendering compose secrets"
 ./deploy/secrets/render.sh
 
-echo "[2/4] building and staging the boot jar"
-./deploy/local/stage-jar.sh
+echo "[2/3] building and staging the boot jar"
+./deploy/lib/stage-jar.sh
 
 # The edge imports this link; a fresh checkout has the variants but no choice
 # made yet, and blue is the colour the rest of the stack starts with.
-if [ ! -e deploy/local/edge-upstream/active.caddy ]; then
-  ln -sfn blue.caddy deploy/local/edge-upstream/active.caddy
+if [ ! -e "$CTT_UPSTREAM_DIR/active.caddy" ]; then
+  ln -sfn blue.caddy "$CTT_UPSTREAM_DIR/active.caddy"
 fi
 
-echo "[4/4] starting the stack"
-exec docker compose -f docker-compose.yaml -f docker-compose.local.yaml "$@" up -d --build
+echo "[3/3] starting the stack"
+# shellcheck disable=SC2086 # CTT_COMPOSE_FILES is a list of -f arguments
+exec docker compose $CTT_COMPOSE_FILES "$@" up -d --build

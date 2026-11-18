@@ -10,7 +10,10 @@
 	# Without it, changing an upstream means recreating the container and losing
 	# the connections that make the switch invisible. Loopback only: nothing
 	# outside this host may reconfigure the edge.
-	admin 127.0.0.1:2019
+	# Both values are per stack: the local rehearsal and staging run side by side
+	# on one host, so the ports cannot be baked in. The defaults are the values
+	# the local stack has always used.
+	admin {$CADDY_ADMIN:127.0.0.1:2019}
 
 	# How this edge decides who the client is.
 	#
@@ -38,7 +41,7 @@
 	}
 }
 
-:18080 {
+{$CADDY_SITE::18080} {
 	bind 127.0.0.1
 	encode zstd gzip
 
@@ -54,7 +57,8 @@
 
 	# The upstream lives in a file rather than in this block: `active.caddy` is
 	# a symlink to one colour's variant, and moving traffic is a reload instead
-	# of an edit here. See deploy/local/edge-upstream/.
+	# of an edit here. See deploy/local/edge-upstream/ (staging keeps its own
+	# variant directory, which the stack overlay mounts in its place).
 	handle {
 		import /etc/caddy-upstream/active.caddy
 	}
