@@ -1,4 +1,9 @@
 # Active Context
+- [2026-11-18] - 镜像构建也能换依赖源，本地门不再因为这台机器连不上镜像而红（v0.120.2）
+    - 背景：`pre-push` 门的 `image build` 在容器里跑 `downloadDependencies`，只能读 `gradle.properties` 的 Google 镜像；这台机器到该域名的 TLS 被本机代理间歇重置（`Remote host terminated the handshake` / `connection reset`），于是每次推送都红在「与改动无关」的那一步。宿主侧的冷解析早就能用 `ORG_GRADLE_PROJECT_artifactMirrorUrl` 换源，门的两半只有一半有逃生口。
+    - 变更：`Dockerfile` 的 builder 阶段加 `ARG ARTIFACT_MIRROR_URL`（空默认），非空时导成 `ORG_GRADLE_PROJECT_artifactMirrorUrl` 再跑下载层；`scripts/preflight.sh` 在环境变量存在时透传 `--build-arg`（空数组用 `${arr[@]+"${arr[@]}"}` 展开，macOS 的 bash 3.2 把空数组当未定义）；`docs/ci.md` 的本地门一节写明两半都能换源。
+    - 验证：`bash -n scripts/preflight.sh` 通过；`docker build --build-arg ARTIFACT_MIRROR_URL=https://repo.maven.apache.org/maven2/` 通过依赖层走到运行时阶段。
+    - 判断：门证明的是「这份改动能解析、能构建」，哪份字节相同的副本回答了下载不属于断言内容；用别的副本绕开外部故障是对的，把门关掉才是错的。
 - [2026-11-18] - staging 预演栈：一份实现跑两套栈，发布与回滚在一台机器上预演（v0.120.1）
     - 背景：P3.6 要求 staging「独立库与端口，用于发布预演与恢复演练」，验收是「能完成一次完整发布与回滚」。蓝绿与窗口逻辑此前只存在于本地栈，而每次演练都要动本地那套正在用的端口与库；把脚本复制一份给 staging 必然漂移（P3.3 的探针、P3.5 的门都栽在「同一规则写在两处」）。
     - 变更：`deploy/local/{release,switch-colour,stage-jar}.sh` 与 `deploy/edge/Caddyfile` 上移——脚本进 `deploy/lib/`（栈无关，读 `CTT_*` 与 `stack.env`），Caddyfile 用 `{$CADDY_ADMIN:…}`/`{$CADDY_SITE::18080}` 参数化，两栈各自 mount 同一份；`deploy/local/stack.env` 与 `deploy/staging/stack.env` 是仅有的差异；`deploy/lib/load-stack.sh` 逐键校验必需变量；staging 栈 = `docker-compose.staging.yaml`（`name: ctt-staging`、容器 `ctt-stg-*`、库 `ctt_server_staging`、secrets `run-staging/`、`ddl-auto: validate`）+ 独立端口的 `prometheus.yml` + `{up,down,backup,restore-drill,rehearse}.sh`；`release.sh` 新增 `--no-jar`（JDK 在宿主、探针必须在引擎侧时用）；runbook 增 `## Rehearsing a release on staging`。
