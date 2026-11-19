@@ -6,8 +6,8 @@
 |------|------|
 | 语言 | Java 25 (Virtual Threads) |
 | 框架 | Spring Boot 4.1.2 |
-| 构建 | Gradle 9.9.0 + Kotlin DSL + Version Catalog |
-| 数据库 | PostgreSQL **18.6**（生产/开发库实测 `select version()`）；测试容器与 compose 一律用 `postgres:latest`（用户决策：镜像始终最新，含大版本）；Flyway 13.12.1 |
+| 构建 | Gradle 9.9.1 + Kotlin DSL + Version Catalog |
+| 数据库 | PostgreSQL **18.6**（生产/开发库实测 `select version()`）；测试容器与 compose 一律用 `postgres:latest`（用户决策：镜像始终最新，含大版本）；Flyway 13.13.0 |
 | 缓存 | Redis（测试容器 `redis:latest`） |
 | 安全 | Spring Security 7（随 Boot BOM）+ `spring-security-oauth2-jose` |
 | 两步验证 | `otp-java` 2.2.0（RFC 6238）+ `commons-codec` 1.23.0（Base32） |
@@ -19,7 +19,7 @@
 | 测试 | JUnit 6.1.3 + Testcontainers 2.0.5 |
 | 代码质量 | Spotless 插件 8.11.0（google-java-format 1.36.1）+ JaCoCo 0.8.16；`jacocoTestCoverageVerification`（指令 80% / 分支 70%）由 `check` 依赖，`Test` 有 20 分钟任务级与 5 分钟单用例超时；`gradle/verification-metadata.xml` 钉依赖 sha256 |
 
-> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-18 / v0.120.1（依赖与**插件**类路径都从 Google 的 Maven Central 镜像解析——`gradle.properties` 的 `artifactMirrorUrl`，`settings.gradle.kts` 的 `dependencyResolutionManagement` 覆盖项目依赖、`pluginManagement` 覆盖构建脚本类路径，`gradlePluginPortal()` 退居第二；四个 Gradle marker POM 在 `gradle/verification-metadata.xml` 里各有门户与 Central 两个 sha256。`com.yubico:webauthn-server-parent` 声明的 `com.upokecenter:cbor:[4.5.1,5)` 与 `com.google.guava:guava:[24.1.1,34)` 这类**闭区间**会在 `build.gradle.kts` 里用 `strictly`（4.5.6 / 33.8.0-jre）钉住，理由见 `docs/ci.md` 的 “Where artifacts come from”）。依赖版本本身未变）。
+> **本表是快照，`gradle/libs.versions.toml` 才是版本的唯一来源** —— 改依赖时同步本表。核对基线：2026-11-19 / v0.120.4（依赖与**插件**类路径都从 Google 的 Maven Central 镜像解析——`gradle.properties` 的 `artifactMirrorUrl`，`settings.gradle.kts` 的 `dependencyResolutionManagement` 覆盖项目依赖、`pluginManagement` 覆盖构建脚本类路径，`gradlePluginPortal()` 退居第二；四个 Gradle marker POM 在 `gradle/verification-metadata.xml` 里各有门户与 Central 两个 sha256。`com.yubico:webauthn-server-parent` 声明的 `com.upokecenter:cbor:[4.5.1,5)` 与 `com.google.guava:guava:[24.1.1,34)` 这类**闭区间**会在 `build.gradle.kts` 里用 `strictly`（4.5.6 / 33.8.0-jre）钉住，理由见 `docs/ci.md` 的 “Where artifacts come from”）。
 
 ## 架构
 

@@ -446,6 +446,10 @@ Two things make a local run match the runner:
   recorded set is complete with an empty Gradle home — `GRADLE_USER_HOME=$(mktemp -d) ./gradlew
   bootJar -x test` — because a warm cache serves files it never verified and hides the gap until a
   cold runner downloads them.
+  Source and javadoc jars are the exception, trusted by file pattern in the same file: an IDE
+  downloads them to show you library code, they never reach the artifact, and pinning them would
+  mean regenerating hundreds of hashes on every bump — and a contributor whose IDE asks for one
+  unlisted jar is simply unable to build. What ships stays individually pinned.
 - **Timeouts.** The `test` task stops after 20 minutes and JUnit fails any single test after 5, so a
   hung test reports itself instead of consuming the runner's whole budget.
 

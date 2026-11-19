@@ -1,4 +1,16 @@
 # Active Context
+- [2026-11-19] - 依赖全量核对：只升两处，其余已在最新稳定线（v0.120.4）
+    - 检测：`./gradlew dependencyUpdates`（ben-manes 0.67.0）给出的可升项只有 `flyway-database-postgresql 13.12.1 → 13.12.2 → 13.13.0` 与 `Gradle 9.9.0 → 9.9.1`；插件漏报的坐标（Spring Boot、spotless、postgresql、springdoc 等）逐个查 Maven Central / Plugin Portal，全部已是最新稳定版。
+    - 变更：`gradle/libs.versions.toml` 的 `flyway` 升 13.13.0（`flyway-core` 由 `build.gradle.kts` 的 `strictly` 覆盖 BOM 给的 12.4.0，`flyway-database-postgresql` 共用同一 ref），随之重写 `gradle/verification-metadata.xml` 的指纹；wrapper 升 `gradle-9.9.1-bin.zip`（自带的 `gradle-wrapper.jar` 一并更新）。
+    - 验证：13.13.0 下 `--write-verification-metadata sha256 clean build` 通过（5m18s，1784 例 0 失败）；9.9.1 下 `clean build` 再次通过（3m26s，1784 例 0 失败，结果写入 19:22:42），`dependencyInsight` 确认 `flyway-core:{strictly 13.13.0}`。
+    - 判断：不升的三类各有理由——Spring Boot 4.1.2 仍是唯一最新稳定线（4.2.0 只到 RC2）；`junit-platform-launcher 6.1.3` 是最新稳定（6.2.0-M1 属里程碑）；`guava 33.8.0-jre` 被 `webauthn-server-parent` 的闭区间 `[24.1.1,34)` 卡住、再高就解析失败。`opentelemetry-exporter-otlp 1.62.0 → 1.68.0` 属 Boot BOM 管的一致性集合，单独抬高会让 tracing 的各个构件跨代际，等 Boot 4.2。
+    - 边界：项目没有 Kotlin 插件（`kotlin-stdlib` 只是版本插件的传递依赖），无 Kotlin 可升；JDK 停在最新 LTS 25（26/27 是非 LTS 大版本跳跃，按规矩要先确认，且 Boot 4.1.2 未认证）。
+- [2026-11-19] - 源码包不再被依赖校验拦下：IDE 一拉 sources 就整个工程编不动（v0.120.3）
+    - 现象：本地 `./gradlew` 直接失败，`Dependency verification failed for configuration 'classpath'` 列出 162 个 `-sources.jar`，`':compileClasspath'` 再列 201 个，外加 `gradle-9.9.0-src.zip`。
+    - 根因：`gradle/verification-metadata.xml` 只记录了构建真正解析过的字节（577 个组件、1125 条 sha256、**0** 条 sources），而 IDE 打开「下载源码」后向 Gradle 要的是 `-sources.jar` 与 Gradle 发行包源码，这些从未被验证过 ⇒ 严格模式下必然红。冷解析/CI 都不解析源码包，所以此前从没暴露。
+    - 变更：`<configuration>` 里加 `<trusted-artifacts>`，按文件名正则信任 `.*-sources\.jar`、`.*-javadoc\.jar`、`gradle-.*-src\.zip`，各带 reason；`docs/ci.md` 的依赖校验条目写清「源码包是唯一例外、以及为什么」。
+    - 验证：临时 detached 配置解析 `com.zaxxer:HikariCP:7.0.2:sources`（`transitive = false`）——加信任前它是失败清单里的一条，加信任后 `SOURCES: [HikariCP-7.0.2-sources.jar]` 正常拿到，同一配置里未信任的传递依赖仍照旧报错（说明没有把校验整体关掉）；`./gradlew compileJava` 通过；`xmllint --noout` 通过。
+    - 判断：校验的对象是「会进入产物的字节」，源码与 javadoc 不进入产物；为它们固定几百条哈希只会让每次依赖升级都要重生成一遍、并让任何一位贡献者的 IDE 直接编不了。要发布的构件仍然逐条钉死。
 - [2026-11-18] - 镜像构建也能换依赖源，本地门不再因为这台机器连不上镜像而红（v0.120.2）
     - 背景：`pre-push` 门的 `image build` 在容器里跑 `downloadDependencies`，只能读 `gradle.properties` 的 Google 镜像；这台机器到该域名的 TLS 被本机代理间歇重置（`Remote host terminated the handshake` / `connection reset`），于是每次推送都红在「与改动无关」的那一步。宿主侧的冷解析早就能用 `ORG_GRADLE_PROJECT_artifactMirrorUrl` 换源，门的两半只有一半有逃生口。
     - 变更：`Dockerfile` 的 builder 阶段加 `ARG ARTIFACT_MIRROR_URL`（空默认），非空时导成 `ORG_GRADLE_PROJECT_artifactMirrorUrl` 再跑下载层；`scripts/preflight.sh` 在环境变量存在时透传 `--build-arg`（空数组用 `${arr[@]+"${arr[@]}"}` 展开，macOS 的 bash 3.2 把空数组当未定义）；`docs/ci.md` 的本地门一节写明两半都能换源。
