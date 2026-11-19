@@ -2757,6 +2757,27 @@ sequenceDiagram
 
 检测：`dependencyUpdates` 列出 27 项过期坐标（18 项为 Boot 家族）；`flyway-core`、字面量与插件由其漏报/误报，已按 Maven Central / Plugin Portal 逐项核对。
 
+### 依赖升级（2026-11-19，v0.120.4）
+
+> 策略同上次：一律升到当前稳定版（含主版本），兼容性由编译 + 全量测试验证；Java 大版本不动（JDK 25 已是最新 LTS，26/27 属非 LTS 的跳跃且 Boot 4.1.2 未认证）。
+
+| 层 | 升级项 | 验证 |
+|---|---|---|
+| 1 库 | Flyway 13.12.1 → 13.13.0（`flyway-core` 由 `build.gradle.kts` 的 `strictly` 覆盖 BOM 给的 12.4.0，`flyway-database-postgresql` 共用同一 ref） | `--write-verification-metadata sha256 clean build`：1784 tests / 0 failures，5m18s；`dependencyInsight` 显示 `flyway-core:{strictly 13.13.0}` |
+| 2 插件 / 工具 | 无（ben-manes 0.67.0、spotless 8.11.0、JaCoCo 0.8.16 均是最新） | — |
+| 3 wrapper | Gradle 9.9.0 → 9.9.1（`gradle-wrapper.jar` 的 sha256 `621008af…` 与 services.gradle.org 公布的 9.9.1 校验值一致） | `clean build`：1784 / 0，3m26s；版本 bump 后再跑 `./gradlew check` 通过 |
+
+| 未升级 | 原因 |
+|---|---|
+| Spring Boot 4.1.2 | 4.2.0 只到 RC2，4.1.2 仍是最新稳定线 |
+| `junit-platform-launcher` 6.1.3 | 6.2.0-M1 属里程碑，不算稳定版 |
+| `guava` 33.8.0-jre | `webauthn-server-parent` 声明闭区间 `[24.1.1,34)`，再高直接解析失败（`strictly` 正是为此存在） |
+| `opentelemetry-exporter-otlp` 1.62.0 | 属 Boot BOM 管的同代际集合，单独抬高会让 tracing 构件跨代际；等 Boot 4.2 |
+| Kotlin | 项目没有 Kotlin 插件，`kotlin-stdlib` 只是 ben-manes 插件的传递依赖 |
+| JDK 26 / 27 | 非 LTS 的大版本跳跃，需用户确认；本机未安装，Boot 4.1.2 只认证到 25 |
+
+检测：`dependencyUpdates`（ben-manes 0.67.0）只报出 Flyway 与 Gradle 两项；它漏报的 Spring Boot、spotless、postgresql、springdoc 等坐标按 Maven Central / Plugin Portal 逐个核对后确认已是最新稳定版。报告文本 `build/dependencyUpdates/report.txt` 被随后的 `clean` 删除，结论以本节与 `memory-bank/techContext.md` 的快照为准。
+
 ### README 重构（文档，2026-10-27）
 
 > 目标：首页一屏回答「这是什么、怎么用、去哪看细节」；长尾契约沉到 `docs/`，不改任何接口。

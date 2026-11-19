@@ -275,7 +275,8 @@
 
 - **同一模块族的版本只能有一个来源**：`flyway-core` 与 `flyway-database-postgresql` 必须同版本（前者被 Boot BOM 管理，靠 `strictly` 覆盖），字面量要写成 `libs.versions.<name>.get()` 而不是第二次硬编码
 - **容器镜像一律 `latest`（用户决策）**：`postgres` / `redis` / `mailpit` / `caddy` / Prometheus / Grafana / blackbox 都跟随 `latest`，出现新大版本优先升级；因此可追溯性不能靠 tag，部署时用 `docker inspect --format '{{index .RepoDigests 0}}'` 记下 digest，大版本升级前后各跑一次本地全栈与全量测试。构建镜像（`eclipse-temurin`）按 toolchain 的 Java 版本固定，不跟 `latest`（换大版本等于改语言级别）
-- **Gradle wrapper 的升级与依赖同批**：`./gradlew wrapper --gradle-version=X` 会改 `gradle-wrapper.properties`、`gradle-wrapper.jar` 与 `gradlew*`；验证用 `clean build --rerun-tasks`（否则测试可能整批命中缓存，等于没验）
+- **Gradle wrapper 的升级与依赖同批**：`./gradlew wrapper --gradle-version=X` 会改 `gradle-wrapper.properties`、`gradle-wrapper.jar` 与 `gradlew*`；验证用 `clean build --rerun-tasks`（否则测试可能整批命中缓存，等于没验）；`gradle-wrapper.jar` 换完用 `shasum -a 256` 对照 `services.gradle.org/versions/current` 的 `wrapperChecksum`（2026-11-19 升 9.9.1 时逐字节一致），否则等于把构建入口换成谁也不知道的字节
+- **依赖校验只钉会进入产物的字节，源码包走例外（强制）**：`gradle/verification-metadata.xml` 的 `<trusted-artifacts>` 放行 `.*-sources\.jar`、`.*-javadoc\.jar`、`gradle-.*-src\.zip`——它们不进产物，为它们固定几百条哈希只会让每次依赖升级都要重生成一遍，并让任何打开「下载源码」的贡献者 IDE 直接编不了（2026-11-19 实测：本地 `./gradlew` 报 162 个 sources 失败）。要发布的构件仍逐条钉死；加例外后必须验证「未信任的构件仍然失败」，别把校验整体关掉。`--write-verification-metadata` **会重写文件但保留** `<trusted-artifacts>`，也不会删旧版本的指纹（13.12.1 与 13.13.0 当时并存），重写后 `xmllint --noout` 并确认这两点
 
 - **新增依赖必须做多维评估（强制）**：至少比较**最新稳定版**、维护活跃度与最近发布、采用度、许可证、已知漏洞、传递依赖体积、**与当前框架/运行时兼容性（Spring Boot BOM、Spring Security、JDK、Jackson 2/3、Servlet/WebFlux、日志栈）**、API 稳定性、可测试性与替换成本；优先使用 BOM/官方管理的版本。禁止因为示例代码、前端建议或“能编译”就直接引入；先记录候选、版本、证据和排除理由，再落代码。解析后必须用 `dependencies` / `dependencyInsight` 核对解析版本，确认没有强制降级、双 Jackson 代际或同一能力重复引入。RC/里程碑不算稳定版。
 
