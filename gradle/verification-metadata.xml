@@ -3,6 +3,11 @@
    <configuration>
       <verify-metadata>true</verify-metadata>
       <verify-signatures>false</verify-signatures>
+      <trusted-artifacts>
+         <trust file=".*-javadoc\.jar" regex="true" reason="Documentation only, same as sources."/>
+         <trust file=".*-sources\.jar" regex="true" reason="Source jars are read, never compiled: they do not become part of the artifact, and pinning them would mean regenerating hundreds of hashes on every dependency bump."/>
+         <trust file="gradle-.*-src\.zip" regex="true" reason="The IDE asks for the distribution sources to show the API; the distribution that runs the build is pinned by gradle-wrapper.properties and its checksum."/>
+      </trusted-artifacts>
    </configuration>
    <components>
       <component group="aopalliance" name="aopalliance" version="1.0">
