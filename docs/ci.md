@@ -4,11 +4,12 @@
 `develop` or `master`. It answers one question — may this tree be merged? — and
 it answers with a red or green check rather than a judgement.
 
-The Jenkins job in `Jenkinsfile` is **not** a gate, and it no longer builds. It
+The Jenkins job in `Jenkinsfile` is **not** a gate, and it never builds. It
 pulls the digest `publish.yml` signed, verifies the signature against that
-workflow's identity, and health-checks the result on the deployment host.
-Running the suite there as well would tie merge latency to a machine that also
-runs production.
+workflow's identity, and runs the release on the deployment host: the colour
+that is not serving is replaced by that digest, the edge is switched to it, and
+a window watches the traffic before the release is called. Running the suite
+there as well would tie merge latency to a machine that also runs production.
 
 ## Where the gates apply
 
@@ -186,9 +187,11 @@ The minimal one still records the commit the image was built from.
 
 `deploy/verify-image.sh` applies both pins and rejects a tag before it contacts
 the registry, so the check has one definition instead of one per caller. The
-deploy job runs it and then `docker compose up -d --no-build`: a missing or
-unverified image fails the deployment rather than falling back to a locally
-built one nobody signed.
+deploy job runs it and then `./deploy/prod/release.sh --next --image
+<digest>` — the idle colour is read from the containers that are running, not
+guessed — and a missing or unverified image fails the release rather than
+falling back to a locally built one nobody signed. The release refuses to
+report success unless the container it leaves behind is running that digest.
 
 ### What the registry holds
 
