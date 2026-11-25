@@ -84,6 +84,12 @@ deploy/staging/edge-upstream/active.caddy.new
 # Dumps exist for the seconds a restore drill needs them; a committed dump would
 # be a copy of real user rows in the repository.
 deploy/staging/backups/
+# The production stack (P3.8) keeps its own choice, and its deployment facts
+# name one host: origins, the GitHub OAuth client id and the WebAuthn relying
+# party. Committing them would publish one deployment as if it were the default.
+deploy/prod/edge-upstream/active.caddy
+deploy/prod/edge-upstream/active.caddy.new
+deploy/prod/prod.env
 
 ### macOS ###
 .DS_Store

@@ -27,7 +27,7 @@
 > | 统计与排行（看板 / 排行 / 成就 / 物化） | S1–S6 | ✅ | v0.86.0 排除 0 分成员 |
 > | 个人设置（改名 / 会话 / 导出） | R1–R3 + 批量撤销 | ✅ | v0.88.0 批量撤销会话 |
 > | 账号安全（注销 / 两步验证 / 通行密钥） | 独立子计划 | ✅ | v0.91.0 通行密钥作为第二步 |
-> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.7 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚，P3.5 为迁移兼容与共存演练，P3.6 为 staging 预演栈，P3.7 为质量门接线）；P3.8–P3.10 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.120.1 staging 上一次跑通「发布 → 回滚 → 恢复」、v0.119.1 等待器按参数解析提交、v0.119.0 破坏性迁移被静态门与共存演练同时拦下、v0.117.0 `check` 自带覆盖率阈值并以一次失败证明会红、v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通、v0.115.0 安装探针在 Actions 与本机共用同一序列、v0.114.0 运维工具安装脚本四目标真实安装全绿、v0.113.0 CI 失败通知端到端跑通 |
+> | 运维与可观测性（P0–P7） | 「运维与可观测性升级」 | 🚧 P0–P2 已交付；P3.1–P3.7 已交付（P2.3 同时承运流水线失败通知，P3.4 为蓝绿切换与回滚，P3.5 为迁移兼容与共存演练，P3.6 为 staging 预演栈，P3.7 为质量门接线）；P3.8 实现完成、生产首次发布待授权；P3.9–P3.10 未开工；P4–P7 未开工（公网入口与接入机 vhost 上线在 P7.1） | v0.121.0 生产两色与 digest 发布（`deploy/prod/` + `release.sh --image/--first-release`）、v0.120.4 依赖核对、v0.120.1 staging 跑通「发布 → 回滚 → 恢复」、v0.119.1 等待器按参数解析提交、v0.119.0 破坏性迁移被静态门与共存演练同时拦下、v0.117.0 `check` 自带覆盖率阈值并以一次失败证明会红、v0.116.0 蓝绿切换与回滚在带真实探针的观察窗内跑通 |
 
 ## 🗺️ 计划总览
 
@@ -75,14 +75,14 @@ left side
 *** 账号注销（硬删除 + 级联清理，v0.77.0）
 *** 两步验证 TOTP + 恢复码（v0.89.0 → v0.89.1）
 *** 通行密钥（v0.91.0：独立登录 + 作为第二步）
-** 运维与可观测性 🚧 P0–P2 已交付，P3.1–P3.7 已交付，P3.8–P3.9 未开工
+** 运维与可观测性 🚧 P0–P3.7 已交付，P3.8 实现完成待生产执行，P3.9–P3.10 未开工
 *** 基础设施与收口 ✅（P0.0–P0.17：本地全栈、隧道、端口、SSH 与日志、prod 脱敏、密钥通道、审计最小化与保留）
 *** 指标、追踪与日志维度 ✅（P1.1–P1.5）
 *** 告警、面板与值班 ✅（P2.1–P2.3）
 *** CI 与签名发布 ✅（P3.1 九道门、P3.2 keyless 签 digest）
 *** 蓝绿切换与回滚 ✅（P3.4：上游文件 + reload + 观察窗 + 一键回滚）
 *** staging 预演栈 ✅（P3.6：一份脚本两套栈，发布 + 回滚 + 恢复在同一次彩排里）
-*** 发布链余项 ⬜（P3.8 首次生产发布 / P3.9 审计实测 / P3.10 依赖自动升级）
+*** 发布链余项 🚧（P3.8 实现已交付、生产首发待授权 / P3.9 审计实测 / P3.10 依赖自动升级）
 *** 备份、恢复演练与密钥轮换 ⬜（P4.1–P4.5）
 *** 压测与故障演练 ⬜（P5.1–P5.3）
 *** Runbook 与对外接入 ⬜（P6–P7）
@@ -2434,7 +2434,7 @@ sequenceDiagram
 | P3.5 ✅ | 迁移兼容（已交付）：expand/contract 写进 `docs/ops-runbook.md`；`scripts/check-migrations.sh` 静态门（命名、已发布迁移不可变、破坏性语句需 `-- contract:` 注记）；`scripts/migration-coexistence-drill.sh` 共存演练（旧版与新版的 jar 各自构建，同库迁移后两版都要能服务）；`preflight.sh` 按 `migrations_changed` 接线，CI 新 job `migrations`，`docs/ci.md` 同步 | 静态门四用例（正常 ok / `DROP COLUMN` RED / 加 `-- contract:` 放行 / 改已发布迁移 RED）；演练连续两次 `DRILL: green (… 14 migration(s))`，插入 `V20990101000000__drill_drop.sql` 后 `DRILL: RED (new version exited during startup)` 且静态门同红，移除重建后复绿。细节见下方「迁移兼容与共存演练」 | 中 |
 | P3.6 ✅ | staging 预演（已交付）：脚本与 Caddyfile 上移复用——`deploy/lib/{release,switch-colour,stage-jar}.sh` 栈无关、`deploy/edge/Caddyfile` 参数化（`{$CADDY_ADMIN}` / `{$CADDY_SITE}`），两栈只差一份 `stack.env`；staging 栈 = `docker-compose.staging.yaml`（`name: ctt-staging`、容器 `ctt-stg-*`、库 `ctt_server_staging`、secrets `run-staging/`、`ddl-auto: validate`）+ 独立端口（edge `28080`、两色 `28081`/`8181` 与 `28082`/`8182`、Caddy admin `2029`、Prometheus `9190`、blackbox `9215`、postgres `25432`、redis `26379`、mailpit `2025`/`9025`）+ `{up,down,backup,restore-drill,rehearse}.sh`；`release.sh` 新增 `--no-jar` | `./deploy/local/on-engine.sh ./deploy/staging/rehearse.sh` → `STAGING: green (release blue → green, rollback → blue, restore; no breach in either window)`，145.81 s；恢复演练 `RESTORE: green (20261105120000, marker … survived, blue serving)`，`DROP SCHEMA` 级联 22 个对象后标记行、Flyway 历史与整栈都恢复。踩坑：引擎容器内没有 JDK（故 `--no-jar`）；刚重启、未接流量的颜色在 Prometheus 里**没有 `http_server_requests` 序列**（Micrometer 首次请求才注册计时器），窗口据此拒绝判绿 ⇒ 切换前先给它一次请求 | 中 |
 | P3.7 ✅ | **质量门接线与测试可终止性**：`jacocoTestCoverageVerification`（指令 80% / 分支 70%）此前只被声明、无人依赖——CI 靠命令行点名才生效，本地 `./gradlew check` 从不执行它；现 `dependsOn(tasks.test)` 并挂进 `check`，本地与流水线同一判据。`Test` 加任务级 20 分钟超时与 JUnit 每用例 5 分钟默认超时，悬停用例自己失败而不是耗满 runner；`gradle/verification-metadata.xml`（578 组件 sha256）由 `--write-verification-metadata` 生成，离线解析即校验 | 阈值临时提到 0.99 时 `jacocoTestCoverageVerification` 报 `Rule violated for bundle ctt-server: instructions covered ratio is 0.94, but expected minimum is 0.99` 并 `BUILD FAILED`（exit 1），恢复 0.80 后转绿；实测指令 94.78% / 分支 83.41%；`./gradlew check --offline` 3m28s 通过且校验和全部命中；`ci.yml` 删掉手工点名的注释与参数 | 中 |
-| P3.8 | **首次生产发布：按 digest 的蓝绿发布与回滚**：部署机起两色（`app-blue`/`app-green`）与 edge，Jenkins 把新镜像部署到**空闲色**（`CONTAINER_NAME` 选色 + `IMAGE_REF` 传 digest），切上游、跑观察窗、保留回滚命令；回滚即切回旧色。机制本身已在 P3.4 证明，本行只证明它在生产环境、由流水线驱动时成立 | 生产环境一次发布一次回滚：`docker inspect` 里运行中容器的镜像 digest 等于 Jenkins 传入值；切换后窗口内 `probe_success` 保持 1、应用 5xx = 0、p95 ≤ 300 ms；回滚后同样成立且旧色仍在服务。**首发会写入真实用户数据与生产库，执行前需用户明确授权** | 高 |
+| P3.8 🚧 | **首次生产发布：按 digest 的蓝绿发布与回滚**：机制交付完成——`deploy/prod/`（overlay、两色、edge、上游变体、`stack.env`、`prod.env.example`、README）、`release.sh` 的 `--image`/`--first-release` 与 digest 断言、Jenkinsfile 从单容器改为「验签 → 选空闲色 → `release.sh --image` → 打印回滚命令」。见「生产两色与 digest 发布」交付记录。**生产执行未做**：需用户授权，且 `secrets.prod.enc.yaml` 缺 `TOTP_ENCRYPTION_KEY`/`GITHUB_CLIENT_SECRET` 时 prod profile 启动即被守卫拒绝 | 生产环境一次发布一次回滚：`docker inspect` 里运行中容器的镜像 digest 等于 Jenkins 传入值；切换后窗口内 `probe_success` 保持 1、应用 5xx = 0、p95 ≤ 300 ms；回滚后同样成立且旧色仍在服务 | 高 |
 | P3.9 | **首次生产部署后的审计保留实测**（原 P3.8，依赖 P3.8 的首次部署）：生产表由首次 prod 启动（Flyway）建立并产生真实审计后，确认 `AUDIT_RETENTION_DAYS` 生效（默认 180 天），用 P0.16b 同一查询集复测行数/表与索引体积/保留扫描与删除计划，核对启动日志与每轮清理汇总日志（cutoff、删除行数、耗时，零删除轮次也有记录）；若删除的顺序扫描成为瓶颈再评估索引或分批策略（结构变更须新迁移） | prod `audit_logs` 存在且 180 天策略生效；复测快照与开发参考分开记录；180 天稳态规模有生产实测值；清理汇总日志可核对（含零删除轮次） | 中 |
 | P3.10 | **依赖自动升级接入**：`renovate.json` 已在仓库（`baseBranches: ["develop"]`、容器镜像 / gradle+spring / actions 大版本三组、并发 3），但从未装 App，`gh pr list --search renovate` 只有自建 PR ⇒ 配置目前没有执行者。装上 Renovate App 即生效，无需改配置 | Renovate 开出第一张升级 PR 且其 CI 全绿 | 低 |
 
@@ -2624,6 +2624,22 @@ sequenceDiagram
 | 边界 | 全回环、不对公网暴露；`restore-drill.sh` 破坏性（删 `public` schema）且必须显式 `--yes`，并拒绝任何数据库容器名不是 `ctt-stg-*` 的调用（只按容器名守卫，不碰卷）；staging 数据不替代生产库 |
 | 相关文档 | `docs/ops-runbook.md` 的 `## Rehearsing a release on staging`；`deploy/staging/README.md`（端口对照、隔离四件、能证明/不能证明）；`deploy/local/README.md`（`stack.env` 与 `deploy/lib/` 的分工） |
 
+
+### 生产两色与 digest 发布（发布链，2026-11-24，v0.121.0）
+
+| 项 | 内容 |
+|---|---|
+| 入口 | `./deploy/prod/up.sh`（拒绝 P3.8 前的单容器 → 种下上游选择 → 只起 edge）→ `./deploy/prod/release.sh --next --first-release --image <digest>`（无色才补该 flag）；此后 `./deploy/prod/release.sh --next --image <digest>`；回滚 `./deploy/prod/release.sh --rollback` |
+| 机制 | `deploy/prod/` 只放差异：Compose overlay（两色 host 网络、8080/8081 与 8083/8082、`env_file: prod.env`、把开发伴生服务推进 profile 并 `depends_on: !reset []`、secrets 只声明 overlay 独有的两条、其余按 key 由基础文件合并到宿主的 `deploy/secrets/run`）、`stack.env`（`COMPOSE_PROJECT_NAME=ctt-prod`、容器 `ctt-prod-*`、`CTT_PROBE_JOB=blackbox-public`）、两色上游变体与三个 wrapper；实现仍是 `deploy/lib/release.sh`/`switch-colour.sh` |
+| 新增开关 | `--image REF`（隐含 `--no-build`：按 digest `docker pull`，`IMAGE_REF` 传给 Compose）；`--next`（空闲色由运行中的容器决定：没有在跑的就是空闲色，什么都没在跑时是蓝）；`--first-release`（什么都没在跑时才允许把「无色」当起点）；回滚带 `--image` 或 `--next` 直接拒绝 |
+| digest 断言 | 容器 ready 之后、等可求率序列之前：`docker inspect --format '{{.Config.Image}}'` 必须等于传入引用，且 `docker image inspect` 的 `RepoDigests` 必须含该引用——窗口否则会去评判一个没人部署过的镜像 |
+| Jenkins | 单容器 job 改为：Tooling → **Data plane**（`python3` 探 5432/6379，主机进程不由发布创建）→ Secrets（`render.sh --env prod` 渲染到 `deploy/secrets/run` + 七个键非空）→ Registry login（可选）→ Verify image（拒绝 tag、`verify-image.sh`，把**小写**引用记进 `build/jenkins/image-ref`）→ Deploy（读 `image-ref`、`switch-colour.sh` 取当前色、`set -- --next --image … --observe $OBSERVE_SECONDS`，无色才补 `--first-release`）→ Report（打印运行中 digest 与回滚命令）；失败时 dump 两色日志 |
+| 验证 | **本机与 staging 各跑同一状态机**：无容器时 `unknown (edge points at blue, but no container is running)`；无 `--first-release` 拒绝且点名原因；`--rollback` 无色 `nothing is serving yet`；`--rollback --image`/`--first-release` 退出 2；有容器时报 `blue (edge holds 127.0.0.1:8081)`（staging `green (…:28082)`）；当前色再发布退出 2。本机整轮 `release.sh green --observe 10` → `LOCAL: green (…, 0 5xx, 10/10 probe samples, p95 0.003s)` 114.87 s，回滚提示正确。`docker compose config`（prod overlay，默认与 `--profile bluegreen`）只剩 `app-blue`/`edge`（及显式 profile 下的 `app-green`），secrets 落 `deploy/secrets/run/`，两色 `SPRING_PROFILES_ACTIVE=prod`、`jdbc:postgresql://127.0.0.1:5432/ctt_server_prod`、`smtp.resend.com`；`bash -n`（含 `/bin/bash 3.2`）全通过 |
+| 审查 | 两轴并行（Standards 8 条 / Spec 5 条）采纳 12、驳回 1。驳回：Spec 称「渲染到 `run` 却检查 `run-prod`」——`render.sh` 默认就是 `deploy/secrets/run`，五处文档与观测栈都读它，加 `--out run-prod` 反而让观测栈读不到生产载荷。采纳并已修：`sh '''#!/bin/sh` 块里的 `/dev/tcp` 与 `args=()` 改 POSIX；`up.sh` 先种 symlink 使 `--first-release` 门永不触发（改为 `switch-colour.sh` 读运行容器、`--next` 选色）；P3.8 前单容器占 8081（`up.sh` 拒绝启动）；仓库名大小写未规范化（记 `build/jenkins/image-ref`）；README 重复代码块、`release.sh` 被截断的注释、nginx 注释仍指旧路径；颜色映射与 `active.caddy` 种子三处复制（上移到 `load-stack.sh` 的 `port_of`/`management_of`/`seed_upstream`） |
+| 踩坑 | `deploy/prod/*.sh` wrapper 会 `export CTT_STACK_FILE`，用环境变量覆盖它测试无效——测库脚本要用 `CTT_STACK_FILE=… ./deploy/lib/release.sh`；`--force-recreate` 只在真有镜像替换时才有意义，`--image` 与 `--no-build` 必须同路 |
+| 判断 | 生产 overlay 不复用 staging 的，因为差异（宿主数据面、payload 目录、探针 job、部署事实文件）比共性多；但**脚本**必须复用，`deploy/prod/` 里只有 wrapper 与 stack 文件 |
+| 边界 | 不证明窗口之后的时间、也不回滚到比上一色更旧的版本（那要按 digest 重新发布）；`deploy/prod/prod.env` 与 `active.caddy` 是运行时状态，已 gitignore |
+| 待办 | 生产首次发布与回滚**未执行**，需用户明确授权；`secrets.prod.enc.yaml` 缺 `TOTP_ENCRYPTION_KEY` 与 `GITHUB_CLIENT_SECRET`，需用户提供真实值后 `sops` 补入，否则 prod profile 启动即被守卫拒绝 |
 
 ### 等待器按参数解析提交（发布链，2026-11-17，v0.119.1）
 

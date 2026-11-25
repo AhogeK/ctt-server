@@ -60,12 +60,15 @@ Render the payload on the production host with `./deploy/secrets/render.sh --env
 
 The base `app` service forwards only `SPRING_PROFILES_ACTIVE`, `SPRING_DATASOURCE_URL`,
 `SPRING_DATASOURCE_USERNAME`, `SPRING_DATA_REDIS_HOST`, `SPRING_DATA_REDIS_PORT`, `SPRING_MAIL_HOST`,
-`SPRING_MAIL_PORT`, `MANAGEMENT_PORT` and `MANAGEMENT_ADDRESS` from `.env`; the remaining environment
-values in the table above, and any deployment-only secret file, are supplied by the production
-Compose overlay, which this repository does not ship. That file is the local bridge stack, so it
-defaults `MANAGEMENT_ADDRESS` to `0.0.0.0` and publishes the port on host loopback; a production
-deployment runs host-networked with the loopback default. Its `depends_on` entries name the
-development companions, so a production start uses `docker compose up -d --no-deps app`.
+`SPRING_MAIL_PORT`, `MANAGEMENT_PORT` and `MANAGEMENT_ADDRESS` from `.env`. The remaining environment
+values in the table above, and the deployment-only secret files, come from the production overlay
+`deploy/prod/docker-compose.prod.yaml`: it runs the two colours host-networked with the loopback
+default, mounts the rendered `deploy/secrets/run` payload — one directory per host, which the
+observation stack reads too, and reads the values that name one deployment (origins, OAuth client id, WebAuthn relying party) from `deploy/prod/prod.env` on the host, which is
+git-ignored. Its `app` service keeps the base file's development companions out with profiles and
+resets their `depends_on`, so a release starts one colour and nothing else. The overlay starts
+neither PostgreSQL nor Redis: both are processes on the deployment host
+([Data isolation](production-data-isolation.md)).
 
 ## Client addresses behind the edge
 

@@ -28,11 +28,7 @@ echo "[1/3] rendering compose secrets"
 echo "[2/3] building and staging the boot jar"
 ./deploy/lib/stage-jar.sh
 
-# The edge imports this link; a fresh checkout has the variants but no choice
-# made yet, and blue is the colour the rest of the stack starts with.
-if [ ! -e "$CTT_UPSTREAM_DIR/active.caddy" ]; then
-  ln -sfn blue.caddy "$CTT_UPSTREAM_DIR/active.caddy"
-fi
+seed_upstream
 
 echo "[3/3] starting the stack"
 # shellcheck disable=SC2086 # CTT_COMPOSE_FILES is a list of -f arguments

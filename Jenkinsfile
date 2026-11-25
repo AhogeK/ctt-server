@@ -7,9 +7,18 @@
 // checks the signature against the workflow's own identity, and never builds on
 // the host that runs production.
 //
+// The release is the same implementation the laptop and the staging stack run
+// (deploy/lib/release.sh): replace the colour that is not serving, switch the
+// edge to it, watch a window that can send traffic back, and leave the previous
+// colour running so a rollback is a switch rather than a deploy. What is
+// different here is where the bytes come from — a verified digest — and that
+// the scripts refuse to report success unless the container is running exactly
+// that digest.
+//
 // Credentials: the SOPS age identity is a Jenkins file credential. Nothing is
-// written to a plaintext .env — Compose reads the rendered 0440 files and the
-// values below, none of which is a secret.
+// written to a plaintext .env — Compose reads the rendered 0440 files, and the
+// deployment facts (origins, OAuth client id) live in deploy/prod/prod.env on
+// the host, not in this job.
 pipeline {
     agent any
 
@@ -23,20 +32,17 @@ pipeline {
         string(name: 'IMAGE_REF',
                defaultValue: '',
                description: 'ghcr.io/ahogek/ctt-server@sha256:<digest> printed by the Publish workflow')
+        // Long enough for a scrape, a token refresh and one pool cycle. Raise it
+        // when the window needs to cover something slower, not to make a failure
+        // disappear.
+        string(name: 'OBSERVE_SECONDS',
+               defaultValue: '300',
+               description: 'How long traffic is watched on the new colour before the release is called')
     }
 
     environment {
-        REPO_DIR                = '/repository/ctt-server'
-        CTX_PATH                = '/ctt-server'
-
-        APP_PORT                = '8080'
-        APP_EXTERNAL_PORT       = '8004'
-        MANAGEMENT_PORT         = '8081'
-        POSTGRES_EXTERNAL_PORT  = '15432'
-        REDIS_EXTERNAL_PORT     = '16379'
-        MAIL_SMTP_EXTERNAL_PORT = '1025'
-        MAIL_UI_EXTERNAL_PORT   = '8025'
-        SPRING_PROFILES_ACTIVE  = 'local'
+        REPO_DIR = '/repository/ctt-server'
+        CTX_PATH = '/ctt-server'
     }
 
     stages {
@@ -58,7 +64,7 @@ pipeline {
                     // deployment host installs them with the repository script,
                     // so the failure says where they come from.
                     sh '''#!/bin/sh
-                        for tool in sops cosign; do
+                        for tool in sops cosign curl; do
                             command -v "$tool" >/dev/null || {
                                 echo "$tool is not on PATH; run scripts/install.sh --tool $tool" >&2
                                 exit 1
@@ -71,19 +77,22 @@ pipeline {
             }
         }
 
-        stage('Configure') {
+        stage('Data plane') {
             steps {
                 dir("${REPO_DIR}") {
-                    // The template only carries non-secret defaults; the rendered
-                    // secrets override its datasource and Redis passwords.
+                    // PostgreSQL and Redis are processes on this host, not
+                    // containers (docs/production-data-isolation.md). A release
+                    // cannot create them, so fail here rather than halfway
+                    // through a switch.
                     sh '''
-                        LOCAL_YAML=src/main/resources/application-local.yaml
-                        if [ ! -f "$LOCAL_YAML" ]; then
-                            cp "$LOCAL_YAML.template" "$LOCAL_YAML"
-                            echo "application-local.yaml generated from template."
-                        else
-                            echo "application-local.yaml already exists, skipping."
-                        fi
+                        set -eu
+                        for port in 5432 6379; do
+                            if ! python3 -c "import socket, sys; s = socket.socket(); s.settimeout(3); sys.exit(s.connect_ex(('127.0.0.1', $port)))"; then
+                                echo "127.0.0.1:$port is not accepting connections on the deployment host" >&2
+                                exit 1
+                            fi
+                        done
+                        echo "the host's PostgreSQL and Redis answer on 5432 and 6379"
                     '''
                 }
             }
@@ -96,10 +105,18 @@ pipeline {
                         sh '''
                             set -euo pipefail
                             export SECRET_GID="${SECRET_GID:-$(id -g)}"
-                            ./deploy/secrets/render.sh --env dev
+                            # One rendered payload per host: the observability
+                            # stack on this machine reads the same directory
+                            # (deploy/observability/docker-compose.yaml), and a
+                            # second copy is how the two drift apart.
+                            ./deploy/secrets/render.sh --env prod
 
+                            # The guard rejects a production start without these,
+                            # and finding out from the container's exit code
+                            # after a switch is too late.
                             for name in DB_PASSWORD REDIS_PASSWORD JWT_SECRET_KEY \
-                                        OAUTH_TOKEN_ENCRYPTION_KEY RESEND_API_KEY; do
+                                        OAUTH_TOKEN_ENCRYPTION_KEY TOTP_ENCRYPTION_KEY \
+                                        GITHUB_CLIENT_SECRET RESEND_API_KEY; do
                                 if [ ! -s "deploy/secrets/run/$name" ]; then
                                     echo "missing rendered secret: $name" >&2
                                     exit 1
@@ -107,33 +124,6 @@ pipeline {
                             done
                         '''
                     }
-                }
-            }
-        }
-
-        stage('Infra Up') {
-            steps {
-                dir("${REPO_DIR}") {
-                    sh '''
-                        export SECRET_GID="${SECRET_GID:-$(id -g)}"
-                        docker compose up -d postgres redis mailpit
-                    '''
-                    sh '''
-                        docker network connect ctt-server_default jenkins-blueocean 2>/dev/null || true
-
-                        echo "Waiting for postgres to be healthy..."
-                        for i in $(seq 1 20); do
-                            STATUS=$(docker inspect --format="{{.State.Health.Status}}" ctt-postgres 2>/dev/null || echo "none")
-                            if [ "$STATUS" = "healthy" ]; then
-                                echo "✅ Postgres is ready"
-                                exit 0
-                            fi
-                            echo "Waiting... ($i/20) [$STATUS]"
-                            sleep 3
-                        done
-                        echo "❌ Postgres never became healthy"
-                        exit 1
-                    '''
                 }
             }
         }
@@ -170,7 +160,18 @@ pipeline {
                             echo "IMAGE_REF is empty: pass the digest printed by the Publish workflow" >&2
                             exit 1
                         fi
+                        case "$IMAGE_REF" in
+                            *@sha256:*) ;;
+                            *) echo "IMAGE_REF must pin a digest, not a tag: $IMAGE_REF" >&2; exit 1 ;;
+                        esac
+                        # A registry path is lowercase by definition, and
+                        # verify-image can only sign off the form the registry
+                        # resolves. Recording that same string is what makes the
+                        # deploy stage run the reference that was checked.
+                        IMAGE_REF="$(printf '%s' "$IMAGE_REF" | tr '[:upper:]' '[:lower:]')"
                         deploy/verify-image.sh "$IMAGE_REF"
+                        mkdir -p build/jenkins
+                        printf '%s\n' "$IMAGE_REF" > build/jenkins/image-ref
                     '''
                 }
             }
@@ -180,35 +181,58 @@ pipeline {
             steps {
                 dir("${REPO_DIR}") {
                     sh '''
+                        set -eu
                         export SECRET_GID="${SECRET_GID:-$(id -g)}"
-                        # --no-build is the point: if the image is missing, the
-                        # deploy fails instead of silently substituting a
-                        # locally built one nobody verified.
-                        CONTAINER_NAME=ctt-server-test IMAGE_REF="$IMAGE_REF" \
-                            docker compose up -d --no-build app
+
+                        # The edge only; colours start through the release, so a
+                        # container never comes up from an unverified image.
+                        ./deploy/prod/up.sh
+
+                        if [ ! -s build/jenkins/image-ref ]; then
+                            echo "the verify stage recorded no reference; a deploy without one would run whatever Compose finds" >&2
+                            exit 1
+                        fi
+                        IMAGE_REF="$(cat build/jenkins/image-ref)"
+                        export IMAGE_REF
+
+                        serving="$(./deploy/prod/switch-colour.sh)" || { echo "cannot read which colour serves now; is the edge up?" >&2; exit 1; }
+                        serving="${serving%% *}"
+
+                        # Which colour a release means is a rule release.sh owns
+                        # (--next). The job only adds the one fact it can see: a
+                        # host where no colour runs needs the explicit first-release
+                        # flag, or a broken edge would look like a fresh install.
+                        # The window is the release: it fails, and sends traffic
+                        # back, on the first probe failure, 5xx or p95 above the
+                        # contract, and --image makes it check the container
+                        # against the digest afterwards.
+                        set -- --next --image "$IMAGE_REF" --observe "${OBSERVE_SECONDS}"
+                        case "$serving" in
+                            unknown) set -- --first-release "$@"
+                                     echo "nothing is serving yet: this is the first release" ;;
+                            blue|green) ;;
+                            *) echo "cannot read which colour serves now: $serving" >&2; exit 1 ;;
+                        esac
+                        ./deploy/prod/release.sh "$@"
                     '''
                 }
             }
         }
 
-        stage('Health Check') {
+        stage('Report') {
             steps {
                 dir("${REPO_DIR}") {
                     sh '''
-                        CONTAINER=ctt-server-test
-                        echo "Waiting for app container to be healthy..."
-                        for i in $(seq 1 24); do
-                            STATUS=$(docker inspect --format="{{.State.Health.Status}}" "$CONTAINER" 2>/dev/null || echo "none")
-                            if [ "$STATUS" = "healthy" ]; then
-                                echo "✅ Service is UP"
-                                exit 0
+                        set -euo pipefail
+                        running="$(./deploy/prod/switch-colour.sh)"
+                        echo "serving: $running"
+                        for colour in blue green; do
+                            id="$(docker ps -q -f "name=ctt-prod-app-$colour" || true)"
+                            if [ -n "$id" ]; then
+                                echo "$colour: $(docker inspect --format '{{.Config.Image}}' "$id")"
                             fi
-                            echo "Waiting... ($i/24) [$STATUS]"
-                            sleep 5
                         done
-                        echo "❌ Health check timed out"
-                        docker logs "$CONTAINER" --tail 50 || true
-                        exit 1
+                        echo "roll back with: ./deploy/prod/release.sh --rollback"
                     '''
                 }
             }
@@ -217,11 +241,15 @@ pipeline {
 
     post {
         success {
-            echo "✅ Deploy success → http://localhost:8004/ctt-server/swagger-ui.html"
+            echo "Release passed its window. Rollback stays one command away; the previous colour is still running."
         }
         failure {
-            sh 'docker logs ctt-server-test --tail 100 || true'
-            echo "❌ Deploy failed — check Console Output above"
+            sh '''#!/bin/sh
+                for colour in blue green; do
+                    docker logs "ctt-prod-app-$colour" --tail 60 2>&1 | sed "s/^/[$colour] /" || true
+                done
+            '''
+            echo "Release failed — check Console Output above; traffic was returned to the previous colour when the window saw a breach"
         }
     }
 }
