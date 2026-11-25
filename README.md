@@ -48,12 +48,17 @@
   Trivy, and publishes a CycloneDX SBOM beside a SLSA v1 provenance attestation — the scanned image and the
   attested image are the same build. A second workflow builds the image that can be deployed, signs its
   digest with a keyless OIDC certificate and re-verifies the provenance it carries. The deploy job ships only
-  that digest: it checks the signature against the publishing workflow's own identity, then starts the
-  container with `--no-build`, so an unverified image cannot reach the host. It holds no plaintext
+  that digest: it checks the signature against the publishing workflow's own identity, replaces the colour
+  that is not serving, and refuses to call the release done unless the container it leaves behind is running
+  exactly that digest — so the window is judging deployed bytes, not a tag that moved. It holds no plaintext
   credentials, and renders them from the encrypted payload with a file-based identity.
 - **Rehearsed before it ships.** A staging stack (`deploy/staging/`) runs the same release
   implementation on its own ports, containers and database, so a release, a rollback and a
   database restore are proven on one machine before the cutover reaches the host that serves users.
+- **A rollback is a switch.** Production runs two colours behind the edge. A release moves the edge to the
+  colour that has just been verified and keeps watching; a rollback points the edge at the colour that is
+  still running the previous digest. The same scripts run on a laptop, on staging and on the deployment
+  host, so the mechanism that is rehearsed is the mechanism that ships.
 
 ## How it works
 

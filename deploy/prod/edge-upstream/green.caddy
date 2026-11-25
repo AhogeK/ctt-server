@@ -1,0 +1,22 @@
+# Edge upstream: the green colour in production.
+#
+# Same block as `blue.caddy`, different port — the pair exists so the switch is
+# a look at one file, not a computed port. Keep the two in step: anything one
+# upstream needs, the other needs as well.
+reverse_proxy 127.0.0.1:8083 {
+	# TLS terminates at the access host, so this request is plain HTTP even
+	# though the caller used HTTPS. Caddy would otherwise set the header to its
+	# own scheme (http) and the application would treat an HTTPS request as
+	# insecure — non-Secure cookies, http-only links. This assumes nothing but
+	# the edge can reach :18080; to exercise the insecure branch on purpose,
+	# call the colour port directly.
+	header_up X-Forwarded-Proto https
+
+	# Keep the client address chain honest: Caddy appends the immediate peer to
+	# X-Forwarded-For, and the application reads the chain right-to-left while
+	# skipping the proxies it trusts.
+	transport http {
+		dial_timeout 5s
+		response_header_timeout 30s
+	}
+}
