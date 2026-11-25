@@ -14,16 +14,17 @@ the wrappers that name this stack.
 
 | Piece | Where |
 |---|---|
-| `ctt-prod-app-blue` | host network, application port 8080, management 8081 |
-| `ctt-prod-app-green` | host network, application port 8083, management 8082 |
+| `ctt-prod-app-blue` | host network, application port 8090, management 8081 |
+| `ctt-prod-app-green` | host network, application port 8093, management 8082 |
 | `ctt-prod-edge` | host network, Caddy on `127.0.0.1:18080`, admin on `127.0.0.1:2019` |
 | PostgreSQL | a process on this host, reached at `127.0.0.1:5432`, database `ctt_server_prod` |
 | Redis | a process on this host, `127.0.0.1:6379`, database 2 |
 | Prometheus | a process on this host, scraping 8081 as `slot=blue` and 8082 as `slot=green` |
 
 The management ports are a contract with that Prometheus: the window cannot
-judge a colour it cannot see. Green serves on 8083 because 8082 is its own
-management port.
+judge a colour it cannot see. The application ports are whatever is free on the
+host — 8080 belongs to Jenkins and 8181 to another service there — and green
+cannot take 8082 because that is its own management port.
 
 ## Preparing the host, once
 

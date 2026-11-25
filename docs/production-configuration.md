@@ -78,7 +78,7 @@ may append `X-Forwarded-For` and both state `X-Forwarded-Proto: https`, but the
 application only reads them from peers it is told to trust.
 
 ```text
-client → nginx (access host, 443) → frps → frpc → Caddy edge (127.0.0.1:18080) → app (127.0.0.1:8080)
+client → nginx (access host, 443) → frps → frpc → Caddy edge (127.0.0.1:18080) → the serving colour (127.0.0.1:8090 or :8093)
 ```
 
 `ctt.security.trusted-proxy-addresses` (`TRUSTED_PROXY_ADDRESSES`) must list the
