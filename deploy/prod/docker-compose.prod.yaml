@@ -1,0 +1,194 @@
+# The production stack: two colours and the edge that fronts them (P3.8).
+#
+# Merged on top of `docker-compose.yaml`:
+#
+#   -f docker-compose.yaml -f deploy/prod/docker-compose.prod.yaml
+#
+# What this file does not start is as deliberate as what it does. The data
+# plane is a host process on the deployment machine (one PostgreSQL with
+# `ctt_server_prod`, one Redis with database 2), so the base file's `postgres`,
+# `redis` and `mailpit` services are never brought up here — `release.sh` deploys
+# with `--no-deps app-<colour>`, and nothing in this file depends on them.
+#
+# Everything runs host-networked, which is what makes `MANAGEMENT_ADDRESS`'s
+# loopback default reachable by the scraper on the same machine and keeps the
+# only public path the edge on 127.0.0.1:18080.
+name: ${COMPOSE_PROJECT_NAME:-ctt-prod}
+
+# The rendered payload is the production one. Rendering it is a deployment step
+# (`./deploy/secrets/render.sh --env prod`); a missing file fails the container
+# before it starts, which is the failure we want — a production application that
+# silently fell back to a development credential is the one this guards against.
+secrets:
+  # The five a colour mounts come from the base file, which already points at
+  # `deploy/secrets/run` — the payload `render.sh --env prod` writes on this
+  # host, and the same one the observability stack reads. Only the two the base
+  # file never declared are added here.
+  #
+  # Both are required by `ProductionConfigurationGuard` in the prod profile.
+  # They join the production payload before the first release; without them the
+  # guard rejects the start and names both.
+  totp_encryption_key:
+    file: deploy/secrets/run/TOTP_ENCRYPTION_KEY
+  github_client_secret:
+    file: deploy/secrets/run/GITHUB_CLIENT_SECRET
+
+# Deployment facts that are not secrets (OAuth client id, frontend URL, WebAuthn
+# RP, sender address). They live on the host in `deploy/prod/prod.env` —
+# this repository is public and those values name one deployment. The example
+# beside it lists the keys; a missing file fails the start rather than defaulting.
+x-app-prod-env: &app-prod-env
+  SPRING_PROFILES_ACTIVE: prod
+  # Host networking: reachable only from this machine, and the edge is the one
+  # process that forwards to it.
+  SERVER_ADDRESS: 127.0.0.1
+  MANAGEMENT_ADDRESS: 127.0.0.1
+  TRUSTED_PROXY_ADDRESSES: 127.0.0.1
+  # The data plane is a host process; the base file points at container names.
+  DB_HOST: ${DB_HOST:-127.0.0.1}
+  DB_PORT: ${DB_PORT:-5432}
+  DB_NAME: ${DB_NAME:-ctt_server_prod}
+  DB_USERNAME: ${DB_USERNAME:-ctt_app}
+  SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST:-127.0.0.1}:${DB_PORT:-5432}/${DB_NAME:-ctt_server_prod}
+  SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-ctt_app}
+  SPRING_DATA_REDIS_HOST: ${REDIS_HOST:-127.0.0.1}
+  SPRING_DATA_REDIS_PORT: ${REDIS_PORT:-6379}
+  # The prod profile reads mail credentials from the payload; the base file's
+  # Mailpit host is a development default that must not leak into production.
+  SPRING_MAIL_HOST: smtp.resend.com
+  SPRING_MAIL_PORT: "465"
+
+services:
+  # The base single-container service exists for development. Renamed here so a
+  # stray `docker compose up` cannot take a name the colours own, and pushed
+  # into its own profile so `up -d edge` starts the edge and nothing else.
+  app:
+    container_name: ctt-prod-app
+    profiles: !override ["standalone"]
+
+
+  # Development companions inherited from the base file. Production uses the
+  # host's PostgreSQL and Redis (docs/production-data-isolation.md) and Resend
+  # for mail, so these must stay out even if someone runs `up` without a service
+  # name: a second database on this host would be a copy nobody backs up.
+  postgres:
+    profiles: !override ["dev-data"]
+  redis:
+    profiles: !override ["dev-data"]
+  mailpit:
+    profiles: !override ["dev-data"]
+
+  # --- the two colours --------------------------------------------------
+  # Their ports are the contract with the deployment host's Prometheus, which
+  # scrapes 127.0.0.1:8081 as slot=blue and 127.0.0.1:8082 as slot=green
+  # (deploy/observability/prometheus/prometheus.yml). The application ports are
+  # separate: green cannot be 8082 without colliding with its own management
+  # server, so it serves on 8083.
+  app-blue:
+    # The base service waits for its development companions; here they are in
+    # their own profile and must not be pulled in as dependencies.
+    depends_on: !reset []
+    extends:
+      file: docker-compose.yaml
+      service: app
+    container_name: ctt-prod-app-blue
+    network_mode: host
+    ports: !reset []
+    env_file:
+      - deploy/prod/prod.env
+    environment:
+      <<: *app-prod-env
+      SERVER_PORT: "8080"
+      APP_PORT: "8080"
+      MANAGEMENT_PORT: "8081"
+    secrets:
+      - source: db_password
+        target: DB_PASSWORD
+      - source: redis_password
+        target: REDIS_PASSWORD
+      - source: jwt_secret_key
+        target: JWT_SECRET_KEY
+      - source: oauth_token_encryption_key
+        target: OAUTH_TOKEN_ENCRYPTION_KEY
+      - source: resend_api_key
+        target: RESEND_API_KEY
+      - source: totp_encryption_key
+        target: TOTP_ENCRYPTION_KEY
+      - source: github_client_secret
+        target: GITHUB_CLIENT_SECRET
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8081/actuator/health/readiness || exit 1"]
+
+  app-green:
+    extends:
+      file: docker-compose.yaml
+      service: app
+    # A first release deploys blue, so green is opt-in until a rollback needs
+    # the other colour — and its dependencies are the same story as blue's.
+    depends_on: !reset []
+    container_name: ctt-prod-app-green
+    profiles: ["bluegreen"]
+    network_mode: host
+    ports: !reset []
+    env_file:
+      - deploy/prod/prod.env
+    environment:
+      <<: *app-prod-env
+      SERVER_PORT: "8083"
+      APP_PORT: "8083"
+      MANAGEMENT_PORT: "8082"
+    secrets:
+      - source: db_password
+        target: DB_PASSWORD
+      - source: redis_password
+        target: REDIS_PASSWORD
+      - source: jwt_secret_key
+        target: JWT_SECRET_KEY
+      - source: oauth_token_encryption_key
+        target: OAUTH_TOKEN_ENCRYPTION_KEY
+      - source: resend_api_key
+        target: RESEND_API_KEY
+      - source: totp_encryption_key
+        target: TOTP_ENCRYPTION_KEY
+      - source: github_client_secret
+        target: GITHUB_CLIENT_SECRET
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8082/actuator/health/readiness || exit 1"]
+
+  # --- the edge ---------------------------------------------------------
+  # The same image, Caddyfile and upstream directory the local and staging
+  # stacks use; only the container name, admin address and site port differ,
+  # and all three come from `deploy/prod/stack.env`.
+  edge:
+    image: caddy:latest
+    container_name: ctt-prod-edge
+    restart: unless-stopped
+    stop_grace_period: 45s
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    network_mode: host
+    ports: !reset []
+    environment:
+      CADDY_ADMIN: ${CADDY_ADMIN:-127.0.0.1:2019}
+      CADDY_SITE: ${CADDY_SITE:-:18080}
+    mem_limit: 128m
+    cpus: 0.5
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./deploy/edge/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/prod/edge-upstream:/etc/caddy-upstream:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

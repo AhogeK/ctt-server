@@ -38,6 +38,7 @@ active="$upstream_dir/active.caddy"
 edge_container=$CTT_EDGE_CONTAINER
 admin_host=$CTT_EDGE_ADMIN
 admin_url="http://$admin_host"
+read -r -a compose <<<"docker compose $CTT_COMPOSE_FILES"
 
 # What the edge is proxying to right now, read from its live configuration. An
 # empty answer means the admin endpoint did not reply, which is a different
@@ -50,14 +51,26 @@ running_upstream() {
     || true
 }
 
+# The link records the colour the edge would serve; a container is what is
+# actually serving. A link pointing at a colour with no container is a wish, and
+# reading it as a serving colour would make a release skip its first-release
+# gate and then try to roll back to something that never ran.
+ps_container() {
+  "${compose[@]}" ps -q "app-$1" 2>/dev/null | head -1
+}
+
 current_colour() {
-  local target
+  local target colour
   target="$(readlink "$active" 2>/dev/null || true)"
   case "$target" in
-    blue.caddy) echo blue ;;
-    green.caddy) echo green ;;
-    *) echo unknown ;;
+    blue.caddy) colour=blue ;;
+    green.caddy) colour=green ;;
+    *) colour=unknown ;;
   esac
+  if [ "$colour" != unknown ] && [ -z "$(ps_container "$colour")" ]; then
+    colour=unknown
+  fi
+  echo "$colour"
 }
 
 wait_ready() {

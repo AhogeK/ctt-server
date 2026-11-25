@@ -5,9 +5,13 @@
 #   ./deploy/local/release.sh green                  # the local stack
 #   ./deploy/local/on-engine.sh ./deploy/staging/release.sh green --no-jar
 #                                                    # staging, where the probes are
+#   ./deploy/prod/release.sh --next --image ghcr.io/ahogek/ctt-server@sha256:…
+#                                                    # production, the verified digest
+#   ./deploy/prod/release.sh --next --first-release --image …
+#                                                    # nothing is serving yet
 #
-# One implementation for both stacks (P3.6): the ports, the Compose files and
-# the Prometheus it reads come from the stack file named in `CTT_STACK_FILE`.
+# One implementation for every stack (P3.6, P3.8): the ports, the Compose files
+# and the Prometheus it reads come from the stack file named in `CTT_STACK_FILE`.
 #
 # The colour being replaced is the one *not* serving, so the new build starts
 # next to the live one and the switch itself is a reload (see switch-colour.sh).
@@ -27,36 +31,111 @@ cd "$(dirname "$0")/../.."
 read -r -a compose <<<"docker compose $CTT_COMPOSE_FILES"
 prometheus=$CTT_PROMETHEUS_URL
 edge=http://127.0.0.1:$CTT_EDGE_PUBLIC_PORT
+
+# Prove the colour runs the bytes the caller verified. A release that reports
+# "replaced" while the container still holds an older image is exactly the
+# failure this exists for: the window would then be judging code nobody deployed.
+assert_image() {
+  local colour=$1 ref=$2 id actual digests
+  id="$("${compose[@]}" ps -q "app-$colour" 2>/dev/null | head -1)"
+  if [ -z "$id" ]; then
+    echo "app-$colour has no container; cannot prove which image is running" >&2
+    return 1
+  fi
+  actual="$(docker inspect --format '{{.Config.Image}}' "$id")"
+  if [ "$actual" != "$ref" ]; then
+    echo "app-$colour runs $actual, not the reference the deploy job verified" >&2
+    return 1
+  fi
+  # Compose records the reference it was given; the image metadata is what shows
+  # the pulled manifest carries that digest rather than a tag resolving to it.
+  digests="$(docker image inspect --format '{{join .RepoDigests "\n"}}' "$ref")"
+  if ! printf '%s\n' "$digests" | grep -Fqx "$ref"; then
+    echo "$ref did not pull with that digest; RepoDigests lists: $digests" >&2
+    return 1
+  fi
+  echo "app-$colour runs $ref"
+}
 observe=300
 target=""
 rollback=0
+next=0
 no_build=0
 no_jar=0
+# The digest the deploy job verified. Passing it is what makes this a release of
+# signed bytes: the image is pulled by that reference, Compose runs it, and the
+# container is checked afterwards against what the caller asked for.
+image=""
+# A host that has never released has no colour the edge points at. Only an
+# explicit flag turns that into a first release; guessing it would make a broken
+# edge look like a fresh install.
+first_release=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --observe) observe=${2:?--observe needs a number of seconds}; shift 2 ;;
     --rollback) rollback=1; shift ;;
+    --next) next=1; shift ;;
     --no-build) no_build=1; shift ;;
     --no-jar) no_jar=1; shift ;;
+    --image) image=${2:?--image needs a reference with @sha256:}; no_build=1; shift 2 ;;
+    --first-release) first_release=1; shift ;;
     blue|green) target=$1; shift ;;
-    *) echo "usage: $0 blue|green [--observe SECONDS] [--no-build] [--no-jar] | --rollback [--observe SECONDS]" >&2; exit 2 ;;
+    *) echo "usage: $0 blue|green [--observe SECONDS] [--no-build] [--no-jar] [--image REF] [--first-release] | --next [--image REF] [--first-release] | --rollback [--observe SECONDS]" >&2; exit 2 ;;
   esac
 done
 
-current="$("$(dirname "$0")/switch-colour.sh" | awk '{print $1}')"
+serving="$("$(dirname "$0")/switch-colour.sh")" || { echo "cannot read which colour serves now; is the edge up?" >&2; exit 1; }
+current="${serving%% *}"
 case "$current" in
   blue|green) ;;
+  unknown)
+    # `unknown` means no release has been recorded on this host: nothing to
+    # replace, and nothing to roll back to. Both are answered below with the
+    # reason rather than with a colour that is not real.
+    if [ "$first_release" -eq 1 ] || [ "$rollback" -eq 1 ]; then
+      current=""
+    else
+      echo "cannot tell which colour serves now: $current (pass --first-release on a host that has never released)" >&2
+      exit 1
+    fi ;;
   *) echo "cannot tell which colour serves now: $current" >&2; exit 1 ;;
 esac
 
 if [ "$rollback" -eq 1 ]; then
+  if [ -n "$image" ]; then
+    echo "--rollback does not take --image: it switches to the colour that is already running" >&2
+    exit 2
+  fi
+  if [ "$next" -eq 1 ]; then
+    echo "--rollback does not take --next: a rollback goes back, not forward" >&2
+    exit 2
+  fi
+  if [ -z "$current" ]; then
+    echo "nothing is serving yet: there is no colour to roll back to" >&2
+    exit 1
+  fi
   if [ "$current" = blue ]; then target=green; else target=blue; fi
   echo "rollback: $current → $target"
+elif [ "$next" -eq 1 ]; then
+  # Which colour a release means is a rule, not a caller's guess: the one that is
+  # not serving, or blue when nothing serves yet. Keeping it here means the deploy
+  # job never learns the colour names.
+  if [ -n "$target" ]; then
+    echo "--next picks the colour; do not name one as well" >&2
+    exit 2
+  fi
+  if [ -z "$current" ]; then
+    target=blue
+  elif [ "$current" = blue ]; then
+    target=green
+  else
+    target=blue
+  fi
 elif [ -z "$target" ]; then
-  echo "usage: $0 blue|green [--observe SECONDS] [--no-build] [--no-jar] | --rollback [--observe SECONDS]" >&2
+  echo "usage: $0 blue|green [--observe SECONDS] [--no-build] [--no-jar] [--image REF] [--first-release] | --next [--image REF] [--first-release] | --rollback [--observe SECONDS]" >&2
   exit 2
-elif [ "$target" = "$current" ]; then
+elif [ -n "$current" ] && [ "$target" = "$current" ]; then
   echo "$target is already serving; release the other colour and switch to it" >&2
   exit 2
 fi
@@ -84,9 +163,20 @@ if [ "$rollback" -eq 1 ]; then
   echo "[2/4] nothing to replace"
   echo "[3/4] $target has been running its image since before the last release"
 elif [ "$no_build" -eq 1 ]; then
-  echo "[1/4] no build: the image this stack already has"
+  # --image is the production path: the deploy job verified a digest, so the
+  # colour has to run that digest and not whatever this host happens to have.
+  if [ -n "$image" ]; then
+    echo "[1/4] pulling $image"
+    docker pull "$image"
+  else
+    echo "[1/4] no build: the image this stack already has"
+  fi
   echo "[2/4] replacing $target"
-  "${compose[@]}" --profile bluegreen up -d --no-build --no-deps "app-$target"
+  if [ -n "$image" ]; then
+    IMAGE_REF="$image" "${compose[@]}" --profile bluegreen up -d --no-build --no-deps "app-$target"
+  else
+    "${compose[@]}" --profile bluegreen up -d --no-build --no-deps "app-$target"
+  fi
   echo "[3/4] waiting for $target to be ready"
 else
   # Two builds, and only one of them needs this machine: `stage-jar.sh` runs the
@@ -122,6 +212,13 @@ if [ "$rollback" -eq 0 ]; then
     sleep 3
   done
 
+  # What the window judges has to be the image the deploy job verified. This is
+  # the release's own claim, checked against Docker rather than against what the
+  # last command printed.
+  if [ -n "$image" ]; then
+    assert_image "$target" "$image"
+  fi
+
   # One request through the application port, before waiting on Prometheus. The
   # `http_server_requests` timer is registered by Micrometer on the first
   # recorded request, so a colour that has just started has no series at all —
@@ -131,10 +228,10 @@ if [ "$rollback" -eq 0 ]; then
   curl -sf -o /dev/null "http://127.0.0.1:$port/ctt-server/api/v1/config/public" || true
 fi
 
-# The window computes rates from the target slot, and a rate needs two scrapes:
-# a container that started seconds ago has one sample, so the first window
-# sample would read as "no data" and fail a release that is in fact fine. Wait
-# for the series here instead of relaxing the emptiness check inside the window.
+# The window computes rates from the target slot, and a rate needs two scrapes: a
+# container that started seconds ago has one sample, so the first window sample
+# would read as "no data" and fail a release that is in fact fine. Wait for the
+# series here instead of relaxing the emptiness check inside the window.
 series_deadline=$((SECONDS + 120))
 until [ -n "$(query "$(printf 'count(rate(http_server_requests_seconds_count{job="ctt-server",slot="%s"}[1m]))' "$target")")" ]; do
   if [ "$SECONDS" -ge "$series_deadline" ]; then

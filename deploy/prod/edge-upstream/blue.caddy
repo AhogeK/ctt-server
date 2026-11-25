@@ -1,0 +1,27 @@
+# Edge upstream: the blue colour in production.
+#
+# The site block imports `active.caddy`, a symlink to one of the files in this
+# directory, so moving traffic between colours is a config reload rather than a
+# restart of the process that holds the connections. `switch-colour.sh` repoints
+# the symlink and reloads; the old configuration keeps serving until the new one
+# is accepted, and a rejected one changes nothing.
+#
+# The same headers and timeouts as the local and staging stacks: the edge the
+# release was rehearsed behind has to be the edge production runs.
+reverse_proxy 127.0.0.1:8080 {
+	# TLS terminates at the access host, so this request is plain HTTP even
+	# though the caller used HTTPS. Caddy would otherwise set the header to its
+	# own scheme (http) and the application would treat an HTTPS request as
+	# insecure — non-Secure cookies, http-only links. This assumes nothing but
+	# the edge can reach :18080; to exercise the insecure branch on purpose,
+	# call the colour port directly.
+	header_up X-Forwarded-Proto https
+
+	# Keep the client address chain honest: Caddy appends the immediate peer to
+	# X-Forwarded-For, and the application reads the chain right-to-left while
+	# skipping the proxies it trusts.
+	transport http {
+		dial_timeout 5s
+		response_header_timeout 30s
+	}
+}

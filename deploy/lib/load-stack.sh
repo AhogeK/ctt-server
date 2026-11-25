@@ -38,6 +38,18 @@ for required in CTT_COMPOSE_FILES CTT_EDGE_CONTAINER CTT_EDGE_PUBLIC_PORT CTT_ED
   fi
 done
 
+# The edge imports the active link, so it must exist before the edge starts; a
+# fresh host has the two variants and no choice made yet. Blue is the colour a
+# first release deploys, and the release moves the link from there. The link
+# alone does not make a colour "serving" — that is decided by whether a container
+# runs, which is what switch-colour.sh reports.
+seed_upstream() {
+  if [ ! -e "$CTT_UPSTREAM_DIR/active.caddy" ]; then
+    echo "seeding the upstream choice: blue"
+    ln -sfn blue.caddy "$CTT_UPSTREAM_DIR/active.caddy"
+  fi
+}
+
 # The colour → port map is here because every script that asks "which colour
 # serves, and where does it answer" needs the same two answers, and a copy per
 # script is how the two drift apart.
