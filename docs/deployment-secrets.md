@@ -31,7 +31,12 @@ uses the host database, not the Compose container, and no `FRP_TOKEN` because th
 infrastructure shared by every stack on that host and is stored once. The production payload also
 carries `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, the paging bot's credentials and its single
 destination chat; the development payload has neither, and the renderer writes both files empty there so
-the Alertmanager mounts stay valid. Edit either file with
+the Alertmanager mounts stay valid.
+
+The production stack (`deploy/prod/`) adds two keys the production profile requires and the
+payload does not carry yet: `TOTP_ENCRYPTION_KEY` and `GITHUB_CLIENT_SECRET`. Until they are
+added, `ProductionConfigurationGuard` rejects the start and names both, which is why the deploy
+job checks the rendered files before it replaces a colour. Edit either payload with
 `sops deploy/secrets/secrets.enc.yaml` or `sops deploy/secrets/secrets.prod.enc.yaml`.
 
 One constraint remains: the Redis password is **shared by every database on the instance**. Redis

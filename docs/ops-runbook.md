@@ -138,15 +138,29 @@ The deploy job ships a digest the publish workflow signed. It verifies before it
 starts anything, and it never builds on the host: a host build would be an image
 no one signed, which is the case this check exists to exclude.
 
+The release itself is `deploy/lib/release.sh`, the implementation the laptop and
+the staging stack run. On the deployment host it replaces the colour that is not
+serving, switches the edge to it, watches a window that can send traffic back,
+and leaves the previous colour running — so a rollback is a switch, not a
+deploy. The production stack (`deploy/prod/`) supplies only the overlay, the
+upstream variants and the deployment facts; see its README for the layout.
+
 ```bash
 # The digest is printed by the publish run and pinned in the deploy job.
 IMAGE=ghcr.io/ahogek/ctt-server@sha256:<digest>
 
 deploy/verify-image.sh "$IMAGE"     # signature + provenance, identity pinned
-docker pull "$IMAGE"
 
-IMAGE_REF="$IMAGE" docker compose up -d --no-build app
+# --next releases the colour that is not serving. --image pulls that digest and
+# refuses to go on unless the new container is running exactly it.
+./deploy/prod/release.sh --next --image "$IMAGE" --observe 300
 ```
+
+On a host that has never released, `./deploy/prod/release.sh --next
+--first-release --image "$IMAGE"` says so explicitly. "Nothing is serving" is
+read from the running containers, not from the symlink: a host whose edge points
+at a colour that has no container is the same fact as an edge that never
+started, and guessing would turn either into a release that accepts traffic.
 
 Pulling a private package needs a registry credential; the deploy job takes it
 from the Jenkins credential `ctt-ghcr-registry` (username plus a token with
@@ -165,12 +179,17 @@ tag instead of a digest — and `1` when the signature or the attestation does n
 match this repository's publish workflow. Both are deployment blockers; neither
 is a warning to look at later.
 
-Rolling back is the same command with the previous digest. Tags are not a
-rollback target: `latest` moves with every release, and a tag that names a
-commit can name a different build of that commit, so a rollback that names
-either can land on the build you were rolling back from. The release tag
-`X.Y.Z` names the released image; the digest the publish run printed names it
-exactly.
+Rolling back is a switch to the colour that is still running the previous image:
+
+```bash
+./deploy/prod/release.sh --rollback
+```
+
+Tags are not a rollback target: `latest` moves with every release, and a tag
+that names a commit can name a different build of that commit, so a rollback
+that names either can land on the build you were rolling back from. The release
+tag `X.Y.Z` names the released image; the digest the publish run printed names
+it exactly.
 
 If verification fails on a digest that used to pass, treat the registry or the
 signing identity as suspect before touching the host: re-run
@@ -448,14 +467,15 @@ the working tree, so a replaced version would be rebuilt from the current tree;
 the digest-pinned release in Deploying a signed image is what closes that gap in
 production.
 
-The scripts are shared with the local stack: `deploy/lib/switch-colour.sh` and
+The scripts are shared across stacks: `deploy/lib/switch-colour.sh` and
 `deploy/lib/release.sh` read every stack-specific value from a stack file
-(`deploy/local/stack.env`, `deploy/staging/stack.env`), and the wrappers in each
-directory only name the stack. A third stack is a new `stack.env` plus a Compose
-overlay, not a copy of either script.
+(`deploy/local/stack.env`, `deploy/staging/stack.env`, `deploy/prod/stack.env`),
+and the wrappers in each directory only name the stack. A fourth environment is
+a new `stack.env` plus a Compose overlay, not a copy of either script.
 
 The restore drill is destructive by design and refuses to run without `--yes`;
-it only ever reaches volumes whose names carry `ctt-staging`.
+it also refuses any database container whose name does not start with `ctt-stg-`,
+which is what keeps it on staging — it drops a schema, not a volume.
 
 ## Related
 
