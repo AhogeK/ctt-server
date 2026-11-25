@@ -3,7 +3,7 @@
 # Same block as `blue.caddy`, different port — the pair exists so the switch is
 # a look at one file, not a computed port. Keep the two in step: anything one
 # upstream needs, the other needs as well.
-reverse_proxy 127.0.0.1:8083 {
+reverse_proxy 127.0.0.1:8093 {
 	# TLS terminates at the access host, so this request is plain HTTP even
 	# though the caller used HTTPS. Caddy would otherwise set the header to its
 	# own scheme (http) and the application would treat an HTTPS request as
