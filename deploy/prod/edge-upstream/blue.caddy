@@ -8,7 +8,7 @@
 #
 # The same headers and timeouts as the local and staging stacks: the edge the
 # release was rehearsed behind has to be the edge production runs.
-reverse_proxy 127.0.0.1:8080 {
+reverse_proxy 127.0.0.1:8090 {
 	# TLS terminates at the access host, so this request is plain HTTP even
 	# though the caller used HTTPS. Caddy would otherwise set the header to its
 	# own scheme (http) and the application would treat an HTTPS request as
